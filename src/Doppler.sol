@@ -53,6 +53,10 @@ contract Doppler is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        if (block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength == uint256(state.lastEpoch)) {
+            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
