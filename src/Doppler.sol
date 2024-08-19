@@ -20,8 +20,7 @@ contract Doppler is BaseHook {
     // TODO: consider whether this needs to be public
     State public state;
 
-    // TODO: totalLiquidity?
-    uint256 immutable startingLiquidity; // starting amount of tokens to be sold
+    uint256 immutable numTokensToSell; // total amount of tokens to be sold
     uint256 immutable startingTime; // sale start time
     uint256 immutable endingTime; // sale end time
     int24 immutable startingTick; // dutch auction starting tick
@@ -31,7 +30,7 @@ contract Doppler is BaseHook {
 
     constructor(
         IPoolManager _poolManager,
-        uint256 _startingLiquidity,
+        uint256 _numTokensToSell,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -39,7 +38,7 @@ contract Doppler is BaseHook {
         uint256 _epochLength,
         uint256 _gamma
     ) BaseHook(_poolManager) {
-        startingLiquidity = _startingLiquidity;
+        numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
         endingTime = _endingTime;
         startingTick = _startingTick;
@@ -54,6 +53,7 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength == uint256(state.lastEpoch)) {
+            // TODO: consider whether there's any logic we wanna run regardless
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
