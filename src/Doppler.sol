@@ -52,14 +52,26 @@ contract Doppler is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength == uint256(state.lastEpoch)) {
+        if (
+            block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength == uint256(state.lastEpoch)
+        ) {
             // TODO: consider whether there's any logic we wanna run regardless
+
+            // TODO: Should there be a fee?
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
         state.lastEpoch = uint40((block.timestamp - startingTime) / epochLength);
 
+        uint256 totalTokensSold_ = state.totalTokensSold;
+        uint256 expectedAmountSold = getExpectedAmountSold();
+
+        // TODO: Should there be a fee?
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+    }
+
+    function getExpectedAmountSold() internal view returns (uint256) {
+        return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
