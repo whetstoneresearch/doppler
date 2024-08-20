@@ -51,6 +51,7 @@ contract Doppler is BaseHook {
         isToken0 = _isToken0;
     }
 
+    // TODO: Add authorization logic
     function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
@@ -74,6 +75,7 @@ contract Doppler is BaseHook {
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
+    // TODO: Add authorization logic
     function afterSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, BalanceDelta swapDelta, bytes calldata)
         external
         override
