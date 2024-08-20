@@ -6,7 +6,7 @@ import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager
 import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 
 contract Doppler is BaseHook {
     // TODO: consider if we can use smaller uints
@@ -28,6 +28,7 @@ contract Doppler is BaseHook {
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
     uint256 immutable gamma; // 1.0001 ** (gamma) = max single block increase
+    bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
         IPoolManager _poolManager,
@@ -37,7 +38,8 @@ contract Doppler is BaseHook {
         int24 _startingTick,
         int24 _endingTick,
         uint256 _epochLength,
-        uint256 _gamma
+        uint256 _gamma,
+        bool _isToken0
     ) BaseHook(_poolManager) {
         numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
@@ -46,6 +48,7 @@ contract Doppler is BaseHook {
         endingTick = _endingTick;
         epochLength = _epochLength;
         gamma = _gamma;
+        isToken0 = _isToken0;
     }
 
     function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
@@ -71,12 +74,22 @@ contract Doppler is BaseHook {
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
-    function afterSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, BalanceDelta, bytes calldata)
+    function afterSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, BalanceDelta swapDelta, bytes calldata)
         external
         override
         returns (bytes4, int128)
     {
-        
+        if (isToken0) {
+            int128 amount = swapDelta.amount0();
+            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
+            amount >= 0 ? state.totalTokensSold -= uint256(uint128(amount)) : state.totalTokensSold += uint256(uint128(-amount));
+        } else {
+            int128 amount = swapDelta.amount1();
+            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
+            amount >= 0 ? state.totalTokensSold -= uint256(uint128(amount)) : state.totalTokensSold += uint256(uint128(-amount));
+        }
+
+        return (BaseHook.afterSwap.selector, 0);
     }
 
     function getExpectedAmountSold() internal view returns (uint256) {
