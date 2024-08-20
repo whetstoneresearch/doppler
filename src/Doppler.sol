@@ -70,6 +70,11 @@ contract Doppler is BaseHook {
 
         uint256 totalTokensSold_ = state.totalTokensSold;
         uint256 expectedAmountSold = getExpectedAmountSold();
+        uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
+        
+        state.totalTokensSoldLastEpoch = totalTokensSold_;
+
+        
 
         // TODO: Should there be a fee?
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -96,6 +101,11 @@ contract Doppler is BaseHook {
 
     function getExpectedAmountSold() internal view returns (uint256) {
         return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
+    }
+
+    // Expressed as 18 decimal fixed point number
+    function getMaxTickDeltaPerEpoch() internal view returns (uint256) {
+        return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
