@@ -137,6 +137,12 @@ contract Doppler is BaseHook {
         if (accumulatorDelta != 0) {
             state.tickAccumulator = newAccumulator;
         }
+
+        // TODO: Swap to intended tick
+            // TODO: Remove in range liquidity
+            // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+        
+        
     }
 
     // TODO: consider whether it's safe to always round down
