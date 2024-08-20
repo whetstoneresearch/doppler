@@ -59,23 +59,65 @@ contract Doppler is BaseHook {
     {
         uint256 currentEpoch = (block.timestamp - startingTime) / epochLength;
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
-        if (
-            block.timestamp < startingTime || epochsPassed == 0
-        ) {
+        if (block.timestamp < startingTime || epochsPassed == 0) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        state.lastEpoch = uint40(currentEpoch);
+        _rebalance(currentEpoch, epochsPassed);
+
+        // TODO: Should there be a fee?
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+    }
+
+    // TODO: Add authorization logic
+    function afterSwap(
+        address,
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata,
+        BalanceDelta swapDelta,
+        bytes calldata
+    ) external override returns (bytes4, int128) {
+        if (isToken0) {
+            int128 amount0 = swapDelta.amount0();
+            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
+            amount0 >= 0
+                ? state.totalTokensSold -= uint256(uint128(amount0))
+                : state.totalTokensSold += uint256(uint128(-amount0));
+
+            int128 amount1 = swapDelta.amount1();
+            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
+            amount1 >= 0
+                ? state.totalProceeds += uint256(uint128(amount1))
+                : state.totalProceeds -= uint256(uint128(-amount1));
+        } else {
+            int128 amount1 = swapDelta.amount1();
+            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
+            amount1 >= 0
+                ? state.totalTokensSold -= uint256(uint128(amount1))
+                : state.totalTokensSold += uint256(uint128(-amount1));
+
+            int128 amount0 = swapDelta.amount1();
+            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
+            amount0 >= 0
+                ? state.totalProceeds += uint256(uint128(amount0))
+                : state.totalProceeds -= uint256(uint128(-amount0));
+        }
+
+        return (BaseHook.afterSwap.selector, 0);
+    }
+
+    function _rebalance(uint256 _currentEpoch, uint256 _epochsPassed) internal {
+        state.lastEpoch = uint40(_currentEpoch);
 
         uint256 totalTokensSold_ = state.totalTokensSold;
-        uint256 expectedAmountSold = getExpectedAmountSold();
+        uint256 expectedAmountSold = _getExpectedAmountSold();
         // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
         //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
         uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
-        
+
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
         uint256 accumulatorDelta;
@@ -83,10 +125,11 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = getMaxTickDeltaPerEpoch() * epochsPassed;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * _epochsPassed;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = getMaxTickDeltaPerEpoch() * epochsPassed * (1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * _epochsPassed
+                * (1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         }
         // TODO: What if totalTokensSold_ > expectedAmountSold?
@@ -94,45 +137,15 @@ contract Doppler is BaseHook {
         if (accumulatorDelta != 0) {
             state.tickAccumulator = newAccumulator;
         }
-
-        // TODO: Should there be a fee?
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
-    }
-
-    // TODO: Add authorization logic
-    function afterSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, BalanceDelta swapDelta, bytes calldata)
-        external
-        override
-        returns (bytes4, int128)
-    {
-        if (isToken0) {
-            int128 amount0 = swapDelta.amount0();
-            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
-            amount0 >= 0 ? state.totalTokensSold -= uint256(uint128(amount0)) : state.totalTokensSold += uint256(uint128(-amount0));
-
-            int128 amount1 = swapDelta.amount1();
-            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
-            amount1 >= 0 ? state.totalProceeds += uint256(uint128(amount1)) : state.totalProceeds -= uint256(uint128(-amount1));
-        } else {
-            int128 amount1 = swapDelta.amount1();
-            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
-            amount1 >= 0 ? state.totalTokensSold -= uint256(uint128(amount1)) : state.totalTokensSold += uint256(uint128(-amount1));
-
-            int128 amount0 = swapDelta.amount1();
-            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
-            amount0 >= 0 ? state.totalProceeds += uint256(uint128(amount0)) : state.totalProceeds -= uint256(uint128(-amount0));
-        }
-
-        return (BaseHook.afterSwap.selector, 0);
     }
 
     // TODO: consider whether it's safe to always round down
-    function getExpectedAmountSold() internal view returns (uint256) {
+    function _getExpectedAmountSold() internal view returns (uint256) {
         return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
     }
 
     // TODO: consider whether it's safe to always round down
-    function getMaxTickDeltaPerEpoch() internal view returns (uint256) {
+    function _getMaxTickDeltaPerEpoch() internal view returns (uint256) {
         return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength / 1e18;
     }
 
