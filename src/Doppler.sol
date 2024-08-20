@@ -72,6 +72,8 @@ contract Doppler is BaseHook {
 
         uint256 totalTokensSold_ = state.totalTokensSold;
         uint256 expectedAmountSold = getExpectedAmountSold();
+        // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
+        //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
         uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
         
         state.totalTokensSoldLastEpoch = totalTokensSold_;
@@ -80,6 +82,7 @@ contract Doppler is BaseHook {
         uint256 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
+            // TODO: consider whether we actually wanna multiply by epochsPassed here
             accumulatorDelta = getMaxTickDeltaPerEpoch() * epochsPassed;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
@@ -115,11 +118,12 @@ contract Doppler is BaseHook {
         return (BaseHook.afterSwap.selector, 0);
     }
 
+    // TODO: consider whether it's safe to always round down
     function getExpectedAmountSold() internal view returns (uint256) {
         return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
     }
 
-    // Expressed as 18 decimal fixed point number
+    // TODO: consider whether it's safe to always round down
     function getMaxTickDeltaPerEpoch() internal view returns (uint256) {
         return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength / 1e18;
     }
