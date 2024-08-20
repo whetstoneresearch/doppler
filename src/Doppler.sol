@@ -57,8 +57,10 @@ contract Doppler is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength;
+        uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
         if (
-            block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength == uint256(state.lastEpoch)
+            block.timestamp < startingTime || epochsPassed == 0
         ) {
             // TODO: consider whether there's any logic we wanna run regardless
 
@@ -66,7 +68,7 @@ contract Doppler is BaseHook {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        state.lastEpoch = uint40((block.timestamp - startingTime) / epochLength);
+        state.lastEpoch = uint40(currentEpoch);
 
         uint256 totalTokensSold_ = state.totalTokensSold;
         uint256 expectedAmountSold = getExpectedAmountSold();
@@ -74,7 +76,21 @@ contract Doppler is BaseHook {
         
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        
+        uint256 accumulatorDelta;
+        uint256 newAccumulator;
+        // Possible if no tokens purchased or tokens are sold back into the pool
+        if (netSold <= 0) {
+            accumulatorDelta = getMaxTickDeltaPerEpoch() * epochsPassed;
+            newAccumulator = state.tickAccumulator + accumulatorDelta;
+        } else if (totalTokensSold_ <= expectedAmountSold) {
+            accumulatorDelta = getMaxTickDeltaPerEpoch() * epochsPassed * (1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            newAccumulator = state.tickAccumulator + accumulatorDelta;
+        }
+        // TODO: What if totalTokensSold_ > expectedAmountSold?
+
+        if (accumulatorDelta != 0) {
+            state.tickAccumulator = newAccumulator;
+        }
 
         // TODO: Should there be a fee?
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -105,7 +121,7 @@ contract Doppler is BaseHook {
 
     // Expressed as 18 decimal fixed point number
     function getMaxTickDeltaPerEpoch() internal view returns (uint256) {
-        return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength;
+        return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength / 1e18;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
