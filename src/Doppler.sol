@@ -14,7 +14,7 @@ contract Doppler is BaseHook {
         uint256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
-        uint256 soldInLatestEpoch; // amount of tokens sold in the latest epoch
+        uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
     }
 
     // TODO: consider whether this needs to be public
