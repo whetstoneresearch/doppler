@@ -106,13 +106,21 @@ contract Doppler is BaseHook {
         returns (bytes4, int128)
     {
         if (isToken0) {
-            int128 amount = swapDelta.amount0();
+            int128 amount0 = swapDelta.amount0();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
-            amount >= 0 ? state.totalTokensSold -= uint256(uint128(amount)) : state.totalTokensSold += uint256(uint128(-amount));
+            amount0 >= 0 ? state.totalTokensSold -= uint256(uint128(amount0)) : state.totalTokensSold += uint256(uint128(-amount0));
+
+            int128 amount1 = swapDelta.amount1();
+            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
+            amount1 >= 0 ? state.totalProceeds += uint256(uint128(amount1)) : state.totalProceeds -= uint256(uint128(-amount1));
         } else {
-            int128 amount = swapDelta.amount1();
+            int128 amount1 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
-            amount >= 0 ? state.totalTokensSold -= uint256(uint128(amount)) : state.totalTokensSold += uint256(uint128(-amount));
+            amount1 >= 0 ? state.totalTokensSold -= uint256(uint128(amount1)) : state.totalTokensSold += uint256(uint128(-amount1));
+
+            int128 amount0 = swapDelta.amount1();
+            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
+            amount0 >= 0 ? state.totalProceeds += uint256(uint128(amount0)) : state.totalProceeds -= uint256(uint128(-amount0));
         }
 
         return (BaseHook.afterSwap.selector, 0);
