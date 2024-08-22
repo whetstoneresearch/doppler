@@ -109,6 +109,17 @@ contract Doppler is BaseHook {
         return (BaseHook.afterSwap.selector, 0);
     }
 
+    function beforeAddLiquidity(address _caller, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata)
+        external
+        view
+        override
+        returns (bytes4)
+    {
+        if (_caller != address(this)) revert Unauthorized();
+
+        return BaseHook.beforeAddLiquidity.selector;
+    }
+
     function _rebalance(uint256 _currentEpoch, uint256 _epochsPassed) internal {
         state.lastEpoch = uint40(_currentEpoch);
 
@@ -142,7 +153,7 @@ contract Doppler is BaseHook {
             // TODO: Remove in range liquidity
             // TODO: Flip a flag to prevent this swap from hitting beforeSwap
         
-        
+
     }
 
     // TODO: consider whether it's safe to always round down
@@ -159,7 +170,7 @@ contract Doppler is BaseHook {
         return Hooks.Permissions({
             beforeInitialize: false,
             afterInitialize: false,
-            beforeAddLiquidity: false,
+            beforeAddLiquidity: true,
             beforeRemoveLiquidity: false,
             afterAddLiquidity: false,
             afterRemoveLiquidity: false,
@@ -174,3 +185,5 @@ contract Doppler is BaseHook {
         });
     }
 }
+
+error Unauthorized();
