@@ -1,5 +1,5 @@
 // TODO: Add license
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
