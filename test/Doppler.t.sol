@@ -121,7 +121,7 @@ contract DopplerTest is Test, Deployers {
 
     function testBeforeSwap_DoesNotRebalanceTwiceInSameEpoch() public {
         for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime() + 1); // 1 second after the start time
+            vm.warp(dopplers[i].getStartingTime());
 
             PoolKey memory poolKey = keys[i];
 
@@ -174,7 +174,7 @@ contract DopplerTest is Test, Deployers {
 
     function testBeforeSwap_UpdatesLastEpoch() public {
         for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime() + 1); // 1 second after the start time
+            vm.warp(dopplers[i].getStartingTime());
 
             PoolKey memory poolKey = keys[i];
 
@@ -198,7 +198,7 @@ contract DopplerTest is Test, Deployers {
 
             assertEq(lastEpoch, 1);
 
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength() + 1); // 1 second into the next epoch
+            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength()); // Next epoch
 
             (selector, delta, fee) = dopplers[i].beforeSwap(
                 address(this),
