@@ -21,14 +21,19 @@ contract DopplerTest is Test, Deployers {
 
     TestERC20 token0;
     TestERC20 token1;
-    DopplerImplementation doppler = DopplerImplementation(
+    DopplerImplementation doppler0 = DopplerImplementation(
         address(uint160(
             Hooks.BEFORE_ADD_LIQUIDITY_FLAG | 
             Hooks.BEFORE_SWAP_FLAG | 
             Hooks.AFTER_SWAP_FLAG
         ))
     );
-    PoolId id;
+    PoolKey key0;
+    PoolId id0;
+
+    DopplerImplementation[] dopplers;
+    PoolKey[] keys;
+    PoolId[] ids;
 
     function setUp() public {
         token0 = new TestERC20(2**128);
@@ -41,28 +46,34 @@ contract DopplerTest is Test, Deployers {
         manager = new PoolManager(500000);
 
         vm.record();
-        DopplerImplementation impl =
+        DopplerImplementation impl0 =
             new DopplerImplementation(
                 manager, 
                 // TODO: Add params here
-                doppler
+                doppler0
             );
-        (, bytes32[] memory writes) = vm.accesses(address(impl));
-        vm.etch(address(doppler), address(impl).code);
+        (, bytes32[] memory writes) = vm.accesses(address(impl0));
+        vm.etch(address(doppler0), address(impl0).code);
         // for each storage key that was written during the hook implementation, copy the value over
         unchecked {
             for (uint256 i = 0; i < writes.length; i++) {
                 bytes32 slot = writes[i];
-                vm.store(address(doppler), slot, vm.load(address(impl), slot));
+                vm.store(address(doppler0), slot, vm.load(address(impl0), slot));
             }
         }
-        key = PoolKey(
+        key0 = PoolKey(
             Currency.wrap(address(token0)),
             Currency.wrap(address(token1)),
             0,
             MIN_TICK_SPACING,
-            IHooks(address(impl))
+            IHooks(address(impl0))
         );
-        id = key.toId();
+        id0 = key.toId();
+
+        // TODO: Add more variations of doppler implementations
+
+        dopplers.push(doppler0);
+        keys.push(key0);
+        ids.push(id0);
     }
 }
