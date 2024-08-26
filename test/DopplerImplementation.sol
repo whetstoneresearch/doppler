@@ -42,11 +42,23 @@ contract DopplerImplementation is Doppler {
         return startingTime;
     }
 
+    function getEndingTime() public view returns (uint256) {
+        return endingTime;
+    }
+
     function getEpochLength() public view returns (uint256) {
         return epochLength;
     }
 
     function getIsToken0() public view returns (bool) {
         return isToken0;
+    }
+
+    function getNumTokensToSell() public view returns (uint256) {
+        return numTokensToSell;
+    }
+
+    function getExpectedAmountSold() public view returns (uint256) {
+        return _getExpectedAmountSold();
     }
 }
