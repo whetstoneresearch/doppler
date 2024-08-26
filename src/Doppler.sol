@@ -57,16 +57,14 @@ contract Doppler is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength;
-        uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
-        if (block.timestamp < startingTime || epochsPassed == 0) {
+        if (block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength <= uint256(state.lastEpoch)) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        _rebalance(currentEpoch, epochsPassed);
+        _rebalance();
 
         // TODO: Should there be a fee?
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -120,8 +118,11 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
-    function _rebalance(uint256 _currentEpoch, uint256 _epochsPassed) internal {
-        state.lastEpoch = uint40(_currentEpoch);
+    function _rebalance() internal {
+        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength;
+        uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
+
+        state.lastEpoch = uint40(currentEpoch);
 
         uint256 totalTokensSold_ = state.totalTokensSold;
         uint256 expectedAmountSold = _getExpectedAmountSold();
@@ -136,10 +137,10 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * _epochsPassed;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * epochsPassed;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * _epochsPassed
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * epochsPassed
                 * (1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         }
