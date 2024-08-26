@@ -45,11 +45,20 @@ contract DopplerTest is Test, Deployers {
 
         manager = new PoolManager(500000);
 
+        vm.warp(1000);
+
         vm.record();
         DopplerImplementation impl0 =
             new DopplerImplementation(
-                manager, 
-                // TODO: Add params here
+                address(manager), 
+                100_000e18,
+                1_500, // 500 seconds from now
+                1_500 + 86_400, // 1 day from the start time
+                -100_000,
+                -200_000,
+                50,
+                1_000,
+                true, // TODO: Make sure it's consistent with the tick direction
                 doppler0
             );
         (, bytes32[] memory writes) = vm.accesses(address(impl0));

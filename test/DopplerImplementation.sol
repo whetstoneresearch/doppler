@@ -8,7 +8,7 @@ import {Doppler} from "../src/Doppler.sol";
 
 contract DopplerImplementation is Doppler {
     constructor(
-        IPoolManager _poolManager, 
+        address _poolManager, 
         uint256 _numTokensToSell,
         uint256 _startingTime,
         uint256 _endingTime,
@@ -20,7 +20,7 @@ contract DopplerImplementation is Doppler {
         IHooks addressToEtch
     )
         Doppler(
-            _poolManager, 
+            IPoolManager(_poolManager), 
             _numTokensToSell, 
             _startingTime, 
             _endingTime, 
