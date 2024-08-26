@@ -86,7 +86,7 @@ contract DopplerTest is Test, Deployers {
         ids.push(id0);
     }
 
-    function testBeforeSwapDoesNotRebalanceBeforeStartTime() public {
+    function testBeforeSwap_DoesNotRebalanceBeforeStartTime() public {
         for (uint256 i; i < dopplers.length; ++i) {
             vm.warp(dopplers[i].getStartingTime() - 1); // 1 second before the start time
 
@@ -116,6 +116,59 @@ contract DopplerTest is Test, Deployers {
             assertEq(totalTokensSold, 0);
             assertEq(totalProceeds, 0);
             assertEq(totalTokensSoldLastEpoch, 0);
+        }
+    }
+
+    function testBeforeSwap_DoesNotRebalanceTwiceInSameEpoch() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            vm.warp(dopplers[i].getStartingTime() + 1); // 1 second after the start time
+
+            PoolKey memory poolKey = keys[i];
+
+            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
+
+            assertEq(selector, BaseHook.beforeSwap.selector);
+            assertEq(BeforeSwapDelta.unwrap(delta), 0);
+            assertEq(fee, 0);
+
+            (
+                uint40 lastEpoch,
+                uint256 tickAccumulator,
+                uint256 totalTokensSold,
+                uint256 totalProceeds,
+                uint256 totalTokensSoldLastEpoch
+            ) = dopplers[i].state();
+
+            (selector, delta, fee) = dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
+
+            assertEq(selector, BaseHook.beforeSwap.selector);
+            assertEq(BeforeSwapDelta.unwrap(delta), 0);
+            assertEq(fee, 0);
+
+            (
+                uint40 lastEpoch2,
+                uint256 tickAccumulator2,
+                uint256 totalTokensSold2,
+                uint256 totalProceeds2,
+                uint256 totalTokensSoldLastEpoch2
+            ) = dopplers[i].state();
+
+            // Ensure that state hasn't updated since we're still in the same epoch
+            assertEq(lastEpoch, lastEpoch2);
+            assertEq(tickAccumulator, tickAccumulator2);
+            assertEq(totalTokensSold, totalTokensSold2);
+            assertEq(totalProceeds, totalProceeds2);
+            assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
         }
     }
 }

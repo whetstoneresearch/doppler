@@ -11,7 +11,7 @@ import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/ty
 contract Doppler is BaseHook {
     // TODO: consider if we can use smaller uints
     struct State {
-        uint40 lastEpoch; // last updated epoch
+        uint40 lastEpoch; // last updated epoch (1-indexed)
         uint256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
@@ -58,7 +58,7 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (
-            block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength <= uint256(state.lastEpoch)
+            block.timestamp < startingTime || ((block.timestamp - startingTime) / epochLength + 1) <= uint256(state.lastEpoch)
         ) {
             // TODO: consider whether there's any logic we wanna run regardless
 
@@ -121,7 +121,8 @@ contract Doppler is BaseHook {
     }
 
     function _rebalance() internal {
-        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength;
+        // We increment by 1 to 1-index the epoch
+        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength + 1;
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
 
         state.lastEpoch = uint40(currentEpoch);
