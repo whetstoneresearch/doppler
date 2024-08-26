@@ -4,12 +4,15 @@ import {Test} from "forge-std/Test.sol";
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {TestERC20} from "v4-core/src/test/TestERC20.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
+import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
+import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
+import {CurrencyLibrary, Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
+import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
@@ -31,6 +34,7 @@ contract DopplerTest is Test, Deployers {
     PoolKey key0;
     PoolId id0;
 
+    // We create arrays of implementations to test multiple variations at once
     DopplerImplementation[] dopplers;
     PoolKey[] keys;
     PoolId[] ids;
@@ -77,12 +81,43 @@ contract DopplerTest is Test, Deployers {
             MIN_TICK_SPACING,
             IHooks(address(impl0))
         );
-        id0 = key.toId();
+        id0 = key0.toId();
 
         // TODO: Add more variations of doppler implementations
 
         dopplers.push(doppler0);
         keys.push(key0);
         ids.push(id0);
+    }
+
+    function testBeforeSwapDoesNotRebalanceBeforeStartTime() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            vm.warp(1499); // 1 second before the start time
+
+            PoolKey memory poolKey = keys[i];
+
+            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({
+                    zeroForOne: true,
+                    amountSpecified: 100e18,
+                    sqrtPriceLimitX96: SQRT_RATIO_2_1
+                }),
+                ""
+            );
+
+            assertEq(selector, BaseHook.beforeSwap.selector);
+            assertEq(BeforeSwapDelta.unwrap(delta), 0);
+            assertEq(fee, 0);
+
+            (uint40 lastEpoch, uint256 tickAccumulator, uint256 totalTokensSold, uint256 totalProceeds, uint256 totalTokensSoldLastEpoch) = dopplers[i].state();
+
+            assertEq(lastEpoch, 0);
+            assertEq(tickAccumulator, 0);
+            assertEq(totalTokensSold, 0);
+            assertEq(totalProceeds, 0);
+            assertEq(totalTokensSoldLastEpoch, 0);
+        }
     }
 }
