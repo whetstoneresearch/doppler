@@ -93,6 +93,7 @@ contract DopplerTest is Test, Deployers {
 
             PoolKey memory poolKey = keys[i];
 
+            vm.prank(address(manager));
             (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
@@ -126,6 +127,7 @@ contract DopplerTest is Test, Deployers {
 
             PoolKey memory poolKey = keys[i];
 
+            vm.prank(address(manager));
             (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
@@ -145,6 +147,7 @@ contract DopplerTest is Test, Deployers {
                 uint256 totalTokensSoldLastEpoch
             ) = dopplers[i].state();
 
+            vm.prank(address(manager));
             (selector, delta, fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
@@ -179,6 +182,7 @@ contract DopplerTest is Test, Deployers {
 
             PoolKey memory poolKey = keys[i];
 
+            vm.prank(address(manager));
             (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
@@ -201,6 +205,7 @@ contract DopplerTest is Test, Deployers {
 
             vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength()); // Next epoch
 
+            vm.prank(address(manager));
             (selector, delta, fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
@@ -239,6 +244,7 @@ contract DopplerTest is Test, Deployers {
             bytes4 selector;
             int128 hookDelta;
             if (dopplers[i].getIsToken0()) {
+                vm.prank(address(manager));
                 (selector, hookDelta) = dopplers[i].afterSwap(
                     address(this),
                     poolKey,
@@ -247,6 +253,7 @@ contract DopplerTest is Test, Deployers {
                     ""
                 );
             } else {
+                vm.prank(address(manager));
                 (selector, hookDelta) = dopplers[i].afterSwap(
                     address(this),
                     poolKey,
@@ -264,6 +271,7 @@ contract DopplerTest is Test, Deployers {
             assertEq(initialTotalTokensSold, uint256(uint128(type(int128).max)));
             assertEq(initialTotalProceeds, uint256(uint128(type(int128).max)));
 
+            vm.prank(address(manager));
             (selector, hookDelta) = dopplers[i].afterSwap(
                 address(this),
                 poolKey,

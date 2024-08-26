@@ -53,11 +53,16 @@ contract Doppler is BaseHook {
         isToken0 = _isToken0;
     }
 
-    // TODO: Add authorization logic
+    modifier onlyPoolManager() {
+        if (msg.sender != address(poolManager)) revert Unauthorized();
+        _;
+    }
+
     // TODO: consider reverting if after end time
     function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
+        onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (
@@ -75,14 +80,13 @@ contract Doppler is BaseHook {
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
-    // TODO: Add authorization logic
     function afterSwap(
         address,
         PoolKey calldata,
         IPoolManager.SwapParams calldata,
         BalanceDelta swapDelta,
         bytes calldata
-    ) external override returns (bytes4, int128) {
+    ) external override onlyPoolManager returns (bytes4, int128) {
         if (isToken0) {
             int128 amount0 = swapDelta.amount0();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
