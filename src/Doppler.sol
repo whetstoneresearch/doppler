@@ -72,7 +72,8 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (
-            block.timestamp < startingTime || ((block.timestamp - startingTime) / epochLength + 1) <= uint256(state.lastEpoch)
+            block.timestamp < startingTime
+                || ((block.timestamp - startingTime) / epochLength + 1) <= uint256(state.lastEpoch)
         ) {
             // TODO: consider whether there's any logic we wanna run regardless
 

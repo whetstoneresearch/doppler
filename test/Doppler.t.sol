@@ -199,12 +199,7 @@ contract DopplerTest is Test, Deployers {
             assertEq(BeforeSwapDelta.unwrap(delta), 0);
             assertEq(fee, 0);
 
-            (
-                uint40 lastEpoch,
-                ,
-                ,
-                ,
-            ) = dopplers[i].state();
+            (uint40 lastEpoch,,,,) = dopplers[i].state();
 
             assertEq(lastEpoch, 1);
 
@@ -222,12 +217,7 @@ contract DopplerTest is Test, Deployers {
             assertEq(BeforeSwapDelta.unwrap(delta), 0);
             assertEq(fee, 0);
 
-            (
-                lastEpoch,
-                ,
-                ,
-                ,
-            ) = dopplers[i].state();
+            (lastEpoch,,,,) = dopplers[i].state();
 
             assertEq(lastEpoch, 2);
         }
@@ -279,13 +269,7 @@ contract DopplerTest is Test, Deployers {
             assertEq(BeforeSwapDelta.unwrap(delta), 0);
             assertEq(fee, 0);
 
-            (
-                ,
-                ,
-                uint256 totalTokensSold,
-                ,
-                uint256 totalTokensSoldLastEpoch
-            ) = dopplers[i].state();
+            (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = dopplers[i].state();
 
             assertEq(totalTokensSold, 100e18);
             assertEq(totalTokensSoldLastEpoch, 100e18);
@@ -299,10 +283,7 @@ contract DopplerTest is Test, Deployers {
     function testAfterSwap_CorrectlyTracksTokensSoldAndProceeds(int128 amount0, int128 amount1) public {
         // Since we below initialize the values to type(int128).max, we need to ensure that the minimum
         // value used is strictly greater than type(int128).min because type(int128).min is -(type(int128).max + 1)
-        vm.assume(
-            amount0 > type(int128).min && 
-            amount1 > type(int128).min
-        );
+        vm.assume(amount0 > type(int128).min && amount1 > type(int128).min);
 
         for (uint256 i; i < dopplers.length; ++i) {
             PoolKey memory poolKey = keys[i];
@@ -316,7 +297,11 @@ contract DopplerTest is Test, Deployers {
                 (selector, hookDelta) = dopplers[i].afterSwap(
                     address(this),
                     poolKey,
-                    IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                    IPoolManager.SwapParams({
+                        zeroForOne: true,
+                        amountSpecified: 100e18,
+                        sqrtPriceLimitX96: SQRT_RATIO_2_1
+                    }),
                     toBalanceDelta(-type(int128).max, type(int128).max),
                     ""
                 );
@@ -325,7 +310,11 @@ contract DopplerTest is Test, Deployers {
                 (selector, hookDelta) = dopplers[i].afterSwap(
                     address(this),
                     poolKey,
-                    IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                    IPoolManager.SwapParams({
+                        zeroForOne: true,
+                        amountSpecified: 100e18,
+                        sqrtPriceLimitX96: SQRT_RATIO_2_1
+                    }),
                     toBalanceDelta(type(int128).max, -type(int128).max),
                     ""
                 );
@@ -334,7 +323,7 @@ contract DopplerTest is Test, Deployers {
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
 
-            (, , uint256 initialTotalTokensSold, uint256 initialTotalProceeds, ) = dopplers[i].state();
+            (,, uint256 initialTotalTokensSold, uint256 initialTotalProceeds,) = dopplers[i].state();
 
             assertEq(initialTotalTokensSold, uint256(uint128(type(int128).max)));
             assertEq(initialTotalProceeds, uint256(uint128(type(int128).max)));
@@ -351,7 +340,7 @@ contract DopplerTest is Test, Deployers {
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
 
-            (, , uint256 totalTokensSold, uint256 totalProceeds, ) = dopplers[i].state();
+            (,, uint256 totalTokensSold, uint256 totalProceeds,) = dopplers[i].state();
 
             if (dopplers[i].getIsToken0()) {
                 // If is token0 then amount0 references the (inverse) amount of tokens sold
@@ -420,7 +409,12 @@ contract DopplerTest is Test, Deployers {
             dopplers[i].beforeAddLiquidity(
                 address(this),
                 poolKey,
-                IPoolManager.ModifyLiquidityParams({tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)}),
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: -100_000,
+                    tickUpper: 100_000,
+                    liquidityDelta: 100e18,
+                    salt: bytes32(0)
+                }),
                 ""
             );
         }
@@ -434,7 +428,12 @@ contract DopplerTest is Test, Deployers {
             bytes4 selector = dopplers[i].beforeAddLiquidity(
                 address(dopplers[i]),
                 poolKey,
-                IPoolManager.ModifyLiquidityParams({tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)}),
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: -100_000,
+                    tickUpper: 100_000,
+                    liquidityDelta: 100e18,
+                    salt: bytes32(0)
+                }),
                 ""
             );
 
@@ -451,7 +450,12 @@ contract DopplerTest is Test, Deployers {
             dopplers[i].beforeAddLiquidity(
                 address(0xBEEF),
                 poolKey,
-                IPoolManager.ModifyLiquidityParams({tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)}),
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: -100_000,
+                    tickUpper: 100_000,
+                    liquidityDelta: 100e18,
+                    salt: bytes32(0)
+                }),
                 ""
             );
         }
@@ -464,13 +468,19 @@ contract DopplerTest is Test, Deployers {
     function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint24 timestamp) public {
         vm.assume(timestamp >= dopplers[0].getStartingTime());
         vm.assume(timestamp <= dopplers[0].getEndingTime());
-        
+
         for (uint256 i; i < dopplers.length; ++i) {
             vm.warp(timestamp);
 
             uint256 expectedAmountSold = dopplers[i].getExpectedAmountSold();
 
-            assertApproxEqAbs(timestamp, dopplers[i].getStartingTime() + (expectedAmountSold * 1e18 / dopplers[i].getNumTokensToSell()) * (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) / 1e18, 1);
+            assertApproxEqAbs(
+                timestamp,
+                dopplers[i].getStartingTime()
+                    + (expectedAmountSold * 1e18 / dopplers[i].getNumTokensToSell())
+                        * (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) / 1e18,
+                1
+            );
         }
     }
 }
