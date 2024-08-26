@@ -112,7 +112,7 @@ contract DopplerTest is Test, Deployers {
 
             (
                 uint40 lastEpoch,
-                uint256 tickAccumulator,
+                int256 tickAccumulator,
                 uint256 totalTokensSold,
                 uint256 totalProceeds,
                 uint256 totalTokensSoldLastEpoch
@@ -146,7 +146,7 @@ contract DopplerTest is Test, Deployers {
 
             (
                 uint40 lastEpoch,
-                uint256 tickAccumulator,
+                int256 tickAccumulator,
                 uint256 totalTokensSold,
                 uint256 totalProceeds,
                 uint256 totalTokensSoldLastEpoch
@@ -166,7 +166,7 @@ contract DopplerTest is Test, Deployers {
 
             (
                 uint40 lastEpoch2,
-                uint256 tickAccumulator2,
+                int256 tickAccumulator2,
                 uint256 totalTokensSold2,
                 uint256 totalProceeds2,
                 uint256 totalTokensSoldLastEpoch2
