@@ -16,6 +16,7 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/
 import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 
+import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
 contract DopplerTest is Test, Deployers {
@@ -228,6 +229,21 @@ contract DopplerTest is Test, Deployers {
         }
     }
 
+    error Unauthorized();
+    function testBeforeSwap_revertsIfNotPoolManager() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            PoolKey memory poolKey = keys[i];
+
+            vm.expectRevert(Unauthorized.selector);
+            dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
+        }
+    }
+
     function testAfterSwap_CorrectlyTracksTokensSoldAndProceeds(int128 amount0, int128 amount1) public {
         // Since we below initialize the values to type(int128).max, we need to ensure that the minimum
         // value used is strictly greater than type(int128).min because type(int128).min is -(type(int128).max + 1)
@@ -322,6 +338,21 @@ contract DopplerTest is Test, Deployers {
                     assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(-amount0)));
                 }
             }
+        }
+    }
+
+    function testAfterSwap_revertsIfNotPoolManager() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            PoolKey memory poolKey = keys[i];
+
+            vm.expectRevert(Unauthorized.selector);
+            dopplers[i].afterSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                toBalanceDelta(0, 0),
+                ""
+            );
         }
     }
 }
