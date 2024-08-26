@@ -1,6 +1,7 @@
 pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {console2} from "forge-std/console2.sol";
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {TestERC20} from "v4-core/src/test/TestERC20.sol";
@@ -79,7 +80,7 @@ contract DopplerTest is Test, Deployers {
             Currency.wrap(address(token1)),
             0,
             MIN_TICK_SPACING,
-            IHooks(address(impl0))
+            IHooks(address(doppler0))
         );
         id0 = key0.toId();
 

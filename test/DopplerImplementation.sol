@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
+import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 
@@ -33,4 +34,7 @@ contract DopplerImplementation is Doppler {
     {
         Hooks.validateHookPermissions(addressToEtch, getHookPermissions());
     }
+
+    // make this a no-op in testing
+    function validateHookAddress(BaseHook _this) internal pure override {}
 }
