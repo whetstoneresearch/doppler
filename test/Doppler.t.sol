@@ -461,13 +461,16 @@ contract DopplerTest is Test, Deployers {
     //                   _getExpectedAmountSold Unit Tests
     // =========================================================================
 
-    function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint256 timestamp) public {
+    function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint24 timestamp) public {
+        vm.assume(timestamp >= dopplers[0].getStartingTime());
+        vm.assume(timestamp <= dopplers[0].getEndingTime());
+        
         for (uint256 i; i < dopplers.length; ++i) {
             vm.warp(timestamp);
 
             uint256 expectedAmountSold = dopplers[i].getExpectedAmountSold();
 
-            assertEq(timestamp, dopplers[i].getStartingTime() + (expectedAmountSold / dopplers[i].getNumTokensToSell()) * (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()));
+            assertApproxEqAbs(timestamp, dopplers[i].getStartingTime() + (expectedAmountSold * 1e18 / dopplers[i].getNumTokensToSell()) * (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) / 1e18, 1);
         }
     }
 }
