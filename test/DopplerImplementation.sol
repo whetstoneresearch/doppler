@@ -45,4 +45,8 @@ contract DopplerImplementation is Doppler {
     function getEpochLength() public view returns (uint256) {
         return epochLength;
     }
+
+    function getIsToken0() public view returns (bool) {
+        return isToken0;
+    }
 }

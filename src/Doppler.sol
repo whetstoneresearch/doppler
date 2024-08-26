@@ -12,6 +12,7 @@ contract Doppler is BaseHook {
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
+        // TODO: consider whether this should be signed
         uint256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
@@ -27,6 +28,7 @@ contract Doppler is BaseHook {
     int24 immutable startingTick; // dutch auction starting tick
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
+    // TODO: consider whether this should be signed
     uint256 immutable gamma; // 1.0001 ** (gamma) = max single block increase
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
@@ -52,6 +54,7 @@ contract Doppler is BaseHook {
     }
 
     // TODO: Add authorization logic
+    // TODO: consider reverting if after end time
     function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
@@ -164,6 +167,7 @@ contract Doppler is BaseHook {
     }
 
     // TODO: consider whether it's safe to always round down
+    // TODO: consider whether this should be negative depending on token direction
     function _getMaxTickDeltaPerEpoch() internal view returns (uint256) {
         return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength / 1e18;
     }
