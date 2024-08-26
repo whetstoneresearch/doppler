@@ -171,4 +171,54 @@ contract DopplerTest is Test, Deployers {
             assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
         }
     }
+
+    function testBeforeSwap_UpdatesLastEpoch() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            vm.warp(dopplers[i].getStartingTime() + 1); // 1 second after the start time
+
+            PoolKey memory poolKey = keys[i];
+
+            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
+
+            assertEq(selector, BaseHook.beforeSwap.selector);
+            assertEq(BeforeSwapDelta.unwrap(delta), 0);
+            assertEq(fee, 0);
+
+            (
+                uint40 lastEpoch,
+                ,
+                ,
+                ,
+            ) = dopplers[i].state();
+
+            assertEq(lastEpoch, 1);
+
+            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength() + 1); // 1 second into the next epoch
+
+            (selector, delta, fee) = dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
+
+            assertEq(selector, BaseHook.beforeSwap.selector);
+            assertEq(BeforeSwapDelta.unwrap(delta), 0);
+            assertEq(fee, 0);
+
+            (
+                lastEpoch,
+                ,
+                ,
+                ,
+            ) = dopplers[i].state();
+
+            assertEq(lastEpoch, 2);
+        }
+    }
 }

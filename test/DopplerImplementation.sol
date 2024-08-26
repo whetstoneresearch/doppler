@@ -41,4 +41,8 @@ contract DopplerImplementation is Doppler {
     function getStartingTime() public view returns (uint256) {
         return startingTime;
     }
+
+    function getEpochLength() public view returns (uint256) {
+        return epochLength;
+    }
 }
