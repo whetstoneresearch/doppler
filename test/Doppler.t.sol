@@ -441,6 +441,21 @@ contract DopplerTest is Test, Deployers {
             assertEq(selector, BaseHook.beforeAddLiquidity.selector);
         }
     }
+
+    function testBeforeAddLiquidity_RevertsForNonHookCaller() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            PoolKey memory poolKey = keys[i];
+
+            vm.prank(address(manager));
+            vm.expectRevert(Unauthorized.selector);
+            dopplers[i].beforeAddLiquidity(
+                address(0xBEEF),
+                poolKey,
+                IPoolManager.ModifyLiquidityParams({tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)}),
+                ""
+            );
+        }
+    }
 }
 
 error Unauthorized();
