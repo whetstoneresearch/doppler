@@ -407,6 +407,24 @@ contract DopplerTest is Test, Deployers {
             );
         }
     }
+
+    // =========================================================================
+    //                      beforeAddLiquidity Unit Tests
+    // =========================================================================
+
+    function testBeforeAddLiquidity_onlyPoolManager() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            PoolKey memory poolKey = keys[i];
+
+            vm.expectRevert(Unauthorized.selector);
+            dopplers[i].beforeAddLiquidity(
+                address(this),
+                poolKey,
+                IPoolManager.ModifyLiquidityParams({tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)}),
+                ""
+            );
+        }
+    }
 }
 
 error Unauthorized();

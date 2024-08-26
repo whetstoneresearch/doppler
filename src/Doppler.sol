@@ -121,7 +121,7 @@ contract Doppler is BaseHook {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) external view override returns (bytes4) {
+    ) external view override onlyPoolManager returns (bytes4) {
         if (_caller != address(this)) revert Unauthorized();
 
         return BaseHook.beforeAddLiquidity.selector;
