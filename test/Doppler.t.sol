@@ -456,6 +456,22 @@ contract DopplerTest is Test, Deployers {
             );
         }
     }
+
+    // =========================================================================
+    //                   _getExpectedAmountSold Unit Tests
+    // =========================================================================
+
+    function testGetExpectedAmountSold_ReturnsExpectedAmountSold(int128 amount0, int128 amount1) public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            int128 expectedAmountSold = dopplers[i]._getExpectedAmountSold(amount0, amount1);
+
+            if (dopplers[i].getIsToken0()) {
+                assertEq(expectedAmountSold, amount0);
+            } else {
+                assertEq(expectedAmountSold, amount1);
+            }
+        }
+    }
 }
 
 error Unauthorized();

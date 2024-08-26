@@ -13,7 +13,7 @@ contract Doppler is BaseHook {
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
         // TODO: consider whether this should be signed
-        uint256 tickAccumulator; // accumulator to modify the bonding curve
+        int256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
@@ -51,6 +51,12 @@ contract Doppler is BaseHook {
         epochLength = _epochLength;
         gamma = _gamma;
         isToken0 = _isToken0;
+
+        // TODO: consider enforcing that parameters are consistent with token direction
+        // TODO: consider enforcing that startingTick and endingTick are valid
+        // TODO: consider enforcing startingTime < endingTime
+        // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
+        // TODO: consider enforcing that min and max gamma
     }
 
     modifier onlyPoolManager() {
@@ -58,7 +64,7 @@ contract Doppler is BaseHook {
         _;
     }
 
-    // TODO: consider reverting if after end time
+    // TODO: consider reverting or returning if after end time
     function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
@@ -71,6 +77,7 @@ contract Doppler is BaseHook {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
+            // TODO: Consider whether we should revert instead since swaps should not be possible
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
@@ -142,16 +149,16 @@ contract Doppler is BaseHook {
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        uint256 accumulatorDelta;
-        uint256 newAccumulator;
+        int256 accumulatorDelta;
+        int256 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * epochsPassed;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * epochsPassed
-                * (1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
+                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         }
         // TODO: What if totalTokensSold_ > expectedAmountSold?
@@ -171,9 +178,8 @@ contract Doppler is BaseHook {
     }
 
     // TODO: consider whether it's safe to always round down
-    // TODO: consider whether this should be negative depending on token direction
-    function _getMaxTickDeltaPerEpoch() internal view returns (uint256) {
-        return uint256(uint24(endingTick - startingTick)) * 1e18 / (endingTime - startingTime) * epochLength / 1e18;
+    function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
+        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength) / 1e18;
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
