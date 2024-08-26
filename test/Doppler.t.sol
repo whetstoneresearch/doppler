@@ -88,7 +88,7 @@ contract DopplerTest is Test, Deployers {
 
     function testBeforeSwapDoesNotRebalanceBeforeStartTime() public {
         for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(1499); // 1 second before the start time
+            vm.warp(dopplers[i].getStartingTime() - 1); // 1 second before the start time
 
             PoolKey memory poolKey = keys[i];
 

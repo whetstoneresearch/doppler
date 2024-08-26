@@ -37,4 +37,8 @@ contract DopplerImplementation is Doppler {
 
     // make this a no-op in testing
     function validateHookAddress(BaseHook _this) internal pure override {}
+
+    function getStartingTime() public view returns (uint256) {
+        return startingTime;
+    }
 }
