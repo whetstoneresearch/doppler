@@ -88,6 +88,10 @@ contract DopplerTest is Test, Deployers {
         ids.push(id0);
     }
 
+    // =========================================================================
+    //                         beforeSwap Unit Tests
+    // =========================================================================
+
     function testBeforeSwap_DoesNotRebalanceBeforeStartTime() public {
         for (uint256 i; i < dopplers.length; ++i) {
             vm.warp(dopplers[i].getStartingTime() - 1); // 1 second before the start time
@@ -229,8 +233,7 @@ contract DopplerTest is Test, Deployers {
         }
     }
 
-    error Unauthorized();
-    function testBeforeSwap_revertsIfNotPoolManager() public {
+    function testBeforeSwap_RevertsIfNotPoolManager() public {
         for (uint256 i; i < dopplers.length; ++i) {
             PoolKey memory poolKey = keys[i];
 
@@ -243,6 +246,55 @@ contract DopplerTest is Test, Deployers {
             );
         }
     }
+
+    function testBeforeSwap_UpdatesTotalTokensSoldLastEpoch() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            vm.warp(dopplers[i].getStartingTime());
+
+            PoolKey memory poolKey = keys[i];
+
+            vm.prank(address(manager));
+            (bytes4 selector0, int128 hookDelta) = dopplers[i].afterSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                toBalanceDelta(-100e18, 100e18),
+                ""
+            );
+
+            assertEq(selector0, BaseHook.afterSwap.selector);
+            assertEq(hookDelta, 0);
+
+            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength()); // Next epoch
+
+            vm.prank(address(manager));
+            (bytes4 selector1, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
+
+            assertEq(selector1, BaseHook.beforeSwap.selector);
+            assertEq(BeforeSwapDelta.unwrap(delta), 0);
+            assertEq(fee, 0);
+
+            (
+                ,
+                ,
+                uint256 totalTokensSold,
+                ,
+                uint256 totalTokensSoldLastEpoch
+            ) = dopplers[i].state();
+
+            assertEq(totalTokensSold, 100e18);
+            assertEq(totalTokensSoldLastEpoch, 100e18);
+        }
+    }
+
+    // =========================================================================
+    //                          afterSwap Unit Tests
+    // =========================================================================
 
     function testAfterSwap_CorrectlyTracksTokensSoldAndProceeds(int128 amount0, int128 amount1) public {
         // Since we below initialize the values to type(int128).max, we need to ensure that the minimum
@@ -356,3 +408,5 @@ contract DopplerTest is Test, Deployers {
         }
     }
 }
+
+error Unauthorized();
