@@ -412,7 +412,7 @@ contract DopplerTest is Test, Deployers {
     //                      beforeAddLiquidity Unit Tests
     // =========================================================================
 
-    function testBeforeAddLiquidity_onlyPoolManager() public {
+    function testBeforeAddLiquidity_RevertsIfNotPoolManager() public {
         for (uint256 i; i < dopplers.length; ++i) {
             PoolKey memory poolKey = keys[i];
 
