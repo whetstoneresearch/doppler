@@ -26,11 +26,7 @@ contract DopplerTest is Test, Deployers {
     TestERC20 token0;
     TestERC20 token1;
     DopplerImplementation doppler0 = DopplerImplementation(
-        address(uint160(
-            Hooks.BEFORE_ADD_LIQUIDITY_FLAG | 
-            Hooks.BEFORE_SWAP_FLAG | 
-            Hooks.AFTER_SWAP_FLAG
-        ))
+        address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG))
     );
     PoolKey key0;
     PoolId id0;
@@ -41,8 +37,8 @@ contract DopplerTest is Test, Deployers {
     PoolId[] ids;
 
     function setUp() public {
-        token0 = new TestERC20(2**128);
-        token1 = new TestERC20(2**128);
+        token0 = new TestERC20(2 ** 128);
+        token1 = new TestERC20(2 ** 128);
 
         if (token0 > token1) {
             (token0, token1) = (token1, token0);
@@ -53,19 +49,18 @@ contract DopplerTest is Test, Deployers {
         vm.warp(1000);
 
         vm.record();
-        DopplerImplementation impl0 =
-            new DopplerImplementation(
-                address(manager), 
-                100_000e18,
-                1_500, // 500 seconds from now
-                1_500 + 86_400, // 1 day from the start time
-                -100_000,
-                -200_000,
-                50,
-                1_000,
-                true, // TODO: Make sure it's consistent with the tick direction
-                doppler0
-            );
+        DopplerImplementation impl0 = new DopplerImplementation(
+            address(manager),
+            100_000e18,
+            1_500, // 500 seconds from now
+            1_500 + 86_400, // 1 day from the start time
+            -100_000,
+            -200_000,
+            50,
+            1_000,
+            true, // TODO: Make sure it's consistent with the tick direction
+            doppler0
+        );
         (, bytes32[] memory writes) = vm.accesses(address(impl0));
         vm.etch(address(doppler0), address(impl0).code);
         // for each storage key that was written during the hook implementation, copy the value over
@@ -100,11 +95,7 @@ contract DopplerTest is Test, Deployers {
             (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
-                IPoolManager.SwapParams({
-                    zeroForOne: true,
-                    amountSpecified: 100e18,
-                    sqrtPriceLimitX96: SQRT_RATIO_2_1
-                }),
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
                 ""
             );
 
@@ -112,7 +103,13 @@ contract DopplerTest is Test, Deployers {
             assertEq(BeforeSwapDelta.unwrap(delta), 0);
             assertEq(fee, 0);
 
-            (uint40 lastEpoch, uint256 tickAccumulator, uint256 totalTokensSold, uint256 totalProceeds, uint256 totalTokensSoldLastEpoch) = dopplers[i].state();
+            (
+                uint40 lastEpoch,
+                uint256 tickAccumulator,
+                uint256 totalTokensSold,
+                uint256 totalProceeds,
+                uint256 totalTokensSoldLastEpoch
+            ) = dopplers[i].state();
 
             assertEq(lastEpoch, 0);
             assertEq(tickAccumulator, 0);

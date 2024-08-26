@@ -57,7 +57,9 @@ contract Doppler is BaseHook {
         override
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength <= uint256(state.lastEpoch)) {
+        if (
+            block.timestamp < startingTime || (block.timestamp - startingTime) / epochLength <= uint256(state.lastEpoch)
+        ) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
@@ -107,12 +109,12 @@ contract Doppler is BaseHook {
         return (BaseHook.afterSwap.selector, 0);
     }
 
-    function beforeAddLiquidity(address _caller, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata)
-        external
-        view
-        override
-        returns (bytes4)
-    {
+    function beforeAddLiquidity(
+        address _caller,
+        PoolKey calldata,
+        IPoolManager.ModifyLiquidityParams calldata,
+        bytes calldata
+    ) external view override returns (bytes4) {
         if (_caller != address(this)) revert Unauthorized();
 
         return BaseHook.beforeAddLiquidity.selector;
@@ -151,10 +153,8 @@ contract Doppler is BaseHook {
         }
 
         // TODO: Swap to intended tick
-            // TODO: Remove in range liquidity
-            // TODO: Flip a flag to prevent this swap from hitting beforeSwap
-        
-
+        // TODO: Remove in range liquidity
+        // TODO: Flip a flag to prevent this swap from hitting beforeSwap
     }
 
     // TODO: consider whether it's safe to always round down
