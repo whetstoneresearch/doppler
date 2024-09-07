@@ -2,12 +2,13 @@
 pragma solidity 0.8.26;
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
+import {PoolId, PoolIdLibrary, PoolId} from "v4-core/src/types/PoolId.sol";
 import {TickMath} from"v4-core/src/libraries/TickMath.sol";
 import {SqrtPriceMath} from"v4-core/src/libraries/SqrtPriceMath.sol";
 import {FullMath} from"v4-core/src/libraries/FullMath.sol";
@@ -16,12 +17,14 @@ import {FixedPoint96} from"v4-core/src/libraries/FixedPoint96.sol";
 // this library was not audited but is the same as v3
 import {LiquidityAmounts} from"v4-core/test/utils/LiquidityAmounts.sol";
 
-contract Doppler is BaseHook {
-    using PoolIdLibrary for PoolKey;
 
-    // TODO: consider if we can use smaller uints
-    struct State {
-        uint40 lastEpoch; // last updated epoch (1-indexed)
+contract Doppler is BaseHook {
+using PoolIdLibrary for PoolKey;
+using StateLibrary for IPoolManager;
+
+// TODO: consider if we can use smaller uints
+struct State {
+    uint40 lastEpoch; // last updated epoch (1-indexed)
         // TODO: consider whether this should be signed
         int256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
@@ -165,7 +168,7 @@ contract Doppler is BaseHook {
 
         // get current state
         PoolId poolId = key.toId();
-        (uint160 sqrtPriceX96, int24 currentTick,,,) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
         // accumulatorDelta must be int24 (since its in tickSpace)
         int256 accumulatorDelta;
@@ -185,7 +188,7 @@ contract Doppler is BaseHook {
 
             // TODO: check for overflow
             // this is the expected that we are currently at
-            int24 expectedTick = tau + _getGammaElasped();
+            int24 expectedTick = tau_t + _getGammaElasped();
 
             // how far are we above the expected tick?
             // has to be >=0 (could be 0 if rounded down)
@@ -209,11 +212,11 @@ contract Doppler is BaseHook {
             currentTick = (currentTick / key.tickSpacing) * key.tickSpacing;
         }
 
-        (int24 lower, int24 upper) = _getTicksBasedOnState(newAccumulator);
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator);
 
         // --- Position Calculations Time
-        uint256 soldAmt =  totalTokensSold;
-        uint256 protocolsProceeds = totalProceeds;
+        uint256 soldAmt = state.totalTokensSold;
+        uint256 protocolsProceeds = state.totalProceeds;
 
         // TODO: could avoid these calculation if currentTick is unchanged
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
@@ -225,21 +228,22 @@ contract Doppler is BaseHook {
         // however, it requires sqrtPrice * sqrtPrice, which can overflow (uint160 * uint160) = uint320 - uint160
         // im not entirely sure how to deal w/ it if it does
         uint128 liquidity;
+        uint256 requiredProceeds;
         if (isToken0) {
              // TODO: check max liquidity per tick
              // an adversary could game the code to create too much liquidity in-range
             liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, soldAmt);
-            uint256 requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
         } else {
             liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceNext, sqrtPriceUpper, soldAmt);
-            uint256 requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
+            requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
         }
 
         // we check if we have enough tokens for the lower bonding curve
         // we do not SAD
         int24 lowerSlugTickUpper = tickLower;
         int24 lowerSlugTickLower = currentTick;
-        uint128 lowerSlugTickLower = liquidity;
+        uint128 lowerSlugLiquidity = liquidity;
 
         if (requiredProceeds > protocolsProceeds) {
             // you are about to see some "artistry"
@@ -253,14 +257,14 @@ contract Doppler is BaseHook {
                 uint160 tgtPriceX96 = FullMath.mulDiv(protocolsProceeds, FixedPoint96.Q96, soldAmt);
 
                 // check against TickMath.MAX_SQRT_PRICE_MINUS_MIN_SQRT_PRICE_MINUS_ONE
-                lowerSlugTickUpper = 2 * getTickAtSqrtPrice(tgtPriceX96);
+                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(tgtPriceX96);
                 lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
 
                 liquidity = LiquidityAmounts.getLiquidityForAmount0(lowerSlugTickLower, lowerSlugTickUpper, soldAmt);
             } else {
                 uint160 tgtPriceX96 = FullMath.mulDiv(soldAmt, FixedPoint96.Q96, protocolsProceeds);
                 
-                lowerSlugTickLower = 2 * getTickAtSqrtPrice(tgtPriceX96);
+                lowerSlugTickLower = 2 * TickMath.getTickAtSqrtPrice(tgtPriceX96);
                 lowerSlugTickUpper = lowerSlugTickLower + key.tickSpacing;
             }
         
@@ -275,12 +279,8 @@ contract Doppler is BaseHook {
     }
 
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24, int24) {
-        int24 startingTick = state.startingTick;
-        int24 endingTick = state.endingTick;
-        uint256 gamma = state.gamma;
-
-        int24 lower = tickStart + accumulator;
-        int24 upper = lower + (gamma ? tickStart > tickEnd : -1 * gamma);
+        int24 lower = state.startingTick + accumulator;
+        int24 upper = lower + (gamma ? state.startingTick > state.endingTick : -1 * state.gamma);
 
         return (lower, upper);
     }
