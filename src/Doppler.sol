@@ -9,24 +9,23 @@ import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
 import {PoolId, PoolIdLibrary, PoolId} from "v4-core/src/types/PoolId.sol";
-import {TickMath} from"v4-core/src/libraries/TickMath.sol";
-import {SqrtPriceMath} from"v4-core/src/libraries/SqrtPriceMath.sol";
-import {FullMath} from"v4-core/src/libraries/FullMath.sol";
-import {FixedPoint96} from"v4-core/src/libraries/FixedPoint96.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {SqrtPriceMath} from "v4-core/src/libraries/SqrtPriceMath.sol";
+import {FullMath} from "v4-core/src/libraries/FullMath.sol";
+import {FixedPoint96} from "v4-core/src/libraries/FixedPoint96.sol";
 
 // this library was not audited but is the same as v3
-import {LiquidityAmounts} from"v4-core/test/utils/LiquidityAmounts.sol";
-
+import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
 
 contract Doppler is BaseHook {
-using PoolIdLibrary for PoolKey;
-using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
 
-// TODO: consider if we can use smaller uints
-struct State {
-    uint40 lastEpoch; // last updated epoch (1-indexed)
+    // TODO: consider if we can use smaller uints
+    struct State {
+        uint40 lastEpoch; // last updated epoch (1-indexed)
         // TODO: consider whether this should be signed
-        int256 tickAccumulator; // accumulator to modify the bonding curve
+        uint24 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
@@ -171,12 +170,12 @@ struct State {
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
         // accumulatorDelta must be int24 (since its in tickSpace)
-        int256 accumulatorDelta;
-        int256 newAccumulator;
+        int24 accumulatorDelta;
+        int24 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * epochsPassed;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
@@ -184,7 +183,7 @@ struct State {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else {
             // current starting tick
-            int24 tau_t = state.startingTick + state.tickAccumulator;
+            int24 tau_t = startingTick + state.tickAccumulator;
 
             // TODO: check for overflow
             // this is the expected that we are currently at
@@ -194,10 +193,9 @@ struct State {
             // has to be >=0 (could be 0 if rounded down)
             // casted to 256 for compatability
             accumulatorDelta = int256(currentTick - expectedTick);
-            
+
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         }
-
 
         if (accumulatorDelta != 0) {
             // save the new accumulator
@@ -230,8 +228,8 @@ struct State {
         uint128 liquidity;
         uint256 requiredProceeds;
         if (isToken0) {
-             // TODO: check max liquidity per tick
-             // an adversary could game the code to create too much liquidity in-range
+            // TODO: check max liquidity per tick
+            // an adversary could game the code to create too much liquidity in-range
             liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, soldAmt);
             requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
         } else {
@@ -248,8 +246,8 @@ struct State {
         if (requiredProceeds > protocolsProceeds) {
             // you are about to see some "artistry"
             if (isToken0) {
-                // TODO: check for overflow 
-                // TODO: we can likely clamp the x96 to x48 or something 
+                // TODO: check for overflow
+                // TODO: we can likely clamp the x96 to x48 or something
                 // then we don't need to multiply by at the next step
 
                 // this is the regular (not sqrt) price
@@ -263,24 +261,24 @@ struct State {
                 liquidity = LiquidityAmounts.getLiquidityForAmount0(lowerSlugTickLower, lowerSlugTickUpper, soldAmt);
             } else {
                 uint160 tgtPriceX96 = FullMath.mulDiv(soldAmt, FixedPoint96.Q96, protocolsProceeds);
-                
+
                 lowerSlugTickLower = 2 * TickMath.getTickAtSqrtPrice(tgtPriceX96);
                 lowerSlugTickUpper = lowerSlugTickLower + key.tickSpacing;
             }
-        
+
             // TODO: calculate liquidity here
-        } 
+        }
 
         // lower slug calculated
-        
+
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
     }
 
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24, int24) {
-        int24 lower = state.startingTick + accumulator;
-        int24 upper = lower + (gamma ? state.startingTick > state.endingTick : -1 * state.gamma);
+        int24 lower = startingTick + accumulator;
+        int24 upper = lower + (startingTick > endingTick ? gamma : -(gamma));
 
         return (lower, upper);
     }
