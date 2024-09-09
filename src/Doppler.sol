@@ -159,83 +159,82 @@ contract Doppler is BaseHook {
 
         uint256 totalTokensSold_ = state.totalTokensSold;
         uint256 expectedAmountSold = _getExpectedAmountSold();
-        // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
-        //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
         uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        // get current state
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
-        // accumulatorDelta must be int24 (since its in tickSpace)
-        int24 accumulatorDelta;
-        int24 newAccumulator;
-        // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold <= 0) {
-            // TODO: consider whether we actually wanna multiply by epochsPassed here
-            // accumulatorDelta = int24(_getMaxTickDeltaPerEpoch() * uint24(epochsPassed));
-            // temp: to simplify this down we just use maxdelta
-            accumulatorDelta = int24(_getMaxTickDeltaPerEpoch());
-            newAccumulator = state.tickAccumulator + accumulatorDelta;
-        } else if (totalTokensSold_ <= expectedAmountSold) {
-            // TODO: consider whether we actually wanna multiply by epochsPassed here
-            // temp: to simplify this down we just use maxdelta
-            // accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
-            //     * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
-            // TODO: very dummy to cast these as i24 but whatever, will fix later
-            accumulatorDelta = int24(_getMaxTickDeltaPerEpoch() * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18);
-            newAccumulator = state.tickAccumulator + accumulatorDelta;
-        } else {
-            // current starting tick
-            int24 tau_t = startingTick + state.tickAccumulator;
-
-            // TODO: check for overflow
-            // this is the expected that we are currently at
-            int24 expectedTick = tau_t + int24(_getGammaElasped());
-
-            // how far are we above the expected tick?
-            // has to be >=0 (could be 0 if rounded down)
-            // casted to 256 for compatability
-            accumulatorDelta = currentTick - expectedTick;
-
-            newAccumulator = state.tickAccumulator + accumulatorDelta;
-        }
+        (int24 accumulatorDelta, int24 newAccumulator) = _calculateAccumulatorDelta(
+            netSold, totalTokensSold_, expectedAmountSold, epochsPassed, currentTick
+        );
 
         if (accumulatorDelta != 0) {
-            // save the new accumulator
             state.tickAccumulator = newAccumulator;
-
-            // overriding current tick - may need to undo this later
-            currentTick = currentTick + newAccumulator;
-
-            // we are rounding down - may be good to check if we should
-            // round up if the token is token1
-            // this places the tick on a tick spacing boundary
-            currentTick = (currentTick / key.tickSpacing) * key.tickSpacing;
+            currentTick = (currentTick + newAccumulator) / key.tickSpacing * key.tickSpacing;
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator);
 
-        // --- Position Calculations Time
         uint256 soldAmt = state.totalTokensSold;
         uint256 protocolsProceeds = state.totalProceeds;
 
-        // TODO: could avoid these calculation if currentTick is unchanged
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
-
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
 
-        // mathematically, we can do both of these 2 calcs in 1 step
-        // however, it requires sqrtPrice * sqrtPrice, which can overflow (uint160 * uint160) = uint320 - uint160
-        // im not entirely sure how to deal w/ it if it does
+        (uint128 liquidity, uint256 requiredProceeds) = _calculateLiquidityAndProceeds(
+            sqrtPriceLower, sqrtPriceNext, sqrtPriceUpper, soldAmt
+        );
+
+        (int24 lowerSlugTickUpper, int24 lowerSlugTickLower, uint128 lowerSlugLiquidity) = _calculateLowerSlug(
+            requiredProceeds, protocolsProceeds, soldAmt, key, liquidity, currentTick, tickLower
+        );
+
+        // TODO: Swap to intended tick
+        // TODO: Remove in range liquidity
+        // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+    }
+
+    function _calculateAccumulatorDelta(
+        uint256 netSold,
+        uint256 totalTokensSold_,
+        uint256 expectedAmountSold,
+        uint24 epochsPassed,
+        int24 currentTick
+    ) internal view returns (int24, int24) {
+        int24 accumulatorDelta;
+        int24 newAccumulator;
+
+        if (netSold <= 0) {
+            accumulatorDelta = int24(_getMaxTickDeltaPerEpoch() * int24(epochsPassed));
+            newAccumulator = state.tickAccumulator + accumulatorDelta;
+        } else if (totalTokensSold_ <= expectedAmountSold) {
+            accumulatorDelta = int24(
+                _getMaxTickDeltaPerEpoch() * int24(epochsPassed) * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18
+            );
+            newAccumulator = state.tickAccumulator + accumulatorDelta;
+        } else {
+            int24 tau_t = startingTick + state.tickAccumulator;
+            int24 expectedTick = tau_t + int24(_getGammaElasped());
+            accumulatorDelta = currentTick - expectedTick;
+            newAccumulator = state.tickAccumulator + accumulatorDelta;
+        }
+
+        return (accumulatorDelta, newAccumulator);
+    }
+
+    function _calculateLiquidityAndProceeds(
+        uint160 sqrtPriceLower,
+        uint160 sqrtPriceNext,
+        uint160 sqrtPriceUpper,
+        uint256 soldAmt
+    ) internal view returns (uint128, uint256) {
         uint128 liquidity;
         uint256 requiredProceeds;
+
         if (isToken0) {
-            // TODO: check max liquidity per tick
-            // an adversary could game the code to create too much liquidity in-range
             liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, soldAmt);
             requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
         } else {
@@ -243,45 +242,40 @@ contract Doppler is BaseHook {
             requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
         }
 
-        // we check if we have enough tokens for the lower bonding curve
-        // we do not SAD
+        return (liquidity, requiredProceeds);
+    }
+
+    function _calculateLowerSlug(
+        uint256 requiredProceeds,
+        uint256 protocolsProceeds,
+        uint256 soldAmt,
+        PoolKey calldata key,
+        uint128 liquidity,
+        int24 currentTick,
+        int24 tickLower
+    ) internal view returns (int24, int24, uint128) {
         int24 lowerSlugTickUpper = tickLower;
         int24 lowerSlugTickLower = currentTick;
         uint128 lowerSlugLiquidity = liquidity;
 
         if (requiredProceeds > protocolsProceeds) {
-            // you are about to see some "artistry"
             if (isToken0) {
-                // TODO: check for overflow
-                // TODO: we can likely clamp the x96 to x48 or something
-                // then we don't need to multiply by at the next step
-
-                // this is the regular (not sqrt) price
-                // we want to move it back to sqrtPrice
-                // TODO: unfuck this
                 uint160 tgtPriceX96 = uint160(FullMath.mulDiv(protocolsProceeds, FixedPoint96.Q96, soldAmt));
-
-                // check against TickMath.MAX_SQRT_PRICE_MINUS_MIN_SQRT_PRICE_MINUS_ONE
                 lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(uint160(tgtPriceX96));
                 lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
-
-                liquidity = LiquidityAmounts.getLiquidityForAmount0(TickMath.getSqrtPriceAtTick(lowerSlugTickLower), TickMath.getSqrtPriceAtTick(lowerSlugTickUpper), soldAmt);
+                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount0(
+                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
+                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
+                    soldAmt
+                );
             } else {
-                // TODO: unfuck this
                 uint160 tgtPriceX96 = uint160(FullMath.mulDiv(soldAmt, FixedPoint96.Q96, protocolsProceeds));
-
                 lowerSlugTickLower = 2 * TickMath.getTickAtSqrtPrice(tgtPriceX96);
                 lowerSlugTickUpper = lowerSlugTickLower + key.tickSpacing;
             }
-
-            // TODO: calculate liquidity here
         }
 
-        // lower slug calculated
-
-        // TODO: Swap to intended tick
-        // TODO: Remove in range liquidity
-        // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+        return (lowerSlugTickUpper, lowerSlugTickLower, lowerSlugLiquidity);
     }
 
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24, int24) {
@@ -292,7 +286,10 @@ contract Doppler is BaseHook {
     }
 
     function _getGammaElasped() internal view returns (int256) {
-        return int256(((int256(block.timestamp) - int256(startingTime)) * 1e18 / (int256(endingTime) - int256(startingTime))) * int256(gamma) / 1e18);
+        return int256(
+            ((int256(block.timestamp) - int256(startingTime)) * 1e18 / (int256(endingTime) - int256(startingTime)))
+                * int256(gamma) / 1e18
+        );
     }
 
     // TODO: consider whether it's safe to always round down

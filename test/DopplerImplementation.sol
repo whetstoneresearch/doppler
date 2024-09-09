@@ -16,7 +16,7 @@ contract DopplerImplementation is Doppler {
         int24 _startingTick,
         int24 _endingTick,
         uint256 _epochLength,
-        uint256 _gamma,
+        uint24 _gamma,
         bool _isToken0,
         IHooks addressToEtch
     )
@@ -28,7 +28,7 @@ contract DopplerImplementation is Doppler {
             _startingTick,
             _endingTick,
             _epochLength,
-            _gamma,
+            int24(_gamma),
             _isToken0
         )
     {
