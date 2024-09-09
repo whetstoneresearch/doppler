@@ -169,8 +169,12 @@ contract Doppler is BaseHook {
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + state.tickAccumulator;
+            int24 expectedTick;
             // TODO: Overflow possible?
-            int24 expectedTick = tauTick + int24(_getElapsedGamma());
+            // TODO: Consider whether we actually want to negate the gamma (i think so)
+            tauTick > startingTick
+                ? expectedTick = tauTick + int24(_getElapsedGamma())
+                : expectedTick = tauTick - int24(_getElapsedGamma());
             accumulatorDelta = int256(currentTick - expectedTick);
         }
 
@@ -195,7 +199,6 @@ contract Doppler is BaseHook {
         return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength);
     }
 
-    // TODO: Make the result negative depending on token used?
     function _getElapsedGamma() internal view returns (int256) {
         return int256(((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * (gamma) / 1e18);
     }
