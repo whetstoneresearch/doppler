@@ -180,7 +180,7 @@ contract Doppler is BaseHook {
 
     // TODO: consider whether it's safe to always round down
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
-        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength) / 1e18;
+        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {

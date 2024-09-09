@@ -58,7 +58,19 @@ contract DopplerImplementation is Doppler {
         return numTokensToSell;
     }
 
+    function getStartingTick() public view returns (int24) {
+        return startingTick;
+    }
+
+    function getEndingTick() public view returns (int24) {
+        return endingTick;
+    }
+
     function getExpectedAmountSold() public view returns (uint256) {
         return _getExpectedAmountSold();
+    }
+
+    function getMaxTickDeltaPerEpoch() public view returns (int256) {
+        return _getMaxTickDeltaPerEpoch();
     }
 }

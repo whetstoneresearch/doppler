@@ -483,6 +483,26 @@ contract DopplerTest is Test, Deployers {
             );
         }
     }
+
+    // =========================================================================
+    //                  _getMaxTickDeltaPerEpoch Unit Tests
+    // =========================================================================
+
+    function testGetMaxTickDeltaPerEpoch_ReturnsExpectedAmount() public view {
+        for (uint256 i; i < dopplers.length; ++i) {
+            int256 maxTickDeltaPerEpoch = dopplers[i].getMaxTickDeltaPerEpoch();
+
+            assertApproxEqAbs(
+                dopplers[i].getEndingTick(),
+                ((maxTickDeltaPerEpoch
+                    * (int256((dopplers[i].getEndingTime() - dopplers[i].getStartingTime())) 
+                        * int256(dopplers[i].getEpochLength()))
+                ) / 1e18
+                + dopplers[i].getStartingTick()),
+                1
+            );
+        }
+    }
 }
 
 error Unauthorized();
