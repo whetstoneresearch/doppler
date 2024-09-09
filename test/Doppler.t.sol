@@ -465,11 +465,12 @@ contract DopplerTest is Test, Deployers {
     //                   _getExpectedAmountSold Unit Tests
     // =========================================================================
 
-    function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint24 timestamp) public {
-        vm.assume(timestamp >= dopplers[0].getStartingTime());
-        vm.assume(timestamp <= dopplers[0].getEndingTime());
+    function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint64 timePercentage) public {
+        vm.assume(timePercentage <= 1e18);
 
         for (uint256 i; i < dopplers.length; ++i) {
+            uint256 timeElapsed = (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) * timePercentage / 1e18;
+            uint256 timestamp = dopplers[i].getStartingTime() + timeElapsed;
             vm.warp(timestamp);
 
             uint256 expectedAmountSold = dopplers[i].getExpectedAmountSold();
