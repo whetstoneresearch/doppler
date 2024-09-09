@@ -155,10 +155,10 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         }
