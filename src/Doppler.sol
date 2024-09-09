@@ -181,6 +181,15 @@ contract Doppler is BaseHook {
         if (accumulatorDelta != 0) {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
             state.tickAccumulator = int24(newAccumulator);
+
+            // TODO: Consider whether it's ok to overwrite this var
+            currentTick = ((currentTick + int24(newAccumulator))
+                / key.tickSpacing)
+                    * key.tickSpacing;
+
+            // TODO: Consider whether rounding up here makes sense
+            //       May not be ideal if we're calculating the precise amount above
+            if (!isToken0) currentTick += key.tickSpacing;
         }
 
         // TODO: Swap to intended tick
