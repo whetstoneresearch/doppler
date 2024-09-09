@@ -504,6 +504,31 @@ contract DopplerTest is Test, Deployers {
             );
         }
     }
+
+    // =========================================================================
+    //                   _getElapsedGamma Unit Tests
+    // =========================================================================
+
+    function testGetElapsedGamma_ReturnsExpectedAmountSold(uint8 timePercentage) public {
+        vm.assume(timePercentage <= 100);
+        vm.assume(timePercentage > 0);
+
+
+        for (uint256 i; i < dopplers.length; ++i) {
+            uint256 timeElapsed = (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) * timePercentage / 100;
+            uint256 timestamp = dopplers[i].getStartingTime() + timeElapsed;
+            vm.warp(timestamp);
+
+            int256 elapsedGamma = dopplers[i].getElapsedGamma();
+
+            assertApproxEqAbs(
+                int256(dopplers[i].getGamma()),
+                elapsedGamma * int256(dopplers[i].getEndingTime() - dopplers[i].getStartingTime())
+                / int256(timestamp - dopplers[i].getStartingTime()),
+                1
+            );
+        }
+    }
 }
 
 error Unauthorized();
