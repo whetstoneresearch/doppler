@@ -192,6 +192,8 @@ contract Doppler is BaseHook {
             if (!isToken0) currentTick += key.tickSpacing;
         }
 
+        (int24 lower, int24 upper) = _getTicksBasedOnState(int24(newAccumulator));
+
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
@@ -210,6 +212,11 @@ contract Doppler is BaseHook {
 
     function _getElapsedGamma() internal view returns (int256) {
         return int256(((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * (gamma) / 1e18);
+    }
+
+    function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
+        lower = startingTick + accumulator;
+        upper = lower + (startingTick < endingTick ? int24(int256(gamma)) : -int24(int256(gamma)));
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
