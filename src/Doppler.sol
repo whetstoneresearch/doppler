@@ -5,15 +5,19 @@ import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 
 contract Doppler is BaseHook {
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
+
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
-        // TODO: consider whether this should be signed
-        int256 tickAccumulator; // accumulator to modify the bonding curve
+        int24 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
@@ -65,7 +69,7 @@ contract Doppler is BaseHook {
     }
 
     // TODO: consider reverting or returning if after end time
-    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
+    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
         onlyPoolManager
@@ -82,7 +86,7 @@ contract Doppler is BaseHook {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        _rebalance();
+        _rebalance(key);
 
         // TODO: Should there be a fee?
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
@@ -135,7 +139,7 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
-    function _rebalance() internal {
+    function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = (block.timestamp - startingTime) / epochLength + 1;
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
@@ -150,22 +154,29 @@ contract Doppler is BaseHook {
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
+        // get current state
+        PoolId poolId = key.toId();
+        (uint160 sqrtPriceX96, int24 currentTick, , ) = poolManager.getSlot0(poolId);
+
         int256 accumulatorDelta;
         int256 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
-            newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
-            newAccumulator = state.tickAccumulator + accumulatorDelta;
+        } else {
+            int24 tauTick = startingTick + state.tickAccumulator;
+            // TODO: Overflow possible?
+            int24 expectedTick = tauTick + int24(_getElapsedGamma());
+            accumulatorDelta = int256(currentTick - expectedTick);
         }
-        // TODO: What if totalTokensSold_ > expectedAmountSold?
 
         if (accumulatorDelta != 0) {
-            state.tickAccumulator = newAccumulator;
+            newAccumulator = state.tickAccumulator + accumulatorDelta;
+            state.tickAccumulator = int24(newAccumulator);
         }
 
         // TODO: Swap to intended tick
@@ -178,9 +189,15 @@ contract Doppler is BaseHook {
         return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
     }
 
+    // Returns 18 decimal fixed point value
     // TODO: consider whether it's safe to always round down
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
         return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength);
+    }
+
+    // TODO: Make the result negative depending on token used?
+    function _getElapsedGamma() internal view returns (int256) {
+        return int256(((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * (gamma) / 1e18);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
