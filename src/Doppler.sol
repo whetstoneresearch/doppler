@@ -33,6 +33,7 @@ contract Doppler is BaseHook {
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
     // TODO: consider whether this should be signed
+    // TODO: should this actually be "max single epoch increase"?
     uint256 immutable gamma; // 1.0001 ** (gamma) = max single block increase
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
@@ -172,6 +173,7 @@ contract Doppler is BaseHook {
             int24 expectedTick;
             // TODO: Overflow possible?
             // TODO: Consider whether we actually want to negate the gamma (i think so)
+            // TODO: Consider whether this is the correct direction
             tauTick > startingTick
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
@@ -214,9 +216,13 @@ contract Doppler is BaseHook {
         return int256(((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * (gamma) / 1e18);
     }
 
+    // TODO: Consider whether overflow is reasonably possible
+    //       I think some validation logic will be necessary
+    //       Maybe we just need to constrain the ticks to a maximum of the endingTick
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
-        upper = lower + (startingTick < endingTick ? int24(int256(gamma)) : -int24(int256(gamma)));
+        // TODO: Consider whether this is the correct direction
+        upper = lower + (startingTick > endingTick ? int24(int256(gamma)) : -int24(int256(gamma)));
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
