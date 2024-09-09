@@ -150,46 +150,61 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
+    struct RebalanceState {
+        uint256 currentEpoch;
+        uint24 epochsPassed;
+        uint256 totalTokensSold;
+        uint256 totalProceeds;
+        uint256 totalTokensSoldLastEpoch;
+        uint256 expectedAmountSold;
+        uint256 netSold;
+        int24 accumulatorDelta;
+        int24 newAccumulator;
+        uint160 sqrtPriceLower;
+        uint160 sqrtPriceNext;
+        uint160 sqrtPriceUpper;
+    }
+
     function _rebalance(PoolKey calldata key) internal {
+        RebalanceState memory rebalanceState;
+
         // We increment by 1 to 1-index the epoch
-        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength + 1;
-        uint24 epochsPassed = uint24(currentEpoch - uint256(state.lastEpoch));
+        rebalanceState.currentEpoch = (block.timestamp - startingTime) / epochLength + 1;
+        rebalanceState.epochsPassed = uint24(rebalanceState.currentEpoch - uint256(state.lastEpoch));
 
-        state.lastEpoch = uint40(currentEpoch);
+        state.lastEpoch = uint40(rebalanceState.currentEpoch);
 
-        uint256 totalTokensSold_ = state.totalTokensSold;
-        uint256 expectedAmountSold = _getExpectedAmountSold();
-        uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
+        rebalanceState.totalTokensSold = state.totalTokensSold;
+        rebalanceState.expectedAmountSold = _getExpectedAmountSold();
+        rebalanceState.netSold = rebalanceState.totalTokensSold - state.totalTokensSoldLastEpoch;
 
-        state.totalTokensSoldLastEpoch = totalTokensSold_;
+        // update total tokens in canonical state
+        state.totalTokensSoldLastEpoch = rebalanceState.totalTokensSold;
 
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
-        (int24 accumulatorDelta, int24 newAccumulator) = _calculateAccumulatorDelta(
-            netSold, totalTokensSold_, expectedAmountSold, epochsPassed, currentTick
+        (rebalanceState.accumulatorDelta, rebalanceState.newAccumulator) = _calculateAccumulatorDelta(
+            rebalanceState.netSold, rebalanceState.totalTokensSold, rebalanceState.expectedAmountSold, rebalanceState.epochsPassed, currentTick
         );
 
-        if (accumulatorDelta != 0) {
-            state.tickAccumulator = newAccumulator;
-            currentTick = (currentTick + newAccumulator) / key.tickSpacing * key.tickSpacing;
+        if (rebalanceState.accumulatorDelta != 0) {
+            state.tickAccumulator = rebalanceState.newAccumulator;
+            currentTick = (currentTick + rebalanceState.newAccumulator) / key.tickSpacing * key.tickSpacing;
         }
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator);
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(rebalanceState.newAccumulator);
 
-        uint256 soldAmt = state.totalTokensSold;
-        uint256 protocolsProceeds = state.totalProceeds;
-
-        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
-        uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
-        uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
+        rebalanceState.sqrtPriceLower = TickMath.getSqrtPriceAtTick(currentTick);
+        rebalanceState.sqrtPriceNext = TickMath.getSqrtPriceAtTick(tickLower);
+        rebalanceState.sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
 
         (uint128 liquidity, uint256 requiredProceeds) = _calculateLiquidityAndProceeds(
-            sqrtPriceLower, sqrtPriceNext, sqrtPriceUpper, soldAmt
+            rebalanceState.sqrtPriceLower, rebalanceState.sqrtPriceNext, rebalanceState.sqrtPriceUpper, state.totalTokensSold 
         );
 
         (int24 lowerSlugTickUpper, int24 lowerSlugTickLower, uint128 lowerSlugLiquidity) = _calculateLowerSlug(
-            requiredProceeds, protocolsProceeds, soldAmt, key, liquidity, currentTick, tickLower
+            requiredProceeds, state.totalProceeds, state.totalTokensSold, key, liquidity, currentTick, tickLower
         );
 
         // TODO: Swap to intended tick
