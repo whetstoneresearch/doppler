@@ -25,7 +25,7 @@ contract Doppler is BaseHook {
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
         // TODO: consider whether this should be signed
-        uint24 tickAccumulator; // accumulator to modify the bonding curve
+        int24 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
@@ -41,7 +41,7 @@ contract Doppler is BaseHook {
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
     // TODO: consider whether this should be signed
-    uint256 immutable gamma; // 1.0001 ** (gamma) = max single block increase
+    int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
@@ -52,7 +52,7 @@ contract Doppler is BaseHook {
         int24 _startingTick,
         int24 _endingTick,
         uint256 _epochLength,
-        uint256 _gamma,
+        int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
         numTokensToSell = _numTokensToSell;
@@ -153,7 +153,7 @@ contract Doppler is BaseHook {
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = (block.timestamp - startingTime) / epochLength + 1;
-        uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
+        uint24 epochsPassed = uint24(currentEpoch - uint256(state.lastEpoch));
 
         state.lastEpoch = uint40(currentEpoch);
 
@@ -175,11 +175,17 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * epochsPassed;
+            // accumulatorDelta = int24(_getMaxTickDeltaPerEpoch() * uint24(epochsPassed));
+            // temp: to simplify this down we just use maxdelta
+            accumulatorDelta = int24(_getMaxTickDeltaPerEpoch());
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
-                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            // TODO: consider whether we actually wanna multiply by epochsPassed here
+            // temp: to simplify this down we just use maxdelta
+            // accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
+            //     * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            // TODO: very dummy to cast these as i24 but whatever, will fix later
+            accumulatorDelta = int24(_getMaxTickDeltaPerEpoch() * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18);
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         } else {
             // current starting tick
@@ -187,12 +193,12 @@ contract Doppler is BaseHook {
 
             // TODO: check for overflow
             // this is the expected that we are currently at
-            int24 expectedTick = tau_t + _getGammaElasped();
+            int24 expectedTick = tau_t + int24(_getGammaElasped());
 
             // how far are we above the expected tick?
             // has to be >=0 (could be 0 if rounded down)
             // casted to 256 for compatability
-            accumulatorDelta = int256(currentTick - expectedTick);
+            accumulatorDelta = currentTick - expectedTick;
 
             newAccumulator = state.tickAccumulator + accumulatorDelta;
         }
@@ -252,15 +258,17 @@ contract Doppler is BaseHook {
 
                 // this is the regular (not sqrt) price
                 // we want to move it back to sqrtPrice
-                uint160 tgtPriceX96 = FullMath.mulDiv(protocolsProceeds, FixedPoint96.Q96, soldAmt);
+                // TODO: unfuck this
+                uint160 tgtPriceX96 = uint160(FullMath.mulDiv(protocolsProceeds, FixedPoint96.Q96, soldAmt));
 
                 // check against TickMath.MAX_SQRT_PRICE_MINUS_MIN_SQRT_PRICE_MINUS_ONE
-                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(tgtPriceX96);
+                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(uint160(tgtPriceX96));
                 lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
 
-                liquidity = LiquidityAmounts.getLiquidityForAmount0(lowerSlugTickLower, lowerSlugTickUpper, soldAmt);
+                liquidity = LiquidityAmounts.getLiquidityForAmount0(TickMath.getSqrtPriceAtTick(lowerSlugTickLower), TickMath.getSqrtPriceAtTick(lowerSlugTickUpper), soldAmt);
             } else {
-                uint160 tgtPriceX96 = FullMath.mulDiv(soldAmt, FixedPoint96.Q96, protocolsProceeds);
+                // TODO: unfuck this
+                uint160 tgtPriceX96 = uint160(FullMath.mulDiv(soldAmt, FixedPoint96.Q96, protocolsProceeds));
 
                 lowerSlugTickLower = 2 * TickMath.getTickAtSqrtPrice(tgtPriceX96);
                 lowerSlugTickUpper = lowerSlugTickLower + key.tickSpacing;
@@ -278,13 +286,13 @@ contract Doppler is BaseHook {
 
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24, int24) {
         int24 lower = startingTick + accumulator;
-        int24 upper = lower + (startingTick > endingTick ? gamma : -(gamma));
+        int24 upper = (lower + startingTick > endingTick) ? gamma : -(gamma);
 
         return (lower, upper);
     }
 
     function _getGammaElasped() internal view returns (int256) {
-        return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * state.gamma / 1e18;
+        return int256(((int256(block.timestamp) - int256(startingTime)) * 1e18 / (int256(endingTime) - int256(startingTime))) * int256(gamma) / 1e18);
     }
 
     // TODO: consider whether it's safe to always round down
