@@ -96,7 +96,7 @@ contract DopplerTest is Test, Deployers {
             PoolKey memory poolKey = keys[i];
 
             vm.prank(address(manager));
-            // afterSwap where 1e3 numeraire is sent in and 10e18 asset is sent out
+            // afterSwap where 1e3 numeraire (token1) is sent in and 10e18 asset (token0) is sent out
             (bytes4 selector0, int128 hookDelta) = dopplers[i].afterSwap(
                 address(this),
                 poolKey,

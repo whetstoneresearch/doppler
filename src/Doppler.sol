@@ -18,7 +18,7 @@ import {FixedPoint96} from"v4-periphery/lib/v4-core/src/libraries/FixedPoint96.s
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
-    using BalanceDeltaLibrary for BalanceDelta;
+
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
