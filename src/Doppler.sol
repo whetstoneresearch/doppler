@@ -172,9 +172,10 @@ contract Doppler is BaseHook {
             int24 tauTick = startingTick + state.tickAccumulator;
             int24 expectedTick;
             // TODO: Overflow possible?
-            // TODO: Consider whether we actually want to negate the gamma (i think so)
+            //       May be worth bounding to a maximum int24.max
             // TODO: Consider whether this is the correct direction
-            tauTick > startingTick
+            //       Assumes that higher tick for token0 implies higher price
+            isToken0
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
             accumulatorDelta = int256(currentTick - expectedTick);
