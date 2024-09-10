@@ -18,13 +18,13 @@ import {FixedPoint96} from"v4-periphery/lib/v4-core/src/libraries/FixedPoint96.s
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
-
+    using BalanceDeltaLibrary for BalanceDelta;
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
         int24 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
-        uint256 totalProceeds; // total amount earned from selling tokens
+        uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
     }
 
@@ -109,26 +109,26 @@ contract Doppler is BaseHook {
             int128 amount0 = swapDelta.amount0();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount0 >= 0
-                ? state.totalTokensSold -= uint256(uint128(amount0))
-                : state.totalTokensSold += uint256(uint128(-amount0));
+                ? state.totalTokensSold += uint256(uint128(amount0))
+                : state.totalTokensSold -= uint256(uint128(-amount0));
 
             int128 amount1 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount1 >= 0
-                ? state.totalProceeds += uint256(uint128(amount1))
-                : state.totalProceeds -= uint256(uint128(-amount1));
+                ? state.totalProceeds -= uint256(uint128(amount1))
+                : state.totalProceeds += uint256(uint128(-amount1));
         } else {
             int128 amount1 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount1 >= 0
-                ? state.totalTokensSold -= uint256(uint128(amount1))
-                : state.totalTokensSold += uint256(uint128(-amount1));
+                ? state.totalTokensSold += uint256(uint128(amount1))
+                : state.totalTokensSold -= uint256(uint128(-amount1));
 
             int128 amount0 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount0 >= 0
-                ? state.totalProceeds += uint256(uint128(amount0))
-                : state.totalProceeds -= uint256(uint128(-amount0));
+                ? state.totalProceeds -= uint256(uint128(amount0))
+                : state.totalProceeds += uint256(uint128(-amount0));
         }
 
         return (BaseHook.afterSwap.selector, 0);
