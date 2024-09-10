@@ -81,4 +81,8 @@ contract DopplerImplementation is Doppler {
     function getElapsedGamma() public view returns (int256) {
         return _getElapsedGamma();
     }
+
+    function getTicksBasedOnState(int24 accumulator) public view returns (int24, int24) {
+        return _getTicksBasedOnState(accumulator);
+    }
 }

@@ -172,7 +172,7 @@ contract Doppler is BaseHook {
             int24 tauTick = startingTick + state.tickAccumulator;
             int24 expectedTick;
             // TODO: Overflow possible?
-            //       May be worth bounding to a maximum int24.max
+            //       May be worth bounding to a maximum int24.max/min
             // TODO: Consider whether this is the correct direction
             //       Assumes that higher tick for token0 implies higher price
             isToken0
@@ -219,7 +219,7 @@ contract Doppler is BaseHook {
 
     // TODO: Consider whether overflow is reasonably possible
     //       I think some validation logic will be necessary
-    //       Maybe we just need to constrain the ticks to a maximum of the endingTick
+    //       Maybe we just need to bound to int24.max/min
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction

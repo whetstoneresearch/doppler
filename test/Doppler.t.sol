@@ -533,18 +533,24 @@ contract DopplerTest is Test, Deployers {
     //                   _getTicksBasedOnState Unit Tests
     // =========================================================================
 
-    function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int24 accumulator) public {
-        
-
+    // TODO: int16 accumulator might over/underflow with certain states
+    //       Consider whether we need to protect against this in the contract or whether it's not a concern
+    function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
         for (uint256 i; i < dopplers.length; ++i) {
-            int256 elapsedGamma = dopplers[i].getElapsedGamma();
+            (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(int24(accumulator));
+            uint256 gamma = dopplers[i].getGamma();
 
-            assertApproxEqAbs(
-                int256(dopplers[i].getGamma()),
-                elapsedGamma * int256(dopplers[i].getEndingTime() - dopplers[i].getStartingTime())
-                / int256(timestamp - dopplers[i].getStartingTime()),
-                1
-            );
+            if (dopplers[i].getStartingTick() > dopplers[i].getEndingTick()) {
+                assertEq(
+                    int256(gamma),
+                    tickUpper - tickLower
+                );
+            } else {
+                assertEq(
+                    int256(gamma),
+                    tickLower - tickUpper
+                );
+            }
         }
     }
 }
