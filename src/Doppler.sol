@@ -193,17 +193,18 @@ contract Doppler is BaseHook {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
             state.tickAccumulator = int24(newAccumulator);
 
-            // TODO: Consider whether it's ok to overwrite this var
-            // TODO: Should we increment by newAccumulator or accumulatorDelta?
-            currentTick = ((currentTick + int24(newAccumulator))
-                / key.tickSpacing)
-                    * key.tickSpacing;
-
-            // TODO: Consider whether rounding up here makes sense
-            //       Probably shouldn't do this unless we know that it actually rounded down
-            //       previously and wasn't precise
-            //       Especially not safe if we don't do computations for unchanged currentTick
-            if (!isToken0) currentTick += key.tickSpacing;
+            // TODO: Consider whether it's ok to overwrite currentTick
+            if (isToken0) {
+                currentTick = ((currentTick + int24(accumulatorDelta))
+                    / key.tickSpacing)
+                        * key.tickSpacing;
+            } else {
+                // TODO: Consider whether this rounds up as expected
+                // Round up to support inverse direction
+                currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1)
+                    / key.tickSpacing)
+                        * key.tickSpacing;
+            }
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
