@@ -248,7 +248,7 @@ contract DopplerTest is Test, Deployers {
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(-100e18, 100e18),
+                toBalanceDelta(100e18, -100e18),
                 ""
             );
 
