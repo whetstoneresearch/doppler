@@ -290,6 +290,8 @@ contract DopplerTest is Test, Deployers {
 
             // Initialize totalTokensSold and totalProceeds as type(int128).max to prevent underflows
             // which can't occur in the actual implementation
+            // matt(note): i feel like this sorta makes sense, but the issue with this methodology is that totalProceeds and totalTokensSold increase when numeraire is sent in
+            // also, i think we should use uint instead of int args because below we are bootstrapping the pool with max proceeds and max sold, so the only possible swap after this is to reduce both of them
             bytes4 selector;
             int128 hookDelta;
             if (dopplers[i].getIsToken0()) {
@@ -302,7 +304,7 @@ contract DopplerTest is Test, Deployers {
                         amountSpecified: 100e18,
                         sqrtPriceLimitX96: SQRT_RATIO_2_1
                     }),
-                    toBalanceDelta(-type(int128).max, type(int128).max),
+                    toBalanceDelta(type(int128).max, -type(int128).max),
                     ""
                 );
             } else {
@@ -333,12 +335,12 @@ contract DopplerTest is Test, Deployers {
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(amount0, amount1),
+                toBalanceDelta(-amount0, amount1),
                 ""
             );
-
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
+
 
             (,, uint256 totalTokensSold, uint256 totalProceeds,) = dopplers[i].state();
 
@@ -356,9 +358,9 @@ contract DopplerTest is Test, Deployers {
 
                 // If is token0 then amount1 references the amount of proceeds
                 if (amount1 >= 0) {
-                    assertEq(totalProceeds, initialTotalProceeds + uint256(uint128(amount1)));
+                    assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(amount1)));
                 } else {
-                    assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(-amount1)));
+                    assertEq(totalProceeds, initialTotalProceeds + uint256(uint128(-amount1)));
                 }
             } else {
                 // If is token1 then amount1 references the (inverse) amount of tokens sold
