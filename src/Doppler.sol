@@ -2,18 +2,18 @@
 pragma solidity 0.8.26;
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from"v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
-import {LiquidityAmounts} from"v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
-import {SqrtPriceMath} from"v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
-import {FullMath} from"v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import {FixedPoint96} from"v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from"v4-core/src/libraries/TickMath.sol";
+import {LiquidityAmounts} from"v4-core/test/utils/LiquidityAmounts.sol";
+import {SqrtPriceMath} from"v4-core/src/libraries/SqrtPriceMath.sol";
+import {FullMath} from"v4-core/src/libraries/FullMath.sol";
+import {FixedPoint96} from"v4-core/src/libraries/FixedPoint96.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
