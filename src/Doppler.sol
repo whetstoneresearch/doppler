@@ -9,6 +9,11 @@ import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.s
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from"v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
+import {LiquidityAmounts} from"v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
+import {SqrtPriceMath} from"v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
+import {FullMath} from"v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import {FixedPoint96} from"v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -147,7 +152,10 @@ contract Doppler is BaseHook {
 
         state.lastEpoch = uint40(currentEpoch);
 
+        // Cache state vars to avoid multiple SLOADs
         uint256 totalTokensSold_ = state.totalTokensSold;
+        uint256 totalProceeds_ = state.totalProceeds;
+
         uint256 expectedAmountSold = _getExpectedAmountSold();
         // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
         //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
@@ -186,16 +194,70 @@ contract Doppler is BaseHook {
             state.tickAccumulator = int24(newAccumulator);
 
             // TODO: Consider whether it's ok to overwrite this var
+            // TODO: Should we increment by newAccumulator or accumulatorDelta?
             currentTick = ((currentTick + int24(newAccumulator))
                 / key.tickSpacing)
                     * key.tickSpacing;
 
             // TODO: Consider whether rounding up here makes sense
-            //       May not be ideal if we're calculating the precise amount above
+            //       Probably shouldn't do this unless we know that it actually rounded down
+            //       previously and wasn't precise
+            //       Especially not safe if we don't do computations for unchanged currentTick
             if (!isToken0) currentTick += key.tickSpacing;
         }
 
-        (int24 lower, int24 upper) = _getTicksBasedOnState(int24(newAccumulator));
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
+
+        // TODO: Consider what's redundant below if currentTick is unchanged
+
+        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
+        uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
+        uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
+
+        uint128 liquidity;
+        uint256 requiredProceeds;
+        if (isToken0) {
+            // TODO: Check max liquidity per tick
+            //       Should we spread liquidity across multiple ticks if necessary?
+            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+        } else {
+            liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceNext, sqrtPriceUpper, totalTokensSold_);
+            requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
+        }
+
+        int24 lowerSlugTickUpper = tickLower;
+        int24 lowerSlugTickLower = currentTick;
+        uint128 lowerSlugLiquidity = liquidity;
+
+        // If we do not have enough proceeds to the full lower slug,
+        // we switch to a single tick range at the target price
+        if (requiredProceeds > totalProceeds_) {
+            if (isToken0) {
+                // Q96 Target price (not sqrtPrice)
+                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalProceeds_, FixedPoint96.Q96, totalTokensSold_));
+                
+                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
+                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
+            } else {
+                // Q96 Target price (not sqrtPrice)
+                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalTokensSold_, FixedPoint96.Q96, totalProceeds_));
+
+                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
+                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                // TODO: Consider whether lower and upper values should be swapped
+                lowerSlugTickLower = lowerSlugTickUpper + key.tickSpacing;
+            }
+
+            // TODO: Calculate liquidity
+        }
 
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
