@@ -21,6 +21,7 @@ enum TokenState {
 
 contract Airlock is Ownable {
     mapping(address => FactoryState) public getFactoryState;
+    mapping(address token => address hook) public getHookOf;
 
     /**
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
@@ -41,6 +42,7 @@ contract Airlock is Ownable {
         require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
         require(getFactoryState[liquidityFactory] == FactoryState.LiquidityFactory, WrongFactoryState());
         tokenAddress = TokenFactory(tokenFactory).create("", "", 1_000_000_000e18, msg.sender);
+        getHookOf[tokenAddress] = liquidityFactory;
     }
 
     // TODO: Add hook parameters
