@@ -69,11 +69,6 @@ contract Doppler is BaseHook {
         // TODO: consider enforcing that min and max gamma
     }
 
-    modifier onlyPoolManager() {
-        if (msg.sender != address(poolManager)) revert Unauthorized();
-        _;
-    }
-
     // TODO: consider reverting or returning if after end time
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         external

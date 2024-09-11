@@ -46,7 +46,7 @@ contract DopplerTest is Test, Deployers {
             (token0, token1) = (token1, token0);
         }
 
-        manager = new PoolManager(500000);
+        manager = new PoolManager();
 
         vm.warp(1000);
 
