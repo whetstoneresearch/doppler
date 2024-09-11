@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {ERC20} from "solady/tokens/ERC20.sol";
 
-contract DopplerERC20 is ERC20 {
+contract DERC20 is ERC20 {
     string private _name;
     string private _symbol;
 
