@@ -15,6 +15,7 @@ import {CurrencyLibrary, Currency} from "v4-periphery/lib/v4-core/src/types/Curr
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -86,6 +87,10 @@ contract DopplerTest is Test, Deployers {
         dopplers.push(doppler0);
         keys.push(key0);
         ids.push(id0);
+
+        for (uint256 i; i < keys.length; ++i) {
+            manager.initialize(keys[i], TickMath.getSqrtPriceAtTick(dopplers[i].getStartingTick()), "");
+        }
     }
 
     // =========================================================================
