@@ -2,18 +2,18 @@
 pragma solidity 0.8.26;
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
-import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from"v4-core/src/libraries/TickMath.sol";
-import {LiquidityAmounts} from"v4-core/test/utils/LiquidityAmounts.sol";
-import {SqrtPriceMath} from"v4-core/src/libraries/SqrtPriceMath.sol";
-import {FullMath} from"v4-core/src/libraries/FullMath.sol";
-import {FixedPoint96} from"v4-core/src/libraries/FixedPoint96.sol";
+import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
+import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
+import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
+import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
+import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -24,7 +24,7 @@ contract Doppler is BaseHook {
         uint40 lastEpoch; // last updated epoch (1-indexed)
         int24 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
-        uint256 totalProceeds; // total amount earned from selling tokens
+        uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
     }
 
@@ -109,26 +109,26 @@ contract Doppler is BaseHook {
             int128 amount0 = swapDelta.amount0();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount0 >= 0
-                ? state.totalTokensSold -= uint256(uint128(amount0))
-                : state.totalTokensSold += uint256(uint128(-amount0));
+                ? state.totalTokensSold += uint256(uint128(amount0))
+                : state.totalTokensSold -= uint256(uint128(-amount0));
 
             int128 amount1 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount1 >= 0
-                ? state.totalProceeds += uint256(uint128(amount1))
-                : state.totalProceeds -= uint256(uint128(-amount1));
+                ? state.totalProceeds -= uint256(uint128(amount1))
+                : state.totalProceeds += uint256(uint128(-amount1));
         } else {
             int128 amount1 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount1 >= 0
-                ? state.totalTokensSold -= uint256(uint128(amount1))
-                : state.totalTokensSold += uint256(uint128(-amount1));
+                ? state.totalTokensSold += uint256(uint128(amount1))
+                : state.totalTokensSold -= uint256(uint128(-amount1));
 
             int128 amount0 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount0 >= 0
-                ? state.totalProceeds += uint256(uint128(amount0))
-                : state.totalProceeds -= uint256(uint128(-amount0));
+                ? state.totalProceeds -= uint256(uint128(amount0))
+                : state.totalProceeds += uint256(uint128(-amount0));
         }
 
         return (BaseHook.afterSwap.selector, 0);
@@ -165,7 +165,7 @@ contract Doppler is BaseHook {
 
         // get current state
         PoolId poolId = key.toId();
-        (uint160 sqrtPriceX96, int24 currentTick, , ) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
         int256 accumulatorDelta;
         int256 newAccumulator;
@@ -195,15 +195,12 @@ contract Doppler is BaseHook {
 
             // TODO: Consider whether it's ok to overwrite currentTick
             if (isToken0) {
-                currentTick = ((currentTick + int24(accumulatorDelta))
-                    / key.tickSpacing)
-                        * key.tickSpacing;
+                currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
             } else {
                 // TODO: Consider whether this rounds up as expected
                 // Round up to support inverse direction
-                currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1)
-                    / key.tickSpacing)
-                        * key.tickSpacing;
+                currentTick =
+                    ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
             }
         }
 
@@ -237,7 +234,7 @@ contract Doppler is BaseHook {
             if (isToken0) {
                 // Q96 Target price (not sqrtPrice)
                 uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalProceeds_, FixedPoint96.Q96, totalTokensSold_));
-                
+
                 // TODO: Consider whether this can revert due to InvalidSqrtPrice check
                 // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
                 lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);

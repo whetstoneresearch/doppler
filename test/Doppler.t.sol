@@ -248,7 +248,7 @@ contract DopplerTest is Test, Deployers {
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(-100e18, 100e18),
+                toBalanceDelta(100e18, -100e18),
                 ""
             );
 
@@ -302,7 +302,7 @@ contract DopplerTest is Test, Deployers {
                         amountSpecified: 100e18,
                         sqrtPriceLimitX96: SQRT_RATIO_2_1
                     }),
-                    toBalanceDelta(-type(int128).max, type(int128).max),
+                    toBalanceDelta(type(int128).max, -type(int128).max),
                     ""
                 );
             } else {
@@ -333,10 +333,9 @@ contract DopplerTest is Test, Deployers {
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(amount0, amount1),
+                toBalanceDelta(-amount0, amount1),
                 ""
             );
-
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
 
@@ -356,9 +355,9 @@ contract DopplerTest is Test, Deployers {
 
                 // If is token0 then amount1 references the amount of proceeds
                 if (amount1 >= 0) {
-                    assertEq(totalProceeds, initialTotalProceeds + uint256(uint128(amount1)));
+                    assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(amount1)));
                 } else {
-                    assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(-amount1)));
+                    assertEq(totalProceeds, initialTotalProceeds + uint256(uint128(-amount1)));
                 }
             } else {
                 // If is token1 then amount1 references the (inverse) amount of tokens sold
@@ -495,11 +494,15 @@ contract DopplerTest is Test, Deployers {
 
             assertApproxEqAbs(
                 dopplers[i].getEndingTick(),
-                ((maxTickDeltaPerEpoch
-                    * (int256((dopplers[i].getEndingTime() - dopplers[i].getStartingTime())) 
-                        * int256(dopplers[i].getEpochLength()))
-                ) / 1e18
-                + dopplers[i].getStartingTick()),
+                (
+                    (
+                        maxTickDeltaPerEpoch
+                            * (
+                                int256((dopplers[i].getEndingTime() - dopplers[i].getStartingTime()))
+                                    * int256(dopplers[i].getEpochLength())
+                            )
+                    ) / 1e18 + dopplers[i].getStartingTick()
+                ),
                 1
             );
         }
@@ -523,7 +526,7 @@ contract DopplerTest is Test, Deployers {
             assertApproxEqAbs(
                 int256(dopplers[i].getGamma()),
                 elapsedGamma * int256(dopplers[i].getEndingTime() - dopplers[i].getStartingTime())
-                / int256(timestamp - dopplers[i].getStartingTime()),
+                    / int256(timestamp - dopplers[i].getStartingTime()),
                 1
             );
         }
@@ -541,15 +544,9 @@ contract DopplerTest is Test, Deployers {
             uint256 gamma = dopplers[i].getGamma();
 
             if (dopplers[i].getStartingTick() > dopplers[i].getEndingTick()) {
-                assertEq(
-                    int256(gamma),
-                    tickUpper - tickLower
-                );
+                assertEq(int256(gamma), tickUpper - tickLower);
             } else {
-                assertEq(
-                    int256(gamma),
-                    tickLower - tickUpper
-                );
+                assertEq(int256(gamma), tickLower - tickUpper);
             }
         }
     }
