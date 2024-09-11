@@ -262,9 +262,63 @@ contract Doppler is BaseHook {
             }
         }
 
+        uint256 nextEpochTime = ((block.timestamp - startingTime) / epochLength + 1) * epochLength + startingTime;
+        uint256 deltaT1 = _getNormalizedTimeElapsed(nextEpochTime);
+        uint256 expectedSoldPercent = (totalTokensSold_ * 1e18 / _getExpectedAmountSold());
+        int256 expectedToDeltaT1 = int256(deltaT1) - int256(expectedSoldPercent);
+
+        int24 upperBoundTickLower;
+        int24 upperBoundTickUpper;
+        uint128 upperBoundLiquidity;
+
+        if (expectedToDeltaT1 > 0) {
+            uint256 tokens_to_lp = (uint256(expectedToDeltaT1) * numTokensToSell) / 1e18;
+
+            int256 upperSlugAccumulatorDelta = int256(_getGammaShare(nextEpochTime) * gamma / 1e18);
+            int24 tick_t1 = currentTick + int24(upperSlugAccumulatorDelta);
+
+            uint160 upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(tick_t1);
+            uint160 upperSlugBelowPrice = sqrtPriceNext;
+
+            if (isToken0) {
+                upperBoundTickLower = tick_t1;
+                upperBoundTickUpper = currentTick;
+                if (upperSlugAbovePrice < upperSlugBelowPrice) {
+                    (upperBoundTickLower, upperBoundTickUpper) = (currentTick, tick_t1);
+                    (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
+                }
+                upperBoundLiquidity =
+                    LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokens_to_lp);
+            } else {
+                upperBoundTickLower = currentTick;
+                upperBoundTickUpper = tick_t1;
+                if (upperSlugAbovePrice > upperSlugBelowPrice) {
+                    (upperBoundTickLower, upperBoundTickUpper) = (tick_t1, currentTick);
+                    (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
+                }
+                upperBoundLiquidity =
+                    LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokens_to_lp);
+            }
+
+            // TODO: Add liquidity using upperBoundTickLower, upperBoundTickUpper, and upperBoundLiquidity
+        }
+
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+    }
+
+    function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
+        if (timestamp > endingTime) {
+            timestamp = endingTime;
+        }
+        return ((timestamp - startingTime) * 1e18) / (endingTime - startingTime);
+    }
+
+    function _getGammaShare(uint256 timestamp) internal view returns (uint256) {
+        uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(timestamp);
+        uint256 normalizedTimeElapsedPrev = _getNormalizedTimeElapsed(block.timestamp);
+        return normalizedTimeElapsed - normalizedTimeElapsedPrev;
     }
 
     // TODO: consider whether it's safe to always round down
