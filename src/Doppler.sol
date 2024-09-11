@@ -19,6 +19,10 @@ contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
+    uint256 constant LOWER_SLUG_SALT = 1;
+    uint256 constant UPPER_SLUG_SALT = 2;
+    uint256 constant DISCOVERY_SLUG_SALT = 3;
+
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
