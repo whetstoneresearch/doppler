@@ -142,7 +142,7 @@ contract Doppler is BaseHook {
 
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
-        uint256 currentEpoch = (block.timestamp - startingTime) / epochLength + 1;
+        uint256 currentEpoch = _getCurrentEpoch();
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
 
         state.lastEpoch = uint40(currentEpoch);
@@ -262,10 +262,11 @@ contract Doppler is BaseHook {
             }
         }
 
-        uint256 nextEpochTime = ((block.timestamp - startingTime) / epochLength + 1) * epochLength + startingTime;
-        uint256 deltaT1 = _getNormalizedTimeElapsed(nextEpochTime);
-        uint256 expectedSoldPercent = (totalTokensSold_ * 1e18 / _getExpectedAmountSold());
-        int256 expectedToDeltaT1 = int256(deltaT1) - int256(expectedSoldPercent);
+
+        uint256 nextEpochTime = _getCurrentEpoch() * epochLength + startingTime; // compute end time of current epoch
+        uint256 percentElapsedAtNextEpoch = _getNormalizedTimeElapsed(nextEpochTime); // percent time elapsed at end of epoch 
+        uint256 expectedSoldPercent = (totalTokensSold_ * 1e18 / _getExpectedAmountSold()); // compute expected percent of tokens sold by next epoch
+        int256 deltaToT1= int256(percentElapsedAtNextEpoch) - int256(expectedSoldPercent); // compute expected delta to next epoch
 
         int24 upperBoundTickLower;
         int24 upperBoundTickUpper;
@@ -306,6 +307,10 @@ contract Doppler is BaseHook {
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+    }
+
+    function _getCurrentEpoch() internal view returns (uint256) {
+        return (block.timestamp - startingTime) / epochLength + 1;
     }
 
     function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
