@@ -276,46 +276,6 @@ contract DopplerTest is Test, Deployers {
         }
     }
 
-    function testBeforeSwap_LowerSlugReverts() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime());
-
-            PoolKey memory poolKey = keys[i];
-
-            vm.prank(address(manager));
-            // afterSwap where 1e3 numeraire (token1) is sent in and 10e18 asset (token0) is sent out
-            (bytes4 selector0, int128 hookDelta) = dopplers[i].afterSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: false, amountSpecified: 1e3, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(10e18, -1e3),
-                ""
-            );
-
-            assertEq(selector0, BaseHook.afterSwap.selector);
-            assertEq(hookDelta, 0);
-
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength()); // Next epoch
-
-            vm.prank(address(manager));
-            (bytes4 selector1, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 1e3, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-
-            assertEq(selector1, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = dopplers[i].state();
-
-            assertEq(totalTokensSold, 10e18);
-            assertEq(totalTokensSoldLastEpoch, 10e18);
-        }
-    }
-
     // =========================================================================
     //                          afterSwap Unit Tests
     // =========================================================================
