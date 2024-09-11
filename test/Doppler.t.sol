@@ -339,7 +339,6 @@ contract DopplerTest is Test, Deployers {
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
 
-
             (,, uint256 totalTokensSold, uint256 totalProceeds,) = dopplers[i].state();
 
             if (dopplers[i].getIsToken0()) {
@@ -495,11 +494,15 @@ contract DopplerTest is Test, Deployers {
 
             assertApproxEqAbs(
                 dopplers[i].getEndingTick(),
-                ((maxTickDeltaPerEpoch
-                    * (int256((dopplers[i].getEndingTime() - dopplers[i].getStartingTime())) 
-                        * int256(dopplers[i].getEpochLength()))
-                ) / 1e18
-                + dopplers[i].getStartingTick()),
+                (
+                    (
+                        maxTickDeltaPerEpoch
+                            * (
+                                int256((dopplers[i].getEndingTime() - dopplers[i].getStartingTime()))
+                                    * int256(dopplers[i].getEpochLength())
+                            )
+                    ) / 1e18 + dopplers[i].getStartingTick()
+                ),
                 1
             );
         }
@@ -523,7 +526,7 @@ contract DopplerTest is Test, Deployers {
             assertApproxEqAbs(
                 int256(dopplers[i].getGamma()),
                 elapsedGamma * int256(dopplers[i].getEndingTime() - dopplers[i].getStartingTime())
-                / int256(timestamp - dopplers[i].getStartingTime()),
+                    / int256(timestamp - dopplers[i].getStartingTime()),
                 1
             );
         }
@@ -541,19 +544,12 @@ contract DopplerTest is Test, Deployers {
             uint256 gamma = dopplers[i].getGamma();
 
             if (dopplers[i].getStartingTick() > dopplers[i].getEndingTick()) {
-                assertEq(
-                    int256(gamma),
-                    tickUpper - tickLower
-                );
+                assertEq(int256(gamma), tickUpper - tickLower);
             } else {
-                assertEq(
-                    int256(gamma),
-                    tickLower - tickUpper
-                );
+                assertEq(int256(gamma), tickLower - tickUpper);
             }
         }
     }
-
 }
 
 error Unauthorized();

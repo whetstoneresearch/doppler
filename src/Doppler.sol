@@ -9,11 +9,11 @@ import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.s
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from"v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
-import {LiquidityAmounts} from"v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
-import {SqrtPriceMath} from"v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
-import {FullMath} from"v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import {FixedPoint96} from"v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
+import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
+import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
+import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
+import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -165,7 +165,7 @@ contract Doppler is BaseHook {
 
         // get current state
         PoolId poolId = key.toId();
-        (uint160 sqrtPriceX96, int24 currentTick, , ) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
         int256 accumulatorDelta;
         int256 newAccumulator;
@@ -195,15 +195,12 @@ contract Doppler is BaseHook {
 
             // TODO: Consider whether it's ok to overwrite currentTick
             if (isToken0) {
-                currentTick = ((currentTick + int24(accumulatorDelta))
-                    / key.tickSpacing)
-                        * key.tickSpacing;
+                currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
             } else {
                 // TODO: Consider whether this rounds up as expected
                 // Round up to support inverse direction
-                currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1)
-                    / key.tickSpacing)
-                        * key.tickSpacing;
+                currentTick =
+                    ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
             }
         }
 
@@ -237,7 +234,7 @@ contract Doppler is BaseHook {
             if (isToken0) {
                 // Q96 Target price (not sqrtPrice)
                 uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalProceeds_, FixedPoint96.Q96, totalTokensSold_));
-                
+
                 // TODO: Consider whether this can revert due to InvalidSqrtPrice check
                 // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
                 lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
