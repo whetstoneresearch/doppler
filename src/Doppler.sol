@@ -279,23 +279,25 @@ contract Doppler is BaseHook {
             }
         }
 
-        uint256 nextEpochTime = (_getCurrentEpoch() + 1) * epochLength + startingTime; // compute end time of current epoch
-        uint256 percentElapsedAtNextEpoch = _getNormalizedTimeElapsed(nextEpochTime); // percent time elapsed at end of epoch
-        uint256 expectedSoldAtNextEpoch = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(nextEpochTime)); // compute percent of tokens sold by next epoch
-        int256 tokensSoldDelta = int256(percentElapsedAtNextEpoch) - int256(expectedSoldAtNextEpoch); // compute if we've sold more or less tokens than expected by next epoch
+        uint256 epochT1 = (_getCurrentEpoch() + 1) * epochLength + startingTime; // compute end time of current epoch
+        uint256 percentElapsedAtT1 = _getNormalizedTimeElapsed(epochT1); // percent time elapsed at end of epoch
+        uint256 expectedSoldAtT1 = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochT1)); // compute percent of tokens sold by next epoch
+        int256 tokensSoldDelta = int256(percentElapsedAtT1) - int256(expectedSoldAtT1); // compute if we've sold more or less tokens than expected by next epoch
 
         int24 upperBoundTickLower;
         int24 upperBoundTickUpper;
         uint128 upperBoundLiquidity;
+        uint160 upperSlugAbovePrice;
+        uint160 upperSlugBelowPrice;
 
         if (tokensSoldDelta > 0) {
             uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
 
-            accumulatorDelta = int256(_getGammaShare(nextEpochTime) * gamma / 1e18);
+            accumulatorDelta = int256(_getGammaShare(epochT1) * gamma / 1e18);
             int24 nextTick = currentTick + int24(accumulatorDelta);
 
-            uint160 upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
-            uint160 upperSlugBelowPrice = sqrtPriceNext;
+            upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
+            upperSlugBelowPrice = sqrtPriceNext;
 
             if (isToken0) {
                 upperBoundTickLower = nextTick;
@@ -316,8 +318,40 @@ contract Doppler is BaseHook {
                 upperBoundLiquidity =
                     LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
             }
+        }
 
-            // TODO: Add liquidity using upperBoundTickLower, upperBoundTickUpper, and upperBoundLiquidity
+        uint256 epochT2 = epochT1 + epochLength; // compute end time two epochs from now
+
+        if (epochT2 > endingTime) {
+            epochT2 = endingTime;
+        }
+
+        if (epochT2 != epochT1) {
+            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(epochT2) - percentElapsedAtT1;
+            int24 priceDiscoveryTickLower;
+            int24 priceDiscoveryTickUpper;
+            uint128 priceDiscoveryLiquidity;
+
+            if (epochT1toT2Delta > 0) {
+                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
+                if (isToken0) {
+                    priceDiscoveryTickLower = upperBoundTickLower;
+                    priceDiscoveryTickUpper = tickUpper;
+                    priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount0(
+                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
+                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
+                        tokensToLp
+                    );
+                } else {
+                    priceDiscoveryTickLower = tickLower;
+                    priceDiscoveryTickUpper = upperBoundTickUpper;
+                    priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount1(
+                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
+                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
+                        tokensToLp
+                    );
+                }
+            }
         }
 
         // TODO: Swap to intended tick
