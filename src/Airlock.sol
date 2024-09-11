@@ -36,4 +36,8 @@ contract Airlock is Ownable {
         require(getFactoryState[liquidityFactory] == FactoryState.LiquidityFactory, WrongFactoryState());
         tokenAddress = TokenFactory(tokenFactory).create("", "", 1_000_000_000e18, msg.sender);
     }
+
+    function setFactoryState(address factory, FactoryState state) external onlyOwner {
+        getFactoryState[factory] = state;
+    }
 }
