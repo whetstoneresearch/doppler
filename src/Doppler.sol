@@ -279,9 +279,8 @@ contract Doppler is BaseHook {
             }
         }
 
-
         uint256 nextEpochTime = (_getCurrentEpoch() + 1) * epochLength + startingTime; // compute end time of current epoch
-        uint256 percentElapsedAtNextEpoch = _getNormalizedTimeElapsed(nextEpochTime); // percent time elapsed at end of epoch 
+        uint256 percentElapsedAtNextEpoch = _getNormalizedTimeElapsed(nextEpochTime); // percent time elapsed at end of epoch
         uint256 expectedSoldAtNextEpoch = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(nextEpochTime)); // compute percent of tokens sold by next epoch
         int256 tokensSoldDelta = int256(percentElapsedAtNextEpoch) - int256(expectedSoldAtNextEpoch); // compute if we've sold more or less tokens than expected by next epoch
 
