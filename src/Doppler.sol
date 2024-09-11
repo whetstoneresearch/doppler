@@ -32,8 +32,15 @@ contract Doppler is BaseHook {
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
     }
 
-    // TODO: consider whether this needs to be public
+    struct Position {
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+    }
+
+    // TODO: consider whether these need to be public
     State public state;
+    mapping(bytes32 salt => Position) public positions;
 
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
     uint256 immutable startingTime; // sale start time
@@ -278,13 +285,36 @@ contract Doppler is BaseHook {
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
 
+        // TODO: If we're not actually modifying liquidity, skip below logic
+        // TODO: Consider whether we need slippage protection
+
+        // Get old position liquidity
+        Position memory position = positions[LOWER_SLUG_SALT];
+
+        // Remove all liquidity from old position
+        poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+            tickLower: position.tickLower,
+            tickUpper: position.tickUpper,
+            // TODO: Ensure negative means removing liquidity
+            liquidityDelta: -int128(position.liquidity),
+            salt: LOWER_SLUG_SALT
+        }), "");
+
+        // Add liquidity to new position
         poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
             tickLower: lowerSlugTickLower,
             tickUpper: lowerSlugTickUpper,
-            // TODO: Positive means adding liquidity right?
+            // TODO: Ensure positive means adding liquidity
             liquidityDelta: int128(lowerSlugLiquidity),
             salt: LOWER_SLUG_SALT
         }), "");
+        
+        // Store new position ticks and liquidity
+        positions[LOWER_SLUG_SALT] = Position({
+            tickLower: lowerSlugTickLower,
+            tickUpper: lowerSlugTickUpper,
+            liquidity: lowerSlugLiquidity
+        });
     }
 
     // TODO: consider whether it's safe to always round down
