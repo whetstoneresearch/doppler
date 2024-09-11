@@ -46,6 +46,7 @@ contract Airlock is Ownable {
     }
 
     // TODO: Add hook parameters
+    // Also I think this function be just be called directly by `create`
     function stageLiquidity(address token) external {
         // I think the flow would be something like:
         // user -> Airlock -> PoolManager -> Hook (via beforeInitialize)
