@@ -37,6 +37,12 @@ contract Airlock is Ownable {
         tokenAddress = TokenFactory(tokenFactory).create("", "", 1_000_000_000e18, msg.sender);
     }
 
+    // TODO: Add hook parameters
+    function stageLiquidity(address token) external {
+        // I think the flow would be something like:
+        // user -> Airlock -> PoolManager -> Hook (via beforeInitialize)
+    }
+
     function setFactoryState(address factory, FactoryState state) external onlyOwner {
         getFactoryState[factory] = state;
     }
