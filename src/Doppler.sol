@@ -162,7 +162,9 @@ contract Doppler is BaseHook {
         uint256 totalTokensSold_ = state.totalTokensSold;
         uint256 totalProceeds_ = state.totalProceeds;
 
-        uint256 expectedAmountSold = _getExpectedAmountSold();
+        // TODO: consider if this should be the expected amount sold at the start of the current epoch or at the current time
+        // i think logically it makes sense to use the current time to get the most accurate rebalance
+        uint256 expectedAmountSold = _getExpectedAmountSold(block.timestamp);
         // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
         //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
         uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
@@ -280,15 +282,15 @@ contract Doppler is BaseHook {
 
         uint256 nextEpochTime = (_getCurrentEpoch() + 1) * epochLength + startingTime; // compute end time of current epoch
         uint256 percentElapsedAtNextEpoch = _getNormalizedTimeElapsed(nextEpochTime); // percent time elapsed at end of epoch 
-        uint256 expectedSoldPercent = (totalTokensSold_ * 1e18 / _getExpectedAmountSold()); // compute expected percent of tokens sold by next epoch
-        int256 expectedDeltaToNextEpoch = int256(percentElapsedAtNextEpoch) - int256(expectedSoldPercent); // compute expected delta to next epoch
+        uint256 expectedSoldAtNextEpoch = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(nextEpochTime)); // compute percent of tokens sold by next epoch
+        int256 tokensSoldDelta = int256(percentElapsedAtNextEpoch) - int256(expectedSoldAtNextEpoch); // compute if we've sold more or less tokens than expected by next epoch
 
         int24 upperBoundTickLower;
         int24 upperBoundTickUpper;
         uint128 upperBoundLiquidity;
 
-        if (expectedDeltaToNextEpoch > 0) {
-            uint256 tokens_to_lp = (uint256(expectedDeltaToNextEpoch) * numTokensToSell) / 1e18;
+        if (tokensSoldDelta > 0) {
+            uint256 tokens_to_lp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
 
             int256 upperSlugAccumulatorDelta = int256(_getGammaShare(nextEpochTime) * gamma / 1e18);
             int24 tick_t1 = currentTick + int24(upperSlugAccumulatorDelta);
@@ -363,8 +365,8 @@ contract Doppler is BaseHook {
     }
 
     // TODO: consider whether it's safe to always round down
-    function _getExpectedAmountSold() internal view returns (uint256) {
-        return ((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
+    function _getExpectedAmountSold(uint256 timestamp) internal view returns (uint256) {
+        return ((timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
     }
 
     // Returns 18 decimal fixed point value
