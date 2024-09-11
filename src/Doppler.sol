@@ -355,27 +355,53 @@ contract Doppler is BaseHook {
 
         if (prevPosition.liquidity != 0) {
             // Remove all liquidity from old position
-            poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+            // TODO: Consider whether fees are relevant
+            (BalanceDelta delta, ) = poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
                 tickLower: prevPosition.tickLower,
                 tickUpper: prevPosition.tickUpper,
                 // TODO: Ensure negative means removing liquidity
                 liquidityDelta: -int128(prevPosition.liquidity),
                 salt: LOWER_SLUG_SALT
             }), "");
+
+            int256 delta0 = delta.amount0();
+            int256 delta1 = delta.amount1();
+
+            // TODO: Ensure negative delta0/1 is correct
+            if (delta0 < 0) {
+                poolManager.take(key.currency0, address(this), uint256(-delta0));
+            }
+
+            if (delta1 < 0) {
+                poolManager.take(key.currency1, address(this), uint256(-delta1));
+            }
         }
 
         if (newPosition.liquidity != 0) {
             // Add liquidity to new position
-            poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+            // TODO: Consider whether fees are relevant
+            (BalanceDelta delta, ) = poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
                 tickLower: newPosition.tickLower,
                 tickUpper: newPosition.tickUpper,
                 // TODO: Ensure positive means adding liquidity
                 liquidityDelta: int128(newPosition.liquidity),
                 salt: LOWER_SLUG_SALT
             }), "");
-        }
 
-        // Settle accounting
+            int256 delta0 = delta.amount0();
+            int256 delta1 = delta.amount1();
+
+            // TODO: Ensure positive delta0/1 is correct
+            if (delta0 > 0) {
+                key.currency0.transfer(address(poolManager), uint256(delta0));
+            }
+
+            if (delta1 > 0) {
+                key.currency1.transfer(address(poolManager), uint256(delta1));
+            }
+
+            poolManager.settle();
+        }
     }
 }
 
