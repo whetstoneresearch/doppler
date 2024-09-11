@@ -290,8 +290,6 @@ contract DopplerTest is Test, Deployers {
 
             // Initialize totalTokensSold and totalProceeds as type(int128).max to prevent underflows
             // which can't occur in the actual implementation
-            // matt(note): i feel like this sorta makes sense, but the issue with this methodology is that totalProceeds and totalTokensSold increase when numeraire is sent in
-            // also, i think we should use uint instead of int args because below we are bootstrapping the pool with max proceeds and max sold, so the only possible swap after this is to reduce both of them
             bytes4 selector;
             int128 hookDelta;
             if (dopplers[i].getIsToken0()) {
