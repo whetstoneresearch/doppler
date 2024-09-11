@@ -244,6 +244,12 @@ contract Doppler is BaseHook {
                 // TODO: Check max liquidity per tick
                 //       Should we spread liquidity across multiple ticks if necessary?
                 lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
+
+                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount1(
+                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
+                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
+                    totalProceeds_
+                );
             } else {
                 // Q96 Target price (not sqrtPrice)
                 uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalTokensSold_, FixedPoint96.Q96, totalProceeds_));
@@ -255,9 +261,13 @@ contract Doppler is BaseHook {
                 //       Should we spread liquidity across multiple ticks if necessary?
                 // TODO: Consider whether lower and upper values should be swapped
                 lowerSlugTickLower = lowerSlugTickUpper + key.tickSpacing;
-            }
 
-            // TODO: Calculate liquidity
+                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount0(
+                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
+                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
+                    totalProceeds_
+                );
+            }
         }
 
         // TODO: Swap to intended tick
