@@ -19,9 +19,9 @@ contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
-    uint256 constant LOWER_SLUG_SALT = 1;
-    uint256 constant UPPER_SLUG_SALT = 2;
-    uint256 constant DISCOVERY_SLUG_SALT = 3;
+    bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
+    bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+    bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
     // TODO: consider if we can use smaller uints
     struct State {
@@ -277,6 +277,14 @@ contract Doppler is BaseHook {
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+
+        poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+            tickLower: lowerSlugTickLower,
+            tickUpper: lowerSlugTickUpper,
+            // TODO: Positive means adding liquidity right?
+            liquidityDelta: int128(lowerSlugLiquidity),
+            salt: LOWER_SLUG_SALT
+        }), "");
     }
 
     // TODO: consider whether it's safe to always round down
