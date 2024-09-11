@@ -291,23 +291,12 @@ contract Doppler is BaseHook {
         // Get old position liquidity
         Position memory position = positions[LOWER_SLUG_SALT];
 
-        // Remove all liquidity from old position
-        poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
-            tickLower: position.tickLower,
-            tickUpper: position.tickUpper,
-            // TODO: Ensure negative means removing liquidity
-            liquidityDelta: -int128(position.liquidity),
-            salt: LOWER_SLUG_SALT
-        }), "");
-
-        // Add liquidity to new position
-        poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+        // Execute lock - providing old and new position
+        poolManager.unlock(abi.encode(position, Position({
             tickLower: lowerSlugTickLower,
             tickUpper: lowerSlugTickUpper,
-            // TODO: Ensure positive means adding liquidity
-            liquidityDelta: int128(lowerSlugLiquidity),
-            salt: LOWER_SLUG_SALT
-        }), "");
+            liquidity: lowerSlugLiquidity
+        }), key));
         
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] = Position({
@@ -358,6 +347,30 @@ contract Doppler is BaseHook {
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
+    }
+
+    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
+        (Position memory prevPosition, Position memory newPosition, PoolKey memory key) = abi.decode(data, (Position, Position, PoolKey));
+
+        // Remove all liquidity from old position
+        poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+            tickLower: prevPosition.tickLower,
+            tickUpper: prevPosition.tickUpper,
+            // TODO: Ensure negative means removing liquidity
+            liquidityDelta: -int128(prevPosition.liquidity),
+            salt: LOWER_SLUG_SALT
+        }), "");
+
+        // Add liquidity to new position
+        poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+            tickLower: newPosition.tickLower,
+            tickUpper: newPosition.tickUpper,
+            // TODO: Ensure positive means adding liquidity
+            liquidityDelta: int128(newPosition.liquidity),
+            salt: LOWER_SLUG_SALT
+        }), "");
+
+        // Settle accounting
     }
 }
 
