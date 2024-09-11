@@ -290,32 +290,32 @@ contract Doppler is BaseHook {
         uint128 upperBoundLiquidity;
 
         if (tokensSoldDelta > 0) {
-            uint256 tokens_to_lp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
+            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
 
-            int256 upperSlugAccumulatorDelta = int256(_getGammaShare(nextEpochTime) * gamma / 1e18);
-            int24 tick_t1 = currentTick + int24(upperSlugAccumulatorDelta);
+            accumulatorDelta = int256(_getGammaShare(nextEpochTime) * gamma / 1e18);
+            int24 nextTick = currentTick + int24(accumulatorDelta);
 
-            uint160 upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(tick_t1);
+            uint160 upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
             uint160 upperSlugBelowPrice = sqrtPriceNext;
 
             if (isToken0) {
-                upperBoundTickLower = tick_t1;
+                upperBoundTickLower = nextTick;
                 upperBoundTickUpper = currentTick;
                 if (upperSlugAbovePrice < upperSlugBelowPrice) {
-                    (upperBoundTickLower, upperBoundTickUpper) = (currentTick, tick_t1);
+                    (upperBoundTickLower, upperBoundTickUpper) = (currentTick, nextTick);
                     (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
                 }
                 upperBoundLiquidity =
-                    LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokens_to_lp);
+                    LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
             } else {
                 upperBoundTickLower = currentTick;
-                upperBoundTickUpper = tick_t1;
+                upperBoundTickUpper = nextTick;
                 if (upperSlugAbovePrice > upperSlugBelowPrice) {
-                    (upperBoundTickLower, upperBoundTickUpper) = (tick_t1, currentTick);
+                    (upperBoundTickLower, upperBoundTickUpper) = (nextTick, currentTick);
                     (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
                 }
                 upperBoundLiquidity =
-                    LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokens_to_lp);
+                    LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
             }
 
             // TODO: Add liquidity using upperBoundTickLower, upperBoundTickUpper, and upperBoundLiquidity
@@ -352,21 +352,18 @@ contract Doppler is BaseHook {
     }
 
     function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
-        if (timestamp > endingTime) {
-            timestamp = endingTime;
-        }
-        return ((timestamp - startingTime) * 1e18) / (endingTime - startingTime);
+        return (timestamp - startingTime) * 1e18 / (endingTime - startingTime);
     }
 
     function _getGammaShare(uint256 timestamp) internal view returns (uint256) {
-        uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(timestamp);
-        uint256 normalizedTimeElapsedPrev = _getNormalizedTimeElapsed(block.timestamp);
-        return normalizedTimeElapsed - normalizedTimeElapsedPrev;
+        uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
+        uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(block.timestamp);
+        return normalizedTimeElapsedNext - normalizedTimeElapsed;
     }
 
     // TODO: consider whether it's safe to always round down
     function _getExpectedAmountSold(uint256 timestamp) internal view returns (uint256) {
-        return ((timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * numTokensToSell / 1e18;
+        return _getNormalizedTimeElapsed(timestamp) * numTokensToSell / 1e18;
     }
 
     // Returns 18 decimal fixed point value
@@ -376,7 +373,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(((block.timestamp - startingTime) * 1e18 / (endingTime - startingTime)) * (gamma) / 1e18);
+        return int256(_getNormalizedTimeElapsed(block.timestamp) * (gamma) / 1e18);
     }
 
     // TODO: Consider whether overflow is reasonably possible
