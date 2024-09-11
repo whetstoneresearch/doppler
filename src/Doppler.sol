@@ -263,17 +263,17 @@ contract Doppler is BaseHook {
         }
 
 
-        uint256 nextEpochTime = _getCurrentEpoch() * epochLength + startingTime; // compute end time of current epoch
+        uint256 nextEpochTime = (_getCurrentEpoch() + 1) * epochLength + startingTime; // compute end time of current epoch
         uint256 percentElapsedAtNextEpoch = _getNormalizedTimeElapsed(nextEpochTime); // percent time elapsed at end of epoch 
         uint256 expectedSoldPercent = (totalTokensSold_ * 1e18 / _getExpectedAmountSold()); // compute expected percent of tokens sold by next epoch
-        int256 deltaToT1= int256(percentElapsedAtNextEpoch) - int256(expectedSoldPercent); // compute expected delta to next epoch
+        int256 expectedDeltaToNextEpoch = int256(percentElapsedAtNextEpoch) - int256(expectedSoldPercent); // compute expected delta to next epoch
 
         int24 upperBoundTickLower;
         int24 upperBoundTickUpper;
         uint128 upperBoundLiquidity;
 
-        if (expectedToDeltaT1 > 0) {
-            uint256 tokens_to_lp = (uint256(expectedToDeltaT1) * numTokensToSell) / 1e18;
+        if (expectedDeltaToNextEpoch > 0) {
+            uint256 tokens_to_lp = (uint256(expectedDeltaToNextEpoch) * numTokensToSell) / 1e18;
 
             int256 upperSlugAccumulatorDelta = int256(_getGammaShare(nextEpochTime) * gamma / 1e18);
             int24 tick_t1 = currentTick + int24(upperSlugAccumulatorDelta);
