@@ -473,7 +473,7 @@ contract DopplerTest is Test, Deployers {
             uint256 timestamp = dopplers[i].getStartingTime() + timeElapsed;
             vm.warp(timestamp);
 
-            uint256 expectedAmountSold = dopplers[i].getExpectedAmountSold();
+            uint256 expectedAmountSold = dopplers[i].getExpectedAmountSold(timestamp);
 
             assertApproxEqAbs(
                 timestamp,
