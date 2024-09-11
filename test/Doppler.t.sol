@@ -15,6 +15,7 @@ import {CurrencyLibrary, Currency} from "v4-periphery/lib/v4-core/src/types/Curr
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -227,7 +228,7 @@ contract DopplerTest is Test, Deployers {
         for (uint256 i; i < dopplers.length; ++i) {
             PoolKey memory poolKey = keys[i];
 
-            vm.expectRevert(Unauthorized.selector);
+            vm.expectRevert(SafeCallback.NotPoolManager.selector);
             dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
@@ -386,7 +387,7 @@ contract DopplerTest is Test, Deployers {
         for (uint256 i; i < dopplers.length; ++i) {
             PoolKey memory poolKey = keys[i];
 
-            vm.expectRevert(Unauthorized.selector);
+            vm.expectRevert(SafeCallback.NotPoolManager.selector);
             dopplers[i].afterSwap(
                 address(this),
                 poolKey,
@@ -405,7 +406,7 @@ contract DopplerTest is Test, Deployers {
         for (uint256 i; i < dopplers.length; ++i) {
             PoolKey memory poolKey = keys[i];
 
-            vm.expectRevert(Unauthorized.selector);
+            vm.expectRevert(SafeCallback.NotPoolManager.selector);
             dopplers[i].beforeAddLiquidity(
                 address(this),
                 poolKey,
