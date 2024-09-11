@@ -13,6 +13,12 @@ enum FactoryState {
 
 error WrongFactoryState();
 
+enum TokenState {
+    Created,
+    Staged,
+    Seeded
+}
+
 contract Airlock is Ownable {
     mapping(address => FactoryState) public getFactoryState;
 
