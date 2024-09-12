@@ -448,61 +448,65 @@ contract Doppler is BaseHook {
     }
 
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (Position memory prevPosition, Position memory newPosition, PoolKey memory key) =
-            abi.decode(data, (Position, Position, PoolKey));
+        (Position[] memory prevPositions, Position[] memory newPositions, PoolKey memory key) =
+            abi.decode(data, (Position[], Position[], PoolKey));
 
-        if (prevPosition.liquidity != 0) {
-            // Remove all liquidity from old position
-            // TODO: Consider whether fees are relevant
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(
-                key,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: prevPosition.tickLower,
-                    tickUpper: prevPosition.tickUpper,
-                    liquidityDelta: -int128(prevPosition.liquidity),
-                    salt: LOWER_SLUG_SALT
-                }),
-                ""
-            );
+        for (uint256 i; i < prevPositions.length; ++i) {
+            if (prevPositions[i].liquidity != 0) {
+                // Remove all liquidity from old position
+                // TODO: Consider whether fees are relevant
+                (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                    key,
+                    IPoolManager.ModifyLiquidityParams({
+                        tickLower: prevPositions[i].tickLower,
+                        tickUpper: prevPositions[i].tickUpper,
+                        liquidityDelta: -int128(prevPositions[i].liquidity),
+                        salt: LOWER_SLUG_SALT
+                    }),
+                    ""
+                );
 
-            int256 delta0 = delta.amount0();
-            int256 delta1 = delta.amount1();
+                int256 delta0 = delta.amount0();
+                int256 delta1 = delta.amount1();
 
-            if (delta0 > 0) {
-                poolManager.take(key.currency0, address(this), uint256(delta0));
-            }
+                if (delta0 > 0) {
+                    poolManager.take(key.currency0, address(this), uint256(delta0));
+                }
 
-            if (delta1 > 0) {
-                poolManager.take(key.currency1, address(this), uint256(delta1));
+                if (delta1 > 0) {
+                    poolManager.take(key.currency1, address(this), uint256(delta1));
+                }
             }
         }
 
-        if (newPosition.liquidity != 0) {
-            // Add liquidity to new position
-            // TODO: Consider whether fees are relevant
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(
-                key,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: newPosition.tickLower,
-                    tickUpper: newPosition.tickUpper,
-                    liquidityDelta: int128(newPosition.liquidity),
-                    salt: LOWER_SLUG_SALT
-                }),
-                ""
-            );
+        for (uint256 i; i < newPositions.length; ++i) {
+            if (newPositions[i].liquidity != 0) {
+                // Add liquidity to new position
+                // TODO: Consider whether fees are relevant
+                (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                    key,
+                    IPoolManager.ModifyLiquidityParams({
+                        tickLower: newPositions[i].tickLower,
+                        tickUpper: newPositions[i].tickUpper,
+                        liquidityDelta: int128(newPositions[i].liquidity),
+                        salt: LOWER_SLUG_SALT
+                    }),
+                    ""
+                );
 
-            int256 delta0 = delta.amount0();
-            int256 delta1 = delta.amount1();
+                int256 delta0 = delta.amount0();
+                int256 delta1 = delta.amount1();
 
-            if (delta0 < 0) {
-                key.currency0.transfer(address(poolManager), uint256(-delta0));
+                if (delta0 < 0) {
+                    key.currency0.transfer(address(poolManager), uint256(-delta0));
+                }
+
+                if (delta1 < 0) {
+                    key.currency1.transfer(address(poolManager), uint256(-delta1));
+                }
+
+                poolManager.settle();
             }
-
-            if (delta1 < 0) {
-                key.currency1.transfer(address(poolManager), uint256(-delta1));
-            }
-
-            poolManager.settle();
         }
     }
 }
