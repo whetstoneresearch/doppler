@@ -385,11 +385,11 @@ contract Doppler is BaseHook {
             int256 delta1 = delta.amount1();
 
             if (delta0 < 0) {
-                key.currency0.transfer(address(poolManager), uint256(delta0));
+                key.currency0.transfer(address(poolManager), uint256(-delta0));
             }
 
             if (delta1 < 0) {
-                key.currency1.transfer(address(poolManager), uint256(delta1));
+                key.currency1.transfer(address(poolManager), uint256(-delta1));
             }
 
             poolManager.settle();
