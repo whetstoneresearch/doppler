@@ -382,6 +382,8 @@ contract Doppler is BaseHook {
             abi.encode(
                 prevPositions,
                 newPositions,
+                sqrtPriceX96,
+                
                 key
             )
         );
@@ -461,8 +463,8 @@ contract Doppler is BaseHook {
     }
 
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (Position[] memory prevPositions, Position[] memory newPositions, PoolKey memory key) =
-            abi.decode(data, (Position[], Position[], PoolKey));
+        (Position[] memory prevPositions, Position[] memory newPositions, uint160 currentPrice, uint160 swapPrice, PoolKey memory key) =
+            abi.decode(data, (Position[], Position[], uint160, uint160, PoolKey));
 
         for (uint256 i; i < prevPositions.length; ++i) {
             if (prevPositions[i].liquidity != 0) {
@@ -491,6 +493,21 @@ contract Doppler is BaseHook {
                     poolManager.take(key.currency1, address(this), uint256(delta1));
                 }
             }
+        }
+
+        // TODO: Assumes a sqrtPrice of 0 is impossible
+        if (swapPrice != 0) {
+            // We swap to the target price
+            // Since there's no liquidity, we swap a 0 amount
+            poolManager.swap(
+                key,
+                IPoolManager.SwapParams({
+                    zeroForOne: swapPrice > currentPrice,
+                    amountSpecified: 1, // We need a non-zero amount to pass checks
+                    sqrtPriceLimitX96: swapPrice
+                }),
+                ""
+            );
         }
 
         for (uint256 i; i < newPositions.length; ++i) {
