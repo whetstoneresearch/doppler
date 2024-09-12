@@ -338,16 +338,16 @@ contract Doppler is BaseHook {
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
                 if (isToken0) {
-                    priceDiscoveryTickLower = upperSlugTickLower;
-                    priceDiscoveryTickUpper = tickUpper;
+                    priceDiscoveryTickLower = tickLower;
+                    priceDiscoveryTickUpper = upperSlugTickLower;
                     priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount0(
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
                         tokensToLp
                     );
                 } else {
-                    priceDiscoveryTickLower = tickLower;
-                    priceDiscoveryTickUpper = upperSlugTickUpper;
+                    priceDiscoveryTickLower = upperSlugTickUpper;
+                    priceDiscoveryTickUpper = tickUpper;
                     priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount1(
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
