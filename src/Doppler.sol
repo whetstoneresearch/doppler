@@ -153,6 +153,12 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
+    struct SlugData {
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+    }
+
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
@@ -215,7 +221,6 @@ contract Doppler is BaseHook {
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
-
         // TODO: Consider what's redundant below if currentTick is unchanged
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
@@ -238,126 +243,9 @@ contract Doppler is BaseHook {
             }
         }
 
-        int24 lowerSlugTickUpper = tickLower;
-        int24 lowerSlugTickLower = currentTick;
-        uint128 lowerSlugLiquidity = liquidity;
-
-        // If we do not have enough proceeds to the full lower slug,
-        // we switch to a single tick range at the target price
-        if (requiredProceeds > totalProceeds_) {
-            if (isToken0) {
-                // Q96 Target price (not sqrtPrice)
-                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalProceeds_, FixedPoint96.Q96, totalTokensSold_));
-
-                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
-                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
-
-                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount1(
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
-                    totalProceeds_
-                );
-            } else {
-                // Q96 Target price (not sqrtPrice)
-                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalTokensSold_, FixedPoint96.Q96, totalProceeds_));
-
-                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
-                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                // TODO: Consider whether lower and upper values should be swapped
-                lowerSlugTickLower = lowerSlugTickUpper + key.tickSpacing;
-
-                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount0(
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
-                    totalProceeds_
-                );
-            }
-        }
-
-        uint256 epochT1 = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 percentElapsedAtT1 = _getNormalizedTimeElapsed(epochT1); // percent time elapsed at end of epoch
-        uint256 expectedSoldAtT1 = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochT1)); // compute percent of tokens sold by next epoch
-        int256 tokensSoldDelta = int256(percentElapsedAtT1) - int256(expectedSoldAtT1); // compute if we've sold more or less tokens than expected by next epoch
-
-        int24 upperSlugTickLower;
-        int24 upperSlugTickUpper;
-        uint128 upperSlugLiquidity;
-        uint160 upperSlugAbovePrice;
-        uint160 upperSlugBelowPrice;
-
-        if (tokensSoldDelta > 0) {
-            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-
-            accumulatorDelta = int256(_getGammaShare(epochT1) * gamma / 1e18);
-            int24 nextTick = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
-
-            upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
-            upperSlugBelowPrice = sqrtPriceNext;
-            if (upperSlugAbovePrice != upperSlugBelowPrice) {
-                if (isToken0) {
-                    upperSlugTickLower = currentTick;
-                    upperSlugTickUpper = nextTick;
-                    if (upperSlugAbovePrice < upperSlugBelowPrice) {
-                        (upperSlugTickLower, upperSlugTickUpper) = (currentTick, nextTick);
-                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
-                    }
-                    upperSlugLiquidity =
-                        LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
-                } else {
-                    upperSlugTickLower = nextTick;
-                    upperSlugTickUpper = currentTick;
-                    if (upperSlugAbovePrice > upperSlugBelowPrice) {
-                        (upperSlugTickLower, upperSlugTickUpper) = (nextTick, currentTick);
-                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
-                    }
-                    upperSlugLiquidity =
-                        LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
-                }
-            } else {
-                upperSlugLiquidity = 0;
-            }
-        }
-
-        uint256 epochT2 = _getEpochEndWithOffset(1); // compute end time two epochs from now
-
-        if (epochT2 > endingTime) {
-            epochT2 = endingTime;
-        }
-
-        int24 priceDiscoveryTickLower;
-        int24 priceDiscoveryTickUpper;
-        uint128 priceDiscoveryLiquidity;
-        if (epochT2 != epochT1) {
-            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(epochT2) - percentElapsedAtT1;
-
-            if (epochT1toT2Delta > 0) {
-                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
-                if (isToken0) {
-                    priceDiscoveryTickLower = tickLower;
-                    priceDiscoveryTickUpper = upperSlugTickLower;
-                    priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount0(
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
-                        tokensToLp
-                    );
-                } else {
-                    priceDiscoveryTickLower = upperSlugTickUpper;
-                    priceDiscoveryTickUpper = tickUpper;
-                    priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount1(
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
-                        tokensToLp
-                    );
-                }
-            }
-        }
+        SlugData memory lowerSlug = _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
+        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, sqrtPriceNext, currentTick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
 
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
@@ -441,6 +329,135 @@ contract Doppler is BaseHook {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction
         upper = lower + (startingTick > endingTick ? int24(int256(gamma)) : -int24(int256(gamma)));
+    }
+
+    function _computeLowerSlugData(
+        PoolKey memory key,
+        uint256 requiredProceeds,
+        uint256 totalProceeds_,
+        uint256 totalTokensSold_
+    ) internal view returns (SlugData memory lowerSlug) {
+        // If we do not have enough proceeds to the full lower slug,
+        // we switch to a single tick range at the target price
+        if (requiredProceeds > totalProceeds_) {
+            if (isToken0) {
+                // Q96 Target price (not sqrtPrice)
+                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalProceeds_, FixedPoint96.Q96, totalTokensSold_));
+
+                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
+                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+                lowerSlug.tickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                lowerSlug.tickLower = lowerSlug.tickUpper - key.tickSpacing;
+
+                lowerSlug.liquidity = LiquidityAmounts.getLiquidityForAmount1(
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                    totalProceeds_
+                );
+            } else {
+                // Q96 Target price (not sqrtPrice)
+                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalTokensSold_, FixedPoint96.Q96, totalProceeds_));
+
+                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
+                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+                lowerSlug.tickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                // TODO: Consider whether lower and upper values should be swapped
+                lowerSlug.tickLower = lowerSlug.tickUpper + key.tickSpacing;
+
+                lowerSlug.liquidity = LiquidityAmounts.getLiquidityForAmount0(
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                    totalProceeds_
+                );
+            }
+        }
+    }
+
+    function _computeUpperSlugData(uint256 totalTokensSold_, uint160 sqrtPriceNext, int24 currentTick)
+        internal
+        view
+        returns (SlugData memory upperSlug)
+    {
+        uint256 epochT1EndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
+        uint256 percentElapsedAtT1 = _getNormalizedTimeElapsed(epochT1EndTime); // percent time elapsed at end of epoch
+        uint256 expectedSoldAtT1 = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochT1EndTime)); // compute percent of tokens sold by next epoch
+        int256 tokensSoldDelta = int256(percentElapsedAtT1) - int256(expectedSoldAtT1); // compute if we've sold more or less tokens than expected by next epoch
+
+        if (tokensSoldDelta > 0) {
+            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
+
+            int256 accumulatorDelta = int256(_getGammaShare(epochT1EndTime) * gamma / 1e18);
+            int24 nextTick = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
+
+            uint160 upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
+            uint160 upperSlugBelowPrice = sqrtPriceNext;
+            if (upperSlugAbovePrice != upperSlugBelowPrice) {
+                if (isToken0) {
+                    upperSlug.tickLower = currentTick;
+                    upperSlug.tickUpper = nextTick;
+                    if (upperSlugAbovePrice < upperSlugBelowPrice) {
+                        (upperSlug.tickLower, upperSlug.tickUpper) = (currentTick, nextTick);
+                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
+                    }
+                    upperSlug.liquidity =
+                        LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
+                } else {
+                    upperSlug.tickLower = nextTick;
+                    upperSlug.tickUpper = currentTick;
+                    if (upperSlugAbovePrice > upperSlugBelowPrice) {
+                        (upperSlug.tickLower, upperSlug.tickUpper) = (nextTick, currentTick);
+                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
+                    }
+                    upperSlug.liquidity =
+                        LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
+                }
+            } else {
+                upperSlug.liquidity = 0;
+            }
+        }
+    }
+
+    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper)
+        internal
+        view
+        returns (SlugData memory priceDiscoverySlug)
+    {
+        uint256 epochT1EndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
+        uint256 percentElapsedAtT1 = _getNormalizedTimeElapsed(epochT1EndTime); // percent time elapsed at end of epoch
+        uint256 epochT2 = _getEpochEndWithOffset(1); // compute end time two epochs from now
+
+        if (epochT2 > endingTime) {
+            epochT2 = endingTime;
+        }
+
+        if (epochT2 != epochT1EndTime) {
+            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(epochT2) - percentElapsedAtT1;
+
+            if (epochT1toT2Delta > 0) {
+                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
+                if (isToken0) {
+                    priceDiscoverySlug.tickLower = tickLower;
+                    priceDiscoverySlug.tickUpper = upperSlug.tickLower;
+                    priceDiscoverySlug.liquidity = LiquidityAmounts.getLiquidityForAmount0(
+                        TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickLower),
+                        TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickUpper),
+                        tokensToLp
+                    );
+                } else {
+                    priceDiscoverySlug.tickLower = upperSlug.tickUpper;
+                    priceDiscoverySlug.tickUpper = tickUpper;
+                    priceDiscoverySlug.liquidity = LiquidityAmounts.getLiquidityForAmount1(
+                        TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickLower),
+                        TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickUpper),
+                        tokensToLp
+                    );
+                }
+            }
+        }
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
