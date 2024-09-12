@@ -70,8 +70,8 @@ contract DopplerImplementation is Doppler {
         return gamma;
     }
 
-    function getExpectedAmountSold() public view returns (uint256) {
-        return _getExpectedAmountSold();
+    function getExpectedAmountSold(uint256 timestamp) public view returns (uint256) {
+        return _getExpectedAmountSold(timestamp);
     }
 
     function getMaxTickDeltaPerEpoch() public view returns (int256) {
