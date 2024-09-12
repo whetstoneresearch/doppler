@@ -19,6 +19,10 @@ contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
+    bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
+    bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+    bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
+
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
@@ -28,8 +32,15 @@ contract Doppler is BaseHook {
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
     }
 
-    // TODO: consider whether this needs to be public
+    struct Position {
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+    }
+
+    // TODO: consider whether these need to be public
     State public state;
+    mapping(bytes32 salt => Position) public positions;
 
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
     uint256 immutable startingTime; // sale start time
@@ -209,14 +220,18 @@ contract Doppler is BaseHook {
 
         uint128 liquidity;
         uint256 requiredProceeds;
-        if (isToken0) {
-            // TODO: Check max liquidity per tick
-            //       Should we spread liquidity across multiple ticks if necessary?
-            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
-        } else {
-            liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceNext, sqrtPriceUpper, totalTokensSold_);
-            requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
+        if (totalTokensSold_ != 0) {
+            if (isToken0) {
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+                // TODO: Should we be rounding up here?
+                requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            } else {
+                liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceNext, sqrtPriceUpper, totalTokensSold_);
+                // TODO: Should we be rounding up here?
+                requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
+            }
         }
 
         int24 lowerSlugTickUpper = tickLower;
@@ -265,6 +280,27 @@ contract Doppler is BaseHook {
         // TODO: Swap to intended tick
         // TODO: Remove in range liquidity
         // TODO: Flip a flag to prevent this swap from hitting beforeSwap
+
+        // TODO: If we're not actually modifying liquidity, skip below logic
+        // TODO: Consider whether we need slippage protection
+        // TODO: Consider whether we should later just adjust all positions in a single unlock callback
+
+        // Get old position liquidity
+        Position memory position = positions[LOWER_SLUG_SALT];
+
+        // Execute lock - providing old and new position
+        poolManager.unlock(abi.encode(position, Position({
+            tickLower: lowerSlugTickLower,
+            tickUpper: lowerSlugTickUpper,
+            liquidity: lowerSlugLiquidity
+        }), key));
+        
+        // Store new position ticks and liquidity
+        positions[LOWER_SLUG_SALT] = Position({
+            tickLower: lowerSlugTickLower,
+            tickUpper: lowerSlugTickUpper,
+            liquidity: lowerSlugLiquidity
+        });
     }
 
     // TODO: consider whether it's safe to always round down
@@ -308,6 +344,56 @@ contract Doppler is BaseHook {
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
+    }
+
+    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
+        (Position memory prevPosition, Position memory newPosition, PoolKey memory key) = abi.decode(data, (Position, Position, PoolKey));
+
+        if (prevPosition.liquidity != 0) {
+            // Remove all liquidity from old position
+            // TODO: Consider whether fees are relevant
+            (BalanceDelta delta, ) = poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+                tickLower: prevPosition.tickLower,
+                tickUpper: prevPosition.tickUpper,
+                liquidityDelta: -int128(prevPosition.liquidity),
+                salt: LOWER_SLUG_SALT
+            }), "");
+
+            int256 delta0 = delta.amount0();
+            int256 delta1 = delta.amount1();
+
+            if (delta0 > 0) {
+                poolManager.take(key.currency0, address(this), uint256(delta0));
+            }
+
+            if (delta1 > 0) {
+                poolManager.take(key.currency1, address(this), uint256(delta1));
+            }
+        }
+
+        if (newPosition.liquidity != 0) {
+            // Add liquidity to new position
+            // TODO: Consider whether fees are relevant
+            (BalanceDelta delta, ) = poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
+                tickLower: newPosition.tickLower,
+                tickUpper: newPosition.tickUpper,
+                liquidityDelta: int128(newPosition.liquidity),
+                salt: LOWER_SLUG_SALT
+            }), "");
+
+            int256 delta0 = delta.amount0();
+            int256 delta1 = delta.amount1();
+
+            if (delta0 < 0) {
+                key.currency0.transfer(address(poolManager), uint256(-delta0));
+            }
+
+            if (delta1 < 0) {
+                key.currency1.transfer(address(poolManager), uint256(-delta1));
+            }
+
+            poolManager.settle();
+        }
     }
 }
 

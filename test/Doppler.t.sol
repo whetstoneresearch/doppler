@@ -15,6 +15,7 @@ import {CurrencyLibrary, Currency} from "v4-periphery/lib/v4-core/src/types/Curr
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
 import {Doppler} from "../src/Doppler.sol";
@@ -87,6 +88,10 @@ contract DopplerTest is Test, Deployers {
         dopplers.push(doppler0);
         keys.push(key0);
         ids.push(id0);
+
+        for (uint256 i; i < keys.length; ++i) {
+            manager.initialize(keys[i], TickMath.getSqrtPriceAtTick(dopplers[i].getStartingTick()), "");
+        }
     }
 
     // =========================================================================
@@ -245,6 +250,7 @@ contract DopplerTest is Test, Deployers {
             PoolKey memory poolKey = keys[i];
 
             vm.prank(address(manager));
+            // TODO: Use actual swap rather than faking the hook call
             (bytes4 selector0, int128 hookDelta) = dopplers[i].afterSwap(
                 address(this),
                 poolKey,
