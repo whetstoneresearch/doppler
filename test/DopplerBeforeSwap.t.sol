@@ -30,6 +30,7 @@ contract DopplerBeforeSwapTest is BaseTest {
     // =========================================================================
 
     // TODO: get this test to trigger the case in `_rebalance` where `requiredProceeds > totalProceeds_`.
+    // TODO: Doppler.sol#L122 is using `amount1` instead of `amount0`.
     function testBeforeSwap_RebalanceToken1() public {
         // Deploy a new Doppler with `isToken0 = false`
         Instance memory doppler1;
@@ -52,6 +53,20 @@ contract DopplerBeforeSwapTest is BaseTest {
         __instances__.push(doppler1);
 
         vm.warp(ghost().hook.getStartingTime());
+
+        vm.prank(address(manager));
+        (bytes4 selector0, int128 hookDelta) = ghost().hook.afterSwap(
+            address(this),
+            ghost().key(),
+            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 1e2, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+            toBalanceDelta(-1e2, 10e18),
+            ""
+        );
+
+        assertEq(selector0, BaseHook.afterSwap.selector);
+        assertEq(hookDelta, 0);
+
+        vm.warp(ghost().hook.getStartingTime() + ghost().hook.getEpochLength());
 
         PoolKey memory poolKey = ghost().key();
 
