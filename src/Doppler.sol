@@ -279,7 +279,7 @@ contract Doppler is BaseHook {
             }
         }
 
-        uint256 epochT1 = (_getCurrentEpoch() + 1) * epochLength + startingTime; // compute end time of current epoch
+        uint256 epochT1 = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 percentElapsedAtT1 = _getNormalizedTimeElapsed(epochT1); // percent time elapsed at end of epoch
         uint256 expectedSoldAtT1 = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochT1)); // compute percent of tokens sold by next epoch
         int256 tokensSoldDelta = int256(percentElapsedAtT1) - int256(expectedSoldAtT1); // compute if we've sold more or less tokens than expected by next epoch
@@ -320,7 +320,7 @@ contract Doppler is BaseHook {
             }
         }
 
-        uint256 epochT2 = epochT1 + epochLength; // compute end time two epochs from now
+        uint256 epochT2 = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
         if (epochT2 > endingTime) {
             epochT2 = endingTime;
@@ -378,6 +378,14 @@ contract Doppler is BaseHook {
             tickUpper: lowerSlugTickUpper,
             liquidity: lowerSlugLiquidity
         });
+    }
+
+    function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
+        uint256 epochEnd = (_getCurrentEpoch() + offset) * epochLength + startingTime;
+        if (epochEnd > endingTime) {
+            epochEnd = endingTime;
+        }
+        return epochEnd;
     }
 
     function _getCurrentEpoch() internal view returns (uint256) {
