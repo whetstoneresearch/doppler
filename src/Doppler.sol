@@ -357,13 +357,8 @@ contract Doppler is BaseHook {
             }
         }
 
-        // TODO: Swap to intended tick
-        // TODO: Remove in range liquidity
-        // TODO: Flip a flag to prevent this swap from hitting beforeSwap
-
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
-        // TODO: Consider whether we should later just adjust all positions in a single unlock callback
 
         // Get existing positions
         Position[] memory prevPositions = new Position[](3);
@@ -383,7 +378,7 @@ contract Doppler is BaseHook {
                 prevPositions,
                 newPositions,
                 sqrtPriceX96,
-                
+                TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
                 key
             )
         );
@@ -495,10 +490,9 @@ contract Doppler is BaseHook {
             }
         }
 
-        // TODO: Assumes a sqrtPrice of 0 is impossible
-        if (swapPrice != 0) {
+        if (swapPrice != currentPrice) {
             // We swap to the target price
-            // Since there's no liquidity, we swap a 0 amount
+            // Since there's no liquidity, we swap 0 amounts
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
