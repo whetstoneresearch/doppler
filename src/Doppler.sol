@@ -329,11 +329,11 @@ contract Doppler is BaseHook {
             epochT2 = endingTime;
         }
 
+        int24 priceDiscoveryTickLower;
+        int24 priceDiscoveryTickUpper;
+        uint128 priceDiscoveryLiquidity;
         if (epochT2 != epochT1) {
             uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(epochT2) - percentElapsedAtT1;
-            int24 priceDiscoveryTickLower;
-            int24 priceDiscoveryTickUpper;
-            uint128 priceDiscoveryLiquidity;
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
@@ -365,14 +365,23 @@ contract Doppler is BaseHook {
         // TODO: Consider whether we need slippage protection
         // TODO: Consider whether we should later just adjust all positions in a single unlock callback
 
-        // Get old position liquidity
-        Position memory position = positions[LOWER_SLUG_SALT];
+        // Get existing positions
+        Position[] memory prevPositions = new Position[](3);
+        prevPositions[0] = positions[LOWER_SLUG_SALT];
+        prevPositions[1] = positions[UPPER_SLUG_SALT];
+        prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
+
+        // Get new positions
+        Position[] memory newPositions = new Position[](3);
+        newPositions[0] = Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+        newPositions[1] = Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+        newPositions[2] = Position({tickLower: priceDiscoveryTickLower, tickUpper: priceDiscoveryTickUpper, liquidity: priceDiscoveryLiquidity});
 
         // Execute lock - providing old and new position
         poolManager.unlock(
             abi.encode(
-                position,
-                Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity}),
+                prevPositions,
+                newPositions,
                 key
             )
         );
@@ -380,6 +389,10 @@ contract Doppler is BaseHook {
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] =
             Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+        positions[UPPER_SLUG_SALT] =
+            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+        positions[DISCOVERY_SLUG_SALT] =
+            Position({tickLower: priceDiscoveryTickLower, tickUpper: priceDiscoveryTickUpper, liquidity: priceDiscoveryLiquidity});
     }
 
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
@@ -469,6 +482,7 @@ contract Doppler is BaseHook {
                 int256 delta0 = delta.amount0();
                 int256 delta1 = delta.amount1();
 
+                // TODO: Can we check our total deltas at the end of the function and resolve them then?
                 if (delta0 > 0) {
                     poolManager.take(key.currency0, address(this), uint256(delta0));
                 }
@@ -497,6 +511,7 @@ contract Doppler is BaseHook {
                 int256 delta0 = delta.amount0();
                 int256 delta1 = delta.amount1();
 
+                // TODO: Can we check our total deltas at the end of the function and resolve them then?
                 if (delta0 < 0) {
                     key.currency0.transfer(address(poolManager), uint256(-delta0));
                 }
