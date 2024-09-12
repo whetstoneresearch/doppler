@@ -302,21 +302,21 @@ contract Doppler is BaseHook {
                 if (isToken0) {
                     upperSlugTickLower = currentTick;
                     upperSlugTickUpper = nextTick;
-                if (upperSlugAbovePrice < upperSlugBelowPrice) {
-                    (upperSlugTickLower, upperSlugTickUpper) = (currentTick, nextTick);
-                    (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
-                }
-                upperSlugLiquidity =
-                    LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
-            } else {
-                upperSlugTickLower = nextTick;
-                upperSlugTickUpper = currentTick;
-                if (upperSlugAbovePrice > upperSlugBelowPrice) {
-                    (upperSlugTickLower, upperSlugTickUpper) = (nextTick, currentTick);
-                    (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
-                }
-                upperSlugLiquidity =
-                    LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
+                    if (upperSlugAbovePrice < upperSlugBelowPrice) {
+                        (upperSlugTickLower, upperSlugTickUpper) = (currentTick, nextTick);
+                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
+                    }
+                    upperSlugLiquidity =
+                        LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
+                } else {
+                    upperSlugTickLower = nextTick;
+                    upperSlugTickUpper = currentTick;
+                    if (upperSlugAbovePrice > upperSlugBelowPrice) {
+                        (upperSlugTickLower, upperSlugTickUpper) = (nextTick, currentTick);
+                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
+                    }
+                    upperSlugLiquidity =
+                        LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
                 }
             } else {
                 upperSlugLiquidity = 0;
@@ -369,18 +369,17 @@ contract Doppler is BaseHook {
         Position memory position = positions[LOWER_SLUG_SALT];
 
         // Execute lock - providing old and new position
-        poolManager.unlock(abi.encode(position, Position({
-            tickLower: lowerSlugTickLower,
-            tickUpper: lowerSlugTickUpper,
-            liquidity: lowerSlugLiquidity
-        }), key));
-        
+        poolManager.unlock(
+            abi.encode(
+                position,
+                Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity}),
+                key
+            )
+        );
+
         // Store new position ticks and liquidity
-        positions[LOWER_SLUG_SALT] = Position({
-            tickLower: lowerSlugTickLower,
-            tickUpper: lowerSlugTickUpper,
-            liquidity: lowerSlugLiquidity
-        });
+        positions[LOWER_SLUG_SALT] =
+            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
     }
 
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
@@ -449,17 +448,22 @@ contract Doppler is BaseHook {
     }
 
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (Position memory prevPosition, Position memory newPosition, PoolKey memory key) = abi.decode(data, (Position, Position, PoolKey));
+        (Position memory prevPosition, Position memory newPosition, PoolKey memory key) =
+            abi.decode(data, (Position, Position, PoolKey));
 
         if (prevPosition.liquidity != 0) {
             // Remove all liquidity from old position
             // TODO: Consider whether fees are relevant
-            (BalanceDelta delta, ) = poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
-                tickLower: prevPosition.tickLower,
-                tickUpper: prevPosition.tickUpper,
-                liquidityDelta: -int128(prevPosition.liquidity),
-                salt: LOWER_SLUG_SALT
-            }), "");
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: prevPosition.tickLower,
+                    tickUpper: prevPosition.tickUpper,
+                    liquidityDelta: -int128(prevPosition.liquidity),
+                    salt: LOWER_SLUG_SALT
+                }),
+                ""
+            );
 
             int256 delta0 = delta.amount0();
             int256 delta1 = delta.amount1();
@@ -476,12 +480,16 @@ contract Doppler is BaseHook {
         if (newPosition.liquidity != 0) {
             // Add liquidity to new position
             // TODO: Consider whether fees are relevant
-            (BalanceDelta delta, ) = poolManager.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams({
-                tickLower: newPosition.tickLower,
-                tickUpper: newPosition.tickUpper,
-                liquidityDelta: int128(newPosition.liquidity),
-                salt: LOWER_SLUG_SALT
-            }), "");
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: newPosition.tickLower,
+                    tickUpper: newPosition.tickUpper,
+                    liquidityDelta: int128(newPosition.liquidity),
+                    salt: LOWER_SLUG_SALT
+                }),
+                ""
+            );
 
             int256 delta0 = delta.amount0();
             int256 delta1 = delta.amount1();
