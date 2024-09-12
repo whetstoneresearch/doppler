@@ -368,19 +368,19 @@ contract Doppler is BaseHook {
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
-        newPositions[0] = Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
-        newPositions[1] = Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
-        newPositions[2] = Position({tickLower: priceDiscoveryTickLower, tickUpper: priceDiscoveryTickUpper, liquidity: priceDiscoveryLiquidity});
+        newPositions[0] =
+            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+        newPositions[1] =
+            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+        newPositions[2] = Position({
+            tickLower: priceDiscoveryTickLower,
+            tickUpper: priceDiscoveryTickUpper,
+            liquidity: priceDiscoveryLiquidity
+        });
 
         // Execute lock - providing old and new position
         poolManager.unlock(
-            abi.encode(
-                prevPositions,
-                newPositions,
-                sqrtPriceX96,
-                TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
-                key
-            )
+            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlugTickUpper), key)
         );
 
         // Store new position ticks and liquidity
@@ -388,8 +388,11 @@ contract Doppler is BaseHook {
             Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
         positions[UPPER_SLUG_SALT] =
             Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
-        positions[DISCOVERY_SLUG_SALT] =
-            Position({tickLower: priceDiscoveryTickLower, tickUpper: priceDiscoveryTickUpper, liquidity: priceDiscoveryLiquidity});
+        positions[DISCOVERY_SLUG_SALT] = Position({
+            tickLower: priceDiscoveryTickLower,
+            tickUpper: priceDiscoveryTickUpper,
+            liquidity: priceDiscoveryLiquidity
+        });
     }
 
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
@@ -458,8 +461,13 @@ contract Doppler is BaseHook {
     }
 
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (Position[] memory prevPositions, Position[] memory newPositions, uint160 currentPrice, uint160 swapPrice, PoolKey memory key) =
-            abi.decode(data, (Position[], Position[], uint160, uint160, PoolKey));
+        (
+            Position[] memory prevPositions,
+            Position[] memory newPositions,
+            uint160 currentPrice,
+            uint160 swapPrice,
+            PoolKey memory key
+        ) = abi.decode(data, (Position[], Position[], uint160, uint160, PoolKey));
 
         for (uint256 i; i < prevPositions.length; ++i) {
             if (prevPositions[i].liquidity != 0) {
