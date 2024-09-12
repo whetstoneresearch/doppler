@@ -352,10 +352,8 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
             int24 tickA = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-            int24 tickB =
-                isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
-            (slug.tickLower, slug.tickUpper, priceLower, priceUpper) =
-                _sortTicks(tickA, tickB);
+            int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
+            (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
             slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
         }
     }
@@ -418,7 +416,11 @@ contract Doppler is BaseHook {
         return uint160(FullMath.mulDiv(num, FixedPoint96.Q96, denom));
     }
 
-    function _computeLiquidity(bool forToken0,uint160 lowerPrice, uint160 upperPrice, uint256 amount) internal pure returns (uint128) {
+    function _computeLiquidity(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
+        internal
+        pure
+        returns (uint128)
+    {
         if (forToken0) {
             return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
         } else {
@@ -442,7 +444,6 @@ contract Doppler is BaseHook {
             (priceLower, priceUpper) = (priceB, priceA);
         }
     }
-
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
