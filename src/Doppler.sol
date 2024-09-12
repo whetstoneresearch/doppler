@@ -284,9 +284,9 @@ contract Doppler is BaseHook {
         uint256 expectedSoldAtT1 = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochT1)); // compute percent of tokens sold by next epoch
         int256 tokensSoldDelta = int256(percentElapsedAtT1) - int256(expectedSoldAtT1); // compute if we've sold more or less tokens than expected by next epoch
 
-        int24 upperBoundTickLower;
-        int24 upperBoundTickUpper;
-        uint128 upperBoundLiquidity;
+        int24 upperSlugTickLower;
+        int24 upperSlugTickUpper;
+        uint128 upperSlugLiquidity;
         uint160 upperSlugAbovePrice;
         uint160 upperSlugBelowPrice;
 
@@ -298,25 +298,28 @@ contract Doppler is BaseHook {
 
             upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
             upperSlugBelowPrice = sqrtPriceNext;
-
-            if (isToken0) {
-                upperBoundTickLower = nextTick;
-                upperBoundTickUpper = currentTick;
+            if (upperSlugAbovePrice != upperSlugBelowPrice) {
+                if (isToken0) {
+                    upperSlugTickLower = currentTick;
+                    upperSlugTickUpper = nextTick;
                 if (upperSlugAbovePrice < upperSlugBelowPrice) {
-                    (upperBoundTickLower, upperBoundTickUpper) = (currentTick, nextTick);
+                    (upperSlugTickLower, upperSlugTickUpper) = (currentTick, nextTick);
                     (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
                 }
-                upperBoundLiquidity =
+                upperSlugLiquidity =
                     LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
             } else {
-                upperBoundTickLower = currentTick;
-                upperBoundTickUpper = nextTick;
+                upperSlugTickLower = nextTick;
+                upperSlugTickUpper = currentTick;
                 if (upperSlugAbovePrice > upperSlugBelowPrice) {
-                    (upperBoundTickLower, upperBoundTickUpper) = (nextTick, currentTick);
+                    (upperSlugTickLower, upperSlugTickUpper) = (nextTick, currentTick);
                     (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
                 }
-                upperBoundLiquidity =
+                upperSlugLiquidity =
                     LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
+                }
+            } else {
+                upperSlugLiquidity = 0;
             }
         }
 
@@ -335,7 +338,7 @@ contract Doppler is BaseHook {
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
                 if (isToken0) {
-                    priceDiscoveryTickLower = upperBoundTickLower;
+                    priceDiscoveryTickLower = upperSlugTickLower;
                     priceDiscoveryTickUpper = tickUpper;
                     priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount0(
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
@@ -344,7 +347,7 @@ contract Doppler is BaseHook {
                     );
                 } else {
                     priceDiscoveryTickLower = tickLower;
-                    priceDiscoveryTickUpper = upperBoundTickUpper;
+                    priceDiscoveryTickUpper = upperSlugTickUpper;
                     priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount1(
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
                         TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
