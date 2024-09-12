@@ -294,7 +294,7 @@ contract Doppler is BaseHook {
             uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
 
             accumulatorDelta = int256(_getGammaShare(epochT1) * gamma / 1e18);
-            int24 nextTick = currentTick + int24(accumulatorDelta);
+            int24 nextTick = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
 
             upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
             upperSlugBelowPrice = sqrtPriceNext;
