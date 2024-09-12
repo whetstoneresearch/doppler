@@ -3,6 +3,12 @@ pragma solidity ^0.8.13;
 
 import {ERC20} from "solady/tokens/ERC20.sol";
 
+/**
+ * TODO:
+ * - Add mint cap: bounded annual max inflation which can only go down
+ * - Governor can only start minting after 365 days
+ * - Fee on transfer
+ */
 contract DERC20 is ERC20 {
     string private _name;
     string private _symbol;

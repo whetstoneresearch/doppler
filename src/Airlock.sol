@@ -16,8 +16,7 @@ error WrongFactoryState();
 
 enum TokenState {
     Created,
-    Staged,
-    Seeded
+    Migrated
 }
 
 contract Airlock is Ownable {
@@ -31,6 +30,9 @@ contract Airlock is Ownable {
     }
 
     /**
+     * TODO:
+     * - Creating a token should incur fees (platform and frontend fees)
+     *
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
      * @param governanceFactory Minimal governance housing the Uniswap v2 LP tokens
      * @param liquidityFactory Address of the Uniswap v4 hook
