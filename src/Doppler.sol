@@ -221,17 +221,11 @@ contract Doppler is BaseHook {
         uint128 liquidity;
         uint256 requiredProceeds;
         if (totalTokensSold_ != 0) {
-            if (isToken0) {
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-                // TODO: Should we be rounding up here?
-                requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
-            } else {
-                liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceNext, sqrtPriceUpper, totalTokensSold_);
-                // TODO: Should we be rounding up here?
-                requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceNext, sqrtPriceUpper, liquidity, true);
-            }
+            // TODO: Check max liquidity per tick
+            //       Should we spread liquidity across multiple ticks if necessary?
+            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+            // TODO: Should we be rounding up here?
+            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
         }
 
         int24 lowerSlugTickUpper = tickLower;
