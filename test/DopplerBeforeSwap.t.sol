@@ -14,7 +14,7 @@ import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/li
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
-import {BaseTest} from "./BaseTest.sol";
+import {BaseTest, Instance} from "./BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
 /// TODO: I duplicated this from the test file just to test this out for now.
@@ -29,188 +29,43 @@ contract DopplerBeforeSwapTest is BaseTest {
     //                         beforeSwap Unit Tests
     // =========================================================================
 
-    function testBeforeSwap_DoesNotRebalanceBeforeStartTime() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
+    // TODO: get this test to trigger the case in `_rebalance` where `requiredProceeds > totalProceeds_`.
+    function testBeforeSwap_RebalanceToken1() public {
+        // Deploy a new Doppler with `isToken0 = false`
+        Instance memory doppler1;
+        doppler1.token0 = ghost().token0; // uses existing tokens
+        doppler1.token1 = ghost().token1;
+        doppler1.hook = targetHookAddress;
+        doppler1.tickSpacing = MIN_TICK_SPACING;
+        doppler1.deploy({
+            vm: vm,
+            poolManager: address(manager),
+            timeTilStart: 500 seconds,
+            duration: 1 days,
+            startTick: -100_000,
+            endTick: -200_000,
+            epochLength: 1 days,
+            gamma: 1_000,
+            isToken0: false
+        });
 
-            PoolKey memory poolKey = ghosts()[i].key();
+        __instances__.push(doppler1);
 
-            vm.prank(address(manager));
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
+        vm.warp(ghost().hook.getStartingTime());
 
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
+        PoolKey memory poolKey = ghost().key();
 
-            (
-                uint40 lastEpoch,
-                int256 tickAccumulator,
-                uint256 totalTokensSold,
-                uint256 totalProceeds,
-                uint256 totalTokensSoldLastEpoch
-            ) = ghosts()[i].hook.state();
+        vm.prank(address(manager));
+        (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghost().hook.beforeSwap(
+            address(this),
+            poolKey,
+            IPoolManager.SwapParams({zeroForOne: false, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+            ""
+        );
 
-            assertEq(lastEpoch, 0);
-            assertEq(tickAccumulator, 0);
-            assertEq(totalTokensSold, 0);
-            assertEq(totalProceeds, 0);
-            assertEq(totalTokensSoldLastEpoch, 0);
-        }
-    }
-
-    function testBeforeSwap_DoesNotRebalanceTwiceInSameEpoch() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
-
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.prank(address(manager));
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (
-                uint40 lastEpoch,
-                int256 tickAccumulator,
-                uint256 totalTokensSold,
-                uint256 totalProceeds,
-                uint256 totalTokensSoldLastEpoch
-            ) = ghosts()[i].hook.state();
-
-            vm.prank(address(manager));
-            (selector, delta, fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (
-                uint40 lastEpoch2,
-                int256 tickAccumulator2,
-                uint256 totalTokensSold2,
-                uint256 totalProceeds2,
-                uint256 totalTokensSoldLastEpoch2
-            ) = ghosts()[i].hook.state();
-
-            // Ensure that state hasn't updated since we're still in the same epoch
-            assertEq(lastEpoch, lastEpoch2);
-            assertEq(tickAccumulator, tickAccumulator2);
-            assertEq(totalTokensSold, totalTokensSold2);
-            assertEq(totalProceeds, totalProceeds2);
-            assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
-        }
-    }
-
-    function testBeforeSwap_UpdatesLastEpoch() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
-
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.prank(address(manager));
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (uint40 lastEpoch,,,,) = ghosts()[i].hook.state();
-
-            assertEq(lastEpoch, 1);
-
-            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
-
-            vm.prank(address(manager));
-            (selector, delta, fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (lastEpoch,,,,) = ghosts()[i].hook.state();
-
-            assertEq(lastEpoch, 2);
-        }
-    }
-
-    function testBeforeSwap_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-        }
-    }
-
-    function testBeforeSwap_UpdatesTotalTokensSoldLastEpoch() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
-
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.prank(address(manager));
-            (bytes4 selector0, int128 hookDelta) = ghosts()[i].hook.afterSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(100e18, -100e18),
-                ""
-            );
-
-            assertEq(selector0, BaseHook.afterSwap.selector);
-            assertEq(hookDelta, 0);
-
-            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
-
-            vm.prank(address(manager));
-            (bytes4 selector1, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-
-            assertEq(selector1, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
-
-            assertEq(totalTokensSold, 100e18);
-            assertEq(totalTokensSoldLastEpoch, 100e18);
-        }
+        assertEq(selector, BaseHook.beforeSwap.selector);
+        assertEq(BeforeSwapDelta.unwrap(delta), 0);
+        assertEq(fee, 0);
     }
 }
 
