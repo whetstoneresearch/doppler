@@ -62,7 +62,7 @@ library Debug {
         int24 startTick,
         int24 endTick,
         uint256 epochLength,
-        uint256 gamma,
+        int24 gamma,
         bool isToken0
     ) internal {
         uint256 currentTime = block.timestamp;

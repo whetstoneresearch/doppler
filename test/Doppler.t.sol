@@ -111,37 +111,20 @@ contract DopplerTest is Test, Deployers {
     //                         beforeSwap Unit Tests
     // =========================================================================
 
-    function testBeforeSwap_DoesNotRebalanceBeforeStartTime() public {
+    function testBeforeSwap_RevertsBeforeStartTime() public {
         for (uint256 i; i < dopplers.length; ++i) {
             vm.warp(dopplers[i].getStartingTime() - 1); // 1 second before the start time
 
             PoolKey memory poolKey = keys[i];
 
             vm.prank(address(manager));
+            vm.expectRevert(BeforeStartTime.selector);
             (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
                 ""
             );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (
-                uint40 lastEpoch,
-                int256 tickAccumulator,
-                uint256 totalTokensSold,
-                uint256 totalProceeds,
-                uint256 totalTokensSoldLastEpoch
-            ) = dopplers[i].state();
-
-            assertEq(lastEpoch, 0);
-            assertEq(tickAccumulator, 0);
-            assertEq(totalTokensSold, 0);
-            assertEq(totalProceeds, 0);
-            assertEq(totalTokensSoldLastEpoch, 0);
         }
     }
 
@@ -574,3 +557,4 @@ contract DopplerTest is Test, Deployers {
 }
 
 error Unauthorized();
+error BeforeStartTime();
