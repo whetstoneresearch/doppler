@@ -52,7 +52,7 @@ contract Doppler is BaseHook {
     uint256 immutable epochLength; // length of each epoch (seconds)
     // TODO: consider whether this should be signed
     // TODO: should this actually be "max single epoch increase"?
-    uint256 immutable gamma; // 1.0001 ** (gamma) = max single block increase
+    int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
@@ -63,7 +63,7 @@ contract Doppler is BaseHook {
         int24 _startingTick,
         int24 _endingTick,
         uint256 _epochLength,
-        uint256 _gamma,
+        int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
         numTokensToSell = _numTokensToSell;
@@ -153,6 +153,12 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
+    struct SlugData {
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+    }
+
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
@@ -215,7 +221,6 @@ contract Doppler is BaseHook {
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
-
         // TODO: Consider what's redundant below if currentTick is unchanged
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
@@ -238,126 +243,9 @@ contract Doppler is BaseHook {
             }
         }
 
-        int24 lowerSlugTickUpper = tickLower;
-        int24 lowerSlugTickLower = currentTick;
-        uint128 lowerSlugLiquidity = liquidity;
-
-        // If we do not have enough proceeds to the full lower slug,
-        // we switch to a single tick range at the target price
-        if (requiredProceeds > totalProceeds_) {
-            if (isToken0) {
-                // Q96 Target price (not sqrtPrice)
-                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalProceeds_, FixedPoint96.Q96, totalTokensSold_));
-
-                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
-                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                lowerSlugTickLower = lowerSlugTickUpper - key.tickSpacing;
-
-                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount1(
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
-                    totalProceeds_
-                );
-            } else {
-                // Q96 Target price (not sqrtPrice)
-                uint160 targetPriceX96 = uint160(FullMath.mulDiv(totalTokensSold_, FixedPoint96.Q96, totalProceeds_));
-
-                // TODO: Consider whether this can revert due to InvalidSqrtPrice check
-                // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-                lowerSlugTickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                // TODO: Consider whether lower and upper values should be swapped
-                lowerSlugTickLower = lowerSlugTickUpper + key.tickSpacing;
-
-                lowerSlugLiquidity = LiquidityAmounts.getLiquidityForAmount0(
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickLower),
-                    TickMath.getSqrtPriceAtTick(lowerSlugTickUpper),
-                    totalProceeds_
-                );
-            }
-        }
-
-        uint256 epochT1 = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 percentElapsedAtT1 = _getNormalizedTimeElapsed(epochT1); // percent time elapsed at end of epoch
-        uint256 expectedSoldAtT1 = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochT1)); // compute percent of tokens sold by next epoch
-        int256 tokensSoldDelta = int256(percentElapsedAtT1) - int256(expectedSoldAtT1); // compute if we've sold more or less tokens than expected by next epoch
-
-        int24 upperSlugTickLower;
-        int24 upperSlugTickUpper;
-        uint128 upperSlugLiquidity;
-        uint160 upperSlugAbovePrice;
-        uint160 upperSlugBelowPrice;
-
-        if (tokensSoldDelta > 0) {
-            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-
-            accumulatorDelta = int256(_getGammaShare(epochT1) * gamma / 1e18);
-            int24 nextTick = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
-
-            upperSlugAbovePrice = TickMath.getSqrtPriceAtTick(nextTick);
-            upperSlugBelowPrice = sqrtPriceNext;
-            if (upperSlugAbovePrice != upperSlugBelowPrice) {
-                if (isToken0) {
-                    upperSlugTickLower = currentTick;
-                    upperSlugTickUpper = nextTick;
-                    if (upperSlugAbovePrice < upperSlugBelowPrice) {
-                        (upperSlugTickLower, upperSlugTickUpper) = (currentTick, nextTick);
-                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
-                    }
-                    upperSlugLiquidity =
-                        LiquidityAmounts.getLiquidityForAmount0(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
-                } else {
-                    upperSlugTickLower = nextTick;
-                    upperSlugTickUpper = currentTick;
-                    if (upperSlugAbovePrice > upperSlugBelowPrice) {
-                        (upperSlugTickLower, upperSlugTickUpper) = (nextTick, currentTick);
-                        (upperSlugAbovePrice, upperSlugBelowPrice) = (upperSlugBelowPrice, upperSlugAbovePrice);
-                    }
-                    upperSlugLiquidity =
-                        LiquidityAmounts.getLiquidityForAmount1(upperSlugBelowPrice, upperSlugAbovePrice, tokensToLp);
-                }
-            } else {
-                upperSlugLiquidity = 0;
-            }
-        }
-
-        uint256 epochT2 = _getEpochEndWithOffset(1); // compute end time two epochs from now
-
-        if (epochT2 > endingTime) {
-            epochT2 = endingTime;
-        }
-
-        int24 priceDiscoveryTickLower;
-        int24 priceDiscoveryTickUpper;
-        uint128 priceDiscoveryLiquidity;
-        if (epochT2 != epochT1) {
-            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(epochT2) - percentElapsedAtT1;
-
-            if (epochT1toT2Delta > 0) {
-                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
-                if (isToken0) {
-                    priceDiscoveryTickLower = tickLower;
-                    priceDiscoveryTickUpper = upperSlugTickLower;
-                    priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount0(
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
-                        tokensToLp
-                    );
-                } else {
-                    priceDiscoveryTickLower = upperSlugTickUpper;
-                    priceDiscoveryTickUpper = tickUpper;
-                    priceDiscoveryLiquidity = LiquidityAmounts.getLiquidityForAmount1(
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickLower),
-                        TickMath.getSqrtPriceAtTick(priceDiscoveryTickUpper),
-                        tokensToLp
-                    );
-                }
-            }
-        }
+        SlugData memory lowerSlug = _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
+        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
 
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
@@ -371,30 +259,24 @@ contract Doppler is BaseHook {
         // Get new positions
         Position[] memory newPositions = new Position[](3);
         newPositions[0] =
-            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+            Position({tickLower: lowerSlug.tickLower, tickUpper: lowerSlug.tickUpper, liquidity: lowerSlug.liquidity});
         newPositions[1] =
-            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+            Position({tickLower: upperSlug.tickLower, tickUpper: upperSlug.tickUpper, liquidity: upperSlug.liquidity});
         newPositions[2] = Position({
-            tickLower: priceDiscoveryTickLower,
-            tickUpper: priceDiscoveryTickUpper,
-            liquidity: priceDiscoveryLiquidity
+            tickLower: priceDiscoverySlug.tickLower,
+            tickUpper: priceDiscoverySlug.tickUpper,
+            liquidity: priceDiscoverySlug.liquidity
         });
 
         // Execute lock - providing old and new position
         poolManager.unlock(
-            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlugTickUpper), key)
+            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper), key)
         );
 
         // Store new position ticks and liquidity
-        positions[LOWER_SLUG_SALT] =
-            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
-        positions[UPPER_SLUG_SALT] =
-            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
-        positions[DISCOVERY_SLUG_SALT] = Position({
-            tickLower: priceDiscoveryTickLower,
-            tickUpper: priceDiscoveryTickUpper,
-            liquidity: priceDiscoveryLiquidity
-        });
+        positions[LOWER_SLUG_SALT] = newPositions[0];
+        positions[UPPER_SLUG_SALT] = newPositions[1];
+        positions[DISCOVERY_SLUG_SALT] = newPositions[2];
     }
 
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
@@ -413,10 +295,10 @@ contract Doppler is BaseHook {
         return (timestamp - startingTime) * 1e18 / (endingTime - startingTime);
     }
 
-    function _getGammaShare(uint256 timestamp) internal view returns (uint256) {
+    function _getGammaShare(uint256 timestamp) internal view returns (int256) {
         uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
         uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(block.timestamp);
-        return normalizedTimeElapsedNext - normalizedTimeElapsed;
+        return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
     }
 
     // TODO: consider whether it's safe to always round down
@@ -431,7 +313,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed(block.timestamp) * (gamma) / 1e18);
+        return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
     }
 
     // TODO: Consider whether overflow is reasonably possible
@@ -440,7 +322,121 @@ contract Doppler is BaseHook {
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction
-        upper = lower + (startingTick > endingTick ? int24(int256(gamma)) : -int24(int256(gamma)));
+        upper = lower + (isToken0 ? -int24(int256(gamma)) : int24(int256(gamma)));
+    }
+
+    function _computeLowerSlugData(
+        PoolKey memory key,
+        uint256 requiredProceeds,
+        uint256 totalProceeds_,
+        uint256 totalTokensSold_
+    ) internal view returns (SlugData memory slug) {
+        // If we do not have enough proceeds to the full lower slug,
+        // we switch to a single tick range at the target price
+        if (requiredProceeds > totalProceeds_) {
+            uint160 targetPriceX96;
+            if (isToken0) {
+                // Q96 Target price (not sqrtPrice)
+                targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
+            } else {
+                targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
+            }
+            uint160 priceLower;
+            uint160 priceUpper;
+            // TODO: Consider whether this can revert due to InvalidSqrtPrice check
+            // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+            int24 tickA = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+            int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
+            (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+            slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
+        }
+    }
+
+    function _computeUpperSlugData(uint256 totalTokensSold_, int24 currentTick)
+        internal
+        view
+        returns (SlugData memory slug)
+    {
+        uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
+        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
+        uint256 expectedSoldAtEpochEnd = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
+        int256 tokensSoldDelta = int256(percentElapsedAtEpochEnd) - int256(expectedSoldAtEpochEnd); // compute if we've sold more or less tokens than expected by next epoch
+
+        if (tokensSoldDelta > 0) {
+            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
+
+            uint160 priceUpper;
+            uint160 priceLower;
+            int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            int24 tickA = currentTick;
+            int24 tickB = isToken0 ? currentTick - int24(accumulatorDelta) : currentTick + int24(accumulatorDelta);
+
+            (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+
+            if (priceLower != priceUpper) {
+                slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+            } else {
+                slug.liquidity = 0;
+            }
+        }
+    }
+
+    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper)
+        internal
+        view
+        returns (SlugData memory slug)
+    {
+        uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
+        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
+        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
+
+        if (nextEpochEndTime != epochEndTime) {
+            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - percentElapsedAtEpochEnd;
+
+            if (epochT1toT2Delta > 0) {
+                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
+                uint160 priceUpper;
+                uint160 priceLower;
+                int24 tickA = isToken0 ? upperSlug.tickLower : tickLower;
+                int24 tickB = isToken0 ? tickUpper : upperSlug.tickUpper;
+
+                (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+                slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+            }
+        }
+    }
+
+    function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
+        return uint160(FullMath.mulDiv(num, FixedPoint96.Q96, denom));
+    }
+
+    function _computeLiquidity(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
+        internal
+        pure
+        returns (uint128)
+    {
+        if (forToken0) {
+            return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
+        } else {
+            return LiquidityAmounts.getLiquidityForAmount1(lowerPrice, upperPrice, amount);
+        }
+    }
+
+    function _sortTicks(int24 tickA, int24 tickB)
+        internal
+        pure
+        returns (int24 tickLower, int24 tickUpper, uint160 priceLower, uint160 priceUpper)
+    {
+        uint160 priceA = TickMath.getSqrtPriceAtTick(tickA);
+        uint160 priceB = TickMath.getSqrtPriceAtTick(tickB);
+
+        if (priceA < priceB) {
+            (tickLower, tickUpper) = (tickA, tickB);
+            (priceLower, priceUpper) = (priceA, priceB);
+        } else {
+            (tickLower, tickUpper) = (tickB, tickA);
+            (priceLower, priceUpper) = (priceB, priceA);
+        }
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {

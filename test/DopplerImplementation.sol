@@ -16,7 +16,7 @@ contract DopplerImplementation is Doppler {
         int24 _startingTick,
         int24 _endingTick,
         uint256 _epochLength,
-        uint256 _gamma,
+        int24 _gamma,
         bool _isToken0,
         IHooks addressToEtch
     )
@@ -66,7 +66,7 @@ contract DopplerImplementation is Doppler {
         return endingTick;
     }
 
-    function getGamma() public view returns (uint256) {
+    function getGamma() public view returns (int24) {
         return gamma;
     }
 
