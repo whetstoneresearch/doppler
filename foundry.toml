@@ -1,10 +1,11 @@
 [profile.default]
-remappings = [
-    "v4-core/=lib/v4-periphery/lib/v4-core/"
-]
+remappings = ["v4-core/=lib/v4-periphery/lib/v4-core/"]
 src = "src"
 out = "out"
 libs = ["lib"]
 evm_version = "cancun"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[profile.coverage]
+# use the --ir-minimum flag to get coverage to run. there's no foundry config for this yet.
