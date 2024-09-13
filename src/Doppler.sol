@@ -14,10 +14,12 @@ import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmo
 import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
+import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
+    using TransientStateLibrary for IPoolManager;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -473,7 +475,7 @@ contract Doppler is BaseHook {
             if (prevPositions[i].liquidity != 0) {
                 // Remove all liquidity from old position
                 // TODO: Consider whether fees are relevant
-                (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: prevPositions[i].tickLower,
@@ -483,18 +485,6 @@ contract Doppler is BaseHook {
                     }),
                     ""
                 );
-
-                int256 delta0 = delta.amount0();
-                int256 delta1 = delta.amount1();
-
-                // TODO: Can we check our total deltas at the end of the function and resolve them then?
-                if (delta0 > 0) {
-                    poolManager.take(key.currency0, address(this), uint256(delta0));
-                }
-
-                if (delta1 > 0) {
-                    poolManager.take(key.currency1, address(this), uint256(delta1));
-                }
             }
         }
 
@@ -516,7 +506,7 @@ contract Doppler is BaseHook {
             if (newPositions[i].liquidity != 0) {
                 // Add liquidity to new position
                 // TODO: Consider whether fees are relevant
-                (BalanceDelta delta,) = poolManager.modifyLiquidity(
+                poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: newPositions[i].tickLower,
@@ -526,24 +516,31 @@ contract Doppler is BaseHook {
                     }),
                     ""
                 );
-
-                int256 delta0 = delta.amount0();
-                int256 delta1 = delta.amount1();
-
-                // TODO: Can we check our total deltas at the end of the function and resolve them then?
-                if (delta0 < 0) {
-                    poolManager.sync(key.currency0);
-                    key.currency0.transfer(address(poolManager), uint256(-delta0));
-                }
-
-                if (delta1 < 0) {
-                    poolManager.sync(key.currency1);
-                    key.currency1.transfer(address(poolManager), uint256(-delta1));
-                }
-
-                poolManager.settle();
             }
         }
+
+        int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
+        int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
+
+        if (currency0Delta > 0) {
+            poolManager.take(key.currency0, address(this), uint256(currency0Delta));
+        }
+
+        if (currency1Delta > 0) {
+            poolManager.take(key.currency1, address(this), uint256(currency1Delta));
+        }
+
+        if (currency0Delta < 0) {
+            poolManager.sync(key.currency0);
+            key.currency0.transfer(address(poolManager), uint256(-currency0Delta));
+        }
+
+        if (currency1Delta < 0) {
+            poolManager.sync(key.currency1);
+            key.currency1.transfer(address(poolManager), uint256(-currency1Delta));
+        }
+
+        poolManager.settle();
     }
 }
 
