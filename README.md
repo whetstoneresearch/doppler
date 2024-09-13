@@ -1,66 +1,27 @@
-## Foundry
+# Doppler
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Initialization
 
-Foundry consists of:
+This sequence diagram explains how a new pair of token and pool is created:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Airlock
+    participant F as TokenFactory
+    participant P as PoolManager
+    participant H as Hook
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+    U->>A: calls create()
+    A->>F: calls deploy()
+    F-->>A: send tokens
+    A->>P: initialize()
+    P->>H: beforeInitialize()
+    H-->>A: take tokens
+    H->>P: unlock()
+    P->>+H: unlockCallback()
+    H->>P: modifyLiquidity()
+    H->>P: ...
+    H->>P: sync()
+    H->>-P: settle()
 ```
