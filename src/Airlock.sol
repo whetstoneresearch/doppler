@@ -76,6 +76,14 @@ contract Airlock is Ownable {
         poolManager.initialize(key, sqrtPriceX96, hookData);
     }
 
+    /**
+     * TODO: This function will be callable later by the hook contract itself, in order to move the liquidity
+     * from the Uniswap v4 pool to a v2 pool. The flow would be something like:
+     * 1) Enough tokens were sold to trigger the migration
+     * 2) Hook contract will remove its positions
+     */
+    function migrate() external {}
+
     function setFactoryState(address factory, FactoryState state) external onlyOwner {
         getFactoryState[factory] = state;
     }
