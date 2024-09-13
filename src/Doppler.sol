@@ -259,30 +259,24 @@ contract Doppler is BaseHook {
         // Get new positions
         Position[] memory newPositions = new Position[](3);
         newPositions[0] =
-            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+            Position({tickLower: lowerSlug.tickLower, tickUpper: lowerSlug.tickUpper, liquidity: lowerSlug.liquidity});
         newPositions[1] =
-            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+            Position({tickLower: upperSlug.tickLower, tickUpper: upperSlug.tickUpper, liquidity: upperSlug.liquidity});
         newPositions[2] = Position({
-            tickLower: priceDiscoveryTickLower,
-            tickUpper: priceDiscoveryTickUpper,
-            liquidity: priceDiscoveryLiquidity
+            tickLower: priceDiscoverySlug.tickLower,
+            tickUpper: priceDiscoverySlug.tickUpper,
+            liquidity: priceDiscoverySlug.liquidity
         });
 
         // Execute lock - providing old and new position
         poolManager.unlock(
-            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlugTickUpper), key)
+            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper), key)
         );
 
         // Store new position ticks and liquidity
-        positions[LOWER_SLUG_SALT] =
-            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
-        positions[UPPER_SLUG_SALT] =
-            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
-        positions[DISCOVERY_SLUG_SALT] = Position({
-            tickLower: priceDiscoveryTickLower,
-            tickUpper: priceDiscoveryTickUpper,
-            liquidity: priceDiscoveryLiquidity
-        });
+        positions[LOWER_SLUG_SALT] = newPositions[0];
+        positions[UPPER_SLUG_SALT] = newPositions[1];
+        positions[DISCOVERY_SLUG_SALT] = newPositions[2];
     }
 
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {

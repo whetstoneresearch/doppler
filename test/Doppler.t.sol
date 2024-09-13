@@ -94,7 +94,7 @@ contract DopplerTest is Test, Deployers {
 
         // TODO: Consider if there will be a different mechanism used rather than just minting all the tokens straight to the hook
         // Mint the tokens to sell to the hook
-        deal(address(token0), address(doppler0), 100_000e18);
+        deal(address(asset), address(doppler0), 100_000e18);
 
         // TODO: Add more variations of doppler implementations
 
