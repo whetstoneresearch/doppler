@@ -132,7 +132,7 @@ contract Doppler is BaseHook {
                 ? state.totalTokensSold += uint256(uint128(amount1))
                 : state.totalTokensSold -= uint256(uint128(-amount1));
 
-            int128 amount0 = swapDelta.amount1();
+            int128 amount0 = swapDelta.amount0();
             // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount0 >= 0
                 ? state.totalProceeds -= uint256(uint128(amount0))
