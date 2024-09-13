@@ -532,10 +532,12 @@ contract Doppler is BaseHook {
 
                 // TODO: Can we check our total deltas at the end of the function and resolve them then?
                 if (delta0 < 0) {
+                    poolManager.sync(key.currency0);
                     key.currency0.transfer(address(poolManager), uint256(-delta0));
                 }
 
                 if (delta1 < 0) {
+                    poolManager.sync(key.currency1);
                     key.currency1.transfer(address(poolManager), uint256(-delta1));
                 }
 
