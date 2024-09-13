@@ -27,8 +27,8 @@ contract DopplerTest is Test, Deployers {
     int24 constant MIN_TICK_SPACING = 1;
     uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
 
-    TestERC20 token0;
-    TestERC20 token1;
+    TestERC20 asset;
+    TestERC20 numeraire;
     DopplerImplementation doppler0 = DopplerImplementation(
         address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG))
     );
@@ -41,14 +41,15 @@ contract DopplerTest is Test, Deployers {
     PoolId[] ids;
 
     function setUp() public {
-        token0 = new TestERC20(2 ** 128);
-        token1 = new TestERC20(2 ** 128);
+        asset = new TestERC20(2 ** 128);
+        numeraire = new TestERC20(2 ** 128);
 
-        if (token0 > token1) {
-            (token0, token1) = (token1, token0);
-        }
+        bool isToken0 = asset > numeraire;
 
         manager = new PoolManager();
+
+        int24 startTick = isToken0 ? int24(100_000) : -100_000;
+        int24 endTick = isToken0 ? int24(200_000) : -200_000;
 
         vm.warp(1000);
 
@@ -58,11 +59,11 @@ contract DopplerTest is Test, Deployers {
             100_000e18,
             1_500, // 500 seconds from now
             1_500 + 86_400, // 1 day from the start time
-            -100_000,
-            -200_000,
+            startTick,
+            endTick,
             1_000,
             1_000,
-            false, // TODO: Make sure it's consistent with the tick direction
+            isToken0,
             doppler0
         );
         (, bytes32[] memory writes) = vm.accesses(address(impl0));
@@ -74,13 +75,21 @@ contract DopplerTest is Test, Deployers {
                 vm.store(address(doppler0), slot, vm.load(address(impl0), slot));
             }
         }
-        key0 = PoolKey(
-            Currency.wrap(address(token0)),
-            Currency.wrap(address(token1)),
-            0,
-            MIN_TICK_SPACING,
-            IHooks(address(doppler0))
-        );
+        key0 = asset < numeraire
+            ? PoolKey(
+                Currency.wrap(address(asset)),
+                Currency.wrap(address(numeraire)),
+                0,
+                MIN_TICK_SPACING,
+                IHooks(address(doppler0))
+            )
+            : PoolKey(
+                Currency.wrap(address(numeraire)),
+                Currency.wrap(address(asset)),
+                0,
+                MIN_TICK_SPACING,
+                IHooks(address(doppler0))
+            );
         id0 = key0.toId();
 
         // TODO: Consider if there will be a different mechanism used rather than just minting all the tokens straight to the hook
@@ -253,15 +262,16 @@ contract DopplerTest is Test, Deployers {
 
             PoolKey memory poolKey = keys[i];
 
-            vm.prank(address(manager));
             // TODO: Use actual swap rather than faking the hook call
+            vm.prank(address(manager));
             (bytes4 selector0, int128 hookDelta) = dopplers[i].afterSwap(
                 address(this),
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(100e18, -100e18),
+                IPoolManager.SwapParams({zeroForOne: !dopplers[i].getIsToken0(), amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                dopplers[i].getIsToken0() ? toBalanceDelta(100e18, -100e18) : toBalanceDelta(-100e18, 100e18),
                 ""
             );
+
 
             assertEq(selector0, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
