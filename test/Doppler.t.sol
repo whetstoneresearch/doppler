@@ -60,9 +60,9 @@ contract DopplerTest is Test, Deployers {
             1_500 + 86_400, // 1 day from the start time
             -100_000,
             -200_000,
-            50,
             1_000,
-            true, // TODO: Make sure it's consistent with the tick direction
+            1_000,
+            false, // TODO: Make sure it's consistent with the tick direction
             doppler0
         );
         (, bytes32[] memory writes) = vm.accesses(address(impl0));
@@ -552,7 +552,7 @@ contract DopplerTest is Test, Deployers {
     function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
         for (uint256 i; i < dopplers.length; ++i) {
             (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(int24(accumulator));
-            uint256 gamma = dopplers[i].getGamma();
+            int24 gamma = dopplers[i].getGamma();
 
             if (dopplers[i].getStartingTick() > dopplers[i].getEndingTick()) {
                 assertEq(int256(gamma), tickUpper - tickLower);

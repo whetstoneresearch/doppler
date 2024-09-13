@@ -52,7 +52,7 @@ contract Doppler is BaseHook {
     uint256 immutable epochLength; // length of each epoch (seconds)
     // TODO: consider whether this should be signed
     // TODO: should this actually be "max single epoch increase"?
-    uint256 immutable gamma; // 1.0001 ** (gamma) = max single block increase
+    int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
@@ -63,7 +63,7 @@ contract Doppler is BaseHook {
         int24 _startingTick,
         int24 _endingTick,
         uint256 _epochLength,
-        uint256 _gamma,
+        int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
         numTokensToSell = _numTokensToSell;
@@ -301,10 +301,10 @@ contract Doppler is BaseHook {
         return (timestamp - startingTime) * 1e18 / (endingTime - startingTime);
     }
 
-    function _getGammaShare(uint256 timestamp) internal view returns (uint256) {
+    function _getGammaShare(uint256 timestamp) internal view returns (int256) {
         uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
         uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(block.timestamp);
-        return normalizedTimeElapsedNext - normalizedTimeElapsed;
+        return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
     }
 
     // TODO: consider whether it's safe to always round down
@@ -319,7 +319,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed(block.timestamp) * (gamma) / 1e18);
+        return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
     }
 
     // TODO: Consider whether overflow is reasonably possible
@@ -328,7 +328,7 @@ contract Doppler is BaseHook {
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction
-        upper = lower + (startingTick > endingTick ? int24(int256(gamma)) : -int24(int256(gamma)));
+        upper = lower + (isToken0 ? -int24(int256(gamma)) : int24(int256(gamma)));
     }
 
     function _computeLowerSlugData(
@@ -373,9 +373,9 @@ contract Doppler is BaseHook {
 
             uint160 priceUpper;
             uint160 priceLower;
-            int256 accumulatorDelta = int256(_getGammaShare(epochEndTime) * gamma / 1e18);
+            int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
             int24 tickA = currentTick;
-            int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
+            int24 tickB = isToken0 ? currentTick - int24(accumulatorDelta) : currentTick + int24(accumulatorDelta);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
 
@@ -403,8 +403,8 @@ contract Doppler is BaseHook {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
-                int24 tickA = isToken0 ? tickLower : upperSlug.tickUpper;
-                int24 tickB = isToken0 ? upperSlug.tickLower : tickUpper;
+                int24 tickA = isToken0 ? upperSlug.tickLower : tickLower;
+                int24 tickB = isToken0 ? tickUpper : upperSlug.tickUpper;
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
