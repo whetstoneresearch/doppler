@@ -14,10 +14,12 @@ import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmo
 import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
+import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
+    using TransientStateLibrary for IPoolManager;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -329,11 +331,11 @@ contract Doppler is BaseHook {
             epochT2 = endingTime;
         }
 
+        int24 priceDiscoveryTickLower;
+        int24 priceDiscoveryTickUpper;
+        uint128 priceDiscoveryLiquidity;
         if (epochT2 != epochT1) {
             uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(epochT2) - percentElapsedAtT1;
-            int24 priceDiscoveryTickLower;
-            int24 priceDiscoveryTickUpper;
-            uint128 priceDiscoveryLiquidity;
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
@@ -357,29 +359,42 @@ contract Doppler is BaseHook {
             }
         }
 
-        // TODO: Swap to intended tick
-        // TODO: Remove in range liquidity
-        // TODO: Flip a flag to prevent this swap from hitting beforeSwap
-
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
-        // TODO: Consider whether we should later just adjust all positions in a single unlock callback
 
-        // Get old position liquidity
-        Position memory position = positions[LOWER_SLUG_SALT];
+        // Get existing positions
+        Position[] memory prevPositions = new Position[](3);
+        prevPositions[0] = positions[LOWER_SLUG_SALT];
+        prevPositions[1] = positions[UPPER_SLUG_SALT];
+        prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
+
+        // Get new positions
+        Position[] memory newPositions = new Position[](3);
+        newPositions[0] =
+            Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+        newPositions[1] =
+            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+        newPositions[2] = Position({
+            tickLower: priceDiscoveryTickLower,
+            tickUpper: priceDiscoveryTickUpper,
+            liquidity: priceDiscoveryLiquidity
+        });
 
         // Execute lock - providing old and new position
         poolManager.unlock(
-            abi.encode(
-                position,
-                Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity}),
-                key
-            )
+            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlugTickUpper), key)
         );
 
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] =
             Position({tickLower: lowerSlugTickLower, tickUpper: lowerSlugTickUpper, liquidity: lowerSlugLiquidity});
+        positions[UPPER_SLUG_SALT] =
+            Position({tickLower: upperSlugTickLower, tickUpper: upperSlugTickUpper, liquidity: upperSlugLiquidity});
+        positions[DISCOVERY_SLUG_SALT] = Position({
+            tickLower: priceDiscoveryTickLower,
+            tickUpper: priceDiscoveryTickUpper,
+            liquidity: priceDiscoveryLiquidity
+        });
     }
 
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
@@ -448,62 +463,84 @@ contract Doppler is BaseHook {
     }
 
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (Position memory prevPosition, Position memory newPosition, PoolKey memory key) =
-            abi.decode(data, (Position, Position, PoolKey));
+        (
+            Position[] memory prevPositions,
+            Position[] memory newPositions,
+            uint160 currentPrice,
+            uint160 swapPrice,
+            PoolKey memory key
+        ) = abi.decode(data, (Position[], Position[], uint160, uint160, PoolKey));
 
-        if (prevPosition.liquidity != 0) {
-            // Remove all liquidity from old position
-            // TODO: Consider whether fees are relevant
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(
-                key,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: prevPosition.tickLower,
-                    tickUpper: prevPosition.tickUpper,
-                    liquidityDelta: -int128(prevPosition.liquidity),
-                    salt: LOWER_SLUG_SALT
-                }),
-                ""
-            );
-
-            int256 delta0 = delta.amount0();
-            int256 delta1 = delta.amount1();
-
-            if (delta0 > 0) {
-                poolManager.take(key.currency0, address(this), uint256(delta0));
-            }
-
-            if (delta1 > 0) {
-                poolManager.take(key.currency1, address(this), uint256(delta1));
+        for (uint256 i; i < prevPositions.length; ++i) {
+            if (prevPositions[i].liquidity != 0) {
+                // Remove all liquidity from old position
+                // TODO: Consider whether fees are relevant
+                poolManager.modifyLiquidity(
+                    key,
+                    IPoolManager.ModifyLiquidityParams({
+                        tickLower: prevPositions[i].tickLower,
+                        tickUpper: prevPositions[i].tickUpper,
+                        liquidityDelta: -int128(prevPositions[i].liquidity),
+                        salt: LOWER_SLUG_SALT
+                    }),
+                    ""
+                );
             }
         }
 
-        if (newPosition.liquidity != 0) {
-            // Add liquidity to new position
-            // TODO: Consider whether fees are relevant
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(
+        if (swapPrice != currentPrice) {
+            // We swap to the target price
+            // Since there's no liquidity, we swap 0 amounts
+            poolManager.swap(
                 key,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: newPosition.tickLower,
-                    tickUpper: newPosition.tickUpper,
-                    liquidityDelta: int128(newPosition.liquidity),
-                    salt: LOWER_SLUG_SALT
+                IPoolManager.SwapParams({
+                    zeroForOne: swapPrice > currentPrice,
+                    amountSpecified: 1, // We need a non-zero amount to pass checks
+                    sqrtPriceLimitX96: swapPrice
                 }),
                 ""
             );
-
-            int256 delta0 = delta.amount0();
-            int256 delta1 = delta.amount1();
-
-            if (delta0 < 0) {
-                key.currency0.transfer(address(poolManager), uint256(-delta0));
-            }
-
-            if (delta1 < 0) {
-                key.currency1.transfer(address(poolManager), uint256(-delta1));
-            }
-
-            poolManager.settle();
         }
+
+        for (uint256 i; i < newPositions.length; ++i) {
+            if (newPositions[i].liquidity != 0) {
+                // Add liquidity to new position
+                // TODO: Consider whether fees are relevant
+                poolManager.modifyLiquidity(
+                    key,
+                    IPoolManager.ModifyLiquidityParams({
+                        tickLower: newPositions[i].tickLower,
+                        tickUpper: newPositions[i].tickUpper,
+                        liquidityDelta: int128(newPositions[i].liquidity),
+                        salt: LOWER_SLUG_SALT
+                    }),
+                    ""
+                );
+            }
+        }
+
+        int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
+        int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
+
+        if (currency0Delta > 0) {
+            poolManager.take(key.currency0, address(this), uint256(currency0Delta));
+        }
+
+        if (currency1Delta > 0) {
+            poolManager.take(key.currency1, address(this), uint256(currency1Delta));
+        }
+
+        if (currency0Delta < 0) {
+            poolManager.sync(key.currency0);
+            key.currency0.transfer(address(poolManager), uint256(-currency0Delta));
+        }
+
+        if (currency1Delta < 0) {
+            poolManager.sync(key.currency1);
+            key.currency1.transfer(address(poolManager), uint256(-currency1Delta));
+        }
+
+        poolManager.settle();
     }
 }
 
