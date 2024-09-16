@@ -17,6 +17,7 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/
 import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -126,12 +127,14 @@ contract BaseTest is Test, Deployers {
         manager = new PoolManager();
         TestERC20 asset = new TestERC20(2 ** 128);
         TestERC20 numeraire = new TestERC20(2 ** 128);
-        (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        (TestERC20 token0, TestERC20 token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+
+        bool isToken0 = asset < numeraire;
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        int24 startTick = isToken0 ? int24(-100_000) : 100_000;
-        int24 endTick = isToken0 ? int24(-200_000) : 200_000;
+        int24 startTick = isToken0 ? int24(-100_000) : int24(100_000);
+        int24 endTick = isToken0 ? int24(-200_000) : int24(200_000);
 
         uint256 numTokensToSell = 100_000e18;
 
@@ -152,7 +155,7 @@ contract BaseTest is Test, Deployers {
             endTick: endTick,
             epochLength: 50 seconds,
             gamma: 1_000,
-            isToken0: asset < numeraire,
+            isToken0: isToken0,
             numTokensToSell: numTokensToSell
         });
 
