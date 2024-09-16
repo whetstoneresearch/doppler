@@ -90,9 +90,7 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (block.timestamp < startingTime) revert BeforeStartTime();
-        if (
-            ((block.timestamp - startingTime) / epochLength + 1) <= uint256(state.lastEpoch)
-        ) {
+        if (((block.timestamp - startingTime) / epochLength + 1) <= uint256(state.lastEpoch)) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?

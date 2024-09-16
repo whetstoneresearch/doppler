@@ -18,6 +18,8 @@ import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/li
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -167,8 +169,17 @@ contract BaseTest is Test, Deployers {
 
         // Initialize each pool at the starting tick
         for (uint256 i; i < __instances__.length; ++i) {
-            manager.initialize(__instances__[i].key(), TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()), "");
+            manager.initialize(
+                __instances__[i].key(), TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()), ""
+            );
         }
+
+        // Deploy swapRouter
+        swapRouter = new PoolSwapTest(manager);
+
+        // Deploy modifyLiquidityRouter
+        // Note: Only used to validate that liquidity can't be manually modified
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
         // Approve the router to spend tokens on behalf of the test contract
         token0.approve(address(swapRouter), type(uint256).max);

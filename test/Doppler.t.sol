@@ -17,6 +17,7 @@ import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/li
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -38,13 +39,21 @@ contract DopplerTest is BaseTest {
             vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
 
             PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            vm.prank(address(manager));
-            vm.expectRevert(BeforeStartTime.selector);
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(BeforeStartTime.selector)
+                )
+            );
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max sqrtPriceLimitX96 (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(
+                    !isToken0, 1 ether, !isToken0 ? TickMath.MAX_SQRT_PRICE : TickMath.MIN_SQRT_PRICE
+                ),
+                PoolSwapTest.TestSettings(true, true),
                 ""
             );
         }
@@ -172,11 +181,14 @@ contract DopplerTest is BaseTest {
             (bytes4 selector0, int128 hookDelta) = ghosts()[i].hook.afterSwap(
                 address(this),
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: !ghosts()[i].hook.getIsToken0(), amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams({
+                    zeroForOne: !ghosts()[i].hook.getIsToken0(),
+                    amountSpecified: 100e18,
+                    sqrtPriceLimitX96: SQRT_RATIO_2_1
+                }),
                 ghosts()[i].hook.getIsToken0() ? toBalanceDelta(100e18, -100e18) : toBalanceDelta(-100e18, 100e18),
                 ""
             );
-
 
             assertEq(selector0, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
@@ -394,7 +406,8 @@ contract DopplerTest is BaseTest {
         vm.assume(timePercentage <= 1e18);
 
         for (uint256 i; i < ghosts().length; ++i) {
-            uint256 timeElapsed = (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 1e18;
+            uint256 timeElapsed =
+                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 1e18;
             uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
             vm.warp(timestamp);
 
@@ -443,7 +456,8 @@ contract DopplerTest is BaseTest {
         vm.assume(timePercentage > 0);
 
         for (uint256 i; i < ghosts().length; ++i) {
-            uint256 timeElapsed = (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 100;
+            uint256 timeElapsed =
+                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 100;
             uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
             vm.warp(timestamp);
 
@@ -480,3 +494,4 @@ contract DopplerTest is BaseTest {
 
 error Unauthorized();
 error BeforeStartTime();
+error Wrap__FailedHookCall(address, bytes);
