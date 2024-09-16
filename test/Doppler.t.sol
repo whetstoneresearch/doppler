@@ -477,7 +477,6 @@ contract DopplerTest is BaseTest {
             uint256 totalTokensSold = 10e18;
 
             bool isToken0 = dopplers[i].getIsToken0();
-            console2.log("isToken0", isToken0);
 
             vm.prank(address(dopplers[i]));
             SlugData memory slug = dopplers[i].computeLowerSlugData(
