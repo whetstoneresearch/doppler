@@ -169,6 +169,12 @@ contract BaseTest is Test, Deployers {
         for (uint256 i; i < __instances__.length; ++i) {
             manager.initialize(__instances__[i].key(), TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()), "");
         }
+
+        // Approve the router to spend tokens on behalf of the test contract
+        token0.approve(address(swapRouter), type(uint256).max);
+        token1.approve(address(swapRouter), type(uint256).max);
+        token0.approve(address(modifyLiquidityRouter), type(uint256).max);
+        token1.approve(address(modifyLiquidityRouter), type(uint256).max);
     }
 }
 
