@@ -315,7 +315,7 @@ contract Doppler is BaseHook {
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction
-        upper = lower + (isToken0 ? int24(int256(gamma)) : -int24(int256(gamma)));
+        upper = lower + (isToken0 ? -int24(int256(gamma)) : +int24(int256(gamma)));
     }
 
     function _computeLowerSlugData(
