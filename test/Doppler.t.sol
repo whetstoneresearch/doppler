@@ -19,7 +19,7 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 
-import {Doppler} from "../src/Doppler.sol";
+import {Doppler, SlugData} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 import {BaseTest} from "./BaseTest.sol";
 
@@ -466,6 +466,41 @@ contract DopplerTest is BaseTest {
                 assertEq(int256(gamma), tickUpper - tickLower);
             } else {
                 assertEq(int256(gamma), tickLower - tickUpper);
+            }
+        }
+    }
+
+    function testComputeLowerSlugData_ReturnsExpectedBounds() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            uint256 requiredProceeds = 1e18;
+            uint256 totalProceeds = requiredProceeds / 10;
+            uint256 totalTokensSold = 10e18;
+
+            bool isToken0 = dopplers[i].getIsToken0();
+            console2.log("isToken0", isToken0);
+
+            vm.prank(address(dopplers[i]));
+            SlugData memory slug = dopplers[i].computeLowerSlugData(
+                keys[i],
+                requiredProceeds,
+                totalProceeds,
+                totalTokensSold
+            );
+
+            // if the asset is token0, then the target price is the price of token0 in terms of token1
+            // i.e. the price of token0 when the proceeds are 1e18
+            // expectation is that the tokens are placed near the end of the distribution (endTick)
+            // in the token0 case, the endTick is always > startTick
+            if (isToken0) {
+                uint160 targetPriceX96 = dopplers[i].computeTargetPriceX96(totalProceeds, totalTokensSold);
+                int24 tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+                assertEq(slug.tickLower, tickLower);
+                assertEq(slug.tickUpper, tickLower + keys[i].tickSpacing);
+            } else {
+                uint160 targetPriceX96 = dopplers[i].computeTargetPriceX96(totalTokensSold, totalProceeds);
+                int24 tickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+                assertEq(slug.tickUpper, tickUpper);
+                assertEq(slug.tickLower, tickUpper - keys[i].tickSpacing);
             }
         }
     }

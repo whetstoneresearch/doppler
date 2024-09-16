@@ -16,6 +16,12 @@ import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 
+struct SlugData {
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+}
+
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -153,11 +159,6 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
-    struct SlugData {
-        int24 tickLower;
-        int24 tickUpper;
-        uint128 liquidity;
-    }
 
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
@@ -347,7 +348,7 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
             int24 tickA = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-            int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
+            int24 tickB = isToken0 ? tickA + key.tickSpacing : tickA - key.tickSpacing;
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
             slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
         }

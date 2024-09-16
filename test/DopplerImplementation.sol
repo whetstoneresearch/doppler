@@ -4,10 +4,13 @@ import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager
 import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 
-import {Doppler} from "../src/Doppler.sol";
+import {Doppler, SlugData} from "../src/Doppler.sol";
 
 contract DopplerImplementation is Doppler {
+    using PoolIdLibrary for PoolKey;
     constructor(
         address _poolManager,
         uint256 _numTokensToSell,
@@ -84,5 +87,18 @@ contract DopplerImplementation is Doppler {
 
     function getTicksBasedOnState(int24 accumulator) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator);
+    }
+
+    function computeTargetPriceX96(uint256 totalProceeds, uint256 totalTokensSold) public pure returns (uint160) {
+        return _computeTargetPriceX96(totalProceeds, totalTokensSold);
+    }
+
+    function computeLowerSlugData(
+        PoolKey memory key,
+        uint256 requiredProceeds,
+        uint256 totalProceeds,
+        uint256 totalTokensSold
+    ) public view returns (SlugData memory) {
+        return _computeLowerSlugData(key, requiredProceeds, totalProceeds, totalTokensSold);
     }
 }
