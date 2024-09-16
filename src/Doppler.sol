@@ -459,7 +459,7 @@ contract Doppler is BaseHook {
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
-                    zeroForOne: swapPrice > currentPrice,
+                    zeroForOne: swapPrice < currentPrice,
                     amountSpecified: 1, // We need a non-zero amount to pass checks
                     sqrtPriceLimitX96: swapPrice
                 }),
