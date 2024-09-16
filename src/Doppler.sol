@@ -260,10 +260,8 @@ contract Doppler is BaseHook {
             liquidity: priceDiscoverySlug.liquidity
         });
 
-        // Execute lock - providing old and new position
-        poolManager.unlock(
-            abi.encode(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper), key)
-        );
+        // Update positions and swap if necessary
+        _update(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper), key);
 
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] = newPositions[0];
@@ -431,34 +429,13 @@ contract Doppler is BaseHook {
         }
     }
 
-    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
-        return Hooks.Permissions({
-            beforeInitialize: false,
-            afterInitialize: false,
-            beforeAddLiquidity: true,
-            beforeRemoveLiquidity: false,
-            afterAddLiquidity: false,
-            afterRemoveLiquidity: false,
-            beforeSwap: true,
-            afterSwap: true,
-            beforeDonate: false,
-            afterDonate: false,
-            beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
-            afterAddLiquidityReturnDelta: false,
-            afterRemoveLiquidityReturnDelta: false
-        });
-    }
-
-    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (
-            Position[] memory prevPositions,
-            Position[] memory newPositions,
-            uint160 currentPrice,
-            uint160 swapPrice,
-            PoolKey memory key
-        ) = abi.decode(data, (Position[], Position[], uint160, uint160, PoolKey));
-
+    function _update(
+        Position[] memory prevPositions,
+        Position[] memory newPositions,
+        uint160 currentPrice,
+        uint160 swapPrice,
+        PoolKey memory key
+    ) internal {
         for (uint256 i; i < prevPositions.length; ++i) {
             if (prevPositions[i].liquidity != 0) {
                 // Remove all liquidity from old position
@@ -529,6 +506,25 @@ contract Doppler is BaseHook {
         }
 
         poolManager.settle();
+    }
+
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+        return Hooks.Permissions({
+            beforeInitialize: false,
+            afterInitialize: false,
+            beforeAddLiquidity: true,
+            beforeRemoveLiquidity: false,
+            afterAddLiquidity: false,
+            afterRemoveLiquidity: false,
+            beforeSwap: true,
+            afterSwap: true,
+            beforeDonate: false,
+            afterDonate: false,
+            beforeSwapReturnDelta: false,
+            afterSwapReturnDelta: false,
+            afterAddLiquidityReturnDelta: false,
+            afterRemoveLiquidityReturnDelta: false
+        });
     }
 }
 
