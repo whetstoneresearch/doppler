@@ -20,8 +20,9 @@ import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
+import {BaseTest} from "./BaseTest.sol";
 
-contract DopplerTest is Test, Deployers {
+contract DopplerTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
     int24 constant MIN_TICK_SPACING = 1;

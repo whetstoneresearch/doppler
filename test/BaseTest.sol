@@ -63,7 +63,8 @@ library Debug {
         int24 endTick,
         uint256 epochLength,
         int24 gamma,
-        bool isToken0
+        bool isToken0,
+        uint256 numTokensToSell
     ) internal {
         uint256 currentTime = block.timestamp;
 
@@ -71,7 +72,7 @@ library Debug {
         vm.record();
         DopplerImplementation impl0 = new DopplerImplementation({
             _poolManager: poolManager,
-            _numTokensToSell: 100_000e18,
+            _numTokensToSell: numTokensToSell,
             _startingTime: currentTime + timeTilStart,
             _endingTime: currentTime + timeTilStart + duration,
             _startingTick: startTick,
@@ -123,9 +124,16 @@ contract BaseTest is Test, Deployers {
 
     function setUp() public virtual {
         manager = new PoolManager();
-        TestERC20 token0 = new TestERC20(2 ** 128);
-        TestERC20 token1 = new TestERC20(2 ** 128);
-        if (token0 > token1) (token0, token1) = (token1, token0);
+        TestERC20 asset = new TestERC20(2 ** 128);
+        TestERC20 numeraire = new TestERC20(2 ** 128);
+        (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+
+        // isToken0 ? startTick > endTick : endTick > startTick
+        // In both cases, price(startTick) > price(endTick)
+        int24 startTick = isToken0 ? int24(-100_000) : 100_000;
+        int24 endTick = isToken0 ? int24(-200_000) : 200_000;
+
+        uint256 numTokensToSell = 100_000e18;
 
         vm.warp(INIT_TIMESTAMP);
 
@@ -133,20 +141,31 @@ contract BaseTest is Test, Deployers {
         doppler0.token0 = token0;
         doppler0.token1 = token1;
         doppler0.hook = targetHookAddress;
-        doppler0.tickSpacing = MIN_TICK_SPACING;
+        // Shouldn't use 1 tickSpacing since we want to test that tickSpacing is respected
+        doppler0.tickSpacing = 8;
         doppler0.deploy({
             vm: vm,
             poolManager: address(manager),
             timeTilStart: 500 seconds,
             duration: 1 days,
-            startTick: -100_000,
-            endTick: -200_000,
-            epochLength: 1 days,
+            startTick: startTick,
+            endTick: endTick,
+            epochLength: 50 seconds,
             gamma: 1_000,
-            isToken0: true
+            isToken0: asset < numeraire,
+            numTokensToSell: numTokensToSell
         });
 
         __instances__.push(doppler0);
+
+        // TODO: Consider if there will be a different mechanism used rather than just minting all the tokens straight to the hook
+        // Mint the tokens to sell to the hook
+        deal(address(asset), address(targetHookAddress), numTokensToSell);
+
+        // Initialize each pool at the starting tick
+        for (uint256 i; i < __instances__.length; ++i) {
+            manager.initialize(__instances__[i].key(), TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()), "");
+        }
     }
 }
 
