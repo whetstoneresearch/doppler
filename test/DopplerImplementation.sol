@@ -107,11 +107,19 @@ contract DopplerImplementation is Doppler {
         return _computeLowerSlugData(key, requiredProceeds, totalProceeds, totalTokensSold);
     }
 
-    function computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold, int24 currentTick) public view returns (SlugData memory) {
+    function computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold, int24 currentTick)
+        public
+        view
+        returns (SlugData memory)
+    {
         return _computeUpperSlugData(key, totalTokensSold, currentTick);
     }
 
-    function computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper) public view returns (SlugData memory) {
+    function computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper)
+        public
+        view
+        returns (SlugData memory)
+    {
         return _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
     }
 }
