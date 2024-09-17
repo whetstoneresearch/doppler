@@ -15,6 +15,8 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {ERC20} from "v4-core/lib/solmate/src/tokens/ERC20.sol";
+import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -82,6 +84,23 @@ contract Doppler is BaseHook {
         // TODO: consider enforcing startingTime < endingTime
         // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
         // TODO: consider enforcing that min and max gamma
+    }
+
+    function beforeInitialize(address sender, PoolKey calldata key, uint160, bytes calldata hookData)
+        external
+        override
+        onlyPoolManager
+        returns (bytes4)
+    {
+        // TODO: After adding support for multiple hooks, we'll move all the constructor parameters here
+        (uint256 numTokensToSell_) = abi.decode(hookData, (uint256));
+        ERC20(Currency.unwrap(isToken0 ? key.currency0 : key.currency1)).transferFrom(
+            sender, address(this), numTokensToSell_
+        );
+
+        _rebalance(key);
+
+        return BaseHook.beforeInitialize.selector;
     }
 
     // TODO: consider reverting or returning if after end time
@@ -521,7 +540,7 @@ contract Doppler is BaseHook {
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize: false,
+            beforeInitialize: true,
             afterInitialize: false,
             beforeAddLiquidity: true,
             beforeRemoveLiquidity: false,
