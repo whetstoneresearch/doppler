@@ -324,7 +324,7 @@ contract Doppler is BaseHook {
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction
-        upper = lower + (isToken0 ? int24(int256(gamma)) : -int24(int256(gamma)));
+        upper = lower + (isToken0 ? gamma : -gamma);
     }
 
     function _computeLowerSlugData(
@@ -399,16 +399,10 @@ contract Doppler is BaseHook {
                 uint160 priceUpper;
                 uint160 priceLower;
                 // should extend from the 
-                console2.log("here?");
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickLower;
                 int24 tickB = isToken0 ? tickUpper : upperSlug.tickLower;
-                console2.log("here?2");
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
-                console2.log("tickLower");
-                console2.logInt(slug.tickLower);
-                console2.log("tickUpper");
-                console2.logInt(slug.tickUpper);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
             }
         }

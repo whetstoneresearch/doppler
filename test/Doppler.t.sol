@@ -471,74 +471,74 @@ contract DopplerTest is BaseTest {
     }
 
     function testComputeLowerSlugData_ReturnsExpectedBounds() public {
-        for (uint256 i; i < dopplers.length; ++i) {
+        for (uint256 i; i < ghosts().length; ++i) {
             uint256 requiredProceeds = 1e18;
             uint256 totalProceeds = requiredProceeds / 10;
             uint256 totalTokensSold = 10e18;
 
-            bool isToken0 = dopplers[i].getIsToken0();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            vm.prank(address(dopplers[i]));
+            vm.prank(address(ghosts()[i].hook));
             SlugData memory slug =
-                dopplers[i].computeLowerSlugData(keys[i], requiredProceeds, totalProceeds, totalTokensSold);
+                ghosts()[i].hook.computeLowerSlugData(ghosts()[i].key(), requiredProceeds, totalProceeds, totalTokensSold);
 
             // if the asset is token0, then the target price is the price of token0 in terms of token1
             // i.e. the price of token0 when the proceeds are 1e18
             // expectation is that the tokens are placed near the end of the distribution (endTick)
             // in the token0 case, the endTick is always > startTick
             if (isToken0) {
-                uint160 targetPriceX96 = dopplers[i].computeTargetPriceX96(totalProceeds, totalTokensSold);
+                uint160 targetPriceX96 = ghosts()[i].hook.computeTargetPriceX96(totalProceeds, totalTokensSold);
                 int24 tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
                 assertEq(slug.tickLower, tickLower);
-                assertEq(slug.tickUpper, tickLower + keys[i].tickSpacing);
+                assertEq(slug.tickUpper, tickLower + ghosts()[i].key().tickSpacing);
             } else {
-                uint160 targetPriceX96 = dopplers[i].computeTargetPriceX96(totalTokensSold, totalProceeds);
+                uint160 targetPriceX96 = ghosts()[i].hook.computeTargetPriceX96(totalTokensSold, totalProceeds);
                 int24 tickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
                 assertEq(slug.tickUpper, tickUpper);
-                assertEq(slug.tickLower, tickUpper - keys[i].tickSpacing);
+                assertEq(slug.tickLower, tickUpper - ghosts()[i].key().tickSpacing);
             }
         }
     }
 
     function testUpperSlugData_ReturnsExpectedBounds() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength());
-            bool isToken0 = dopplers[i].getIsToken0();
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
             uint256 totalTokensSold = 10e18;
 
-            int24 currentTick = dopplers[i].getStartingTick();
-            int24 gamma = dopplers[i].getGamma();
-            int24 gammaShare = int24(dopplers[i].getGammaShare(block.timestamp + dopplers[i].getEpochLength()) * gamma / 1e18);
+            int24 currentTick = ghosts()[i].hook.getStartingTick();
+            int24 gamma = ghosts()[i].hook.getGamma();
+            int24 gammaShare = int24(ghosts()[i].hook.getGammaShare(block.timestamp + ghosts()[i].hook.getEpochLength()) * gamma / 1e18);
 
             // int256 maxTickDelta = dopplers[i].getMaxTickDeltaPerEpoch();
             // int24 nextTick = int24(maxTickDelta * (int256(block.timestamp - dopplers[i].getStartingTime())) * (int256(dopplers[i].getEpochLength())) / 1e18 + dopplers[i].getStartingTick());
-            SlugData memory slug = dopplers[i].computeUpperSlugData(totalTokensSold, currentTick);
+            SlugData memory slug = ghosts()[i].hook.computeUpperSlugData(totalTokensSold, currentTick);
             if (isToken0) {
                 assertEq(slug.tickLower, currentTick - gammaShare);
-                assertEq(slug.tickUpper, currentTick - gammaShare * keys[i].tickSpacing);
+                assertEq(slug.tickUpper, currentTick - gammaShare * ghosts()[i].key().tickSpacing);
             } else {
                 assertEq(slug.tickLower, currentTick);
-                assertEq(slug.tickUpper, currentTick + gammaShare * keys[i].tickSpacing);
+                assertEq(slug.tickUpper, currentTick + gammaShare * ghosts()[i].key().tickSpacing);
             }
         }
     }
 
     function testComputePriceDiscoverySlugData_ReturnsExpectedBounds() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength());
-            bool isToken0 = dopplers[i].getIsToken0();
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
             uint256 totalTokensSold = 1e18;
 
-            int24 currentTick = dopplers[i].getStartingTick();
-            (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(0);
+            int24 currentTick = ghosts()[i].hook.getStartingTick();
+            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(0);
 
             // uint256 epochEndT1 = dopplers[i].getNormalizedTimeElapsed(dopplers[i].getEpochEndWithOffset(0));
             // uint256 epochEndT2 = dopplers[i].getNormalizedTimeElapsed(dopplers[i].getEpochEndWithOffset(1));
             // uint256 epochT1toT2Delta = epochEndT2 - epochEndT1;
 
 
-            SlugData memory upperSlug = dopplers[i].computeUpperSlugData(totalTokensSold, currentTick);
-            SlugData memory pdSlug = dopplers[i].computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+            SlugData memory upperSlug = ghosts()[i].hook.computeUpperSlugData(totalTokensSold, currentTick);
+            SlugData memory pdSlug = ghosts()[i].hook.computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
             if (isToken0) {
                 assertEq(pdSlug.tickLower, upperSlug.tickUpper);
                 assertEq(pdSlug.tickUpper, tickLower);
@@ -550,24 +550,24 @@ contract DopplerTest is BaseTest {
     }
 
     function testComputeSlugs_ReturnsAppropriateSlugStructure() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            bool isToken0 = dopplers[i].getIsToken0();
+        for (uint256 i; i < ghosts().length; ++i) {
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
             uint256 requiredProceeds = 1e18;
             uint256 totalProceeds = requiredProceeds / 10;
             uint256 totalTokensSold = 10e18;
             int24 accumulator = 100;
 
-            (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(accumulator);
+            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(accumulator);
 
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength());
-            int24 startTick = dopplers[i].getStartingTick();
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+            int24 startTick = ghosts()[i].hook.getStartingTick();
             int24 currentTick = isToken0 ? startTick - 2 * accumulator : startTick + 2 * accumulator;
             console2.logInt(tickLower);
             console2.logInt(tickUpper);
 
-            SlugData memory lowerSlug = dopplers[i].computeLowerSlugData(keys[i], requiredProceeds, totalProceeds, totalTokensSold);
-            SlugData memory upperSlug = dopplers[i].computeUpperSlugData(totalTokensSold, currentTick);
-            SlugData memory pdSlug = dopplers[i].computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+            SlugData memory lowerSlug = ghosts()[i].hook.computeLowerSlugData(ghosts()[i].key(), requiredProceeds, totalProceeds, totalTokensSold);
+            SlugData memory upperSlug = ghosts()[i].hook.computeUpperSlugData(totalTokensSold, currentTick);
+            SlugData memory pdSlug = ghosts()[i].hook.computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
 
             console2.logInt(lowerSlug.tickLower);
             console2.logInt(lowerSlug.tickUpper);
