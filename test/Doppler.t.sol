@@ -113,18 +113,16 @@ contract DopplerTest is BaseTest {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
             PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            vm.prank(address(manager));
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
 
             (uint40 lastEpoch,,,,) = ghosts()[i].hook.state();
 
@@ -132,17 +130,14 @@ contract DopplerTest is BaseTest {
 
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
-            vm.prank(address(manager));
-            (selector, delta, fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
 
             (lastEpoch,,,,) = ghosts()[i].hook.state();
 
