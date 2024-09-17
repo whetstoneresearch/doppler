@@ -221,6 +221,19 @@ contract Doppler is BaseHook {
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
+
+        // It's possible that these are equal
+        // If we try to add liquidity in this range though, we revert with a divide by zero
+        // Thus we have to create a gap between the two
+        if (currentTick == tickLower) {
+            // TODO: Consider whether direction is accurate
+            if (isToken0) {
+                tickLower -= key.tickSpacing;
+            } else {
+                tickLower += key.tickSpacing;
+            }
+        }
+
         // TODO: Consider what's redundant below if currentTick is unchanged
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
