@@ -76,7 +76,7 @@ contract DopplerTest is BaseTest {
             (
                 uint40 lastEpoch,
                 int256 tickAccumulator,
-                ,
+                uint256 totalTokensSold,
                 ,
                 uint256 totalTokensSoldLastEpoch
             ) = ghosts()[i].hook.state();
@@ -93,7 +93,7 @@ contract DopplerTest is BaseTest {
             (
                 uint40 lastEpoch2,
                 int256 tickAccumulator2,
-                ,
+                uint256 totalTokensSold2,
                 ,
                 uint256 totalTokensSoldLastEpoch2
             ) = ghosts()[i].hook.state();
@@ -103,7 +103,8 @@ contract DopplerTest is BaseTest {
             assertEq(tickAccumulator, tickAccumulator2);
             assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
 
-            // TODO: Validate totalTokensSold and totalProceeds are correctly updated
+            // Ensure that we're tracking the amount of tokens sold
+            assertEq(totalTokensSold + 1 ether, totalTokensSold2);
         }
     }
 
