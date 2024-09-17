@@ -129,6 +129,9 @@ contract BaseTest is Test, Deployers {
         manager = new PoolManager();
         TestERC20 asset = new TestERC20(2 ** 128);
         TestERC20 numeraire = new TestERC20(2 ** 128);
+
+        vm.label(address(asset), "Asset");
+        vm.label(address(numeraire), "Numeraire");
         (TestERC20 token0, TestERC20 token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         bool isToken0 = asset < numeraire;
@@ -180,7 +183,7 @@ contract BaseTest is Test, Deployers {
         // Deploy modifyLiquidityRouter
         // Note: Only used to validate that liquidity can't be manually modified
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
-        
+
         // Approve the router to spend tokens on behalf of the test contract
         token0.approve(address(swapRouter), type(uint256).max);
         token1.approve(address(swapRouter), type(uint256).max);
