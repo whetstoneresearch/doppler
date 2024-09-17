@@ -388,22 +388,20 @@ contract Doppler is BaseHook {
         uint256 expectedSoldAtEpochEnd = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
         int256 tokensSoldDelta = int256(percentElapsedAtEpochEnd) - int256(expectedSoldAtEpochEnd); // compute if we've sold more or less tokens than expected by next epoch
 
+        uint160 priceUpper;
+        uint160 priceLower;
         if (tokensSoldDelta > 0) {
             uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-
-            uint160 priceUpper;
-            uint160 priceLower;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
             int24 tickA = currentTick;
             int24 tickB = isToken0 ? currentTick - int24(accumulatorDelta) : currentTick + int24(accumulatorDelta);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
-
-            if (priceLower != priceUpper) {
-                slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
-            } else {
-                slug.liquidity = 0;
-            }
+            slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+        } else {
+            slug.tickLower = currentTick;
+            slug.tickUpper = currentTick;
+            slug.liquidity = 0;
         }
     }
 
