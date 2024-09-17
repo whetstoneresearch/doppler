@@ -92,7 +92,7 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (block.timestamp < startingTime) revert BeforeStartTime();
-        if (((block.timestamp - startingTime) / epochLength + 1) <= uint256(state.lastEpoch)) {
+        if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
@@ -272,7 +272,7 @@ contract Doppler is BaseHook {
         });
 
         // Update positions and swap if necessary
-        _update(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper), key);
+        _update(prevPositions, newPositions, sqrtPriceX96, sqrtPriceNext, key);
 
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] = newPositions[0];
@@ -323,7 +323,7 @@ contract Doppler is BaseHook {
     function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
         lower = startingTick + accumulator;
         // TODO: Consider whether this is the correct direction
-        upper = lower + (isToken0 ? -int24(int256(gamma)) : int24(int256(gamma)));
+        upper = lower + (isToken0 ? int24(int256(gamma)) : -int24(int256(gamma)));
     }
 
     function _computeLowerSlugData(

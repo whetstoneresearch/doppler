@@ -51,7 +51,7 @@ contract DopplerTest is BaseTest {
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, true),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
         }
@@ -69,15 +69,15 @@ contract DopplerTest is BaseTest {
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, true),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
             (
                 uint40 lastEpoch,
                 int256 tickAccumulator,
-                uint256 totalTokensSold,
-                uint256 totalProceeds,
+                ,
+                ,
                 uint256 totalTokensSoldLastEpoch
             ) = ghosts()[i].hook.state();
 
@@ -86,23 +86,21 @@ contract DopplerTest is BaseTest {
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, true),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
             (
                 uint40 lastEpoch2,
                 int256 tickAccumulator2,
-                uint256 totalTokensSold2,
-                uint256 totalProceeds2,
+                ,
+                ,
                 uint256 totalTokensSoldLastEpoch2
             ) = ghosts()[i].hook.state();
 
             // Ensure that state hasn't updated since we're still in the same epoch
             assertEq(lastEpoch, lastEpoch2);
             assertEq(tickAccumulator, tickAccumulator2);
-            assertEq(totalTokensSold, totalTokensSold2);
-            assertEq(totalProceeds, totalProceeds2);
             assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
 
             // TODO: Validate totalTokensSold and totalProceeds are correctly updated
