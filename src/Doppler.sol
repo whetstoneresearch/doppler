@@ -55,7 +55,7 @@ contract Doppler is BaseHook {
     // TODO: consider whether this should be signed
     // TODO: should this actually be "max single epoch increase"?
     int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
-    bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    bool public immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
         IPoolManager _poolManager,
@@ -252,10 +252,18 @@ contract Doppler is BaseHook {
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
-        newPositions[0] =
-            Position({tickLower: lowerSlug.tickLower, tickUpper: lowerSlug.tickUpper, liquidity: lowerSlug.liquidity, salt: uint8(uint256(LOWER_SLUG_SALT))});
-        newPositions[1] =
-            Position({tickLower: upperSlug.tickLower, tickUpper: upperSlug.tickUpper, liquidity: upperSlug.liquidity, salt: uint8(uint256(UPPER_SLUG_SALT))});
+        newPositions[0] = Position({
+            tickLower: lowerSlug.tickLower,
+            tickUpper: lowerSlug.tickUpper,
+            liquidity: lowerSlug.liquidity,
+            salt: uint8(uint256(LOWER_SLUG_SALT))
+        });
+        newPositions[1] = Position({
+            tickLower: upperSlug.tickLower,
+            tickUpper: upperSlug.tickUpper,
+            liquidity: upperSlug.liquidity,
+            salt: uint8(uint256(UPPER_SLUG_SALT))
+        });
         newPositions[2] = Position({
             tickLower: priceDiscoverySlug.tickLower,
             tickUpper: priceDiscoverySlug.tickUpper,
