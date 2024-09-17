@@ -122,7 +122,12 @@ contract BaseTest is Test, Deployers {
     }
 
     DopplerImplementation targetHookAddress = DopplerImplementation(
-        address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG))
+        address(
+            uint160(
+                Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
+                    | Hooks.AFTER_SWAP_FLAG
+            )
+        )
     );
 
     function setUp() public virtual {
@@ -168,12 +173,22 @@ contract BaseTest is Test, Deployers {
 
         // TODO: Consider if there will be a different mechanism used rather than just minting all the tokens straight to the hook
         // Mint the tokens to sell to the hook
-        deal(address(asset), address(targetHookAddress), numTokensToSell);
+        // deal(address(asset), address(targetHookAddress), numTokensToSell);
 
         // Initialize each pool at the starting tick
         for (uint256 i; i < __instances__.length; ++i) {
+            if (isToken0) {
+                token0.mint(address(this), numTokensToSell);
+                token0.approve(address(ghost().hook), numTokensToSell);
+            } else {
+                token1.mint(address(this), numTokensToSell);
+                token1.approve(address(ghost().hook), numTokensToSell);
+            }
+
             manager.initialize(
-                __instances__[i].key(), TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()), ""
+                __instances__[i].key(),
+                TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()),
+                abi.encode(numTokensToSell)
             );
         }
 
