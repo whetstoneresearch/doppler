@@ -47,7 +47,8 @@ contract DopplerBeforeSwapTest is BaseTest {
             endTick: -200_000,
             epochLength: 1 days,
             gamma: 1_000,
-            isToken0: false
+            isToken0: false,
+            numTokensToSell: 100_000e18
         });
 
         __instances__.push(doppler1);

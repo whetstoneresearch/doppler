@@ -17,94 +17,17 @@ import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/li
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
+import {BaseTest} from "./BaseTest.sol";
 
-contract DopplerTest is Test, Deployers {
+contract DopplerTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
-    int24 constant MIN_TICK_SPACING = 1;
-    uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
-
-    TestERC20 asset;
-    TestERC20 numeraire;
-    DopplerImplementation doppler0 = DopplerImplementation(
-        address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG))
-    );
-    PoolKey key0;
-    PoolId id0;
-
-    // We create arrays of implementations to test multiple variations at once
-    DopplerImplementation[] dopplers;
-    PoolKey[] keys;
-    PoolId[] ids;
-
-    function setUp() public {
-        asset = new TestERC20(2 ** 128);
-        numeraire = new TestERC20(2 ** 128);
-
-        bool isToken0 = asset > numeraire;
-
-        manager = new PoolManager();
-
-        int24 startTick = isToken0 ? int24(100_000) : -100_000;
-        int24 endTick = isToken0 ? int24(200_000) : -200_000;
-
-        vm.warp(1000);
-
-        vm.record();
-        DopplerImplementation impl0 = new DopplerImplementation(
-            address(manager),
-            100_000e18,
-            1_500, // 500 seconds from now
-            1_500 + 86_400, // 1 day from the start time
-            startTick,
-            endTick,
-            1_000,
-            1_000,
-            isToken0,
-            doppler0
-        );
-        (, bytes32[] memory writes) = vm.accesses(address(impl0));
-        vm.etch(address(doppler0), address(impl0).code);
-        // for each storage key that was written during the hook implementation, copy the value over
-        unchecked {
-            for (uint256 i = 0; i < writes.length; i++) {
-                bytes32 slot = writes[i];
-                vm.store(address(doppler0), slot, vm.load(address(impl0), slot));
-            }
-        }
-        key0 = asset < numeraire
-            ? PoolKey(
-                Currency.wrap(address(asset)),
-                Currency.wrap(address(numeraire)),
-                0,
-                MIN_TICK_SPACING,
-                IHooks(address(doppler0))
-            )
-            : PoolKey(
-                Currency.wrap(address(numeraire)),
-                Currency.wrap(address(asset)),
-                0,
-                MIN_TICK_SPACING,
-                IHooks(address(doppler0))
-            );
-        id0 = key0.toId();
-
-        // TODO: Consider if there will be a different mechanism used rather than just minting all the tokens straight to the hook
-        // Mint the tokens to sell to the hook
-        deal(address(asset), address(doppler0), 100_000e18);
-
-        // TODO: Add more variations of doppler implementations
-
-        dopplers.push(doppler0);
-        keys.push(key0);
-        ids.push(id0);
-
-        for (uint256 i; i < keys.length; ++i) {
-            manager.initialize(keys[i], TickMath.getSqrtPriceAtTick(dopplers[i].getStartingTick()), "");
-        }
+    function setUp() public override {
+        super.setUp();
     }
 
     // =========================================================================
@@ -112,125 +35,122 @@ contract DopplerTest is Test, Deployers {
     // =========================================================================
 
     function testBeforeSwap_RevertsBeforeStartTime() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime() - 1); // 1 second before the start time
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
 
-            PoolKey memory poolKey = keys[i];
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            vm.prank(address(manager));
-            vm.expectRevert(BeforeStartTime.selector);
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
-                address(this),
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(BeforeStartTime.selector)
+                )
+            );
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
         }
     }
 
     function testBeforeSwap_DoesNotRebalanceTwiceInSameEpoch() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime());
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
 
-            PoolKey memory poolKey = keys[i];
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            vm.prank(address(manager));
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
 
             (
                 uint40 lastEpoch,
                 int256 tickAccumulator,
                 uint256 totalTokensSold,
-                uint256 totalProceeds,
+                ,
                 uint256 totalTokensSoldLastEpoch
-            ) = dopplers[i].state();
+            ) = ghosts()[i].hook.state();
 
-            vm.prank(address(manager));
-            (selector, delta, fee) = dopplers[i].beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
-
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
 
             (
                 uint40 lastEpoch2,
                 int256 tickAccumulator2,
                 uint256 totalTokensSold2,
-                uint256 totalProceeds2,
+                ,
                 uint256 totalTokensSoldLastEpoch2
-            ) = dopplers[i].state();
+            ) = ghosts()[i].hook.state();
 
             // Ensure that state hasn't updated since we're still in the same epoch
             assertEq(lastEpoch, lastEpoch2);
             assertEq(tickAccumulator, tickAccumulator2);
-            assertEq(totalTokensSold, totalTokensSold2);
-            assertEq(totalProceeds, totalProceeds2);
             assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
+
+            // Ensure that we're tracking the amount of tokens sold
+            assertEq(totalTokensSold + 1 ether, totalTokensSold2);
         }
     }
 
     function testBeforeSwap_UpdatesLastEpoch() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime());
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
 
-            PoolKey memory poolKey = keys[i];
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            vm.prank(address(manager));
-            (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (uint40 lastEpoch,,,,) = dopplers[i].state();
+            (uint40 lastEpoch,,,,) = ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 1);
 
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength()); // Next epoch
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
-            vm.prank(address(manager));
-            (selector, delta, fee) = dopplers[i].beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
-            assertEq(selector, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
-            (lastEpoch,,,,) = dopplers[i].state();
+            (lastEpoch,,,,) = ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 2);
         }
     }
 
     function testBeforeSwap_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            PoolKey memory poolKey = keys[i];
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
 
             vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            dopplers[i].beforeSwap(
+            ghosts()[i].hook.beforeSwap(
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
@@ -240,43 +160,36 @@ contract DopplerTest is Test, Deployers {
     }
 
     function testBeforeSwap_UpdatesTotalTokensSoldLastEpoch() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            vm.warp(dopplers[i].getStartingTime());
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
 
-            PoolKey memory poolKey = keys[i];
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            // TODO: Use actual swap rather than faking the hook call
-            vm.prank(address(manager));
-            (bytes4 selector0, int128 hookDelta) = dopplers[i].afterSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: !dopplers[i].getIsToken0(), amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                dopplers[i].getIsToken0() ? toBalanceDelta(100e18, -100e18) : toBalanceDelta(-100e18, 100e18),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
-            assertEq(selector0, BaseHook.afterSwap.selector);
-            assertEq(hookDelta, 0);
-
-            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength()); // Next epoch
-
-            vm.prank(address(manager));
-            (bytes4 selector1, BeforeSwapDelta delta, uint24 fee) = dopplers[i].beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
-            assertEq(selector1, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
+            (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
 
-            (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = dopplers[i].state();
-
-            assertEq(totalTokensSold, 100e18);
-            assertEq(totalTokensSoldLastEpoch, 100e18);
+            assertEq(totalTokensSold, 2e18);
+            assertEq(totalTokensSoldLastEpoch, 1e18);
         }
     }
 
@@ -289,16 +202,16 @@ contract DopplerTest is Test, Deployers {
         // value used is strictly greater than type(int128).min because type(int128).min is -(type(int128).max + 1)
         vm.assume(amount0 > type(int128).min && amount1 > type(int128).min);
 
-        for (uint256 i; i < dopplers.length; ++i) {
-            PoolKey memory poolKey = keys[i];
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
 
             // Initialize totalTokensSold and totalProceeds as type(int128).max to prevent underflows
             // which can't occur in the actual implementation
             bytes4 selector;
             int128 hookDelta;
-            if (dopplers[i].getIsToken0()) {
+            if (ghosts()[i].hook.getIsToken0()) {
                 vm.prank(address(manager));
-                (selector, hookDelta) = dopplers[i].afterSwap(
+                (selector, hookDelta) = ghosts()[i].hook.afterSwap(
                     address(this),
                     poolKey,
                     IPoolManager.SwapParams({
@@ -311,7 +224,7 @@ contract DopplerTest is Test, Deployers {
                 );
             } else {
                 vm.prank(address(manager));
-                (selector, hookDelta) = dopplers[i].afterSwap(
+                (selector, hookDelta) = ghosts()[i].hook.afterSwap(
                     address(this),
                     poolKey,
                     IPoolManager.SwapParams({
@@ -327,13 +240,13 @@ contract DopplerTest is Test, Deployers {
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
 
-            (,, uint256 initialTotalTokensSold, uint256 initialTotalProceeds,) = dopplers[i].state();
+            (,, uint256 initialTotalTokensSold, uint256 initialTotalProceeds,) = ghosts()[i].hook.state();
 
             assertEq(initialTotalTokensSold, uint256(uint128(type(int128).max)));
             assertEq(initialTotalProceeds, uint256(uint128(type(int128).max)));
 
             vm.prank(address(manager));
-            (selector, hookDelta) = dopplers[i].afterSwap(
+            (selector, hookDelta) = ghosts()[i].hook.afterSwap(
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
@@ -343,9 +256,9 @@ contract DopplerTest is Test, Deployers {
             assertEq(selector, BaseHook.afterSwap.selector);
             assertEq(hookDelta, 0);
 
-            (,, uint256 totalTokensSold, uint256 totalProceeds,) = dopplers[i].state();
+            (,, uint256 totalTokensSold, uint256 totalProceeds,) = ghosts()[i].hook.state();
 
-            if (dopplers[i].getIsToken0()) {
+            if (ghosts()[i].hook.getIsToken0()) {
                 // If is token0 then amount0 references the (inverse) amount of tokens sold
                 if (amount0 >= 0) {
                     // If is token0 and amount0 is positive, then amount0 is amount of tokens coming back in the pool
@@ -386,11 +299,11 @@ contract DopplerTest is Test, Deployers {
     }
 
     function testAfterSwap_revertsIfNotPoolManager() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            PoolKey memory poolKey = keys[i];
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
 
             vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            dopplers[i].afterSwap(
+            ghosts()[i].hook.afterSwap(
                 address(this),
                 poolKey,
                 IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
@@ -405,11 +318,11 @@ contract DopplerTest is Test, Deployers {
     // =========================================================================
 
     function testBeforeAddLiquidity_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            PoolKey memory poolKey = keys[i];
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
 
             vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            dopplers[i].beforeAddLiquidity(
+            ghosts()[i].hook.beforeAddLiquidity(
                 address(this),
                 poolKey,
                 IPoolManager.ModifyLiquidityParams({
@@ -424,12 +337,12 @@ contract DopplerTest is Test, Deployers {
     }
 
     function testBeforeAddLiquidity_ReturnsSelectorForHookCaller() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            PoolKey memory poolKey = keys[i];
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
 
             vm.prank(address(manager));
-            bytes4 selector = dopplers[i].beforeAddLiquidity(
-                address(dopplers[i]),
+            bytes4 selector = ghosts()[i].hook.beforeAddLiquidity(
+                address(ghosts()[i].hook),
                 poolKey,
                 IPoolManager.ModifyLiquidityParams({
                     tickLower: -100_000,
@@ -445,12 +358,12 @@ contract DopplerTest is Test, Deployers {
     }
 
     function testBeforeAddLiquidity_RevertsForNonHookCaller() public {
-        for (uint256 i; i < dopplers.length; ++i) {
-            PoolKey memory poolKey = keys[i];
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
 
             vm.prank(address(manager));
             vm.expectRevert(Unauthorized.selector);
-            dopplers[i].beforeAddLiquidity(
+            ghosts()[i].hook.beforeAddLiquidity(
                 address(0xBEEF),
                 poolKey,
                 IPoolManager.ModifyLiquidityParams({
@@ -471,18 +384,19 @@ contract DopplerTest is Test, Deployers {
     function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint64 timePercentage) public {
         vm.assume(timePercentage <= 1e18);
 
-        for (uint256 i; i < dopplers.length; ++i) {
-            uint256 timeElapsed = (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) * timePercentage / 1e18;
-            uint256 timestamp = dopplers[i].getStartingTime() + timeElapsed;
+        for (uint256 i; i < ghosts().length; ++i) {
+            uint256 timeElapsed =
+                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 1e18;
+            uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
             vm.warp(timestamp);
 
-            uint256 expectedAmountSold = dopplers[i].getExpectedAmountSold(timestamp);
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(timestamp);
 
             assertApproxEqAbs(
                 timestamp,
-                dopplers[i].getStartingTime()
-                    + (expectedAmountSold * 1e18 / dopplers[i].getNumTokensToSell())
-                        * (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) / 1e18,
+                ghosts()[i].hook.getStartingTime()
+                    + (expectedAmountSold * 1e18 / ghosts()[i].hook.getNumTokensToSell())
+                        * (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) / 1e18,
                 1
             );
         }
@@ -493,19 +407,19 @@ contract DopplerTest is Test, Deployers {
     // =========================================================================
 
     function testGetMaxTickDeltaPerEpoch_ReturnsExpectedAmount() public view {
-        for (uint256 i; i < dopplers.length; ++i) {
-            int256 maxTickDeltaPerEpoch = dopplers[i].getMaxTickDeltaPerEpoch();
+        for (uint256 i; i < ghosts().length; ++i) {
+            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
 
             assertApproxEqAbs(
-                dopplers[i].getEndingTick(),
+                ghosts()[i].hook.getEndingTick(),
                 (
                     (
                         maxTickDeltaPerEpoch
                             * (
-                                int256((dopplers[i].getEndingTime() - dopplers[i].getStartingTime()))
-                                    * int256(dopplers[i].getEpochLength())
+                                int256((ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()))
+                                    * int256(ghosts()[i].hook.getEpochLength())
                             )
-                    ) / 1e18 + dopplers[i].getStartingTick()
+                    ) / 1e18 + ghosts()[i].hook.getStartingTick()
                 ),
                 1
             );
@@ -520,17 +434,18 @@ contract DopplerTest is Test, Deployers {
         vm.assume(timePercentage <= 100);
         vm.assume(timePercentage > 0);
 
-        for (uint256 i; i < dopplers.length; ++i) {
-            uint256 timeElapsed = (dopplers[i].getEndingTime() - dopplers[i].getStartingTime()) * timePercentage / 100;
-            uint256 timestamp = dopplers[i].getStartingTime() + timeElapsed;
+        for (uint256 i; i < ghosts().length; ++i) {
+            uint256 timeElapsed =
+                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 100;
+            uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
             vm.warp(timestamp);
 
-            int256 elapsedGamma = dopplers[i].getElapsedGamma();
+            int256 elapsedGamma = ghosts()[i].hook.getElapsedGamma();
 
             assertApproxEqAbs(
-                int256(dopplers[i].getGamma()),
-                elapsedGamma * int256(dopplers[i].getEndingTime() - dopplers[i].getStartingTime())
-                    / int256(timestamp - dopplers[i].getStartingTime()),
+                int256(ghosts()[i].hook.getGamma()),
+                elapsedGamma * int256(ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
+                    / int256(timestamp - ghosts()[i].hook.getStartingTime()),
                 1
             );
         }
@@ -543,11 +458,11 @@ contract DopplerTest is Test, Deployers {
     // TODO: int16 accumulator might over/underflow with certain states
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
     function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
-        for (uint256 i; i < dopplers.length; ++i) {
-            (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(int24(accumulator));
-            int24 gamma = dopplers[i].getGamma();
+        for (uint256 i; i < ghosts().length; ++i) {
+            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(accumulator));
+            int24 gamma = ghosts()[i].hook.getGamma();
 
-            if (dopplers[i].getStartingTick() > dopplers[i].getEndingTick()) {
+            if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
                 assertEq(int256(gamma), tickUpper - tickLower);
             } else {
                 assertEq(int256(gamma), tickLower - tickUpper);
@@ -558,3 +473,4 @@ contract DopplerTest is Test, Deployers {
 
 error Unauthorized();
 error BeforeStartTime();
+error Wrap__FailedHookCall(address, bytes);
