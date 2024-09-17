@@ -500,8 +500,10 @@ contract DopplerTest is BaseTest {
             int24 currentTick = ghosts()[i].hook.getStartingTick();
             int24 gamma = ghosts()[i].hook.getGamma();
             int24 gammaShare = int24(
-                ghosts()[i].hook.getGammaShare(block.timestamp + ghosts()[i].hook.getEpochLength()) * gamma / 1e18
+                ghosts()[i].hook.getGammaShare(block.timestamp + ghosts()[i].hook.getEpochLength()) * gamma * ghosts()[i].key().tickSpacing / 1e18
             );
+            console2.log("gammashare");
+            console2.logInt(gammaShare);
 
             // int256 maxTickDelta = dopplers[i].getMaxTickDeltaPerEpoch();
             // int24 nextTick = int24(maxTickDelta * (int256(block.timestamp - dopplers[i].getStartingTime())) * (int256(dopplers[i].getEpochLength())) / 1e18 + dopplers[i].getStartingTick());
@@ -509,10 +511,10 @@ contract DopplerTest is BaseTest {
                 ghosts()[i].hook.computeUpperSlugData(ghosts()[i].key(), totalTokensSold, currentTick);
             if (isToken0) {
                 assertEq(slug.tickLower, currentTick - gammaShare);
-                assertEq(slug.tickUpper, currentTick - gammaShare * ghosts()[i].key().tickSpacing);
+                assertEq(slug.tickUpper, currentTick);
             } else {
+                assertEq(slug.tickUpper, currentTick + gammaShare);
                 assertEq(slug.tickLower, currentTick);
-                assertEq(slug.tickUpper, currentTick + gammaShare * ghosts()[i].key().tickSpacing);
             }
         }
     }
@@ -535,10 +537,10 @@ contract DopplerTest is BaseTest {
             SlugData memory pdSlug = ghosts()[i].hook.computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
             if (isToken0) {
                 assertEq(pdSlug.tickLower, upperSlug.tickUpper);
-                assertEq(pdSlug.tickUpper, tickLower);
+                assertEq(pdSlug.tickUpper, tickUpper);
             } else {
-                assertEq(pdSlug.tickLower, tickLower);
-                assertEq(pdSlug.tickUpper, upperSlug.tickUpper);
+                assertEq(pdSlug.tickLower, upperSlug.tickUpper);
+                assertEq(pdSlug.tickUpper, tickLower);
             }
         }
     }

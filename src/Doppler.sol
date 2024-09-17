@@ -15,6 +15,7 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {console2} from "forge-std/console2.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -370,6 +371,7 @@ contract Doppler is BaseHook {
             uint160 priceLower;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * key.tickSpacing * gamma / 1e18);
             int24 tickA = currentTick;
+            // TODO: should this be min(delta, tickSpacing)?
             int24 tickB = isToken0 ? currentTick - accumulatorDelta : currentTick + accumulatorDelta;
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
@@ -392,16 +394,23 @@ contract Doppler is BaseHook {
 
         if (epochEndT2 != epochEndT1) {
             uint256 epochT1toT2Delta = epochEndT2 - epochEndT1;
-
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (epochT1toT2Delta * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
                 // should extend from the
+                console2.logInt(tickUpper);
+                console2.logInt(upperSlug.tickUpper);
+                console2.logInt(tickLower);
+                console2.logInt(upperSlug.tickLower);
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickLower;
                 int24 tickB = isToken0 ? tickUpper : upperSlug.tickLower;
+                console2.logInt(tickA);
+                console2.logInt(tickB);
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+                console2.logInt(slug.tickLower);
+                console2.logInt(slug.tickUpper);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
             }
         }
