@@ -110,4 +110,8 @@ contract DopplerImplementation is Doppler {
     function computeUpperSlugData(uint256 totalTokensSold, int24 currentTick) public view returns (SlugData memory) {
         return _computeUpperSlugData(totalTokensSold, currentTick);
     }
+
+    function computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper) public view returns (SlugData memory) {
+        return _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+    }
 }

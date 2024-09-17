@@ -509,8 +509,6 @@ contract DopplerTest is BaseTest {
             int24 currentTick = dopplers[i].getStartingTick();
             int24 gamma = dopplers[i].getGamma();
             int24 gammaShare = int24(dopplers[i].getGammaShare(block.timestamp + dopplers[i].getEpochLength()) * gamma / 1e18);
-            console2.logInt(gammaShare);
-            console2.log("isToken0", isToken0);
 
             // int256 maxTickDelta = dopplers[i].getMaxTickDeltaPerEpoch();
             // int24 nextTick = int24(maxTickDelta * (int256(block.timestamp - dopplers[i].getStartingTime())) * (int256(dopplers[i].getEpochLength())) / 1e18 + dopplers[i].getStartingTick());
@@ -521,6 +519,32 @@ contract DopplerTest is BaseTest {
             } else {
                 assertEq(slug.tickLower, currentTick);
                 assertEq(slug.tickUpper, currentTick + gammaShare * keys[i].tickSpacing);
+            }
+        }
+    }
+
+    function testComputePriceDiscoverySlugData_ReturnsExpectedBounds() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength());
+            bool isToken0 = dopplers[i].getIsToken0();
+            uint256 totalTokensSold = 1e18;
+
+            int24 currentTick = dopplers[i].getStartingTick();
+            (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(0);
+
+            // uint256 epochEndT1 = dopplers[i].getNormalizedTimeElapsed(dopplers[i].getEpochEndWithOffset(0));
+            // uint256 epochEndT2 = dopplers[i].getNormalizedTimeElapsed(dopplers[i].getEpochEndWithOffset(1));
+            // uint256 epochT1toT2Delta = epochEndT2 - epochEndT1;
+
+
+            SlugData memory upperSlug = dopplers[i].computeUpperSlugData(totalTokensSold, currentTick);
+            SlugData memory pdSlug = dopplers[i].computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+            if (isToken0) {
+                assertEq(pdSlug.tickLower, upperSlug.tickUpper);
+                assertEq(pdSlug.tickUpper, tickLower);
+            } else {
+                assertEq(pdSlug.tickLower, tickLower);
+                assertEq(pdSlug.tickUpper, upperSlug.tickUpper);
             }
         }
     }

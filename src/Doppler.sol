@@ -387,15 +387,14 @@ contract Doppler is BaseHook {
         view
         returns (SlugData memory slug)
     {
-        uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
-        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
+        uint256 epochEndT1 = _getNormalizedTimeElapsed(_getEpochEndWithOffset(0)); // compute end time of current epoch
+        uint256 epochEndT2 = _getNormalizedTimeElapsed(_getEpochEndWithOffset(1)); // compute end time two epochs from now
 
-        if (nextEpochEndTime != epochEndTime) {
-            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - percentElapsedAtEpochEnd;
+        if (epochEndT2 != epochEndT1) {
+            uint256 epochT1toT2Delta = epochEndT2 - epochEndT1;
 
             if (epochT1toT2Delta > 0) {
-                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
+                uint256 tokensToLp = (epochT1toT2Delta * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
