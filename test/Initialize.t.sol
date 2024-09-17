@@ -9,6 +9,16 @@ import {TickMath} from "lib/v4-core/src/libraries/TickMath.sol";
 
 contract InitializeTest is BaseTest {
     function test_intialize_ShouldInitializeAPool() public {
+        uint256 numTokensToSell = 1e30;
+
+        if (ghost().hook.isToken0()) {
+            ghost().token0.mint(address(this), numTokensToSell);
+            ghost().token0.approve(address(ghost().hook), numTokensToSell);
+        } else {
+            ghost().token1.mint(address(this), numTokensToSell);
+            ghost().token1.approve(address(ghost().hook), numTokensToSell);
+        }
+
         int24 tick = manager.initialize(
             PoolKey({
                 currency0: Currency.wrap(address(__instances__[0].token0)),
