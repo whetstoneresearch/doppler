@@ -237,7 +237,8 @@ contract Doppler is BaseHook {
             requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
         }
 
-        SlugData memory lowerSlug = _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
+        SlugData memory lowerSlug =
+            _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_, sqrtPriceLower, sqrtPriceNext);
         SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
 
@@ -330,7 +331,9 @@ contract Doppler is BaseHook {
         PoolKey memory key,
         uint256 requiredProceeds,
         uint256 totalProceeds_,
-        uint256 totalTokensSold_
+        uint256 totalTokensSold_,
+        uint160 sqrtPriceLower,
+        uint160 sqrtPriceNext
     ) internal view returns (SlugData memory slug) {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
@@ -350,6 +353,15 @@ contract Doppler is BaseHook {
             int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
             slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
+        } else {
+            slug.tickLower = TickMath.getTickAtSqrtPrice(sqrtPriceLower);
+            slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
+            slug.liquidity = _computeLiquidity(
+                !isToken0,
+                sqrtPriceLower,
+                sqrtPriceNext,
+                totalProceeds_
+            );
         }
     }
 
