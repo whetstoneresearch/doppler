@@ -164,42 +164,32 @@ contract DopplerTest is BaseTest {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
             PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-            // TODO: Use actual swap rather than faking the hook call
-            vm.prank(address(manager));
-            (bytes4 selector0, int128 hookDelta) = ghosts()[i].hook.afterSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({
-                    zeroForOne: !ghosts()[i].hook.getIsToken0(),
-                    amountSpecified: 100e18,
-                    sqrtPriceLimitX96: SQRT_RATIO_2_1
-                }),
-                ghosts()[i].hook.getIsToken0() ? toBalanceDelta(100e18, -100e18) : toBalanceDelta(-100e18, 100e18),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
-
-            assertEq(selector0, BaseHook.afterSwap.selector);
-            assertEq(hookDelta, 0);
 
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
-            vm.prank(address(manager));
-            (bytes4 selector1, BeforeSwapDelta delta, uint24 fee) = ghosts()[i].hook.beforeSwap(
-                address(this),
+            swapRouter.swap(
+                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
                 ""
             );
 
-            assertEq(selector1, BaseHook.beforeSwap.selector);
-            assertEq(BeforeSwapDelta.unwrap(delta), 0);
-            assertEq(fee, 0);
-
             (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
 
-            assertEq(totalTokensSold, 100e18);
-            assertEq(totalTokensSoldLastEpoch, 100e18);
+            assertEq(totalTokensSold, 2e18);
+            assertEq(totalTokensSoldLastEpoch, 1e18);
         }
     }
 
