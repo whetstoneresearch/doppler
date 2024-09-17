@@ -548,6 +548,35 @@ contract DopplerTest is BaseTest {
             }
         }
     }
+
+    function testComputeSlugs_ReturnsAppropriateSlugStructure() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            bool isToken0 = dopplers[i].getIsToken0();
+            uint256 requiredProceeds = 1e18;
+            uint256 totalProceeds = requiredProceeds / 10;
+            uint256 totalTokensSold = 10e18;
+            int24 accumulator = 100;
+
+            (int24 tickLower, int24 tickUpper) = dopplers[i].getTicksBasedOnState(accumulator);
+
+            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength());
+            int24 startTick = dopplers[i].getStartingTick();
+            int24 currentTick = isToken0 ? startTick - 2 * accumulator : startTick + 2 * accumulator;
+            console2.logInt(tickLower);
+            console2.logInt(tickUpper);
+
+            SlugData memory lowerSlug = dopplers[i].computeLowerSlugData(keys[i], requiredProceeds, totalProceeds, totalTokensSold);
+            SlugData memory upperSlug = dopplers[i].computeUpperSlugData(totalTokensSold, currentTick);
+            SlugData memory pdSlug = dopplers[i].computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+
+            console2.logInt(lowerSlug.tickLower);
+            console2.logInt(lowerSlug.tickUpper);
+            console2.logInt(upperSlug.tickLower);
+            console2.logInt(upperSlug.tickUpper);
+            console2.logInt(pdSlug.tickLower);
+            console2.logInt(pdSlug.tickUpper);
+        }
+    }
 }
 
 error Unauthorized();

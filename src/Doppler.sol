@@ -15,6 +15,7 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {console2} from "forge-std/console2.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -370,7 +371,7 @@ contract Doppler is BaseHook {
             uint160 priceLower;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
             int24 tickA = currentTick;
-            int24 tickB = isToken0 ? currentTick - int24(accumulatorDelta) : currentTick + int24(accumulatorDelta);
+            int24 tickB = isToken0 ? currentTick - accumulatorDelta : currentTick + accumulatorDelta;
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
 
@@ -397,10 +398,17 @@ contract Doppler is BaseHook {
                 uint256 tokensToLp = (epochT1toT2Delta * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
-                int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
-                int24 tickB = isToken0 ? tickUpper : upperSlug.tickUpper;
+                // should extend from the 
+                console2.log("here?");
+                int24 tickA = isToken0 ? upperSlug.tickUpper : tickLower;
+                int24 tickB = isToken0 ? tickUpper : upperSlug.tickLower;
+                console2.log("here?2");
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+                console2.log("tickLower");
+                console2.logInt(slug.tickLower);
+                console2.log("tickUpper");
+                console2.logInt(slug.tickUpper);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
             }
         }
