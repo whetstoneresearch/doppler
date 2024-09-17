@@ -11,6 +11,7 @@ import {Doppler, SlugData} from "../src/Doppler.sol";
 
 contract DopplerImplementation is Doppler {
     using PoolIdLibrary for PoolKey;
+
     constructor(
         address _poolManager,
         uint256 _numTokensToSell,
@@ -93,6 +94,10 @@ contract DopplerImplementation is Doppler {
         return _computeTargetPriceX96(totalProceeds, totalTokensSold);
     }
 
+    function getGammaShare(uint256 timestamp) public view returns (int256) {
+        return _getGammaShare(timestamp);
+    }
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
@@ -100,5 +105,9 @@ contract DopplerImplementation is Doppler {
         uint256 totalTokensSold
     ) public view returns (SlugData memory) {
         return _computeLowerSlugData(key, requiredProceeds, totalProceeds, totalTokensSold);
+    }
+
+    function computeUpperSlugData(uint256 totalTokensSold, int24 currentTick) public view returns (SlugData memory) {
+        return _computeUpperSlugData(totalTokensSold, currentTick);
     }
 }

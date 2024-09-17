@@ -479,12 +479,8 @@ contract DopplerTest is BaseTest {
             bool isToken0 = dopplers[i].getIsToken0();
 
             vm.prank(address(dopplers[i]));
-            SlugData memory slug = dopplers[i].computeLowerSlugData(
-                keys[i],
-                requiredProceeds,
-                totalProceeds,
-                totalTokensSold
-            );
+            SlugData memory slug =
+                dopplers[i].computeLowerSlugData(keys[i], requiredProceeds, totalProceeds, totalTokensSold);
 
             // if the asset is token0, then the target price is the price of token0 in terms of token1
             // i.e. the price of token0 when the proceeds are 1e18
@@ -500,6 +496,31 @@ contract DopplerTest is BaseTest {
                 int24 tickUpper = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
                 assertEq(slug.tickUpper, tickUpper);
                 assertEq(slug.tickLower, tickUpper - keys[i].tickSpacing);
+            }
+        }
+    }
+
+    function testUpperSlugData_ReturnsExpectedBounds() public {
+        for (uint256 i; i < dopplers.length; ++i) {
+            vm.warp(dopplers[i].getStartingTime() + dopplers[i].getEpochLength());
+            bool isToken0 = dopplers[i].getIsToken0();
+            uint256 totalTokensSold = 10e18;
+
+            int24 currentTick = dopplers[i].getStartingTick();
+            int24 gamma = dopplers[i].getGamma();
+            int24 gammaShare = int24(dopplers[i].getGammaShare(block.timestamp + dopplers[i].getEpochLength()) * gamma / 1e18);
+            console2.logInt(gammaShare);
+            console2.log("isToken0", isToken0);
+
+            // int256 maxTickDelta = dopplers[i].getMaxTickDeltaPerEpoch();
+            // int24 nextTick = int24(maxTickDelta * (int256(block.timestamp - dopplers[i].getStartingTime())) * (int256(dopplers[i].getEpochLength())) / 1e18 + dopplers[i].getStartingTick());
+            SlugData memory slug = dopplers[i].computeUpperSlugData(totalTokensSold, currentTick);
+            if (isToken0) {
+                assertEq(slug.tickLower, currentTick - gammaShare);
+                assertEq(slug.tickUpper, currentTick - gammaShare * keys[i].tickSpacing);
+            } else {
+                assertEq(slug.tickLower, currentTick);
+                assertEq(slug.tickUpper, currentTick + gammaShare * keys[i].tickSpacing);
             }
         }
     }
