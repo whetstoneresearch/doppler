@@ -135,10 +135,10 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        int24 startTick = isToken0 ? int24(-100_000) : int24(100_000);
-        int24 endTick = isToken0 ? int24(-200_000) : int24(200_000);
+        int24 startTick = !isToken0 ? int24(-100_000) : int24(100_000);
+        int24 endTick = !isToken0 ? int24(-200_000) : int24(200_000);
 
-        uint256 numTokensToSell = 100_000e18;
+        uint256 numTokensToSell = 100_000_000e18;
 
         vm.warp(INIT_TIMESTAMP);
 
@@ -157,7 +157,7 @@ contract BaseTest is Test, Deployers {
             endTick: endTick,
             epochLength: 50 seconds,
             gamma: 1_000,
-            isToken0: isToken0,
+            isToken0: !isToken0,
             numTokensToSell: numTokensToSell
         });
 

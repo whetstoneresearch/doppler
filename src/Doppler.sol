@@ -15,7 +15,6 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import {console2} from "forge-std/console2.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -239,7 +238,7 @@ contract Doppler is BaseHook {
         }
 
         SlugData memory lowerSlug = _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
-        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
+        SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
 
         // TODO: If we're not actually modifying liquidity, skip below logic
@@ -354,7 +353,7 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computeUpperSlugData(uint256 totalTokensSold_, int24 currentTick)
+    function _computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold_, int24 currentTick)
         internal
         view
         returns (SlugData memory slug)
@@ -364,12 +363,13 @@ contract Doppler is BaseHook {
         uint256 expectedSoldAtEpochEnd = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
         int256 tokensSoldDelta = int256(percentElapsedAtEpochEnd) - int256(expectedSoldAtEpochEnd); // compute if we've sold more or less tokens than expected by next epoch
 
+
         if (tokensSoldDelta > 0) {
             uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
 
             uint160 priceUpper;
             uint160 priceLower;
-            int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * key.tickSpacing * gamma / 1e18);
             int24 tickA = currentTick;
             int24 tickB = isToken0 ? currentTick - accumulatorDelta : currentTick + accumulatorDelta;
 
