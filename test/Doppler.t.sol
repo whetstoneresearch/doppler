@@ -50,9 +50,7 @@ contract DopplerTest is BaseTest {
                 // Swap token0 => token1 if token1 is the asset (else vice versa)
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(
-                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-                ),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, true),
                 ""
             );
@@ -70,9 +68,7 @@ contract DopplerTest is BaseTest {
                 // Swap token0 => token1 if token1 is the asset (else vice versa)
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(
-                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-                ),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, true),
                 ""
             );
@@ -89,9 +85,7 @@ contract DopplerTest is BaseTest {
                 // Swap token0 => token1 if token1 is the asset (else vice versa)
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(
-                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-                ),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, true),
                 ""
             );

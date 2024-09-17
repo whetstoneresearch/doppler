@@ -180,7 +180,7 @@ contract BaseTest is Test, Deployers {
         // Deploy modifyLiquidityRouter
         // Note: Only used to validate that liquidity can't be manually modified
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
-        
+
         // Approve the router to spend tokens on behalf of the test contract
         token0.approve(address(swapRouter), type(uint256).max);
         token1.approve(address(swapRouter), type(uint256).max);

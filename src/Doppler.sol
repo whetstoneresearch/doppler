@@ -252,10 +252,18 @@ contract Doppler is BaseHook {
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
-        newPositions[0] =
-            Position({tickLower: lowerSlug.tickLower, tickUpper: lowerSlug.tickUpper, liquidity: lowerSlug.liquidity, salt: uint8(uint256(LOWER_SLUG_SALT))});
-        newPositions[1] =
-            Position({tickLower: upperSlug.tickLower, tickUpper: upperSlug.tickUpper, liquidity: upperSlug.liquidity, salt: uint8(uint256(UPPER_SLUG_SALT))});
+        newPositions[0] = Position({
+            tickLower: lowerSlug.tickLower,
+            tickUpper: lowerSlug.tickUpper,
+            liquidity: lowerSlug.liquidity,
+            salt: uint8(uint256(LOWER_SLUG_SALT))
+        });
+        newPositions[1] = Position({
+            tickLower: upperSlug.tickLower,
+            tickUpper: upperSlug.tickUpper,
+            liquidity: upperSlug.liquidity,
+            salt: uint8(uint256(UPPER_SLUG_SALT))
+        });
         newPositions[2] = Position({
             tickLower: priceDiscoverySlug.tickLower,
             tickUpper: priceDiscoverySlug.tickUpper,
