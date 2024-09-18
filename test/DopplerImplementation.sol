@@ -85,4 +85,8 @@ contract DopplerImplementation is Doppler {
     function getTicksBasedOnState(int24 accumulator) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator);
     }
+
+    function unlock(bytes memory data) public returns (bytes memory) {
+        return poolManager.unlock(data);
+    }
 }
