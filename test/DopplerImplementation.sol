@@ -4,6 +4,7 @@ import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager
 import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 
@@ -84,5 +85,14 @@ contract DopplerImplementation is Doppler {
 
     function getTicksBasedOnState(int24 accumulator) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator);
+    }
+
+    function computeLowerSlugData(
+        PoolKey memory key,
+        uint256 requiredProceeds,
+        uint256 totalProceeds_,
+        uint256 totalTokensSold_
+    ) public view returns (SlugData memory slug) {
+        return _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
     }
 }
