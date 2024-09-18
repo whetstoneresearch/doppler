@@ -12,7 +12,7 @@ contract SwapTest is BaseTest {
         address alice = address(0x1);
         vm.startPrank(alice);
 
-        if (ghost().hook.isToken0()) {
+        if (ghost().hook.getIsToken0()) {
             ghost().token1.mint(alice, 10_000 ether);
             ghost().token1.approve(address(manager), 10_000 ether);
         } else {
@@ -23,9 +23,9 @@ contract SwapTest is BaseTest {
         swapRouter.swap(
             ghost().key(),
             IPoolManager.SwapParams({
-                zeroForOne: !ghost().hook.isToken0(),
+                zeroForOne: !ghost().hook.getIsToken0(),
                 amountSpecified: -1 ether,
-                sqrtPriceLimitX96: !ghost().hook.isToken0() ? Deployers.MIN_PRICE_LIMIT : Deployers.MAX_PRICE_LIMIT
+                sqrtPriceLimitX96: !ghost().hook.getIsToken0() ? Deployers.MIN_PRICE_LIMIT : Deployers.MAX_PRICE_LIMIT
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
