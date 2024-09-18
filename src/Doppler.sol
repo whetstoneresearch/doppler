@@ -57,7 +57,7 @@ contract Doppler is BaseHook {
     // TODO: consider whether this should be signed
     // TODO: should this actually be "max single epoch increase"?
     int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
-    bool public immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
         IPoolManager _poolManager,
