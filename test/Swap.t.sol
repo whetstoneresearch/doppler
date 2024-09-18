@@ -5,6 +5,7 @@ import {BaseTest} from "test/BaseTest.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {Deployers} from "v4-core/test/utils/Deployers.sol";
 
 contract SwapTest is BaseTest {
     function test_swap_CanBuyAssetTokens() public {
@@ -24,7 +25,7 @@ contract SwapTest is BaseTest {
             IPoolManager.SwapParams({
                 zeroForOne: !ghost().hook.isToken0(),
                 amountSpecified: -1 ether,
-                sqrtPriceLimitX96: ghost().hook.isToken0() ? TickMath.MIN_SQRT_PRICE : TickMath.MAX_SQRT_PRICE
+                sqrtPriceLimitX96: !ghost().hook.isToken0() ? Deployers.MIN_PRICE_LIMIT : Deployers.MAX_PRICE_LIMIT
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
