@@ -237,8 +237,9 @@ contract Doppler is BaseHook {
 
         // TODO: Consider what's redundant below if currentTick is unchanged
 
-        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
-        uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
+        // We reduce currentTick and tickLower by tickSpacing to shift the lowerSlug to ensure that the currentTick is not in range of the lower slug
+        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(isToken0 ? currentTick - key.tickSpacing : currentTick + key.tickSpacing);
+        uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(isToken0 ? tickLower - key.tickSpacing : tickLower + key.tickSpacing);
         uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
 
         uint128 liquidity;
@@ -295,7 +296,7 @@ contract Doppler is BaseHook {
         });
 
         // Update positions and swap if necessary
-        _update(prevPositions, newPositions, sqrtPriceX96, sqrtPriceNext, key);
+        _update(prevPositions, newPositions, sqrtPriceX96, TickMath.getSqrtPriceAtTick(currentTick), key);
 
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] = newPositions[0];
@@ -403,6 +404,7 @@ contract Doppler is BaseHook {
         if (tokensSoldDelta > 0) {
             tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            // We need single sided liquidity, so we need to start the slug at the next tick
             int24 tickA = currentTick;
             int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
 
