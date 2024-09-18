@@ -399,18 +399,10 @@ contract Doppler is BaseHook {
                 uint160 priceUpper;
                 uint160 priceLower;
                 // should extend from the
-                console2.logInt(tickUpper);
-                console2.logInt(upperSlug.tickUpper);
-                console2.logInt(tickLower);
-                console2.logInt(upperSlug.tickLower);
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickLower;
                 int24 tickB = isToken0 ? tickUpper : upperSlug.tickLower;
-                console2.logInt(tickA);
-                console2.logInt(tickB);
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
-                console2.logInt(slug.tickLower);
-                console2.logInt(slug.tickUpper);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
             }
         }
