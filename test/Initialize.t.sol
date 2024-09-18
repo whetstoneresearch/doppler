@@ -11,7 +11,7 @@ contract InitializeTest is BaseTest {
     function test_intialize_ShouldInitializeAPool() public {
         uint256 numTokensToSell = 1e30;
 
-        if (ghost().hook.isToken0()) {
+        if (ghost().hook.getIsToken0()) {
             ghost().token0.mint(address(this), numTokensToSell);
             ghost().token0.approve(address(ghost().hook), numTokensToSell);
         } else {
