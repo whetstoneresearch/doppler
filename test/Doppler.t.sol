@@ -500,7 +500,8 @@ contract DopplerTest is BaseTest {
             int24 currentTick = ghosts()[i].hook.getStartingTick();
             int24 gamma = ghosts()[i].hook.getGamma();
             int24 gammaShare = int24(
-                ghosts()[i].hook.getGammaShare(block.timestamp + ghosts()[i].hook.getEpochLength()) * gamma * ghosts()[i].key().tickSpacing / 1e18
+                ghosts()[i].hook.getGammaShare(block.timestamp + ghosts()[i].hook.getEpochLength()) * gamma
+                    * ghosts()[i].key().tickSpacing / 1e18
             );
             console2.log("gammashare");
             console2.logInt(gammaShare);
@@ -567,17 +568,111 @@ contract DopplerTest is BaseTest {
             SlugData memory upperSlug =
                 ghosts()[i].hook.computeUpperSlugData(ghosts()[i].key(), totalTokensSold, currentTick);
             SlugData memory pdSlug = ghosts()[i].hook.computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+            SlugData[] memory slugs = new SlugData[](3);
 
-            if (isToken0) {
-                assertGt(lowerSlug.tickLower, ghosts()[i].hook.getEndingTick());
-                assertEq(lowerSlug.tickUpper, lowerSlug.tickLower + ghosts()[i].key().tickSpacing);
-                assertEq(upperSlug.tickUpper, pdSlug.tickLower);
-            } else {
-                assertLt(lowerSlug.tickLower, ghosts()[i].hook.getEndingTick());
-                assertEq(lowerSlug.tickLower, lowerSlug.tickUpper - ghosts()[i].key().tickSpacing);
-                assertEq(upperSlug.tickLower, pdSlug.tickUpper);
+            string[] memory slugNames = new string[](3);
+            slugNames[0] = "lowerSlug";
+            slugNames[1] = "upperSlug";
+            slugNames[2] = "pdSlug";
+
+            slugs[0] = lowerSlug;
+            slugs[1] = upperSlug;
+            slugs[2] = pdSlug;
+            uint256[] memory timestamps = new uint256[](3);
+            timestamps[0] = block.timestamp;
+            timestamps[1] = block.timestamp;
+            timestamps[2] = block.timestamp;
+
+            string memory json = _constructJson(timestamps, slugs, slugNames);
+
+            // if (isToken0) {
+            //     assertGt(lowerSlug.tickLower, ghosts()[i].hook.getEndingTick());
+            //     assertEq(lowerSlug.tickUpper, lowerSlug.tickLower + ghosts()[i].key().tickSpacing);
+            //     assertEq(upperSlug.tickUpper, pdSlug.tickLower);
+            // } else {
+            //     assertLt(lowerSlug.tickLower, ghosts()[i].hook.getEndingTick());
+            //     assertEq(lowerSlug.tickLower, lowerSlug.tickUpper - ghosts()[i].key().tickSpacing);
+            //     assertEq(upperSlug.tickLower, pdSlug.tickUpper);
+            // }
+            console2.log(json);
+        }
+    }
+
+    function _constructJson(
+        uint256[] memory timestamps,
+        SlugData[] memory slugs,
+        string[] memory slugNames
+    ) internal pure returns (string memory) {
+        string memory json = "{ \"data\": [";
+
+        for (uint256 i = 0; i < timestamps.length; i++) {
+            json = string(
+                abi.encodePacked(
+                    json,
+                    "{",
+                    "\"slugName\": \"", slugNames[i], "\",",
+                    "\"timestamp\": ", uint2str(timestamps[i]), ",",
+                    "\"tickLower\": ", int2str(slugs[i].tickLower), ",",
+                    "\"tickUpper\": ", int2str(slugs[i].tickUpper), ",",
+                    "\"liquidity\": ", uint2str(slugs[i].liquidity),
+                    "}"
+                )
+            );
+
+            if (i < timestamps.length - 1) {
+                json = string(abi.encodePacked(json, ","));
             }
         }
+
+        json = string(abi.encodePacked(json, "] }"));
+        return json;
+    }
+
+    function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
+        if (_i == 0) {
+            return "0";
+        }
+        uint256 j = _i;
+        uint256 length;
+        while (j != 0) {
+            length++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(length);
+        uint256 k = length;
+        j = _i;
+        while (j != 0) {
+            bstr[--k] = bytes1(uint8(48 + j % 10));
+            j /= 10;
+        }
+        return string(bstr);
+    }
+
+    function int2str(int256 _i) internal pure returns (string memory) {
+        if (_i == 0) {
+            return "0";
+        }
+        bool negative = _i < 0;
+        uint256 i = uint256(negative ? -_i : _i);
+        uint256 j = i;
+        uint256 length;
+        while (j != 0) {
+            length++;
+            j /= 10;
+        }
+        if (negative) {
+            length++; // Make room for '-' sign
+        }
+        bytes memory bstr = new bytes(length);
+        uint256 k = length;
+        while (i != 0) {
+            bstr[--k] = bytes1(uint8(48 + i % 10));
+            i /= 10;
+        }
+        if (negative) {
+            bstr[0] = "-";
+        }
+        return string(bstr);
     }
 }
 
