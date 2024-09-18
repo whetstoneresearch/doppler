@@ -191,6 +191,7 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
+                // TODO: Is this right?
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + state.tickAccumulator;
@@ -398,8 +399,9 @@ contract Doppler is BaseHook {
 
         uint160 priceUpper;
         uint160 priceLower;
-        uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
+        uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
+            tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
             int24 tickA = currentTick;
             int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
