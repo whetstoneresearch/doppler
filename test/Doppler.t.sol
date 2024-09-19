@@ -465,14 +465,26 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                     _computeLiquidity Unit Tests
+    //                     _getCurrentEpoch Unit Tests
     // =========================================================================
 
-    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
-        public
-        view
-    {
-        for (uint256 i; i < ghosts().length; ++i) {}
+    function testGetCurrentEpoch_RetursnCorrectEpoch() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+            uint256 currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 1);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+            currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 2);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2);
+            currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 3);
+        }
     }
 }
 
