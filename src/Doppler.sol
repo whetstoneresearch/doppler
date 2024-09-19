@@ -20,6 +20,7 @@ contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using TransientStateLibrary for IPoolManager;
+    using BalanceDeltaLibrary for BalanceDelta;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -259,20 +260,22 @@ contract Doppler is BaseHook {
             }
         }
 
-        SlugData memory lowerSlug = _computeLowerSlugData(
-            key, requiredProceeds, totalProceeds_, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
-        );
-        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
-
-        // TODO: If we're not actually modifying liquidity, skip below logic
-        // TODO: Consider whether we need slippage protection
-
         // Get existing positions
         Position[] memory prevPositions = new Position[](3);
         prevPositions[0] = positions[LOWER_SLUG_SALT];
         prevPositions[1] = positions[UPPER_SLUG_SALT];
         prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
+        BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
+
+        uint256 numeraireAvailable = isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
+
+        SlugData memory lowerSlug =
+            _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext);
+        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
+        // TODO: If we're not actually modifying liquidity, skip below logic
+        // TODO: Consider whether we need slippage protection
+
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
@@ -296,7 +299,7 @@ contract Doppler is BaseHook {
         });
 
         // Update positions and swap if necessary
-        _update(prevPositions, newPositions, sqrtPriceX96, sqrtPriceNext, key);
+        _update(newPositions, sqrtPriceX96, sqrtPriceNext, key);
 
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] = newPositions[0];
@@ -477,30 +480,30 @@ contract Doppler is BaseHook {
         }
     }
 
+    function _clearPositions(Position[] memory lastEpochPositions, PoolKey memory key) internal returns (BalanceDelta deltas) {
+        for (uint256 i; i < lastEpochPositions.length; ++i) {
+            if (lastEpochPositions[i].liquidity != 0) {
+                (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
+                    key,
+                    IPoolManager.ModifyLiquidityParams({
+                        tickLower: lastEpochPositions[i].tickLower,
+                        tickUpper: lastEpochPositions[i].tickUpper,
+                        liquidityDelta: -int128(lastEpochPositions[i].liquidity),
+                        salt: bytes32(uint256(lastEpochPositions[i].salt))
+                    }),
+                    ""
+                );
+                deltas = deltas + positionDeltas;
+            }
+        }
+    }
+
     function _update(
-        Position[] memory prevPositions,
         Position[] memory newPositions,
         uint160 currentPrice,
         uint160 swapPrice,
         PoolKey memory key
     ) internal {
-        for (uint256 i; i < prevPositions.length; ++i) {
-            if (prevPositions[i].liquidity != 0) {
-                // Remove all liquidity from old position
-                // TODO: Consider whether fees are relevant
-                poolManager.modifyLiquidity(
-                    key,
-                    IPoolManager.ModifyLiquidityParams({
-                        tickLower: prevPositions[i].tickLower,
-                        tickUpper: prevPositions[i].tickUpper,
-                        liquidityDelta: -int128(prevPositions[i].liquidity),
-                        salt: bytes32(uint256(prevPositions[i].salt))
-                    }),
-                    ""
-                );
-            }
-        }
-
         if (swapPrice != currentPrice) {
             // We swap to the target price
             // Since there's no liquidity, we swap 0 amounts
