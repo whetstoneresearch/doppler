@@ -440,16 +440,13 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        CallbackData memory callbackData = abi.decode(data, (CallbackData));
-
-        // TODO: I don't think we'll keep this but it was handy for now
-        Position[] memory prevPositions = callbackData.prevPositions;
-        Position[] memory newPositions = callbackData.newPositions;
-        PoolKey memory key = callbackData.key;
-        uint160 currentPrice = callbackData.currentPrice;
-        uint160 swapPrice = callbackData.swapPrice;
-
+    function _update(
+        Position[] memory prevPositions,
+        Position[] memory newPositions,
+        uint160 currentPrice,
+        uint160 swapPrice,
+        PoolKey memory key
+    ) internal {
         for (uint256 i; i < prevPositions.length; ++i) {
             if (prevPositions[i].liquidity != 0) {
                 // Remove all liquidity from old position
@@ -520,8 +517,6 @@ contract Doppler is BaseHook {
         }
 
         poolManager.settle();
-
-        return new bytes(0);
     }
 
     struct CallbackData {
@@ -532,25 +527,8 @@ contract Doppler is BaseHook {
         PoolKey key;
     }
 
-    function _update(
-        Position[] memory prevPositions,
-        Position[] memory newPositions,
-        uint160 currentPrice,
-        uint160 swapPrice,
-        PoolKey memory key
-    ) internal {
-        poolManager.unlock(
-            abi.encode(
-                CallbackData({
-                    prevPositions: prevPositions,
-                    newPositions: newPositions,
-                    currentPrice: currentPrice,
-                    swapPrice: swapPrice,
-                    key: key
-                })
-            )
-        );
-    }
+    // @dev This callback is only used to add the initial liquidity when the pool is created
+    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {}
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
