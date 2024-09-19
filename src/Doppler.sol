@@ -453,7 +453,12 @@ contract Doppler is BaseHook {
         pure
         returns (uint128)
     {
+        // TODO: Consider a better option
+        // We decrement the amount by 1 to avoid rounding errors
+        amount = amount != 0 ? amount - 1 : amount;
+
         if (forToken0) {
+            
             return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
         } else {
             return LiquidityAmounts.getLiquidityForAmount1(lowerPrice, upperPrice, amount);
