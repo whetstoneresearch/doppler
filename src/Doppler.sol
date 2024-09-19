@@ -175,7 +175,7 @@ contract Doppler is BaseHook {
         uint256 expectedAmountSold = _getExpectedAmountSold(block.timestamp);
         // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
         //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
-        uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
+        int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
