@@ -343,7 +343,7 @@ contract Doppler is BaseHook {
     // Returns 18 decimal fixed point value
     // TODO: consider whether it's safe to always round down
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
-        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength);
+        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
     }
 
     function _getElapsedGamma() internal view returns (int256) {

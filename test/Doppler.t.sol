@@ -480,7 +480,7 @@ contract DopplerTest is BaseTest {
                         maxTickDeltaPerEpoch
                             * (
                                 int256((ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()))
-                                    * int256(ghosts()[i].hook.getEpochLength())
+                                    / int256(ghosts()[i].hook.getEpochLength())
                             )
                     ) / 1e18 + ghosts()[i].hook.getStartingTick()
                 ),
