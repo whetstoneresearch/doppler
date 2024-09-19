@@ -208,7 +208,7 @@ contract Doppler is BaseHook {
 
         if (accumulatorDelta != 0) {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
-            state.tickAccumulator = int24(newAccumulator);
+            state.tickAccumulator = newAccumulator;
 
             // TODO: Safe to only update currentTick if accumulatorDelta is a multiple of tickSpacing?
             //       Or do we need to accumulate this difference over time to ensure it gets applied later?
