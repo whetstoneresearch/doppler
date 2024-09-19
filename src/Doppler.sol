@@ -15,6 +15,8 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -82,6 +84,17 @@ contract Doppler is BaseHook {
         // TODO: consider enforcing startingTime < endingTime
         // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
         // TODO: consider enforcing that min and max gamma
+    }
+
+    function afterInitialize(
+        address sender,
+        PoolKey calldata key,
+        uint160 sqrtPriceX96,
+        int24 tick,
+        bytes calldata hookData
+    ) external override onlyPoolManager returns (bytes4) {
+        poolManager.unlock(abi.encode(key, sender));
+        return BaseHook.afterInitialize.selector;
     }
 
     // TODO: consider reverting or returning if after end time
@@ -520,15 +533,46 @@ contract Doppler is BaseHook {
     }
 
     struct CallbackData {
-        Position[] prevPositions;
-        Position[] newPositions;
-        uint160 currentPrice;
-        uint160 swapPrice;
         PoolKey key;
+        address sender;
     }
 
     // @dev This callback is only used to add the initial liquidity when the pool is created
-    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {}
+    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
+        (PoolKey memory key, address sender) = abi.decode(data, (PoolKey, address));
+
+        // TODO: Compute the actual positions
+        Position[] memory initialPositions = new Position[](3);
+
+        for (uint256 i; i < initialPositions.length; ++i) {
+            if (initialPositions[i].liquidity != 0) {
+                // Add liquidity to new position
+                poolManager.modifyLiquidity(
+                    key,
+                    IPoolManager.ModifyLiquidityParams({
+                        tickLower: initialPositions[i].tickLower,
+                        tickUpper: initialPositions[i].tickUpper,
+                        liquidityDelta: int128(initialPositions[i].liquidity),
+                        salt: bytes32(uint256(initialPositions[i].salt))
+                    }),
+                    ""
+                );
+            }
+        }
+
+        // TODO: Not sure if we should use transfer or transferFrom, it will depend if we mint the tokens to the hook or not
+        if (isToken0) {
+            poolManager.sync(key.currency0);
+            ERC20(Currency.unwrap(key.currency0)).transferFrom(sender, address(poolManager), numTokensToSell);
+        } else {
+            poolManager.sync(key.currency1);
+            ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(poolManager), numTokensToSell);
+        }
+
+        poolManager.settle();
+
+        return new bytes(0);
+    }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
