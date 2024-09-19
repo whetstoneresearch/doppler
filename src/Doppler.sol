@@ -28,7 +28,7 @@ contract Doppler is BaseHook {
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
-        int24 tickAccumulator; // accumulator to modify the bonding curve
+        int256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
@@ -188,13 +188,12 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
-            // TODO: Is this right?
-            * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
+                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
-            int24 tauTick = startingTick + state.tickAccumulator;
+            int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
             int24 expectedTick;
             // TODO: Overflow possible?
             //       May be worth bounding to a maximum int24.max/min
@@ -203,25 +202,35 @@ contract Doppler is BaseHook {
             isToken0
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
-            accumulatorDelta = int256(currentTick - expectedTick);
+            // TODO: Should this be expectedTick - currentTick?
+            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
         }
 
         if (accumulatorDelta != 0) {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
             state.tickAccumulator = int24(newAccumulator);
 
-            // TODO: Consider whether it's ok to overwrite currentTick
-            if (isToken0) {
-                currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
-            } else {
-                // TODO: Consider whether this rounds up as expected
-                // Round up to support inverse direction
-                currentTick =
-                    ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
+            // TODO: Safe to only update currentTick if accumulatorDelta is a multiple of tickSpacing?
+            //       Or do we need to accumulate this difference over time to ensure it gets applied later?
+            //       e.g. if accumulatorDelta is 4e18 for two epochs in a row, should we bump up by a tickSpacing
+            //       after the second epoch, or only adjust on significant epochs?
+            //       Maybe this is only necessary for the oversold case anyway?
+            if (accumulatorDelta / 1e18 >= key.tickSpacing) {
+                accumulatorDelta /= 1e18;
+
+                // TODO: Consider whether it's ok to overwrite currentTick
+                if (isToken0) {
+                    currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
+                } else {
+                    // TODO: Consider whether this rounds up as expected
+                    // Round up to support inverse direction
+                    currentTick =
+                        ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
+                }
             }
         }
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18));
 
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero

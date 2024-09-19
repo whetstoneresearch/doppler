@@ -185,7 +185,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch, int24 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 1);
             // We sold 1e18 tokens just now
@@ -223,7 +223,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch3, int24 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) = ghosts()[i].hook.state();
+            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) = ghosts()[i].hook.state();
 
             assertEq(lastEpoch3, 2);
             // We sold some tokens just now
@@ -233,8 +233,8 @@ contract DopplerTest is BaseTest {
 
             // Assert that we reduced the accumulator by the max amount as intended
             // We divide by 1e18 since getMaxTickDeltaPerEpoch returns a 18 decimal fixed point value
-            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch() / 1e18;
-            assertEq(tickAccumulator3, maxTickDeltaPerEpoch);
+            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
+            assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
         }
     }
 
