@@ -191,8 +191,8 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
-                // TODO: Is this right?
-                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            // TODO: Is this right?
+            * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + state.tickAccumulator;
             int24 expectedTick;
@@ -259,8 +259,9 @@ contract Doppler is BaseHook {
             }
         }
 
-        SlugData memory lowerSlug =
-            _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_, sqrtPriceLower, sqrtPriceNext);
+        SlugData memory lowerSlug = _computeLowerSlugData(
+            key, requiredProceeds, totalProceeds_, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
+        );
         SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
 
@@ -378,12 +379,7 @@ contract Doppler is BaseHook {
         } else {
             slug.tickLower = TickMath.getTickAtSqrtPrice(sqrtPriceLower);
             slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
-            slug.liquidity = _computeLiquidity(
-                !isToken0,
-                sqrtPriceLower,
-                sqrtPriceNext,
-                totalProceeds_
-            );
+            slug.liquidity = _computeLiquidity(!isToken0, sqrtPriceLower, sqrtPriceNext, totalProceeds_);
         }
     }
 
@@ -458,7 +454,6 @@ contract Doppler is BaseHook {
         amount = amount != 0 ? amount - 1 : amount;
 
         if (forToken0) {
-            
             return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
         } else {
             return LiquidityAmounts.getLiquidityForAmount1(lowerPrice, upperPrice, amount);
