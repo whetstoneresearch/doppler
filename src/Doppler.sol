@@ -230,7 +230,7 @@ contract Doppler is BaseHook {
             }
         }
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18));
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
 
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero
@@ -353,10 +353,17 @@ contract Doppler is BaseHook {
     // TODO: Consider whether overflow is reasonably possible
     //       I think some validation logic will be necessary
     //       Maybe we just need to bound to int24.max/min
-    function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
-        lower = startingTick + accumulator;
+    // Returns a multiple of tickSpacing
+    function _getTicksBasedOnState(int24 accumulator, int24 tickSpacing) internal view returns (int24 lower, int24 upper) {
         // TODO: Consider whether this is the correct direction
-        upper = lower + (isToken0 ? int24(int256(gamma)) : -int24(int256(gamma)));
+        if (isToken0) {
+            lower = startingTick + (accumulator / tickSpacing * tickSpacing);
+            upper = (lower + gamma) / tickSpacing * tickSpacing;
+        } else {
+            // Round up to support inverse direction
+            lower = startingTick + (accumulator + tickSpacing - 1 / tickSpacing * tickSpacing);
+            upper = (lower - gamma) + tickSpacing - 1 / tickSpacing * tickSpacing;
+        }
     }
 
     function _computeLowerSlugData(
