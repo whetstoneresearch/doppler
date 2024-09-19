@@ -262,7 +262,7 @@ contract Doppler is BaseHook {
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_, sqrtPriceLower, sqrtPriceNext);
         SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
 
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
@@ -419,7 +419,7 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper)
+    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickUpper)
         internal
         view
         returns (SlugData memory slug)
