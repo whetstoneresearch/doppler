@@ -31,10 +31,10 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                         beforeSwap Unit Tests
+    //                          Integration Tests
     // =========================================================================
 
-    function testBeforeSwap_RevertsBeforeStartTime() public {
+    function testRevertsBeforeStartTime() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
 
@@ -57,7 +57,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testBeforeSwap_DoesNotRebalanceTwiceInSameEpoch() public {
+    function testDoesNotRebalanceTwiceInSameEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
@@ -98,7 +98,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testBeforeSwap_UpdatesLastEpoch() public {
+    function testUpdatesLastEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
@@ -135,21 +135,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testBeforeSwap_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-        }
-    }
-
-    function testBeforeSwap_UpdatesTotalTokensSoldLastEpoch() public {
+    function testUpdatesTotalTokensSoldLastEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
@@ -180,6 +166,24 @@ contract DopplerTest is BaseTest {
 
             assertEq(totalTokensSold, 2e18);
             assertEq(totalTokensSoldLastEpoch, 1e18);
+        }
+    }
+
+    // =========================================================================
+    //                         beforeSwap Unit Tests
+    // =========================================================================
+
+    function testBeforeSwap_RevertsIfNotPoolManager() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
+
+            vm.expectRevert(SafeCallback.NotPoolManager.selector);
+            ghosts()[i].hook.beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
         }
     }
 
