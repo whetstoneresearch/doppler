@@ -1,73 +1,71 @@
 pragma solidity 0.8.26;
 
-import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 
-import {Deployers} from "v4-core/test/utils/Deployers.sol";
-import {TestERC20} from "v4-core/src/test/TestERC20.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {PoolManager} from "v4-core/src/PoolManager.sol";
-import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
-import {CurrencyLibrary, Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
-import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {SlugData} from "../src/Doppler.sol";
 
-import {Doppler, SlugData} from "../src/Doppler.sol";
-import {DopplerImplementation} from "./DopplerImplementation.sol";
-import {BaseTest} from "./BaseTest.sol";
+struct SlugDataWithName {
+    string name;
+    uint128 liquidity;
+    int24 tickLower;
+    int24 tickUpper;
+}
 
 library SlugVis {
-    using PoolIdLibrary for PoolKey;
-
     function visualizeSlugs(
         uint256 timestamp,
         SlugData memory lowerSlug,
         SlugData memory upperSlug,
         SlugData memory pdSlug
     ) public pure {
-        string[] memory slugNames = new string[](3);
-        slugNames[0] = "lowerSlug";
-        slugNames[1] = "upperSlug";
-        slugNames[2] = "pdSlug";
-
-        SlugData[] memory slugs = new SlugData[](3);
-        slugs[0] = lowerSlug;
-        slugs[1] = upperSlug;
-        slugs[2] = pdSlug;
-        uint256[] memory timestamps = new uint256[](3);
-        timestamps[0] = timestamp;
-        timestamps[1] = timestamp;
-        timestamps[2] = timestamp;
-
-        string memory json = _constructJson(timestamps, slugs, slugNames);
-
+        string memory json;
+        SlugDataWithName[] memory slugs = checkSlugsAndCreatedNamedSlugArray(lowerSlug, upperSlug, pdSlug);
+        json = _constructJson(timestamp, slugs);
         console2.log(json);
     }
 
-    function _constructJson(uint256[] memory timestamps, SlugData[] memory slugs, string[] memory slugNames)
-        internal
-        pure
-        returns (string memory)
-    {
+    function checkSlugsAndCreatedNamedSlugArray(
+        SlugData memory lowerSlug,
+        SlugData memory upperSlug,
+        SlugData memory pdSlug
+    ) internal pure returns (SlugDataWithName[] memory) {
+        bool lowerSlugExists = lowerSlug.liquidity > 0;
+        bool upperSlugExists = upperSlug.liquidity > 0;
+        bool pdSlugExists = pdSlug.liquidity > 0;
+
+        uint256 numSlugs = (lowerSlugExists ? 1 : 0) + (upperSlugExists ? 1 : 0) + (pdSlugExists ? 1 : 0);
+
+        SlugDataWithName[] memory namedSlugs = new SlugDataWithName[](numSlugs);
+        uint256 index = 0;
+
+        if (lowerSlugExists) {
+            namedSlugs[index++] =
+                SlugDataWithName("lowerSlug", lowerSlug.liquidity, lowerSlug.tickLower, lowerSlug.tickUpper);
+        }
+        if (upperSlugExists) {
+            namedSlugs[index++] =
+                SlugDataWithName("upperSlug", upperSlug.liquidity, upperSlug.tickLower, upperSlug.tickUpper);
+        }
+        if (pdSlugExists) {
+            namedSlugs[index] = SlugDataWithName("pdSlug", pdSlug.liquidity, pdSlug.tickLower, pdSlug.tickUpper);
+        }
+
+        return namedSlugs;
+    }
+
+    function _constructJson(uint256 timestamp, SlugDataWithName[] memory slugs) internal pure returns (string memory) {
         string memory json = "{ \"data\": [";
 
-        for (uint256 i = 0; i < timestamps.length; i++) {
+        for (uint256 i = 0; i < slugs.length; i++) {
             json = string(
                 abi.encodePacked(
                     json,
                     "{",
                     "\"slugName\": \"",
-                    slugNames[i],
+                    slugs[i].name,
                     "\",",
                     "\"timestamp\": ",
-                    uint2str(timestamps[i]),
+                    uint2str(timestamp),
                     ",",
                     "\"tickLower\": ",
                     int2str(slugs[i].tickLower),
@@ -81,7 +79,7 @@ library SlugVis {
                 )
             );
 
-            if (i < timestamps.length - 1) {
+            if (i < slugs.length - 1) {
                 json = string(abi.encodePacked(json, ","));
             }
         }

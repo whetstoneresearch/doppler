@@ -36,12 +36,6 @@ max_liquidity = df['liquidity'].max()
 max_tick = df['tickUpper'].max()
 min_tick = df['tickLower'].min()
 
-slug_colors = {
-    'lowerSlug': 'blue',
-    'upperSlug': 'red',
-    'pdSlug': 'green'
-}
-
 for index, row in df.iterrows():
     tick_lower = row['tickLower']
     tick_upper = row['tickUpper']

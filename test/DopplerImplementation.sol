@@ -5,8 +5,9 @@ import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-
+import {SlugVis} from "./SlugVis.sol";
 import {Doppler, SlugData} from "../src/Doppler.sol";
+import {SlugVis} from "./SlugVis.sol";
 
 contract DopplerImplementation is Doppler {
     constructor(
