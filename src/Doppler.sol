@@ -299,7 +299,7 @@ contract Doppler is BaseHook {
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
         );
         SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -452,7 +452,7 @@ contract Doppler is BaseHook {
             tokensToLp = uint256(tokensSoldDelta);
             console.log("tokensToLp", tokensToLp);
             int24 computedDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
-            int24 accumulatorDelta = computedDelta != 0 ? computedDelta : key.tickSpacing;
+            int24 accumulatorDelta = computedDelta > 0 ? computedDelta : key.tickSpacing;
             int24 tickA = currentTick;
             int24 tickB = _alignComputedTickWithTickSpacing(
                 isToken0 ? tickA + accumulatorDelta : tickA - accumulatorDelta, key.tickSpacing
@@ -461,6 +461,8 @@ contract Doppler is BaseHook {
             console.log("tickB", tickB);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+            console.log("upperSlug.tickLower", slug.tickLower);
+            console.log("upperSlug.tickUpper", slug.tickUpper);
         } else {
             slug.tickLower = currentTick;
             slug.tickUpper = currentTick;
@@ -473,17 +475,17 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickUpper)
+    function _computePriceDiscoverySlugData(PoolKey memory key, SlugData memory upperSlug, int24 tickUpper)
         internal
         view
         returns (SlugData memory slug)
     {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
         if (nextEpochEndTime != epochEndTime) {
-            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - percentElapsedAtEpochEnd;
+            uint256 epochT1toT2Delta =
+                _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
@@ -492,7 +494,9 @@ contract Doppler is BaseHook {
                 console.log("tickUpper", tickUpper);
                 console.log("upperSlug.tickUpper", upperSlug.tickUpper);
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
-                int24 tickB = isToken0 ? tickUpper : upperSlug.tickUpper;
+                int24 tickB = isToken0
+                    ? tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper
+                    : tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : tickUpper;
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
@@ -637,7 +641,7 @@ contract Doppler is BaseHook {
         console.log("epochLength", epochLength);
 
         SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
 
         console.log("upperSlug.tickLower %s", upperSlug.tickLower);
         console.log("upperSlug.tickUpper %s", upperSlug.tickUpper);
