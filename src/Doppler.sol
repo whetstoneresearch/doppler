@@ -16,6 +16,28 @@ import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 
+struct SlugData {
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+}
+
+struct State {
+    uint40 lastEpoch; // last updated epoch (1-indexed)
+    int256 tickAccumulator; // accumulator to modify the bonding curve
+    uint256 totalTokensSold; // total tokens sold
+    uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
+    uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
+}
+
+struct Position {
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    // TODO: Consider whether we need larger salt in case of multiple discovery slugs
+    uint8 salt;
+}
+
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -27,22 +49,6 @@ contract Doppler is BaseHook {
     bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
     // TODO: consider if we can use smaller uints
-    struct State {
-        uint40 lastEpoch; // last updated epoch (1-indexed)
-        int256 tickAccumulator; // accumulator to modify the bonding curve
-        uint256 totalTokensSold; // total tokens sold
-        uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
-        uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
-    }
-
-    struct Position {
-        int24 tickLower;
-        int24 tickUpper;
-        uint128 liquidity;
-        // TODO: Consider whether we need larger salt in case of multiple discovery slugs
-        uint8 salt;
-    }
-
     // TODO: consider whether these need to be public
     State public state;
     mapping(bytes32 salt => Position) public positions;
@@ -154,12 +160,6 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
-    struct SlugData {
-        int24 tickLower;
-        int24 tickUpper;
-        uint128 liquidity;
-    }
-
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
@@ -223,8 +223,8 @@ contract Doppler is BaseHook {
         } else {
             // TODO: Consider whether this rounds up as expected
             // Round up to support inverse direction
-            currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing)
-                * key.tickSpacing;
+            currentTick =
+                ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
