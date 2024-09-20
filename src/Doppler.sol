@@ -284,7 +284,8 @@ contract Doppler is BaseHook {
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
-        SlugVis.visualizeSlugs(block.timestamp, lowerSlug, upperSlug, priceDiscoverySlug);
+        // UNCOMMENT THIS TO VISUALIZE SLUGS AND PIPE IT INTO THE PYTHON SCRIPT
+        // SlugVis.visualizeSlugs(block.timestamp, lowerSlug, upperSlug, priceDiscoverySlug);
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
