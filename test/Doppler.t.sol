@@ -265,14 +265,18 @@ contract DopplerTest is BaseTest {
             bool isToken0 = ghosts()[i].hook.getIsToken0();
 
             // Get the expected amount sold by next epoch
-            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()
+            );
 
             // We sell half the expected amount
             swapRouter.swap(
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(!isToken0, int256(expectedAmountSold / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
@@ -307,7 +311,7 @@ contract DopplerTest is BaseTest {
             // The net sold amount in the previous epoch half the expected amount
             assertEq(totalTokensSoldLastEpoch2, expectedAmountSold / 2);
 
-            // Assert that we reduced the accumulator by the max amount as intended
+            // Assert that we reduced the accumulator by half the max amount as intended
             int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
             assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2);
         }
