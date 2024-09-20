@@ -186,7 +186,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testMaxDutchAuction_NetSoldZero() public {
+    function testMaxDutchAuction_NetSoldLteZero() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
