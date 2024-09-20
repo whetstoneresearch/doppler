@@ -7,7 +7,7 @@ import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, BalanceDeltaLibrary, add} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {BalanceDelta, add} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
@@ -17,6 +17,8 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
+
+import {console} from "forge-std/console.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -93,7 +95,8 @@ contract Doppler is BaseHook {
         int24 tick,
         bytes calldata hookData
     ) external override onlyPoolManager returns (bytes4) {
-        poolManager.unlock(abi.encode(key, sender));
+        // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
+        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
         return BaseHook.afterInitialize.selector;
     }
 
@@ -302,6 +305,7 @@ contract Doppler is BaseHook {
     }
 
     function _getCurrentEpoch() internal view returns (uint256) {
+        if (block.timestamp < startingTime) return 1;
         return (block.timestamp - startingTime) / epochLength + 1;
     }
 
@@ -371,10 +375,17 @@ contract Doppler is BaseHook {
         view
         returns (SlugData memory slug)
     {
+        console.log("Computing upper slug");
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
+        console.log("epochEndTime", epochEndTime);
         uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
-        uint256 expectedSoldAtEpochEnd = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
-        int256 tokensSoldDelta = int256(percentElapsedAtEpochEnd) - int256(expectedSoldAtEpochEnd); // compute if we've sold more or less tokens than expected by next epoch
+        console.log("percentElapsedAtEpochEnd", percentElapsedAtEpochEnd);
+
+        uint256 expectedSoldAtEpochEnd = (numTokensToSell * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
+        console.log("expectedSoldAtEpochEnd", expectedSoldAtEpochEnd);
+
+        int256 tokensSoldDelta = int256(totalTokensSold_) - int256(_getExpectedAmountSold(epochEndTime)); // compute if we've sold more or less tokens than expected by next epoch
+        console.log("tokensSoldDelta", tokensSoldDelta);
 
         if (tokensSoldDelta > 0) {
             uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
@@ -535,33 +546,61 @@ contract Doppler is BaseHook {
     struct CallbackData {
         PoolKey key;
         address sender;
+        int24 tick;
     }
 
     // @dev This callback is only used to add the initial liquidity when the pool is created
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
-        (PoolKey memory key, address sender) = abi.decode(data, (PoolKey, address));
+        CallbackData memory callbackData = abi.decode(data, (CallbackData));
+        (PoolKey memory key, address sender, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
 
-        // TODO: Compute the actual positions
-        Position[] memory initialPositions = new Position[](3);
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0));
+        console.log("tickLower %s", tickLower);
+        console.log("tickUpper %s", tickUpper);
+
+        console.log("block.timestamp", block.timestamp);
+        console.log("startingTime", startingTime);
+        console.log("epochLength", epochLength);
+
+        SlugData memory upperSlug = _computeUpperSlugData(0, tick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+
+        console.log("upperSlug.tickLower %s", upperSlug.tickLower);
+        console.log("upperSlug.tickUpper %s", upperSlug.tickUpper);
+        console.log("upperSlug.liquidity %s", upperSlug.liquidity);
+
+        console.log("priceDiscoverySlug.tickLower %s", priceDiscoverySlug.tickLower);
+        console.log("priceDiscoverySlug.tickUpper %s", priceDiscoverySlug.tickUpper);
+        console.log("priceDiscoverySlug.liquidity %s", priceDiscoverySlug.liquidity);
 
         BalanceDelta finalDelta;
 
-        for (uint256 i; i < initialPositions.length; ++i) {
-            if (initialPositions[i].liquidity != 0) {
-                // Add liquidity to new position
-                (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
-                    key,
-                    IPoolManager.ModifyLiquidityParams({
-                        tickLower: initialPositions[i].tickLower,
-                        tickUpper: initialPositions[i].tickUpper,
-                        liquidityDelta: int128(initialPositions[i].liquidity),
-                        salt: bytes32(uint256(initialPositions[i].salt))
-                    }),
-                    ""
-                );
+        {
+            (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: upperSlug.tickLower,
+                    tickUpper: upperSlug.tickUpper,
+                    liquidityDelta: int128(upperSlug.liquidity),
+                    salt: UPPER_SLUG_SALT
+                }),
+                ""
+            );
+            finalDelta = add(finalDelta, callerDelta);
+        }
 
-                finalDelta = add(finalDelta, callerDelta);
-            }
+        {
+            (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: priceDiscoverySlug.tickLower,
+                    tickUpper: priceDiscoverySlug.tickUpper,
+                    liquidityDelta: int128(priceDiscoverySlug.liquidity),
+                    salt: DISCOVERY_SLUG_SALT
+                }),
+                ""
+            );
+            finalDelta = add(finalDelta, callerDelta);
         }
 
         if (isToken0) {
