@@ -191,7 +191,8 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
-                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            // TODO: Is this right?
+            * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + state.tickAccumulator;
             int24 expectedTick;
@@ -221,6 +222,19 @@ contract Doppler is BaseHook {
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
+
+        // It's possible that these are equal
+        // If we try to add liquidity in this range though, we revert with a divide by zero
+        // Thus we have to create a gap between the two
+        if (currentTick == tickLower) {
+            // TODO: Consider whether direction is accurate
+            if (isToken0) {
+                tickLower -= key.tickSpacing;
+            } else {
+                tickLower += key.tickSpacing;
+            }
+        }
+
         // TODO: Consider what's redundant below if currentTick is unchanged
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
@@ -230,16 +244,26 @@ contract Doppler is BaseHook {
         uint128 liquidity;
         uint256 requiredProceeds;
         if (totalTokensSold_ != 0) {
-            // TODO: Check max liquidity per tick
-            //       Should we spread liquidity across multiple ticks if necessary?
-            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-            // TODO: Should we be rounding up here?
-            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            if (isToken0) {
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+                // TODO: Should we be rounding up here?
+                requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            } else {
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+                // TODO: Should we be rounding up here?
+                requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            }
         }
 
-        SlugData memory lowerSlug = _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
+        SlugData memory lowerSlug = _computeLowerSlugData(
+            key, requiredProceeds, totalProceeds_, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
+        );
         SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
 
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
@@ -330,7 +354,9 @@ contract Doppler is BaseHook {
         PoolKey memory key,
         uint256 requiredProceeds,
         uint256 totalProceeds_,
-        uint256 totalTokensSold_
+        uint256 totalTokensSold_,
+        uint160 sqrtPriceLower,
+        uint160 sqrtPriceNext
     ) internal view returns (SlugData memory slug) {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
@@ -350,6 +376,10 @@ contract Doppler is BaseHook {
             int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
             slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
+        } else {
+            slug.tickLower = TickMath.getTickAtSqrtPrice(sqrtPriceLower);
+            slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
+            slug.liquidity = _computeLiquidity(!isToken0, sqrtPriceLower, sqrtPriceNext, totalProceeds_);
         }
     }
 
@@ -363,26 +393,29 @@ contract Doppler is BaseHook {
         uint256 expectedSoldAtEpochEnd = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
         int256 tokensSoldDelta = int256(percentElapsedAtEpochEnd) - int256(expectedSoldAtEpochEnd); // compute if we've sold more or less tokens than expected by next epoch
 
+        uint160 priceUpper;
+        uint160 priceLower;
+        uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
-            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-
-            uint160 priceUpper;
-            uint160 priceLower;
+            tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
             int24 tickA = currentTick;
-            int24 tickB = isToken0 ? currentTick - int24(accumulatorDelta) : currentTick + int24(accumulatorDelta);
+            int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+        } else {
+            slug.tickLower = currentTick;
+            slug.tickUpper = currentTick;
+        }
 
-            if (priceLower != priceUpper) {
-                slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
-            } else {
-                slug.liquidity = 0;
-            }
+        if (priceLower != priceUpper) {
+            slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+        } else {
+            slug.liquidity = 0;
         }
     }
 
-    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper)
+    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickUpper)
         internal
         view
         returns (SlugData memory slug)
@@ -416,6 +449,10 @@ contract Doppler is BaseHook {
         pure
         returns (uint128)
     {
+        // TODO: Consider a better option
+        // We decrement the amount by 1 to avoid rounding errors
+        amount = amount != 0 ? amount - 1 : amount;
+
         if (forToken0) {
             return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
         } else {

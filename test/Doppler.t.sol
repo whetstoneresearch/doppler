@@ -73,13 +73,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (
-                uint40 lastEpoch,
-                int256 tickAccumulator,
-                uint256 totalTokensSold,
-                ,
-                uint256 totalTokensSoldLastEpoch
-            ) = ghosts()[i].hook.state();
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
 
             swapRouter.swap(
                 // Swap token0 => token1 if token1 is the asset (else vice versa)
@@ -90,13 +85,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (
-                uint40 lastEpoch2,
-                int256 tickAccumulator2,
-                uint256 totalTokensSold2,
-                ,
-                uint256 totalTokensSoldLastEpoch2
-            ) = ghosts()[i].hook.state();
+            (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+                ghosts()[i].hook.state();
 
             // Ensure that state hasn't updated since we're still in the same epoch
             assertEq(lastEpoch, lastEpoch2);
@@ -468,6 +458,17 @@ contract DopplerTest is BaseTest {
                 assertEq(int256(gamma), tickLower - tickUpper);
             }
         }
+    }
+
+    // =========================================================================
+    //                     _computeLiquidity Unit Tests
+    // =========================================================================
+
+    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
+        public
+        view
+    {
+        for (uint256 i; i < ghosts().length; ++i) {}
     }
 }
 
