@@ -561,6 +561,17 @@ contract DopplerTest is BaseTest {
             assertEq(currentEpoch, 3);
         }
     }
+
+    // =========================================================================
+    //                     _computeLiquidity Unit Tests
+    // =========================================================================
+
+    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
+        public
+        view
+    {
+        for (uint256 i; i < ghosts().length; ++i) {}
+    }
 }
 
 error Unauthorized();

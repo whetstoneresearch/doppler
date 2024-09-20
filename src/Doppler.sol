@@ -275,15 +275,16 @@ contract Doppler is BaseHook {
         prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
         BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
 
-        uint256 numeraireAvailable = isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
+        uint256 numeraireAvailable =
+            isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
 
-        SlugData memory lowerSlug =
-            _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext);
+        SlugData memory lowerSlug = _computeLowerSlugData(
+            key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
+        );
         SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
-
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
@@ -499,7 +500,10 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _clearPositions(Position[] memory lastEpochPositions, PoolKey memory key) internal returns (BalanceDelta deltas) {
+    function _clearPositions(Position[] memory lastEpochPositions, PoolKey memory key)
+        internal
+        returns (BalanceDelta deltas)
+    {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
                 (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
@@ -517,12 +521,9 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _update(
-        Position[] memory newPositions,
-        uint160 currentPrice,
-        uint160 swapPrice,
-        PoolKey memory key
-    ) internal {
+    function _update(Position[] memory newPositions, uint160 currentPrice, uint160 swapPrice, PoolKey memory key)
+        internal
+    {
         if (swapPrice != currentPrice) {
             // We swap to the target price
             // Since there's no liquidity, we swap 0 amounts
