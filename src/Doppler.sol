@@ -7,7 +7,7 @@ import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, add} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
@@ -235,12 +235,16 @@ contract Doppler is BaseHook {
 
         // TODO: Consider whether it's ok to overwrite currentTick
         if (isToken0) {
-            currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
+            // currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
+            currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
         } else {
             // TODO: Consider whether this rounds up as expected
             // Round up to support inverse direction
-            currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing)
-                * key.tickSpacing;
+            // currentTick =
+            //     ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
+            currentTick = _alignComputedTickWithTickSpacing(
+                currentTick + int24(accumulatorDelta) + key.tickSpacing - 1, key.tickSpacing
+            );
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
@@ -294,7 +298,7 @@ contract Doppler is BaseHook {
         SlugData memory lowerSlug = _computeLowerSlugData(
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
         );
-        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
+        SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
@@ -348,7 +352,7 @@ contract Doppler is BaseHook {
 
     function _getGammaShare(uint256 timestamp) internal view returns (int256) {
         uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
-        uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(block.timestamp);
+        uint256 normalizedTimeElapsed = block.timestamp > startingTime ? _getNormalizedTimeElapsed(block.timestamp) : 0;
         return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
     }
 
@@ -365,6 +369,10 @@ contract Doppler is BaseHook {
 
     function _getElapsedGamma() internal view returns (int256) {
         return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
+    }
+
+    function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal pure returns (int24) {
+        return (tick / tickSpacing) * tickSpacing;
     }
 
     // TODO: Consider whether overflow is reasonably possible
@@ -420,7 +428,7 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computeUpperSlugData(uint256 totalTokensSold_, int24 currentTick)
+    function _computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold_, int24 currentTick)
         internal
         view
         returns (SlugData memory slug)
@@ -434,17 +442,23 @@ contract Doppler is BaseHook {
         uint256 expectedSoldAtEpochEnd = (numTokensToSell * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
         console.log("expectedSoldAtEpochEnd", expectedSoldAtEpochEnd);
 
-        int256 tokensSoldDelta = int256(totalTokensSold_) - int256(_getExpectedAmountSold(epochEndTime)); // compute if we've sold more or less tokens than expected by next epoch
+        int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
         console.log("tokensSoldDelta", tokensSoldDelta);
 
         uint160 priceUpper;
         uint160 priceLower;
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
-            tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-            int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            tokensToLp = uint256(tokensSoldDelta);
+            console.log("tokensToLp", tokensToLp);
+            int24 computedDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            int24 accumulatorDelta = computedDelta != 0 ? computedDelta : key.tickSpacing;
             int24 tickA = currentTick;
-            int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
+            int24 tickB = _alignComputedTickWithTickSpacing(
+                isToken0 ? tickA + accumulatorDelta : tickA - accumulatorDelta, key.tickSpacing
+            );
+            console.log("tickA", tickA);
+            console.log("tickB", tickB);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
         } else {
@@ -475,6 +489,8 @@ contract Doppler is BaseHook {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
+                console.log("tickUpper", tickUpper);
+                console.log("upperSlug.tickUpper", upperSlug.tickUpper);
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
                 int24 tickB = isToken0 ? tickUpper : upperSlug.tickUpper;
 
@@ -610,8 +626,9 @@ contract Doppler is BaseHook {
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key, address sender, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
+        console.log("callbackData.tick", callbackData.tick);
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0));
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
         console.log("tickLower %s", tickLower);
         console.log("tickUpper %s", tickUpper);
 
@@ -619,8 +636,8 @@ contract Doppler is BaseHook {
         console.log("startingTime", startingTime);
         console.log("epochLength", epochLength);
 
-        SlugData memory upperSlug = _computeUpperSlugData(0, tick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
+        SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
 
         console.log("upperSlug.tickLower %s", upperSlug.tickLower);
         console.log("upperSlug.tickUpper %s", upperSlug.tickUpper);

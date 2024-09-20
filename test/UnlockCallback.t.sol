@@ -12,10 +12,9 @@ contract testUnlockCallbackTest is BaseTest {
         ghost().hook.unlockCallback("");
     }
 
-
     function test_unlockCallback_SucceedWhenSenderIsPoolManager() public {
         Doppler.CallbackData memory callbackData =
-            Doppler.CallbackData({key: ghost().key(), tick: 0, sender: address(0xbeef)});
+            Doppler.CallbackData({key: ghost().key(), tick: ghost().startingTick(), sender: address(0xbeef)});
         vm.prank(address(manager));
         ghost().hook.unlock(abi.encode(callbackData));
     }
