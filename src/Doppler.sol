@@ -7,7 +7,7 @@ import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary, add} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
@@ -544,10 +544,12 @@ contract Doppler is BaseHook {
         // TODO: Compute the actual positions
         Position[] memory initialPositions = new Position[](3);
 
+        BalanceDelta finalDelta;
+
         for (uint256 i; i < initialPositions.length; ++i) {
             if (initialPositions[i].liquidity != 0) {
                 // Add liquidity to new position
-                poolManager.modifyLiquidity(
+                (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: initialPositions[i].tickLower,
@@ -557,16 +559,17 @@ contract Doppler is BaseHook {
                     }),
                     ""
                 );
+
+                finalDelta = add(finalDelta, callerDelta);
             }
         }
 
-        // TODO: Not sure if we should use transfer or transferFrom, it will depend if we mint the tokens to the hook or not
         if (isToken0) {
             poolManager.sync(key.currency0);
-            ERC20(Currency.unwrap(key.currency0)).transferFrom(sender, address(poolManager), numTokensToSell);
+            ERC20(Currency.unwrap(key.currency0)).transfer(address(poolManager), uint256(int256(finalDelta.amount0())));
         } else {
             poolManager.sync(key.currency1);
-            ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(poolManager), numTokensToSell);
+            ERC20(Currency.unwrap(key.currency1)).transfer(address(poolManager), uint256(int256(finalDelta.amount1())));
         }
 
         poolManager.settle();
