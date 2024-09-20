@@ -257,6 +257,62 @@ contract DopplerTest is BaseTest {
         }
     }
 
+    function testRelativeDutchAuction() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Get the expected amount sold by next epoch
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+
+            // We sell half the expected amount
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, int256(expectedAmountSold / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch, 1);
+            // Confirm we sold half the expected amount
+            assertEq(totalTokensSold, expectedAmountSold / 2);
+            // Previous epoch didn't exist so no tokens would have been sold at the time
+            assertEq(totalTokensSoldLastEpoch, 0);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch2, 2);
+            // We sold some tokens just now
+            assertEq(totalTokensSold2, expectedAmountSold / 2 + 1e18);
+            // The net sold amount in the previous epoch half the expected amount
+            assertEq(totalTokensSoldLastEpoch2, expectedAmountSold / 2);
+
+            // Assert that we reduced the accumulator by the max amount as intended
+            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
+            assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2);
+        }
+    }
+
     function testCannotSwapBelowLowerSlug_AfterInitialization() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
