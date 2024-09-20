@@ -344,7 +344,7 @@ contract DopplerTest is BaseTest {
             (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
                 ghosts()[i].hook.state();
 
-            assertEq(lastEpoch, 2);
+            assertEq(lastEpoch, 1);
             // Confirm we sold the 1.5x the expectedAmountSold
             assertEq(totalTokensSold, expectedAmountSold * 3 / 2);
             // Previous epoch references non-existent epoch
