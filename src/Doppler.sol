@@ -223,8 +223,8 @@ contract Doppler is BaseHook {
                 } else {
                     // TODO: Consider whether this rounds up as expected
                     // Round up to support inverse direction
-                    currentTick =
-                        ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
+                    currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing)
+                        * key.tickSpacing;
                 }
             }
         }
@@ -353,7 +353,11 @@ contract Doppler is BaseHook {
     //       I think some validation logic will be necessary
     //       Maybe we just need to bound to int24.max/min
     // Returns a multiple of tickSpacing
-    function _getTicksBasedOnState(int24 accumulator, int24 tickSpacing) internal view returns (int24 lower, int24 upper) {
+    function _getTicksBasedOnState(int24 accumulator, int24 tickSpacing)
+        internal
+        view
+        returns (int24 lower, int24 upper)
+    {
         // TODO: Consider whether this is the correct direction
         if (isToken0) {
             lower = startingTick + (accumulator / tickSpacing * tickSpacing);

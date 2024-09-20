@@ -185,7 +185,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 1);
             // We sold 1e18 tokens just now
@@ -203,7 +204,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) = ghosts()[i].hook.state();
+            (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+                ghosts()[i].hook.state();
 
             assertEq(lastEpoch2, 1);
             // We unsold all the previously sold tokens
@@ -223,7 +225,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) = ghosts()[i].hook.state();
+            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
+                ghosts()[i].hook.state();
 
             assertEq(lastEpoch3, 2);
             // We sold some tokens just now
@@ -524,7 +527,8 @@ contract DopplerTest is BaseTest {
         for (uint256 i; i < ghosts().length; ++i) {
             PoolKey memory poolKey = ghosts()[i].key();
 
-            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(accumulator), poolKey.tickSpacing);
+            (int24 tickLower, int24 tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(accumulator), poolKey.tickSpacing);
             int24 gamma = ghosts()[i].hook.getGamma();
 
             if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
