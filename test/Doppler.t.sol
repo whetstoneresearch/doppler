@@ -252,7 +252,6 @@ contract DopplerTest is BaseTest {
             assertEq(totalTokensSoldLastEpoch3, 0);
 
             // Assert that we reduced the accumulator by the max amount as intended
-            // We divide by 1e18 since getMaxTickDeltaPerEpoch returns a 18 decimal fixed point value
             int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
             assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
         }
