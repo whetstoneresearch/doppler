@@ -82,7 +82,11 @@ contract DopplerImplementation is Doppler {
         return _getElapsedGamma();
     }
 
-    function getTicksBasedOnState(int24 accumulator) public view returns (int24, int24) {
-        return _getTicksBasedOnState(accumulator);
+    function getTicksBasedOnState(int24 accumulator, int24 tickSpacing) public view returns (int24, int24) {
+        return _getTicksBasedOnState(accumulator, tickSpacing);
+    }
+
+    function getCurrentEpoch() public view returns (uint256) {
+        return _getCurrentEpoch();
     }
 }
