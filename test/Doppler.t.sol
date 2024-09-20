@@ -31,10 +31,10 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                         beforeSwap Unit Tests
+    //                          Integration Tests
     // =========================================================================
 
-    function testBeforeSwap_RevertsBeforeStartTime() public {
+    function testRevertsBeforeStartTime() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
 
@@ -47,7 +47,7 @@ contract DopplerTest is BaseTest {
                 )
             );
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -57,7 +57,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testBeforeSwap_DoesNotRebalanceTwiceInSameEpoch() public {
+    function testDoesNotRebalanceTwiceInSameEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
@@ -65,7 +65,7 @@ contract DopplerTest is BaseTest {
             bool isToken0 = ghosts()[i].hook.getIsToken0();
 
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -73,16 +73,11 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (
-                uint40 lastEpoch,
-                int256 tickAccumulator,
-                uint256 totalTokensSold,
-                ,
-                uint256 totalTokensSoldLastEpoch
-            ) = ghosts()[i].hook.state();
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
 
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -90,13 +85,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (
-                uint40 lastEpoch2,
-                int256 tickAccumulator2,
-                uint256 totalTokensSold2,
-                ,
-                uint256 totalTokensSoldLastEpoch2
-            ) = ghosts()[i].hook.state();
+            (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+                ghosts()[i].hook.state();
 
             // Ensure that state hasn't updated since we're still in the same epoch
             assertEq(lastEpoch, lastEpoch2);
@@ -108,7 +98,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testBeforeSwap_UpdatesLastEpoch() public {
+    function testUpdatesLastEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
@@ -116,7 +106,7 @@ contract DopplerTest is BaseTest {
             bool isToken0 = ghosts()[i].hook.getIsToken0();
 
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -131,7 +121,7 @@ contract DopplerTest is BaseTest {
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -145,21 +135,7 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    function testBeforeSwap_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-        }
-    }
-
-    function testBeforeSwap_UpdatesTotalTokensSoldLastEpoch() public {
+    function testUpdatesTotalTokensSoldLastEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
 
@@ -167,7 +143,7 @@ contract DopplerTest is BaseTest {
             bool isToken0 = ghosts()[i].hook.getIsToken0();
 
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -178,7 +154,7 @@ contract DopplerTest is BaseTest {
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
             swapRouter.swap(
-                // Swap token0 => token1 if token1 is the asset (else vice versa)
+                // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
@@ -190,6 +166,96 @@ contract DopplerTest is BaseTest {
 
             assertEq(totalTokensSold, 2e18);
             assertEq(totalTokensSoldLastEpoch, 1e18);
+        }
+    }
+
+    function testMaxDutchAuction_NetSoldZero() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch, 1);
+            // We sold 1e18 tokens just now
+            assertEq(totalTokensSold, 1e18);
+            // Previous epoch didn't exist so no tokens would have been sold at the time
+            assertEq(totalTokensSoldLastEpoch, 0);
+
+            // Swap tokens back into the pool, netSold == 0
+            swapRouter.swap(
+                // Swap asset to numeraire
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(isToken0, -1 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch2, 1);
+            // We unsold all the previously sold tokens
+            assertEq(totalTokensSold2, 0);
+            // This is unchanged because we're still referencing the epoch which didn't exist
+            assertEq(totalTokensSoldLastEpoch2, 0);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch3, 2);
+            // We sold some tokens just now
+            assertEq(totalTokensSold3, 1e18);
+            // The net sold amount in the previous epoch was 0
+            assertEq(totalTokensSoldLastEpoch3, 0);
+
+            // Assert that we reduced the accumulator by the max amount as intended
+            // We divide by 1e18 since getMaxTickDeltaPerEpoch returns a 18 decimal fixed point value
+            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
+            assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
+        }
+    }
+
+    // =========================================================================
+    //                         beforeSwap Unit Tests
+    // =========================================================================
+
+    function testBeforeSwap_RevertsIfNotPoolManager() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
+
+            vm.expectRevert(SafeCallback.NotPoolManager.selector);
+            ghosts()[i].hook.beforeSwap(
+                address(this),
+                poolKey,
+                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+                ""
+            );
         }
     }
 
@@ -417,7 +483,7 @@ contract DopplerTest is BaseTest {
                         maxTickDeltaPerEpoch
                             * (
                                 int256((ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()))
-                                    * int256(ghosts()[i].hook.getEpochLength())
+                                    / int256(ghosts()[i].hook.getEpochLength())
                             )
                     ) / 1e18 + ghosts()[i].hook.getStartingTick()
                 ),
@@ -459,7 +525,10 @@ contract DopplerTest is BaseTest {
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
     function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
         for (uint256 i; i < ghosts().length; ++i) {
-            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(accumulator));
+            PoolKey memory poolKey = ghosts()[i].key();
+
+            (int24 tickLower, int24 tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(accumulator), poolKey.tickSpacing);
             int24 gamma = ghosts()[i].hook.getGamma();
 
             if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
@@ -468,6 +537,40 @@ contract DopplerTest is BaseTest {
                 assertEq(int256(gamma), tickLower - tickUpper);
             }
         }
+    }
+
+    // =========================================================================
+    //                     _getCurrentEpoch Unit Tests
+    // =========================================================================
+
+    function testGetCurrentEpoch_ReturnsCorrectEpoch() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+            uint256 currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 1);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength());
+            currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 2);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2);
+            currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 3);
+        }
+    }
+
+    // =========================================================================
+    //                     _computeLiquidity Unit Tests
+    // =========================================================================
+
+    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
+        public
+        view
+    {
+        for (uint256 i; i < ghosts().length; ++i) {}
     }
 }
 

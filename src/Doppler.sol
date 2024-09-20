@@ -24,6 +24,7 @@ contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using TransientStateLibrary for IPoolManager;
+    using BalanceDeltaLibrary for BalanceDelta;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -32,7 +33,7 @@ contract Doppler is BaseHook {
     // TODO: consider if we can use smaller uints
     struct State {
         uint40 lastEpoch; // last updated epoch (1-indexed)
-        int24 tickAccumulator; // accumulator to modify the bonding curve
+        int256 tickAccumulator; // accumulator to modify the bonding curve
         uint256 totalTokensSold; // total tokens sold
         uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
         uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
@@ -191,7 +192,7 @@ contract Doppler is BaseHook {
         uint256 expectedAmountSold = _getExpectedAmountSold(block.timestamp);
         // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
         //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
-        uint256 netSold = totalTokensSold_ - state.totalTokensSoldLastEpoch;
+        int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
@@ -203,13 +204,12 @@ contract Doppler is BaseHook {
         int256 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
-            // TODO: consider whether we actually wanna multiply by epochsPassed here
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18;
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed) / 1e18
+            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
-            int24 tauTick = startingTick + state.tickAccumulator;
+            int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
             int24 expectedTick;
             // TODO: Overflow possible?
             //       May be worth bounding to a maximum int24.max/min
@@ -218,25 +218,45 @@ contract Doppler is BaseHook {
             isToken0
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
-            accumulatorDelta = int256(currentTick - expectedTick);
+            // TODO: Should this be expectedTick - currentTick?
+            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
         }
 
         if (accumulatorDelta != 0) {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
-            state.tickAccumulator = int24(newAccumulator);
+            state.tickAccumulator = newAccumulator;
+        }
 
-            // TODO: Consider whether it's ok to overwrite currentTick
+        // TODO: Do we need to accumulate this difference over time to ensure it gets applied later?
+        //       e.g. if accumulatorDelta is 4e18 for two epochs in a row, should we bump up by a tickSpacing
+        //       after the second epoch, or only adjust on significant epochs?
+        //       Maybe this is only necessary for the oversold case anyway?
+        accumulatorDelta /= 1e18;
+
+        // TODO: Consider whether it's ok to overwrite currentTick
+        if (isToken0) {
+            currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
+        } else {
+            // TODO: Consider whether this rounds up as expected
+            // Round up to support inverse direction
+            currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing)
+                * key.tickSpacing;
+        }
+
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
+
+        // It's possible that these are equal
+        // If we try to add liquidity in this range though, we revert with a divide by zero
+        // Thus we have to create a gap between the two
+        if (currentTick == tickLower) {
+            // TODO: Consider whether direction is accurate
             if (isToken0) {
-                currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
+                tickLower -= key.tickSpacing;
             } else {
-                // TODO: Consider whether this rounds up as expected
-                // Round up to support inverse direction
-                currentTick =
-                    ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
+                tickLower += key.tickSpacing;
             }
         }
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator));
         // TODO: Consider what's redundant below if currentTick is unchanged
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
@@ -246,25 +266,38 @@ contract Doppler is BaseHook {
         uint128 liquidity;
         uint256 requiredProceeds;
         if (totalTokensSold_ != 0) {
-            // TODO: Check max liquidity per tick
-            //       Should we spread liquidity across multiple ticks if necessary?
-            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-            // TODO: Should we be rounding up here?
-            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            if (isToken0) {
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+                // TODO: Should we be rounding up here?
+                requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            } else {
+                // TODO: Check max liquidity per tick
+                //       Should we spread liquidity across multiple ticks if necessary?
+                liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
+                // TODO: Should we be rounding up here?
+                requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
+            }
         }
-
-        SlugData memory lowerSlug = _computeLowerSlugData(key, requiredProceeds, totalProceeds_, totalTokensSold_);
-        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickLower, tickUpper);
-
-        // TODO: If we're not actually modifying liquidity, skip below logic
-        // TODO: Consider whether we need slippage protection
 
         // Get existing positions
         Position[] memory prevPositions = new Position[](3);
         prevPositions[0] = positions[LOWER_SLUG_SALT];
         prevPositions[1] = positions[UPPER_SLUG_SALT];
         prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
+        BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
+
+        uint256 numeraireAvailable =
+            isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
+
+        SlugData memory lowerSlug = _computeLowerSlugData(
+            key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
+        );
+        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
+        // TODO: If we're not actually modifying liquidity, skip below logic
+        // TODO: Consider whether we need slippage protection
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
@@ -288,7 +321,7 @@ contract Doppler is BaseHook {
         });
 
         // Update positions and swap if necessary
-        _update(prevPositions, newPositions, sqrtPriceX96, sqrtPriceNext, key);
+        _update(newPositions, sqrtPriceX96, sqrtPriceNext, key);
 
         // Store new position ticks and liquidity
         positions[LOWER_SLUG_SALT] = newPositions[0];
@@ -327,7 +360,7 @@ contract Doppler is BaseHook {
     // Returns 18 decimal fixed point value
     // TODO: consider whether it's safe to always round down
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
-        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) * epochLength);
+        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
     }
 
     function _getElapsedGamma() internal view returns (int256) {
@@ -337,17 +370,30 @@ contract Doppler is BaseHook {
     // TODO: Consider whether overflow is reasonably possible
     //       I think some validation logic will be necessary
     //       Maybe we just need to bound to int24.max/min
-    function _getTicksBasedOnState(int24 accumulator) internal view returns (int24 lower, int24 upper) {
-        lower = startingTick + accumulator;
+    // Returns a multiple of tickSpacing
+    function _getTicksBasedOnState(int24 accumulator, int24 tickSpacing)
+        internal
+        view
+        returns (int24 lower, int24 upper)
+    {
         // TODO: Consider whether this is the correct direction
-        upper = lower + (isToken0 ? int24(int256(gamma)) : -int24(int256(gamma)));
+        if (isToken0) {
+            lower = startingTick + (accumulator / tickSpacing * tickSpacing);
+            upper = (lower + gamma) / tickSpacing * tickSpacing;
+        } else {
+            // Round up to support inverse direction
+            lower = startingTick + (accumulator + tickSpacing - 1 / tickSpacing * tickSpacing);
+            upper = (lower - gamma) + tickSpacing - 1 / tickSpacing * tickSpacing;
+        }
     }
 
     function _computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
         uint256 totalProceeds_,
-        uint256 totalTokensSold_
+        uint256 totalTokensSold_,
+        uint160 sqrtPriceLower,
+        uint160 sqrtPriceNext
     ) internal view returns (SlugData memory slug) {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
@@ -367,6 +413,10 @@ contract Doppler is BaseHook {
             int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
             slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
+        } else {
+            slug.tickLower = TickMath.getTickAtSqrtPrice(sqrtPriceLower);
+            slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
+            slug.liquidity = _computeLiquidity(!isToken0, sqrtPriceLower, sqrtPriceNext, totalProceeds_);
         }
     }
 
@@ -387,26 +437,29 @@ contract Doppler is BaseHook {
         int256 tokensSoldDelta = int256(totalTokensSold_) - int256(_getExpectedAmountSold(epochEndTime)); // compute if we've sold more or less tokens than expected by next epoch
         console.log("tokensSoldDelta", tokensSoldDelta);
 
+        uint160 priceUpper;
+        uint160 priceLower;
+        uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
-            uint256 tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-
-            uint160 priceUpper;
-            uint160 priceLower;
+            tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
             int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
             int24 tickA = currentTick;
-            int24 tickB = isToken0 ? currentTick - int24(accumulatorDelta) : currentTick + int24(accumulatorDelta);
+            int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
+        } else {
+            slug.tickLower = currentTick;
+            slug.tickUpper = currentTick;
+        }
 
-            if (priceLower != priceUpper) {
-                slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
-            } else {
-                slug.liquidity = 0;
-            }
+        if (priceLower != priceUpper) {
+            slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+        } else {
+            slug.liquidity = 0;
         }
     }
 
-    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickLower, int24 tickUpper)
+    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickUpper)
         internal
         view
         returns (SlugData memory slug)
@@ -440,6 +493,10 @@ contract Doppler is BaseHook {
         pure
         returns (uint128)
     {
+        // TODO: Consider a better option
+        // We decrement the amount by 1 to avoid rounding errors
+        amount = amount != 0 ? amount - 1 : amount;
+
         if (forToken0) {
             return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
         } else {
@@ -464,30 +521,30 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _update(
-        Position[] memory prevPositions,
-        Position[] memory newPositions,
-        uint160 currentPrice,
-        uint160 swapPrice,
-        PoolKey memory key
-    ) internal {
-        for (uint256 i; i < prevPositions.length; ++i) {
-            if (prevPositions[i].liquidity != 0) {
-                // Remove all liquidity from old position
-                // TODO: Consider whether fees are relevant
-                poolManager.modifyLiquidity(
+    function _clearPositions(Position[] memory lastEpochPositions, PoolKey memory key)
+        internal
+        returns (BalanceDelta deltas)
+    {
+        for (uint256 i; i < lastEpochPositions.length; ++i) {
+            if (lastEpochPositions[i].liquidity != 0) {
+                (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: prevPositions[i].tickLower,
-                        tickUpper: prevPositions[i].tickUpper,
-                        liquidityDelta: -int128(prevPositions[i].liquidity),
-                        salt: bytes32(uint256(prevPositions[i].salt))
+                        tickLower: lastEpochPositions[i].tickLower,
+                        tickUpper: lastEpochPositions[i].tickUpper,
+                        liquidityDelta: -int128(lastEpochPositions[i].liquidity),
+                        salt: bytes32(uint256(lastEpochPositions[i].salt))
                     }),
                     ""
                 );
+                deltas = deltas + positionDeltas;
             }
         }
+    }
 
+    function _update(Position[] memory newPositions, uint160 currentPrice, uint160 swapPrice, PoolKey memory key)
+        internal
+    {
         if (swapPrice != currentPrice) {
             // We swap to the target price
             // Since there's no liquidity, we swap 0 amounts
