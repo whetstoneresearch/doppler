@@ -209,25 +209,23 @@ contract Doppler is BaseHook {
         if (accumulatorDelta != 0) {
             newAccumulator = state.tickAccumulator + accumulatorDelta;
             state.tickAccumulator = newAccumulator;
+        }
 
-            // TODO: Safe to only update currentTick if accumulatorDelta is a multiple of tickSpacing?
-            //       Or do we need to accumulate this difference over time to ensure it gets applied later?
-            //       e.g. if accumulatorDelta is 4e18 for two epochs in a row, should we bump up by a tickSpacing
-            //       after the second epoch, or only adjust on significant epochs?
-            //       Maybe this is only necessary for the oversold case anyway?
-            if (accumulatorDelta / 1e18 >= key.tickSpacing) {
-                accumulatorDelta /= 1e18;
+        // TODO: Safe to only update currentTick if accumulatorDelta is a multiple of tickSpacing?
+        //       Or do we need to accumulate this difference over time to ensure it gets applied later?
+        //       e.g. if accumulatorDelta is 4e18 for two epochs in a row, should we bump up by a tickSpacing
+        //       after the second epoch, or only adjust on significant epochs?
+        //       Maybe this is only necessary for the oversold case anyway?
+        accumulatorDelta /= 1e18;
 
-                // TODO: Consider whether it's ok to overwrite currentTick
-                if (isToken0) {
-                    currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
-                } else {
-                    // TODO: Consider whether this rounds up as expected
-                    // Round up to support inverse direction
-                    currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing)
-                        * key.tickSpacing;
-                }
-            }
+        // TODO: Consider whether it's ok to overwrite currentTick
+        if (isToken0) {
+            currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
+        } else {
+            // TODO: Consider whether this rounds up as expected
+            // Round up to support inverse direction
+            currentTick = ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing)
+                * key.tickSpacing;
         }
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
