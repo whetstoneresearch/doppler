@@ -104,7 +104,7 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime) revert BeforeStartTime();
+        if (block.timestamp < startingTime || block.timestamp > endingTime) revert InvalidTime();
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
             // TODO: consider whether there's any logic we wanna run regardless
 
@@ -701,4 +701,4 @@ contract Doppler is BaseHook {
 }
 
 error Unauthorized();
-error BeforeStartTime();
+error InvalidTime();
