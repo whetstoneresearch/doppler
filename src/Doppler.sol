@@ -202,8 +202,7 @@ contract Doppler is BaseHook {
             isToken0
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
-            // TODO: Should this be expectedTick - currentTick?
-            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
+            accumulatorDelta = int256(expectedTick - currentTick) * 1e18;
         }
 
         if (accumulatorDelta != 0) {
