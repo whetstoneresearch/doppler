@@ -109,7 +109,6 @@ contract Doppler is BaseHook {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
-            // TODO: Consider whether we should revert instead since swaps should not be possible
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
