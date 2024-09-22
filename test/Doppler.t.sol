@@ -483,7 +483,7 @@ contract DopplerTest is BaseTest {
             // TODO: Validate slug placement
 
             // Swap in second last epoch
-            // ========================
+            // =========================
 
             // Go to second last epoch
             vm.warp(
@@ -501,6 +501,35 @@ contract DopplerTest is BaseTest {
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(!isToken0, 100 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            // TODO: Validate slug placement
+
+            // Swap all remaining tokens in last epoch
+            // =======================================
+
+            // Go to last epoch
+            vm.warp(
+                ghosts()[i].hook.getStartingTime()
+                    + ghosts()[i].hook.getEpochLength()
+                        * (
+                            (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
+                                / ghosts()[i].hook.getEpochLength()
+                        )
+            );
+
+            uint256 numTokensToSell = ghosts()[i].hook.getNumTokensToSell();
+            (, , uint256 totalTokensSold3, ,) =
+                ghosts()[i].hook.state();
+
+            // Swap all remaining tokens
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, int256(numTokensToSell - totalTokensSold3), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
