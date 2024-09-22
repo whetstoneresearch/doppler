@@ -377,6 +377,43 @@ contract DopplerTest is BaseTest {
         }
     }
 
+    function testFullFlow() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Skip to the 4th epoch before the first swap
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 3);
+
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch, 4);
+            // Confirm we sold the 1.5x the expectedAmountSold
+            assertEq(totalTokensSold, 1e18);
+            // Previous epoch references non-existent epoch
+            assertEq(totalTokensSoldLastEpoch, 0);
+
+            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
+
+            // Assert that we've done three epochs worth of max dutch auctioning
+            assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3);
+
+            // TODO: Validate slug placement
+        }
+    }
+
     function testCannotSwapBelowLowerSlug_AfterInitialization() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime());
