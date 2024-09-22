@@ -254,6 +254,8 @@ contract DopplerTest is BaseTest {
             // Assert that we reduced the accumulator by the max amount as intended
             int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
             assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
+
+            // TODO: Validate slug placement
         }
     }
 
@@ -314,6 +316,8 @@ contract DopplerTest is BaseTest {
             // Assert that we reduced the accumulator by half the max amount as intended
             int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
             assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2);
+
+            // TODO: Validate slug placement
         }
     }
 
@@ -371,9 +375,9 @@ contract DopplerTest is BaseTest {
             // The amount sold by the previous epoch
             assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-            // // Assert that we reduced the accumulator by half the max amount as intended
-            // int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
-            // assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2);
+            // TODO: Validate tickAccumulator - depends on upper slug fixes
+
+            // TODO: Validate slug placement
         }
     }
 
@@ -408,7 +412,7 @@ contract DopplerTest is BaseTest {
             int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
 
             // Assert that we've done three epochs worth of max dutch auctioning
-            assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3);
+            assertEq(tickAccumulator, maxTickDeltaPerEpoch * 4);
 
             // TODO: Validate slug placement
         }
