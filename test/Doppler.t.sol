@@ -386,9 +386,13 @@ contract DopplerTest is BaseTest {
             PoolKey memory poolKey = ghosts()[i].key();
             bool isToken0 = ghosts()[i].hook.getIsToken0();
 
+            // Max dutch auction over first few skipped epochs
+            // ===============================================
+
             // Skip to the 4th epoch before the first swap
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 3);
 
+            // Swap less then expected amount - to be used checked in the next epoch
             swapRouter.swap(
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
@@ -404,15 +408,52 @@ contract DopplerTest is BaseTest {
                 ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 4);
-            // Confirm we sold the 1.5x the expectedAmountSold
+            // Confirm we sold 1 ether
             assertEq(totalTokensSold, 1e18);
-            // Previous epoch references non-existent epoch
+            // Previous epochs had no sales
             assertEq(totalTokensSoldLastEpoch, 0);
 
             int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
 
             // Assert that we've done three epochs worth of max dutch auctioning
             assertEq(tickAccumulator, maxTickDeltaPerEpoch * 4);
+
+            // TODO: Validate slug placement
+
+            // Relative dutch auction in next epoch
+            // ====================================
+
+            // Go to next epoch (5th)
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 4);
+
+            // Swap to trigger rebalance
+            // TODO: Make this swap trigger the oversold case - depends on upper slug fixes
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch2, 5);
+            // Assert that all sales are accounted for
+            assertEq(totalTokensSold2, 2e18);
+            // The amount sold in the previous epoch
+            assertEq(totalTokensSoldLastEpoch2, 1e18);
+
+            // Assert that we reduced the accumulator by the relative amount of the max dutch auction
+            // corresponding to the amount that we're undersold by
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(block.timestamp);
+            // Note: We use the totalTokensSold from the previous epoch (1e18) since this logic was executed 
+            //       before the most recent swap was accounted for (in the after swap)
+            assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch * int256(1e18 - (1e18 * 1e18 / expectedAmountSold)) / 1e18);
 
             // TODO: Validate slug placement
         }
