@@ -650,6 +650,32 @@ contract Doppler is BaseHook {
             key.currency1.transfer(address(poolManager), uint256(int256(finalDelta.amount1())));
         }
 
+        Position[] memory newPositions = new Position[](3);
+        // TODO: should we do this? or is it ok to just not deal with the lower slug at all at this stage?
+        newPositions[0] = Position({
+            tickLower: 0,
+            tickUpper: 0,
+            liquidity: 0,
+            salt: uint8(uint256(LOWER_SLUG_SALT))
+        });
+        newPositions[1] = Position({
+            tickLower: upperSlug.tickLower,
+            tickUpper: upperSlug.tickUpper,
+            liquidity: upperSlug.liquidity,
+            salt: uint8(uint256(UPPER_SLUG_SALT))
+        });
+        newPositions[2] = Position({
+            tickLower: priceDiscoverySlug.tickLower,
+            tickUpper: priceDiscoverySlug.tickUpper,
+            liquidity: priceDiscoverySlug.liquidity,
+            salt: uint8(uint256(DISCOVERY_SLUG_SALT))
+        });
+
+        positions[LOWER_SLUG_SALT] = newPositions[0];
+        positions[UPPER_SLUG_SALT] = newPositions[1];
+        positions[DISCOVERY_SLUG_SALT] = newPositions[2];
+
+
         poolManager.settle();
 
         return new bytes(0);
