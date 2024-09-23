@@ -12,7 +12,13 @@ output = sys.stdin.read()
 # Split the output into lines
 lines = output.splitlines()
 
-# Find the index of the line that contains 'Logs:'
+def format_tick(tick):
+    """Format tick values for readability."""
+    if abs(tick) >= 1000:
+        return f"{tick/1000:.1f}k"
+    else:
+        return str(tick)
+
 logs_index = None
 for idx, line in enumerate(lines):
     if 'Logs:' in line:
@@ -85,10 +91,13 @@ for i, json_str in enumerate(json_lines):
         )
         ax.add_patch(rect)
 
+        # Prepare slug label including tick values
+        slug_label = f"{slug_name}\n[{tick_lower}, {tick_upper}]"
+
         ax.text(
             tick_lower + width / 2,
             height + 0.1,
-            slug_name,
+            slug_label,
             ha='center',
             va='bottom',
             fontsize=8
@@ -120,3 +129,4 @@ for i, json_str in enumerate(json_lines):
     plt.close()
 
 print("Charts have been generated and saved.")
+
