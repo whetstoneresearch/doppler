@@ -19,6 +19,7 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {SlugVis} from "./SlugVis.sol";
+import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -26,6 +27,7 @@ import {BaseTest} from "./BaseTest.sol";
 
 contract DopplerTest is BaseTest {
     using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
 
     function setUp() public override {
         super.setUp();
@@ -345,7 +347,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
+            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 1);
             // Confirm we sold the 1.5x the expectedAmountSold
@@ -354,6 +357,10 @@ contract DopplerTest is BaseTest {
             assertEq(totalTokensSoldLastEpoch, 0);
 
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // Get current tick
+            PoolId poolId = poolKey.toId();
+            (, int24 currentTick,,) = manager.getSlot0(poolId);
 
             // We swap again just to trigger the rebalancing logic in the new epoch
             swapRouter.swap(
@@ -374,7 +381,18 @@ contract DopplerTest is BaseTest {
             // The amount sold by the previous epoch
             assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-            // TODO: Validate tickAccumulator - depends on upper slug fixes
+            // Compute expected tick
+            int24 expectedTick = ghosts()[i].hook.getStartingTick() + int24(tickAccumulator / 1e18);
+            if (isToken0) {
+                expectedTick += int24(ghosts()[i].hook.getElapsedGamma());
+            } else {
+                expectedTick -= int24(ghosts()[i].hook.getElapsedGamma());
+            }
+
+            assertEq(
+                tickAccumulator2,
+                tickAccumulator + (int256(expectedTick - currentTick) * 1e18)
+            );
 
             // TODO: Validate slug placement
         }
@@ -521,15 +539,16 @@ contract DopplerTest is BaseTest {
             );
 
             uint256 numTokensToSell = ghosts()[i].hook.getNumTokensToSell();
-            (, , uint256 totalTokensSold3, ,) =
-                ghosts()[i].hook.state();
+            (,, uint256 totalTokensSold3,,) = ghosts()[i].hook.state();
 
             // Swap all remaining tokens
             swapRouter.swap(
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(!isToken0, int256(numTokensToSell - totalTokensSold3), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                IPoolManager.SwapParams(
+                    !isToken0, int256(numTokensToSell - totalTokensSold3), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
