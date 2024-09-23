@@ -441,13 +441,17 @@ contract DopplerTest is BaseTest {
             // Go to next epoch (5th)
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 4);
 
-            // Swap to trigger rebalance
-            // TODO: Make this swap trigger the oversold case - depends on upper slug fixes
+            // Get the expected amount sold by next epoch
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 5
+            );
+
+            // Trigger the oversold case by selling more than expected
             swapRouter.swap(
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                IPoolManager.SwapParams(!isToken0, int256(expectedAmountSold), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
@@ -457,23 +461,63 @@ contract DopplerTest is BaseTest {
 
             assertEq(lastEpoch2, 5);
             // Assert that all sales are accounted for
-            assertEq(totalTokensSold2, 2e18);
+            assertEq(totalTokensSold2, 1e18 + expectedAmountSold);
             // The amount sold in the previous epoch
             assertEq(totalTokensSoldLastEpoch2, 1e18);
 
             // Assert that we reduced the accumulator by the relative amount of the max dutch auction
             // corresponding to the amount that we're undersold by
-            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(block.timestamp);
+            uint256 expectedAmountSold2 = ghosts()[i].hook.getExpectedAmountSold(block.timestamp);
             // Note: We use the totalTokensSold from the previous epoch (1e18) since this logic was executed
             //       before the most recent swap was accounted for (in the after swap)
             assertEq(
                 tickAccumulator2,
-                tickAccumulator + maxTickDeltaPerEpoch * int256(1e18 - (1e18 * 1e18 / expectedAmountSold)) / 1e18
+                tickAccumulator + maxTickDeltaPerEpoch * int256(1e18 - (1e18 * 1e18 / expectedAmountSold2)) / 1e18
             );
 
             // TODO: Validate slug placement
 
-            // TODO: Oversold case - depends on upper slug fixes
+            // Oversold case triggers correct increase
+            // =======================================
+
+            // Go to next epoch (6th)
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 5);
+
+            // Get current tick
+            PoolId poolId = poolKey.toId();
+            (, int24 currentTick,,) = manager.getSlot0(poolId);
+
+            // Trigger rebalance
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch3, 6);
+            // Assert that all sales are accounted for
+            assertEq(totalTokensSold3, 2e18 + expectedAmountSold);
+            // The amount sold in the previous epoch
+            assertEq(totalTokensSoldLastEpoch3, 1e18 + expectedAmountSold);
+
+            // Compute expected tick
+            int24 expectedTick = ghosts()[i].hook.getStartingTick() + int24(tickAccumulator2 / 1e18);
+            if (isToken0) {
+                expectedTick += int24(ghosts()[i].hook.getElapsedGamma());
+            } else {
+                expectedTick -= int24(ghosts()[i].hook.getElapsedGamma());
+            }
+
+            assertEq(
+                tickAccumulator3,
+                tickAccumulator2 + (int256(expectedTick - currentTick) * 1e18)
+            );
 
             // Swap in third last epoch
             // ========================
@@ -493,7 +537,7 @@ contract DopplerTest is BaseTest {
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(!isToken0, 10 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
@@ -518,7 +562,7 @@ contract DopplerTest is BaseTest {
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(!isToken0, 100 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
@@ -539,7 +583,7 @@ contract DopplerTest is BaseTest {
             );
 
             uint256 numTokensToSell = ghosts()[i].hook.getNumTokensToSell();
-            (,, uint256 totalTokensSold3,,) = ghosts()[i].hook.state();
+            (,, uint256 totalTokensSold4,,) = ghosts()[i].hook.state();
 
             // Swap all remaining tokens
             swapRouter.swap(
@@ -547,7 +591,7 @@ contract DopplerTest is BaseTest {
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
                 IPoolManager.SwapParams(
-                    !isToken0, int256(numTokensToSell - totalTokensSold3), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                    !isToken0, int256(numTokensToSell - totalTokensSold4), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
                 ),
                 PoolSwapTest.TestSettings(true, false),
                 ""
