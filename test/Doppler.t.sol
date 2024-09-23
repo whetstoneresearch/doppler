@@ -34,7 +34,7 @@ contract DopplerTest is BaseTest {
     //                          Integration Tests
     // =========================================================================
 
-    function testRevertsBeforeStartTime() public {
+    function testRevertsBeforeStartTimeAndAfterEndTime() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
 
@@ -43,7 +43,23 @@ contract DopplerTest is BaseTest {
 
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(BeforeStartTime.selector)
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(InvalidTime.selector)
+                )
+            );
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.warp(ghosts()[i].hook.getEndingTime() + 1); // 1 second after the end time
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(InvalidTime.selector)
                 )
             );
             swapRouter.swap(
@@ -545,6 +561,6 @@ contract DopplerTest is BaseTest {
 }
 
 error Unauthorized();
-error BeforeStartTime();
+error InvalidTime();
 error Wrap__FailedHookCall(address, bytes);
 error SwapBelowRange();

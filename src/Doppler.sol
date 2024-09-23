@@ -104,12 +104,11 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime) revert BeforeStartTime();
+        if (block.timestamp < startingTime || block.timestamp > endingTime) revert InvalidTime();
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
-            // TODO: Consider whether we should revert instead since swaps should not be possible
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
@@ -224,8 +223,7 @@ contract Doppler is BaseHook {
             isToken0
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
-            // TODO: Should this be expectedTick - currentTick?
-            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
+            accumulatorDelta = int256(expectedTick - currentTick) * 1e18;
         }
 
         if (accumulatorDelta != 0) {
@@ -713,3 +711,4 @@ contract Doppler is BaseHook {
 error Unauthorized();
 error BeforeStartTime();
 error SwapBelowRange();
+error InvalidTime();
