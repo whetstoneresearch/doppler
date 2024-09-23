@@ -89,4 +89,8 @@ contract DopplerImplementation is Doppler {
     function getCurrentEpoch() public view returns (uint256) {
         return _getCurrentEpoch();
     }
+
+    function unlock(bytes memory data) public returns (bytes memory) {
+        return poolManager.unlock(data);
+    }
 }
