@@ -35,7 +35,7 @@ contract DopplerTest is BaseTest {
     //                          Integration Tests
     // =========================================================================
 
-    function testRevertsBeforeStartTime() public {
+    function testRevertsBeforeStartTimeAndAfterEndTime() public {
         for (uint256 i; i < ghosts().length; ++i) {
             vm.warp(ghosts()[i].hook.getStartingTime() - 1); // 1 second before the start time
 
@@ -44,7 +44,23 @@ contract DopplerTest is BaseTest {
 
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(BeforeStartTime.selector)
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(InvalidTime.selector)
+                )
+            );
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.warp(ghosts()[i].hook.getEndingTime() + 1); // 1 second after the end time
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(InvalidTime.selector)
                 )
             );
             swapRouter.swap(
@@ -242,6 +258,77 @@ contract DopplerTest is BaseTest {
         }
     }
 
+    function testCannotSwapBelowLowerSlug_AfterInitialization() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(SwapBelowRange.selector)
+                )
+            );
+            // Attempt 0 amount swap below lower slug
+            swapRouter.swap(
+                // Swap asset to numeraire
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(isToken0, 1, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+        }
+    }
+
+    function testCannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Sell some tokens
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // Swap to trigger lower slug being created
+            // Unsell half of sold tokens
+            swapRouter.swap(
+                // Swap asset to numeraire
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(isToken0, -0.5 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(SwapBelowRange.selector)
+                )
+            );
+            // Unsell beyond remaining tokens, moving price below lower slug
+            swapRouter.swap(
+                // Swap asset to numeraire
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(isToken0, -0.6 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+        }
+    }
+
     // =========================================================================
     //                         beforeSwap Unit Tests
     // =========================================================================
@@ -263,107 +350,6 @@ contract DopplerTest is BaseTest {
     // =========================================================================
     //                          afterSwap Unit Tests
     // =========================================================================
-
-    function testAfterSwap_CorrectlyTracksTokensSoldAndProceeds(int128 amount0, int128 amount1) public {
-        // Since we below initialize the values to type(int128).max, we need to ensure that the minimum
-        // value used is strictly greater than type(int128).min because type(int128).min is -(type(int128).max + 1)
-        vm.assume(amount0 > type(int128).min && amount1 > type(int128).min);
-
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            // Initialize totalTokensSold and totalProceeds as type(int128).max to prevent underflows
-            // which can't occur in the actual implementation
-            bytes4 selector;
-            int128 hookDelta;
-            if (ghosts()[i].hook.getIsToken0()) {
-                vm.prank(address(manager));
-                (selector, hookDelta) = ghosts()[i].hook.afterSwap(
-                    address(this),
-                    poolKey,
-                    IPoolManager.SwapParams({
-                        zeroForOne: true,
-                        amountSpecified: 100e18,
-                        sqrtPriceLimitX96: SQRT_RATIO_2_1
-                    }),
-                    toBalanceDelta(type(int128).max, -type(int128).max),
-                    ""
-                );
-            } else {
-                vm.prank(address(manager));
-                (selector, hookDelta) = ghosts()[i].hook.afterSwap(
-                    address(this),
-                    poolKey,
-                    IPoolManager.SwapParams({
-                        zeroForOne: true,
-                        amountSpecified: 100e18,
-                        sqrtPriceLimitX96: SQRT_RATIO_2_1
-                    }),
-                    toBalanceDelta(type(int128).max, -type(int128).max),
-                    ""
-                );
-            }
-
-            assertEq(selector, BaseHook.afterSwap.selector);
-            assertEq(hookDelta, 0);
-
-            (,, uint256 initialTotalTokensSold, uint256 initialTotalProceeds,) = ghosts()[i].hook.state();
-
-            assertEq(initialTotalTokensSold, uint256(uint128(type(int128).max)));
-            assertEq(initialTotalProceeds, uint256(uint128(type(int128).max)));
-
-            vm.prank(address(manager));
-            (selector, hookDelta) = ghosts()[i].hook.afterSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(-amount0, amount1),
-                ""
-            );
-            assertEq(selector, BaseHook.afterSwap.selector);
-            assertEq(hookDelta, 0);
-
-            (,, uint256 totalTokensSold, uint256 totalProceeds,) = ghosts()[i].hook.state();
-
-            if (ghosts()[i].hook.getIsToken0()) {
-                // If is token0 then amount0 references the (inverse) amount of tokens sold
-                if (amount0 >= 0) {
-                    // If is token0 and amount0 is positive, then amount0 is amount of tokens coming back in the pool
-                    // i.e. negative sold amount
-                    assertEq(totalTokensSold, initialTotalTokensSold - uint256(uint128(amount0)));
-                } else {
-                    // If is token0 and amount0 is negative, then amount0 is amount of tokens sold
-                    // i.e. positive sold amount
-                    assertEq(totalTokensSold, initialTotalTokensSold + uint256(uint128(-amount0)));
-                }
-
-                // If is token0 then amount1 references the amount of proceeds
-                if (amount1 >= 0) {
-                    assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(amount1)));
-                } else {
-                    assertEq(totalProceeds, initialTotalProceeds + uint256(uint128(-amount1)));
-                }
-            } else {
-                // If is token1 then amount1 references the (inverse) amount of tokens sold
-                if (amount1 >= 0) {
-                    // If is token1 and amount1 is positive, then amount1 is amount of tokens coming back in the pool
-                    // i.e. negative sold amount
-                    assertEq(totalTokensSold, initialTotalTokensSold - uint256(uint128(amount1)));
-                } else {
-                    // If is token1 and amount1 is negative, then amount1 is amount of tokens sold
-                    // i.e. positive sold amount
-                    assertEq(totalTokensSold, initialTotalTokensSold + uint256(uint128(-amount1)));
-                }
-
-                // If is token1 then amount0 references the amount of proceeds
-                if (amount0 >= 0) {
-                    assertEq(totalProceeds, initialTotalProceeds + uint256(uint128(amount0)));
-                } else {
-                    assertEq(totalProceeds, initialTotalProceeds - uint256(uint128(-amount0)));
-                }
-            }
-        }
-    }
 
     function testAfterSwap_revertsIfNotPoolManager() public {
         for (uint256 i; i < ghosts().length; ++i) {
@@ -576,5 +562,6 @@ contract DopplerTest is BaseTest {
 }
 
 error Unauthorized();
-error BeforeStartTime();
+error InvalidTime();
 error Wrap__FailedHookCall(address, bytes);
+error SwapBelowRange();

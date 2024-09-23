@@ -110,12 +110,11 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime) revert BeforeStartTime();
+        if (block.timestamp < startingTime || block.timestamp > endingTime) revert InvalidTime();
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
             // TODO: consider whether there's any logic we wanna run regardless
 
             // TODO: Should there be a fee?
-            // TODO: Consider whether we should revert instead since swaps should not be possible
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
@@ -127,12 +126,20 @@ contract Doppler is BaseHook {
 
     function afterSwap(
         address,
-        PoolKey calldata,
+        PoolKey calldata key,
         IPoolManager.SwapParams calldata,
         BalanceDelta swapDelta,
         bytes calldata
     ) external override onlyPoolManager returns (bytes4, int128) {
+        // Get current tick
+        PoolId poolId = key.toId();
+        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        // Get the lower tick of the lower slug
+        int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
+
         if (isToken0) {
+            if (currentTick < tickLower) revert SwapBelowRange();
+
             int128 amount0 = swapDelta.amount0();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount0 >= 0
@@ -145,6 +152,8 @@ contract Doppler is BaseHook {
                 ? state.totalProceeds -= uint256(uint128(amount1))
                 : state.totalProceeds += uint256(uint128(-amount1));
         } else {
+            if (currentTick > tickLower) revert SwapBelowRange();
+
             int128 amount1 = swapDelta.amount1();
             // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount1 >= 0
@@ -214,8 +223,7 @@ contract Doppler is BaseHook {
             isToken0
                 ? expectedTick = tauTick + int24(_getElapsedGamma())
                 : expectedTick = tauTick - int24(_getElapsedGamma());
-            // TODO: Should this be expectedTick - currentTick?
-            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
+            accumulatorDelta = int256(expectedTick - currentTick) * 1e18;
         }
 
         if (accumulatorDelta != 0) {
@@ -651,10 +659,9 @@ contract Doppler is BaseHook {
         }
 
         Position[] memory newPositions = new Position[](3);
-        // TODO: should we do this? or is it ok to just not deal with the lower slug at all at this stage?
         newPositions[0] = Position({
-            tickLower: 0,
-            tickUpper: 0,
+            tickLower: tick,
+            tickUpper: tick,
             liquidity: 0,
             salt: uint8(uint256(LOWER_SLUG_SALT))
         });
@@ -703,3 +710,5 @@ contract Doppler is BaseHook {
 
 error Unauthorized();
 error BeforeStartTime();
+error SwapBelowRange();
+error InvalidTime();
