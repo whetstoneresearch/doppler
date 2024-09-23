@@ -12,13 +12,6 @@ output = sys.stdin.read()
 # Split the output into lines
 lines = output.splitlines()
 
-def format_tick(tick):
-    """Format tick values for readability."""
-    if abs(tick) >= 1000:
-        return f"{tick/1000:.1f}k"
-    else:
-        return str(tick)
-
 logs_index = None
 for idx, line in enumerate(lines):
     if 'Logs:' in line:
