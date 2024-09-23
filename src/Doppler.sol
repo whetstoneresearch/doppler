@@ -7,7 +7,7 @@ import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
@@ -89,6 +89,18 @@ contract Doppler is BaseHook {
         // TODO: consider enforcing startingTime < endingTime
         // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
         // TODO: consider enforcing that min and max gamma
+    }
+
+    function afterInitialize(
+        address sender,
+        PoolKey calldata key,
+        uint160 sqrtPriceX96,
+        int24 tick,
+        bytes calldata hookData
+    ) external override onlyPoolManager returns (bytes4) {
+        // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
+        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
+        return BaseHook.afterInitialize.selector;
     }
 
     // TODO: consider reverting or returning if after end time
@@ -218,14 +230,7 @@ contract Doppler is BaseHook {
         accumulatorDelta /= 1e18;
 
         // TODO: Consider whether it's ok to overwrite currentTick
-        if (isToken0) {
-            currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
-        } else {
-            // TODO: Consider whether this rounds up as expected
-            // Round up to support inverse direction
-            currentTick =
-                ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
-        }
+        currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
 
@@ -278,8 +283,8 @@ contract Doppler is BaseHook {
         SlugData memory lowerSlug = _computeLowerSlugData(
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
         );
-        SlugData memory upperSlug = _computeUpperSlugData(totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
+        SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -322,6 +327,7 @@ contract Doppler is BaseHook {
     }
 
     function _getCurrentEpoch() internal view returns (uint256) {
+        if (block.timestamp < startingTime) return 1;
         return (block.timestamp - startingTime) / epochLength + 1;
     }
 
@@ -329,10 +335,8 @@ contract Doppler is BaseHook {
         return (timestamp - startingTime) * 1e18 / (endingTime - startingTime);
     }
 
-    function _getGammaShare(uint256 timestamp) internal view returns (int256) {
-        uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
-        uint256 normalizedTimeElapsed = _getNormalizedTimeElapsed(block.timestamp);
-        return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
+    function _getGammaShare() internal view returns (int256) {
+        return int256(epochLength * 1e18 / (endingTime - startingTime));
     }
 
     // TODO: consider whether it's safe to always round down
@@ -348,6 +352,14 @@ contract Doppler is BaseHook {
 
     function _getElapsedGamma() internal view returns (int256) {
         return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
+    }
+
+    function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
+        if (isToken0) {
+            return (tick / tickSpacing) * tickSpacing;
+        } else {
+            return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+        }
     }
 
     // TODO: Consider whether overflow is reasonably possible
@@ -403,24 +415,25 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computeUpperSlugData(uint256 totalTokensSold_, int24 currentTick)
+    function _computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold_, int24 currentTick)
         internal
         view
         returns (SlugData memory slug)
     {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
-        uint256 expectedSoldAtEpochEnd = (totalTokensSold_ * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
-        int256 tokensSoldDelta = int256(percentElapsedAtEpochEnd) - int256(expectedSoldAtEpochEnd); // compute if we've sold more or less tokens than expected by next epoch
+        int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
 
         uint160 priceUpper;
         uint160 priceLower;
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
-            tokensToLp = (uint256(tokensSoldDelta) * numTokensToSell) / 1e18;
-            int24 accumulatorDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            tokensToLp = uint256(tokensSoldDelta);
+            int24 computedDelta = int24(_getGammaShare() * gamma / 1e18);
+            int24 accumulatorDelta = computedDelta > 0 ? computedDelta : key.tickSpacing;
             int24 tickA = currentTick;
-            int24 tickB = isToken0 ? currentTick + int24(accumulatorDelta) : currentTick - int24(accumulatorDelta);
+            int24 tickB = _alignComputedTickWithTickSpacing(
+                isToken0 ? tickA + accumulatorDelta : tickA - accumulatorDelta, key.tickSpacing
+            );
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
         } else {
@@ -435,24 +448,29 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computePriceDiscoverySlugData(SlugData memory upperSlug, int24 tickUpper)
+    function _computePriceDiscoverySlugData(PoolKey memory key, SlugData memory upperSlug, int24 tickUpper)
         internal
         view
         returns (SlugData memory slug)
     {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
         if (nextEpochEndTime != epochEndTime) {
-            uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - percentElapsedAtEpochEnd;
+            uint256 epochT1toT2Delta =
+                _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
-                int24 tickB = isToken0 ? tickUpper : upperSlug.tickUpper;
+                int24 tickB;
+                if (isToken0) {
+                    tickB = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
+                } else {
+                    tickB = tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : upperSlug.tickUpper;
+                }
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
@@ -503,6 +521,7 @@ contract Doppler is BaseHook {
     {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
+                // TODO: consider what to do with feeDeltas
                 (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
@@ -574,6 +593,92 @@ contract Doppler is BaseHook {
         }
 
         poolManager.settle();
+    }
+
+    struct CallbackData {
+        PoolKey key;
+        address sender;
+        int24 tick;
+    }
+
+    // @dev This callback is only used to add the initial liquidity when the pool is created
+    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
+        CallbackData memory callbackData = abi.decode(data, (CallbackData));
+        (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
+
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
+
+        SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
+
+
+        BalanceDelta finalDelta;
+
+        {
+            (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: upperSlug.tickLower,
+                    tickUpper: upperSlug.tickUpper,
+                    liquidityDelta: int128(upperSlug.liquidity),
+                    salt: UPPER_SLUG_SALT
+                }),
+                ""
+            );
+            finalDelta = add(finalDelta, callerDelta);
+        }
+
+        {
+            (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: priceDiscoverySlug.tickLower,
+                    tickUpper: priceDiscoverySlug.tickUpper,
+                    liquidityDelta: int128(priceDiscoverySlug.liquidity),
+                    salt: DISCOVERY_SLUG_SALT
+                }),
+                ""
+            );
+            finalDelta = add(finalDelta, callerDelta);
+        }
+
+        if (isToken0) {
+            poolManager.sync(key.currency0);
+            key.currency0.transfer(address(poolManager), uint256(int256(finalDelta.amount0())));
+        } else {
+            poolManager.sync(key.currency1);
+            key.currency1.transfer(address(poolManager), uint256(int256(finalDelta.amount1())));
+        }
+
+        Position[] memory newPositions = new Position[](3);
+        // TODO: should we do this? or is it ok to just not deal with the lower slug at all at this stage?
+        newPositions[0] = Position({
+            tickLower: 0,
+            tickUpper: 0,
+            liquidity: 0,
+            salt: uint8(uint256(LOWER_SLUG_SALT))
+        });
+        newPositions[1] = Position({
+            tickLower: upperSlug.tickLower,
+            tickUpper: upperSlug.tickUpper,
+            liquidity: upperSlug.liquidity,
+            salt: uint8(uint256(UPPER_SLUG_SALT))
+        });
+        newPositions[2] = Position({
+            tickLower: priceDiscoverySlug.tickLower,
+            tickUpper: priceDiscoverySlug.tickUpper,
+            liquidity: priceDiscoverySlug.liquidity,
+            salt: uint8(uint256(DISCOVERY_SLUG_SALT))
+        });
+
+        positions[LOWER_SLUG_SALT] = newPositions[0];
+        positions[UPPER_SLUG_SALT] = newPositions[1];
+        positions[DISCOVERY_SLUG_SALT] = newPositions[2];
+
+
+        poolManager.settle();
+
+        return new bytes(0);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
