@@ -8,6 +8,7 @@ import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
@@ -89,6 +90,18 @@ contract Doppler is BaseHook {
         // TODO: consider enforcing startingTime < endingTime
         // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
         // TODO: consider enforcing that min and max gamma
+    }
+
+    function afterInitialize(
+        address sender,
+        PoolKey calldata key,
+        uint160 sqrtPriceX96,
+        int24 tick,
+        bytes calldata hookData
+    ) external override onlyPoolManager returns (bytes4) {
+        // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
+        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
+        return BaseHook.afterInitialize.selector;
     }
 
     function afterInitialize(
@@ -659,9 +672,10 @@ contract Doppler is BaseHook {
         }
 
         Position[] memory newPositions = new Position[](3);
+        // TODO: should we do this? or is it ok to just not deal with the lower slug at all at this stage?
         newPositions[0] = Position({
-            tickLower: tick,
-            tickUpper: tick,
+            tickLower: 0,
+            tickUpper: 0,
             liquidity: 0,
             salt: uint8(uint256(LOWER_SLUG_SALT))
         });
