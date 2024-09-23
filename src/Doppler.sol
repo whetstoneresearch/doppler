@@ -234,18 +234,7 @@ contract Doppler is BaseHook {
         accumulatorDelta /= 1e18;
 
         // TODO: Consider whether it's ok to overwrite currentTick
-        if (isToken0) {
-            // currentTick = ((currentTick + int24(accumulatorDelta)) / key.tickSpacing) * key.tickSpacing;
-            currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
-        } else {
-            // TODO: Consider whether this rounds up as expected
-            // Round up to support inverse direction
-            // currentTick =
-            //     ((currentTick + int24(accumulatorDelta) + key.tickSpacing - 1) / key.tickSpacing) * key.tickSpacing;
-            currentTick = _alignComputedTickWithTickSpacing(
-                currentTick + int24(accumulatorDelta) + key.tickSpacing - 1, key.tickSpacing
-            );
-        }
+        currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
 
@@ -371,8 +360,12 @@ contract Doppler is BaseHook {
         return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
     }
 
-    function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal pure returns (int24) {
-        return (tick / tickSpacing) * tickSpacing;
+    function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
+        if (isToken0) {
+            return (tick / tickSpacing) * tickSpacing;
+        } else {
+            return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+        }
     }
 
     // TODO: Consider whether overflow is reasonably possible
