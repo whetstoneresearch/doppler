@@ -339,10 +339,11 @@ contract Doppler is BaseHook {
         return (timestamp - startingTime) * 1e18 / (endingTime - startingTime);
     }
 
-    function _getGammaShare(uint256 timestamp) internal view returns (int256) {
-        uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
-        uint256 normalizedTimeElapsed = block.timestamp > startingTime ? _getNormalizedTimeElapsed(block.timestamp) : 0;
-        return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
+    function _getGammaShare() internal view returns (int256) {
+        // uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
+        // uint256 normalizedTimeElapsed = block.timestamp > startingTime ? _getNormalizedTimeElapsed(block.timestamp) : 0;
+        // return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
+        return int256(epochLength * 1e18 / (endingTime - startingTime));
     }
 
     // TODO: consider whether it's safe to always round down
@@ -426,36 +427,22 @@ contract Doppler is BaseHook {
         view
         returns (SlugData memory slug)
     {
-        console.log("Computing upper slug");
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        console.log("epochEndTime", epochEndTime);
-        uint256 percentElapsedAtEpochEnd = _getNormalizedTimeElapsed(epochEndTime); // percent time elapsed at end of epoch
-        console.log("percentElapsedAtEpochEnd", percentElapsedAtEpochEnd);
-
-        uint256 expectedSoldAtEpochEnd = (numTokensToSell * 1e18 / _getExpectedAmountSold(epochEndTime)); // compute percent of tokens sold by next epoch
-        console.log("expectedSoldAtEpochEnd", expectedSoldAtEpochEnd);
-
         int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
-        console.log("tokensSoldDelta", tokensSoldDelta);
 
         uint160 priceUpper;
         uint160 priceLower;
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta);
-            console.log("tokensToLp", tokensToLp);
-            int24 computedDelta = int24(_getGammaShare(epochEndTime) * gamma / 1e18);
+            int24 computedDelta = int24(_getGammaShare() * gamma / 1e18);
             int24 accumulatorDelta = computedDelta > 0 ? computedDelta : key.tickSpacing;
             int24 tickA = currentTick;
             int24 tickB = _alignComputedTickWithTickSpacing(
                 isToken0 ? tickA + accumulatorDelta : tickA - accumulatorDelta, key.tickSpacing
             );
-            console.log("tickA", tickA);
-            console.log("tickB", tickB);
 
             (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
-            console.log("upperSlug.tickLower", slug.tickLower);
-            console.log("upperSlug.tickUpper", slug.tickUpper);
         } else {
             slug.tickLower = currentTick;
             slug.tickUpper = currentTick;
@@ -484,8 +471,6 @@ contract Doppler is BaseHook {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
                 uint160 priceUpper;
                 uint160 priceLower;
-                console.log("tickUpper", tickUpper);
-                console.log("upperSlug.tickUpper", upperSlug.tickUpper);
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
                 int24 tickB = isToken0
                     ? tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper
@@ -540,6 +525,7 @@ contract Doppler is BaseHook {
     {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
+                // TODO: consider what to do with feeDeltas
                 (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
@@ -622,27 +608,13 @@ contract Doppler is BaseHook {
     // @dev This callback is only used to add the initial liquidity when the pool is created
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
-        (PoolKey memory key, address sender, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
-        console.log("callbackData.tick", callbackData.tick);
+        (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
-        console.log("tickLower %s", tickLower);
-        console.log("tickUpper %s", tickUpper);
-
-        console.log("block.timestamp", block.timestamp);
-        console.log("startingTime", startingTime);
-        console.log("epochLength", epochLength);
 
         SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
 
-        console.log("upperSlug.tickLower %s", upperSlug.tickLower);
-        console.log("upperSlug.tickUpper %s", upperSlug.tickUpper);
-        console.log("upperSlug.liquidity %s", upperSlug.liquidity);
-
-        console.log("priceDiscoverySlug.tickLower %s", priceDiscoverySlug.tickLower);
-        console.log("priceDiscoverySlug.tickUpper %s", priceDiscoverySlug.tickUpper);
-        console.log("priceDiscoverySlug.liquidity %s", priceDiscoverySlug.liquidity);
 
         BalanceDelta finalDelta;
 
@@ -676,10 +648,10 @@ contract Doppler is BaseHook {
 
         if (isToken0) {
             poolManager.sync(key.currency0);
-            ERC20(Currency.unwrap(key.currency0)).transfer(address(poolManager), uint256(int256(finalDelta.amount0())));
+            key.currency0.transfer(address(poolManager), uint256(int256(finalDelta.amount0())));
         } else {
             poolManager.sync(key.currency1);
-            ERC20(Currency.unwrap(key.currency1)).transfer(address(poolManager), uint256(int256(finalDelta.amount1())));
+            key.currency1.transfer(address(poolManager), uint256(int256(finalDelta.amount1())));
         }
 
         poolManager.settle();
