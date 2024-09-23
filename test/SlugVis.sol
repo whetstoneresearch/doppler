@@ -17,12 +17,13 @@ bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 library SlugVis {
     function visualizeSlugs(
         uint256 timestamp,
+        int24 currentTick,
         function (bytes32) view external returns (Position memory) fx
     ) public view {
         string memory json;
         (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData memory pdSlug) = getSlugDataFromPositions(fx);
         SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(lowerSlug, upperSlug, pdSlug);
-        json = _constructJson(timestamp, slugs);
+        json = _constructJson(currentTick, timestamp, slugs);
         console.log(json);
     }
 
@@ -80,7 +81,11 @@ library SlugVis {
         return (lowerSlug, upperSlug, pdSlug);
     }
 
-    function _constructJson(uint256 timestamp, SlugDataWithName[] memory slugs) internal pure returns (string memory) {
+    function _constructJson(
+        int24 currentTick,
+        uint256 timestamp,
+        SlugDataWithName[] memory slugs
+    ) internal pure returns (string memory) {
         string memory json = "{ \"data\": [";
 
         for (uint256 i = 0; i < slugs.length; i++) {
@@ -88,6 +93,9 @@ library SlugVis {
                 abi.encodePacked(
                     json,
                     "{",
+                    "\"currentTick\": ",
+                    int2str(currentTick),
+                    ",",
                     "\"slugName\": \"",
                     slugs[i].name,
                     "\",",

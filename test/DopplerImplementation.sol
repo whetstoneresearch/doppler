@@ -6,8 +6,13 @@ import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {Doppler, SlugData, Position} from "../src/Doppler.sol";
+import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 
 contract DopplerImplementation is Doppler {
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
+
     constructor(
         address _poolManager,
         uint256 _numTokensToSell,
@@ -124,5 +129,10 @@ contract DopplerImplementation is Doppler {
 
     function unlock(bytes memory data) public returns (bytes memory) {
         return poolManager.unlock(data);
+    }
+
+    function getCurrentTick(PoolId poolId) public view returns (int24) {
+        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        return currentTick;
     }
 }

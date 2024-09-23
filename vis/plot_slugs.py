@@ -57,6 +57,8 @@ for i, json_str in enumerate(json_lines):
     # Extract timestamp for naming and labeling
     timestamp = df['timestamp'].iloc[0] if 'timestamp' in df.columns else None
 
+    current_tick = df['currentTick'].iloc[0] if 'currentTick' in df.columns else None
+
     fig, ax = plt.subplots(figsize=(10, 6))
 
     max_liquidity = df['liquidity'].max()
@@ -92,7 +94,6 @@ for i, json_str in enumerate(json_lines):
             fontsize=8
         )
 
-    current_tick = (df['tickLower'].mean() + df['tickUpper'].mean()) / 2
     ax.axvline(current_tick, color='dodgerblue', linestyle="--", label='Current Tick')
 
     ax.set_xlim(min_tick - 1000, max_tick + 1000)
