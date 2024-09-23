@@ -18,6 +18,7 @@ import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {SlugVis} from "./SlugVis.sol";
 
 import {Doppler} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
