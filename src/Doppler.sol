@@ -15,10 +15,6 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
-
-import {console} from "forge-std/console.sol";
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -340,9 +336,6 @@ contract Doppler is BaseHook {
     }
 
     function _getGammaShare() internal view returns (int256) {
-        // uint256 normalizedTimeElapsedNext = _getNormalizedTimeElapsed(timestamp);
-        // uint256 normalizedTimeElapsed = block.timestamp > startingTime ? _getNormalizedTimeElapsed(block.timestamp) : 0;
-        // return int256(normalizedTimeElapsedNext - normalizedTimeElapsed);
         return int256(epochLength * 1e18 / (endingTime - startingTime));
     }
 
@@ -472,9 +465,12 @@ contract Doppler is BaseHook {
                 uint160 priceUpper;
                 uint160 priceLower;
                 int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
-                int24 tickB = isToken0
-                    ? tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper
-                    : tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : tickUpper;
+                int24 tickB;
+                if (isToken0) {
+                    tickB = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
+                } else {
+                    tickB = tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : upperSlug.tickUpper;
+                }
 
                 (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
                 slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);

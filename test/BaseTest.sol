@@ -55,10 +55,6 @@ library Debug {
         return self.key().toId();
     }
 
-    function startingTick(Instance memory self) internal view returns (int24) {
-        return self.hook.getStartingTick();
-    }
-
     /// @dev Manually writes a DopplerImplementation contract at the hook address and writes its storage slots.
     function deploy(
         Instance memory self,
