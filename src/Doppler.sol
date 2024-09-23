@@ -104,18 +104,6 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    function afterInitialize(
-        address sender,
-        PoolKey calldata key,
-        uint160 sqrtPriceX96,
-        int24 tick,
-        bytes calldata hookData
-    ) external override onlyPoolManager returns (bytes4) {
-        // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
-        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
-        return BaseHook.afterInitialize.selector;
-    }
-
     // TODO: consider reverting or returning if after end time
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         external

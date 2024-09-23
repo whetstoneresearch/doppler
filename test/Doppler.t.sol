@@ -244,6 +244,8 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
+            SlugVis.visualizeSlugs(block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions);
+
             (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
                 ghosts()[i].hook.state();
 
