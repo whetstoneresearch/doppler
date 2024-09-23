@@ -21,7 +21,7 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {SlugVis} from "./SlugVis.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 
-import {Doppler} from "../src/Doppler.sol";
+import {Doppler, Position} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 import {BaseTest} from "./BaseTest.sol";
 
@@ -234,6 +234,10 @@ contract DopplerTest is BaseTest {
 
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
+            // Get current tick
+            PoolId poolId = poolKey.toId();
+            (, int24 currentTick,,) = manager.getSlot0(poolId);
+
             // We swap again just to trigger the rebalancing logic in the new epoch
             swapRouter.swap(
                 // Swap numeraire to asset
@@ -243,8 +247,6 @@ contract DopplerTest is BaseTest {
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
-
-            SlugVis.visualizeSlugs(block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions);
 
             (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
                 ghosts()[i].hook.state();
@@ -260,6 +262,29 @@ contract DopplerTest is BaseTest {
             assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
 
             // TODO: Validate slug placement
+
+            // Get positions
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Get global lower and upper ticks
+            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
+
+            // Slugs must be inline and continuous
+            assertEq(lowerSlug.tickLower, tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+
+            // Lower slug should be unset with ticks at the current price
+            assertEq(lowerSlug.tickLower, lowerSlug.tickUpper);
+            assertEq(lowerSlug.liquidity, 0);
+            assertEq(lowerSlug.tickUpper, currentTick);
+
+            // Upper and price discovery slugs must be set
+            assertNotEq(upperSlug.liquidity, 0);
+            assertNotEq(priceDiscoverySlug.liquidity, 0);
         }
     }
 
@@ -322,6 +347,22 @@ contract DopplerTest is BaseTest {
             assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2);
 
             // TODO: Validate slug placement
+
+            // lowerSlug.lowerTick == tickLower
+
+            // lowerSlug.upperTick == currentTick
+
+            // lowerSlug.upperTick == upperSlug.lowerTick
+
+            // upperSlug.upperTick == priceDiscoverySlug.lowerTick
+
+            // priceDiscoverySlug.tickUpper == tickUpper
+
+            // lowerSlug.liquidity != 0
+
+            // upperSlug.liquidity != 0
+
+            // priceDiscoverySlug.liquidity != 0
         }
     }
 
@@ -397,6 +438,22 @@ contract DopplerTest is BaseTest {
             );
 
             // TODO: Validate slug placement
+
+            // lowerSlug.lowerTick == tickLower
+
+            // lowerSlug.upperTick == currentTick
+
+            // lowerSlug.upperTick == upperSlug.lowerTick
+
+            // upperSlug.upperTick == priceDiscoverySlug.lowerTick
+
+            // priceDiscoverySlug.tickUpper == tickUpper
+
+            // lowerSlug.liquidity != 0
+
+            // upperSlug.liquidity != 0
+
+            // priceDiscoverySlug.liquidity != 0
         }
     }
 
