@@ -265,6 +265,53 @@ contract DopplerTest is BaseTest {
         }
     }
 
+    function testCannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Sell some tokens
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // Swap to trigger lower slug being created
+            // Unsell half of sold tokens
+            swapRouter.swap(
+                // Swap asset to numeraire
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(isToken0, -0.5 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(SwapBelowRange.selector)
+                )
+            );
+            // Unsell beyond remaining tokens, moving price below lower slug
+            swapRouter.swap(
+                // Swap asset to numeraire
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(isToken0, -0.6 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+        }
+    }
+
     // =========================================================================
     //                         beforeSwap Unit Tests
     // =========================================================================
