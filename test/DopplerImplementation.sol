@@ -5,7 +5,7 @@ import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {Doppler, SlugData} from "../src/Doppler.sol";
+import {Doppler, SlugData, Position} from "../src/Doppler.sol";
 
 contract DopplerImplementation is Doppler {
     constructor(
@@ -112,5 +112,9 @@ contract DopplerImplementation is Doppler {
         returns (SlugData memory)
     {
         return _computePriceDiscoverySlugData(upperSlug, tickUpper);
+    }
+
+    function getPositions(bytes32 salt) public view returns (Position memory) {
+        return positions[salt];
     }
 }

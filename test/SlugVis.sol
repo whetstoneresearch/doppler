@@ -1,8 +1,7 @@
 pragma solidity 0.8.26;
 
-import {console2} from "forge-std/console2.sol";
-
-import {SlugData} from "../src/Doppler.sol";
+import {console} from "forge-std/console.sol";
+import {SlugData, Position} from "../src/Doppler.sol";
 
 struct SlugDataWithName {
     string name;
@@ -11,20 +10,23 @@ struct SlugDataWithName {
     int24 tickUpper;
 }
 
+bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
+bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
+
 library SlugVis {
     function visualizeSlugs(
         uint256 timestamp,
-        SlugData memory lowerSlug,
-        SlugData memory upperSlug,
-        SlugData memory pdSlug
-    ) public pure {
+        function (bytes32) view external returns (Position memory) fx
+    ) public view {
         string memory json;
-        SlugDataWithName[] memory slugs = checkSlugsAndCreatedNamedSlugArray(lowerSlug, upperSlug, pdSlug);
+        (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData memory pdSlug) = getSlugDataFromPositions(fx);
+        SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(lowerSlug, upperSlug, pdSlug);
         json = _constructJson(timestamp, slugs);
-        console2.log(json);
+        console.log(json);
     }
 
-    function checkSlugsAndCreatedNamedSlugArray(
+    function checkSlugsAndCreateNamedSlugArray(
         SlugData memory lowerSlug,
         SlugData memory upperSlug,
         SlugData memory pdSlug
@@ -51,6 +53,31 @@ library SlugVis {
         }
 
         return namedSlugs;
+    }
+
+    function getSlugDataFromPositions(
+        function (bytes32) view external returns (Position memory) fx
+    ) internal view returns (SlugData memory, SlugData memory, SlugData memory) {
+        Position memory lowerPosition = fx(LOWER_SLUG_SALT);
+        Position memory upperPosition = fx(UPPER_SLUG_SALT);
+        Position memory pdPosition = fx(DISCOVERY_SLUG_SALT);
+
+        SlugData memory lowerSlug = SlugData({
+                liquidity: lowerPosition.liquidity,
+                tickLower: lowerPosition.tickLower,
+                tickUpper: lowerPosition.tickUpper
+            });
+        SlugData memory upperSlug = SlugData({
+                liquidity: upperPosition.liquidity,
+                tickLower: upperPosition.tickLower,
+                tickUpper: upperPosition.tickUpper
+            });
+        SlugData memory pdSlug = SlugData({
+                liquidity: pdPosition.liquidity,
+                tickLower: pdPosition.tickLower,
+                tickUpper: pdPosition.tickUpper
+            });
+        return (lowerSlug, upperSlug, pdSlug);
     }
 
     function _constructJson(uint256 timestamp, SlugDataWithName[] memory slugs) internal pure returns (string memory) {
