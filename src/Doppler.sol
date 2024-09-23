@@ -15,7 +15,6 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import {SlugVis} from "../test/SlugVis.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -283,9 +282,6 @@ contract Doppler is BaseHook {
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(upperSlug, tickUpper);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
-
-        // UNCOMMENT THIS TO VISUALIZE SLUGS AND PIPE IT INTO THE PYTHON SCRIPT
-        // SlugVis.visualizeSlugs(block.timestamp, lowerSlug, upperSlug, priceDiscoverySlug);
 
         // Get new positions
         Position[] memory newPositions = new Position[](3);
