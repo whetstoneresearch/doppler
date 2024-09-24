@@ -41,6 +41,8 @@ int24 constant DEFAULT_TICK_SPACING = 1;
 using PoolIdLibrary for PoolKey;
 
 contract BaseTest is Test, Deployers {
+    uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
+
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
         numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
         startingTime: DEFAULT_STARTING_TIME,
