@@ -99,6 +99,10 @@ contract DopplerImplementation is Doppler {
         return _getNormalizedTimeElapsed(timestamp);
     }
 
+    function getGammaShare() public view returns (int256) {
+        return _getGammaShare();
+    }
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,

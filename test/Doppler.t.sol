@@ -1127,6 +1127,20 @@ contract DopplerTest is BaseTest {
             assertApproxEqAbs(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp), uint256(bps) * 1e14, 0.5e14);
         }
     }
+
+    // =========================================================================
+    //                      _getGammaShare Unit Tests
+    // =========================================================================
+
+    function testGetGammaShare() public view {
+        for (uint256 i; i < ghosts().length; ++i) {
+            uint256 endingTime = ghosts()[i].hook.getEndingTime();
+            uint256 startingTime = ghosts()[i].hook.getStartingTime();
+            uint256 epochLength = ghosts()[i].hook.getEpochLength();
+
+            assertApproxEqAbs(epochLength, uint256(ghosts()[i].hook.getGammaShare()) * (endingTime - startingTime) / 1e18, 1);
+        }
+    }
 }
 
 error Unauthorized();
