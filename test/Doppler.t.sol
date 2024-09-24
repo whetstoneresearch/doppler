@@ -629,6 +629,29 @@ contract DopplerTest is BaseTest {
 
             assertEq(tickAccumulator3, tickAccumulator2 + (int256(expectedTick - currentTick) * 1e18));
 
+            // Get positions
+            lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Get global lower and upper ticks
+            (int24 tickLower, int24 tickUpper2) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
+
+            // Get current tick
+            (, currentTick,,) = manager.getSlot0(poolId);
+
+            // Slugs must be inline and continuous
+            assertEq(lowerSlug.tickLower, tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper2);
+
+            // All slugs must be set
+            assertNotEq(lowerSlug.liquidity, 0);
+            assertNotEq(upperSlug.liquidity, 0);
+            assertNotEq(priceDiscoverySlug.liquidity, 0);
+
             // Swap in third last epoch
             // ========================
 
