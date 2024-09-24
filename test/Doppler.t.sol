@@ -753,7 +753,7 @@ contract DopplerTest is BaseTest {
             // Swap all remaining tokens at the end of the last epoch
             // ======================================================
 
-            // Go to last epoch
+            // Go to very end time
             vm.warp(
                 ghosts()[i].hook.getStartingTime()
                     + ghosts()[i].hook.getEpochLength()
@@ -778,7 +778,31 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            // TODO: Validate slug placement
+            (, int256 tickAccumulator6, , ,) =
+                ghosts()[i].hook.state();
+
+            // Get positions
+            lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Get global lower and upper ticks
+            (tickLower, tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator6 / 1e18), poolKey.tickSpacing);
+
+            // Get current tick
+            (, currentTick,,) = manager.getSlot0(poolId);
+
+            // Slugs must be inline and continuous
+            assertEq(lowerSlug.tickLower, tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            
+            // We don't set a priceDiscoverySlug because it's the last epoch
+            assertEq(priceDiscoverySlug.liquidity, 0);
+
+            // All slugs must be set
+            assertNotEq(lowerSlug.liquidity, 0);
+            assertNotEq(upperSlug.liquidity, 0);
         }
     }
 
