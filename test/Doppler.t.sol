@@ -352,23 +352,19 @@ contract DopplerTest is BaseTest {
     }
 
     function testBeforeAddLiquidity_RevertsForNonHookCaller() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.prank(address(manager));
-            vm.expectRevert(Unauthorized.selector);
-            ghosts()[i].hook.beforeAddLiquidity(
-                address(0xBEEF),
-                poolKey,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: -100_000,
-                    tickUpper: 100_000,
-                    liquidityDelta: 100e18,
-                    salt: bytes32(0)
-                }),
-                ""
-            );
-        }
+        vm.prank(address(manager));
+        vm.expectRevert(Unauthorized.selector);
+        hook.beforeAddLiquidity(
+            address(0xBEEF),
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -100_000,
+                tickUpper: 100_000,
+                liquidityDelta: 100e18,
+                salt: bytes32(0)
+            }),
+            ""
+        );
     }
 
     // =========================================================================
