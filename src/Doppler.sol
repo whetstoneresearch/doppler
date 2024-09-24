@@ -92,6 +92,7 @@ contract Doppler is BaseHook {
         // Starting time must be less than ending time
         if (_startingTime >= _endingTime) revert InvalidTimeRange();
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
+        // TODO: Consider whether this should check if the left side is less than tickSpacing
         if (int256(_epochLength * 1e18 / timeDelta) * _gamma / 1e18 == 0) revert InvalidGamma();
         // _endingTime - startingTime must be divisible by epochLength
         if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
