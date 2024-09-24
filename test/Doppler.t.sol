@@ -350,7 +350,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (int24 tickLower, int24 tickUpper) =
+            (, int24 tickUpper) =
                 ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
 
             // Get current tick
@@ -440,23 +440,31 @@ contract DopplerTest is BaseTest {
 
             assertEq(tickAccumulator2, tickAccumulator + (int256(expectedTick - currentTick) * 1e18));
 
-            // TODO: Validate slug placement
+            // Get positions
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
-            // lowerSlug.lowerTick == tickLower
+            // Get global lower and upper ticks
+            (int24 tickLower, int24 tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
 
-            // lowerSlug.upperTick == currentTick
+            // Get current tick
+            (, currentTick,,) = manager.getSlot0(poolId);
 
-            // lowerSlug.upperTick == upperSlug.lowerTick
+            // Slugs must be inline and continuous
+            assertEq(lowerSlug.tickLower, tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper);
 
-            // upperSlug.upperTick == priceDiscoverySlug.lowerTick
+            // Lower slug upper tick should be at the currentTick
+            assertEq(lowerSlug.tickUpper, currentTick);
 
-            // priceDiscoverySlug.tickUpper == tickUpper
-
-            // lowerSlug.liquidity != 0
-
-            // upperSlug.liquidity != 0
-
-            // priceDiscoverySlug.liquidity != 0
+            // All slugs must be set
+            assertNotEq(lowerSlug.liquidity, 0);
+            assertNotEq(upperSlug.liquidity, 0);
+            assertNotEq(priceDiscoverySlug.liquidity, 0);
         }
     }
 
