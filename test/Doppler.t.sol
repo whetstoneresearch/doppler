@@ -437,18 +437,13 @@ contract DopplerTest is BaseTest {
     // TODO: int16 accumulator might over/underflow with certain states
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
     function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
+        (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(int24(accumulator), key.tickSpacing);
+        int24 gamma = hook.getGamma();
 
-            (int24 tickLower, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(accumulator), poolKey.tickSpacing);
-            int24 gamma = ghosts()[i].hook.getGamma();
-
-            if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
-                assertEq(int256(gamma), tickUpper - tickLower);
-            } else {
-                assertEq(int256(gamma), tickLower - tickUpper);
-            }
+        if (hook.getStartingTick() > hook.getEndingTick()) {
+            assertEq(int256(gamma), tickUpper - tickLower);
+        } else {
+            assertEq(int256(gamma), tickLower - tickUpper);
         }
     }
 
