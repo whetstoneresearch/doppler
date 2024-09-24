@@ -56,36 +56,38 @@ library SlugVis {
         return namedSlugs;
     }
 
-    function getSlugDataFromPositions(
-        function (bytes32) view external returns (Position memory) fx
-    ) internal view returns (SlugData memory, SlugData memory, SlugData memory) {
+    function getSlugDataFromPositions(function (bytes32) view external returns (Position memory) fx)
+        internal
+        view
+        returns (SlugData memory, SlugData memory, SlugData memory)
+    {
         Position memory lowerPosition = fx(LOWER_SLUG_SALT);
         Position memory upperPosition = fx(UPPER_SLUG_SALT);
         Position memory pdPosition = fx(DISCOVERY_SLUG_SALT);
 
         SlugData memory lowerSlug = SlugData({
-                liquidity: lowerPosition.liquidity,
-                tickLower: lowerPosition.tickLower,
-                tickUpper: lowerPosition.tickUpper
-            });
+            liquidity: lowerPosition.liquidity,
+            tickLower: lowerPosition.tickLower,
+            tickUpper: lowerPosition.tickUpper
+        });
         SlugData memory upperSlug = SlugData({
-                liquidity: upperPosition.liquidity,
-                tickLower: upperPosition.tickLower,
-                tickUpper: upperPosition.tickUpper
-            });
+            liquidity: upperPosition.liquidity,
+            tickLower: upperPosition.tickLower,
+            tickUpper: upperPosition.tickUpper
+        });
         SlugData memory pdSlug = SlugData({
-                liquidity: pdPosition.liquidity,
-                tickLower: pdPosition.tickLower,
-                tickUpper: pdPosition.tickUpper
-            });
+            liquidity: pdPosition.liquidity,
+            tickLower: pdPosition.tickLower,
+            tickUpper: pdPosition.tickUpper
+        });
         return (lowerSlug, upperSlug, pdSlug);
     }
 
-    function _constructJson(
-        int24 currentTick,
-        uint256 timestamp,
-        SlugDataWithName[] memory slugs
-    ) internal pure returns (string memory) {
+    function _constructJson(int24 currentTick, uint256 timestamp, SlugDataWithName[] memory slugs)
+        internal
+        pure
+        returns (string memory)
+    {
         string memory json = "{ \"data\": [";
 
         for (uint256 i = 0; i < slugs.length; i++) {

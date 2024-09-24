@@ -269,7 +269,8 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
+            (int24 tickLower, int24 tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
 
             // Slugs must be inline and continuous
             assertEq(lowerSlug.tickLower, tickLower);
@@ -432,10 +433,7 @@ contract DopplerTest is BaseTest {
                 expectedTick -= int24(ghosts()[i].hook.getElapsedGamma());
             }
 
-            assertEq(
-                tickAccumulator2,
-                tickAccumulator + (int256(expectedTick - currentTick) * 1e18)
-            );
+            assertEq(tickAccumulator2, tickAccumulator + (int256(expectedTick - currentTick) * 1e18));
 
             // TODO: Validate slug placement
 
@@ -510,7 +508,9 @@ contract DopplerTest is BaseTest {
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(!isToken0, int256(expectedAmountSold), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
@@ -573,10 +573,7 @@ contract DopplerTest is BaseTest {
                 expectedTick -= int24(ghosts()[i].hook.getElapsedGamma());
             }
 
-            assertEq(
-                tickAccumulator3,
-                tickAccumulator2 + (int256(expectedTick - currentTick) * 1e18)
-            );
+            assertEq(tickAccumulator3, tickAccumulator2 + (int256(expectedTick - currentTick) * 1e18));
 
             // Swap in third last epoch
             // ========================

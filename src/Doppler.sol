@@ -409,14 +409,16 @@ contract Doppler is BaseHook {
             } else {
                 targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
             }
-            uint160 priceLower;
-            uint160 priceUpper;
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-            int24 tickA = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-            int24 tickB = isToken0 ? tickA - key.tickSpacing : tickA + key.tickSpacing;
-            (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
-            slug.liquidity = _computeLiquidity(!isToken0, priceLower, priceUpper, totalProceeds_);
+            slug.tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+            slug.tickUpper = isToken0 ? slug.tickLower - key.tickSpacing : slug.tickLower + key.tickSpacing;
+            slug.liquidity = _computeLiquidity(
+                !isToken0,
+                TickMath.getSqrtPriceAtTick(slug.tickLower),
+                TickMath.getSqrtPriceAtTick(slug.tickUpper),
+                totalProceeds_
+            );
         } else {
             slug.tickLower = TickMath.getTickAtSqrtPrice(sqrtPriceLower);
             slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
@@ -432,26 +434,27 @@ contract Doppler is BaseHook {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
 
-        uint160 priceUpper;
-        uint160 priceLower;
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta);
             int24 computedDelta = int24(_getGammaShare() * gamma / 1e18);
             int24 accumulatorDelta = computedDelta > 0 ? computedDelta : key.tickSpacing;
-            int24 tickA = currentTick;
-            int24 tickB = _alignComputedTickWithTickSpacing(
-                isToken0 ? tickA + accumulatorDelta : tickA - accumulatorDelta, key.tickSpacing
+            slug.tickLower = currentTick;
+            slug.tickUpper = _alignComputedTickWithTickSpacing(
+                isToken0 ? slug.tickLower + accumulatorDelta : slug.tickLower - accumulatorDelta, key.tickSpacing
             );
-
-            (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
         } else {
             slug.tickLower = currentTick;
             slug.tickUpper = currentTick;
         }
 
-        if (priceLower != priceUpper) {
-            slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+        if (slug.tickLower != slug.tickUpper) {
+            slug.liquidity = _computeLiquidity(
+                isToken0,
+                TickMath.getSqrtPriceAtTick(slug.tickLower),
+                TickMath.getSqrtPriceAtTick(slug.tickUpper),
+                tokensToLp
+            );
         } else {
             slug.liquidity = 0;
         }
@@ -471,18 +474,20 @@ contract Doppler is BaseHook {
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
-                uint160 priceUpper;
-                uint160 priceLower;
-                int24 tickA = isToken0 ? upperSlug.tickUpper : tickUpper;
-                int24 tickB;
+                slug.tickLower = isToken0 ? upperSlug.tickUpper : tickUpper;
                 if (isToken0) {
-                    tickB = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
+                    slug.tickUpper = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
                 } else {
-                    tickB = tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : upperSlug.tickUpper;
+                    slug.tickUpper =
+                        tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : upperSlug.tickUpper;
                 }
 
-                (slug.tickLower, slug.tickUpper, priceLower, priceUpper) = _sortTicks(tickA, tickB);
-                slug.liquidity = _computeLiquidity(isToken0, priceLower, priceUpper, tokensToLp);
+                slug.liquidity = _computeLiquidity(
+                    isToken0,
+                    TickMath.getSqrtPriceAtTick(slug.tickLower),
+                    TickMath.getSqrtPriceAtTick(slug.tickUpper),
+                    tokensToLp
+                );
             }
         }
     }
@@ -504,23 +509,6 @@ contract Doppler is BaseHook {
             return LiquidityAmounts.getLiquidityForAmount0(lowerPrice, upperPrice, amount);
         } else {
             return LiquidityAmounts.getLiquidityForAmount1(lowerPrice, upperPrice, amount);
-        }
-    }
-
-    function _sortTicks(int24 tickA, int24 tickB)
-        internal
-        pure
-        returns (int24 tickLower, int24 tickUpper, uint160 priceLower, uint160 priceUpper)
-    {
-        uint160 priceA = TickMath.getSqrtPriceAtTick(tickA);
-        uint160 priceB = TickMath.getSqrtPriceAtTick(tickB);
-
-        if (priceA < priceB) {
-            (tickLower, tickUpper) = (tickA, tickB);
-            (priceLower, priceUpper) = (priceA, priceB);
-        } else {
-            (tickLower, tickUpper) = (tickB, tickA);
-            (priceLower, priceUpper) = (priceB, priceA);
         }
     }
 
