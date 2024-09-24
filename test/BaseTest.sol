@@ -17,30 +17,30 @@ import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
-// TODO: Maybe add the start and end ticks to the config?
-struct DopplerConfig {
-    uint256 numTokensToSell;
-    uint256 startingTime;
-    uint256 endingTime;
-    uint256 gamma;
-    uint256 epochLength;
-    uint24 fee;
-    int24 tickSpacing;
-}
-
-// Constants
-
-uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
-uint256 constant DEFAULT_STARTING_TIME = 1 days;
-uint256 constant DEFAULT_ENDING_TIME = 7 days;
-uint256 constant DEFAULT_GAMMA = 1_000;
-uint256 constant DEFAULT_EPOCH_LENGTH = 50 seconds;
-uint24 constant DEFAULT_FEE = 3000;
-int24 constant DEFAULT_TICK_SPACING = 1;
-
 using PoolIdLibrary for PoolKey;
 
 contract BaseTest is Test, Deployers {
+    // TODO: Maybe add the start and end ticks to the config?
+    struct DopplerConfig {
+        uint256 numTokensToSell;
+        uint256 startingTime;
+        uint256 endingTime;
+        uint256 gamma;
+        uint256 epochLength;
+        uint24 fee;
+        int24 tickSpacing;
+    }
+
+    // Constants
+
+    uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
+    uint256 constant DEFAULT_STARTING_TIME = 1 days;
+    uint256 constant DEFAULT_ENDING_TIME = 7 days;
+    uint256 constant DEFAULT_GAMMA = 1_000;
+    uint256 constant DEFAULT_EPOCH_LENGTH = 50 seconds;
+    uint24 constant DEFAULT_FEE = 3000;
+    int24 constant DEFAULT_TICK_SPACING = 1;
+
     uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
@@ -89,9 +89,6 @@ contract BaseTest is Test, Deployers {
     function _deploy(TestERC20 asset_, TestERC20 numeraire_) public {
         asset = asset_;
         numeraire = numeraire_;
-        (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
-        vm.label(address(token0), "Token0");
-        vm.label(address(token1), "Token1");
         _deployDoppler();
     }
 
@@ -113,9 +110,6 @@ contract BaseTest is Test, Deployers {
     function _deployTokens() public {
         asset = new TestERC20(2 ** 128);
         numeraire = new TestERC20(2 ** 128);
-        (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
-        vm.label(address(token0), "Token0");
-        vm.label(address(token1), "Token1");
     }
 
     /// @dev Deploys a new Doppler hook with the default configuration.
@@ -126,6 +120,9 @@ contract BaseTest is Test, Deployers {
     /// @dev Deploys a new Doppler hook with a given configuration.
     function _deployDoppler(DopplerConfig memory config) public {
         isToken0 = asset < numeraire;
+        (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        vm.label(address(token0), "Token0");
+        vm.label(address(token1), "Token1");
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
@@ -143,7 +140,6 @@ contract BaseTest is Test, Deployers {
                 endTick,
                 config.epochLength,
                 config.gamma,
-                isToken0,
                 hook
             ),
             address(hook)
