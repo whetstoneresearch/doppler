@@ -1141,6 +1141,72 @@ contract DopplerTest is BaseTest {
             assertApproxEqAbs(epochLength, uint256(ghosts()[i].hook.getGammaShare()) * (endingTime - startingTime) / 1e18, 1);
         }
     }
+
+    // =========================================================================
+    //                    _getEpochEndWithOffset Unit Tests
+    // =========================================================================
+
+    function testGetEpochEndWithOffset() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            uint256 startingTime = ghosts()[i].hook.getStartingTime();
+            uint256 endingTime = ghosts()[i].hook.getEndingTime();
+            uint256 epochLength = ghosts()[i].hook.getEpochLength();
+
+            // Assert cases without offset
+
+            vm.warp(startingTime - 1);
+            uint256 epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(0);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength);
+
+            vm.warp(startingTime);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(0);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength);
+
+            vm.warp(startingTime + epochLength);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(0);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+            vm.warp(startingTime + epochLength * 2);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(0);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength * 3);
+
+            vm.warp(endingTime - 1);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(0);
+
+            assertEq(epochEndWithOffset, endingTime);
+
+            // Assert cases with epoch
+
+            vm.warp(startingTime - 1);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(1);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+            vm.warp(startingTime);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(1);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+            vm.warp(startingTime + epochLength);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(1);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength * 3);
+
+            vm.warp(startingTime + epochLength * 2);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(1);
+
+            assertEq(epochEndWithOffset, startingTime + epochLength * 4);
+
+            vm.warp(endingTime - epochLength - 1);
+            epochEndWithOffset = ghosts()[i].hook.getEpochEndWithOffset(1);
+
+            assertEq(epochEndWithOffset, endingTime);
+        }
+    }
 }
 
 error Unauthorized();
