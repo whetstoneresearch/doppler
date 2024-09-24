@@ -394,23 +394,18 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     function testGetMaxTickDeltaPerEpoch_ReturnsExpectedAmount() public view {
-        for (uint256 i; i < ghosts().length; ++i) {
-            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
+        int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
-            assertApproxEqAbs(
-                ghosts()[i].hook.getEndingTick(),
+        assertApproxEqAbs(
+            hook.getEndingTick(),
+            (
                 (
-                    (
-                        maxTickDeltaPerEpoch
-                            * (
-                                int256((ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()))
-                                    / int256(ghosts()[i].hook.getEpochLength())
-                            )
-                    ) / 1e18 + ghosts()[i].hook.getStartingTick()
-                ),
-                1
-            );
-        }
+                    maxTickDeltaPerEpoch
+                        * (int256((hook.getEndingTime() - hook.getStartingTime())) / int256(hook.getEpochLength()))
+                ) / 1e18 + hook.getStartingTick()
+            ),
+            1
+        );
     }
 
     // =========================================================================
