@@ -229,27 +229,20 @@ contract DopplerTest is BaseTest {
     }
 
     function testCannotSwapBelowLowerSlug_AfterInitialization() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
+        vm.warp(hook.getStartingTime());
 
-            PoolKey memory poolKey = ghosts()[i].key();
-            bool isToken0 = ghosts()[i].hook.getIsToken0();
-
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    Wrap__FailedHookCall.selector, ghosts()[i].hook, abi.encodeWithSelector(SwapBelowRange.selector)
-                )
-            );
-            // Attempt 0 amount swap below lower slug
-            swapRouter.swap(
-                // Swap asset to numeraire
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(isToken0, 1, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
-        }
+        vm.expectRevert(
+            abi.encodeWithSelector(Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector))
+        );
+        // Attempt 0 amount swap below lower slug
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(isToken0, 1, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
     }
 
     function testCannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
