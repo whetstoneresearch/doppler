@@ -85,7 +85,7 @@ contract Doppler is BaseHook {
         if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
         if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
         // Enforce maximum tick spacing
-        if (_poolKey.tickSpacing < MAX_TICK_SPACING) revert InvalidTickSpacing();
+        if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
 
         /* Time checks */
         uint256 timeDelta = _endingTime - _startingTime;
@@ -101,7 +101,7 @@ contract Doppler is BaseHook {
         int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
         int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
         // DA worst case is starting tick - ending tick
-        if (_gamma * totalEpochs == totalTickDelta) revert InvalidGamma();
+        if (_gamma * totalEpochs != totalTickDelta) revert InvalidGamma();
         // Enforce that gamma is divisible by tick spacing
         if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
 
@@ -382,7 +382,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed(_getCurrentEpoch() * epochLength + startingTime)) * gamma / 1e18;
+        return int256(_getNormalizedTimeElapsed(_getCurrentEpoch() - 1 * epochLength + startingTime)) * gamma / 1e18;
     }
 
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
