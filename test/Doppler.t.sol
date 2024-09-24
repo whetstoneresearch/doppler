@@ -26,12 +26,6 @@ import {DopplerImplementation} from "./DopplerImplementation.sol";
 import {BaseTest} from "./BaseTest.sol";
 
 contract DopplerTest is BaseTest {
-    using PoolIdLibrary for PoolKey;
-
-    function setUp() public override {
-        super.setUp();
-    }
-
     // =========================================================================
     //                          Integration Tests
     // =========================================================================
