@@ -163,75 +163,69 @@ contract DopplerTest is BaseTest {
     }
 
     function testMaxDutchAuction_NetSoldZero() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
+        vm.warp(hook.getStartingTime());
 
-            PoolKey memory poolKey = ghosts()[i].key();
-            bool isToken0 = ghosts()[i].hook.getIsToken0();
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            swapRouter.swap(
-                // Swap numeraire to asset
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+            hook.state();
 
-            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
-                ghosts()[i].hook.state();
+        assertEq(lastEpoch, 1);
+        // We sold 1e18 tokens just now
+        assertEq(totalTokensSold, 1e18);
+        // Previous epoch didn't exist so no tokens would have been sold at the time
+        assertEq(totalTokensSoldLastEpoch, 0);
 
-            assertEq(lastEpoch, 1);
-            // We sold 1e18 tokens just now
-            assertEq(totalTokensSold, 1e18);
-            // Previous epoch didn't exist so no tokens would have been sold at the time
-            assertEq(totalTokensSoldLastEpoch, 0);
+        // Swap tokens back into the pool, netSold == 0
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(isToken0, -1 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            // Swap tokens back into the pool, netSold == 0
-            swapRouter.swap(
-                // Swap asset to numeraire
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(isToken0, -1 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) = hook.state();
 
-            (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
-                ghosts()[i].hook.state();
+        assertEq(lastEpoch2, 1);
+        // We unsold all the previously sold tokens
+        assertEq(totalTokensSold2, 0);
+        // This is unchanged because we're still referencing the epoch which didn't exist
+        assertEq(totalTokensSoldLastEpoch2, 0);
 
-            assertEq(lastEpoch2, 1);
-            // We unsold all the previously sold tokens
-            assertEq(totalTokensSold2, 0);
-            // This is unchanged because we're still referencing the epoch which didn't exist
-            assertEq(totalTokensSoldLastEpoch2, 0);
+        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
-            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+        // We swap again just to trigger the rebalancing logic in the new epoch
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            // We swap again just to trigger the rebalancing logic in the new epoch
-            swapRouter.swap(
-                // Swap numeraire to asset
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
+            hook.state();
 
-            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
-                ghosts()[i].hook.state();
+        assertEq(lastEpoch3, 2);
+        // We sold some tokens just now
+        assertEq(totalTokensSold3, 1e18);
+        // The net sold amount in the previous epoch was 0
+        assertEq(totalTokensSoldLastEpoch3, 0);
 
-            assertEq(lastEpoch3, 2);
-            // We sold some tokens just now
-            assertEq(totalTokensSold3, 1e18);
-            // The net sold amount in the previous epoch was 0
-            assertEq(totalTokensSoldLastEpoch3, 0);
-
-            // Assert that we reduced the accumulator by the max amount as intended
-            // We divide by 1e18 since getMaxTickDeltaPerEpoch returns a 18 decimal fixed point value
-            int256 maxTickDeltaPerEpoch = ghosts()[i].hook.getMaxTickDeltaPerEpoch();
-            assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
-        }
+        // Assert that we reduced the accumulator by the max amount as intended
+        // We divide by 1e18 since getMaxTickDeltaPerEpoch returns a 18 decimal fixed point value
+        int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
+        assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
     }
 
     function testCannotSwapBelowLowerSlug_AfterInitialization() public {
