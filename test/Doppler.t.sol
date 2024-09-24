@@ -1076,8 +1076,13 @@ contract DopplerTest is BaseTest {
 
     function testGetCurrentEpoch_ReturnsCorrectEpoch() public {
         for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
+            vm.warp(ghosts()[i].hook.getStartingTime() - 1);
             uint256 currentEpoch = ghosts()[i].hook.getCurrentEpoch();
+
+            assertEq(currentEpoch, 1);
+
+            vm.warp(ghosts()[i].hook.getStartingTime());
+            currentEpoch = ghosts()[i].hook.getCurrentEpoch();
 
             assertEq(currentEpoch, 1);
 
