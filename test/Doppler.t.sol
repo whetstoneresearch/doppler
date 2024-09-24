@@ -320,22 +320,18 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     function testBeforeAddLiquidity_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            ghosts()[i].hook.beforeAddLiquidity(
-                address(this),
-                poolKey,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: -100_000,
-                    tickUpper: 100_000,
-                    liquidityDelta: 100e18,
-                    salt: bytes32(0)
-                }),
-                ""
-            );
-        }
+        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        hook.beforeAddLiquidity(
+            address(this),
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -100_000,
+                tickUpper: 100_000,
+                liquidityDelta: 100e18,
+                salt: bytes32(0)
+            }),
+            ""
+        );
     }
 
     function testBeforeAddLiquidity_ReturnsSelectorForHookCaller() public {
