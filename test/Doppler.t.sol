@@ -102,40 +102,35 @@ contract DopplerTest is BaseTest {
     }
 
     function testUpdatesLastEpoch() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
+        vm.warp(hook.getStartingTime());
 
-            PoolKey memory poolKey = ghosts()[i].key();
-            bool isToken0 = ghosts()[i].hook.getIsToken0();
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            swapRouter.swap(
-                // Swap numeraire to asset
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (uint40 lastEpoch,,,,) = hook.state();
 
-            (uint40 lastEpoch,,,,) = ghosts()[i].hook.state();
+        assertEq(lastEpoch, 1);
 
-            assertEq(lastEpoch, 1);
+        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
-            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            swapRouter.swap(
-                // Swap numeraire to asset
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (lastEpoch,,,,) = hook.state();
 
-            (lastEpoch,,,,) = ghosts()[i].hook.state();
-
-            assertEq(lastEpoch, 2);
-        }
+        assertEq(lastEpoch, 2);
     }
 
     function testUpdatesTotalTokensSoldLastEpoch() public {
