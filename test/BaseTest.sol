@@ -136,8 +136,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        int24 startTick = isToken0 ? int24(-0) : int24(100_000);
-        int24 endTick = isToken0 ? int24(-172_800) : int24(200_000);
+        int24 startTick = isToken0 ? int24(0) : int24(0);
+        int24 endTick = isToken0 ? -172_800 : int24(172_800);
 
         uint256 numTokensToSell = 100_000e18;
 

@@ -79,17 +79,18 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
+        /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
         if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
         if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
-        // Starting time must be less than ending time
-        if (_startingTime >= _endingTime) revert InvalidTimeRange();
         // Enforce minimum tick spacing
         if (_poolKey.tickSpacing == 0) revert InvalidTickSpacing();
 
         /* Time checks */
         uint256 timeDelta = _endingTime - _startingTime;
+        // Starting time must be less than ending time
+        if (_startingTime >= _endingTime) revert InvalidTimeRange();
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
         if (int256(_epochLength * 1e18 / timeDelta) * _gamma / 1e18 == 0) revert InvalidGamma();
         // _endingTime - startingTime must be divisible by epochLength
@@ -408,11 +409,13 @@ contract Doppler is BaseHook {
         // TODO: Consider whether this is the correct direction
         if (isToken0) {
             lower = (startingTick + accumulator) / tickSpacing * tickSpacing;
-            upper = (lower + gamma) / tickSpacing * tickSpacing;
+            // gamma is always divisible by tickSpacing so this is ok
+            upper = lower + gamma;
         } else {
             // Round up to support inverse direction
             lower = (startingTick + accumulator + tickSpacing - 1) / tickSpacing * tickSpacing;
-            upper = (lower - gamma + tickSpacing - 1) / tickSpacing * tickSpacing;
+            // gamma is always divisible by tickSpacing so this is ok
+            upper = lower - gamma;
         }
     }
 
