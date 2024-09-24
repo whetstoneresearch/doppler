@@ -1110,6 +1110,23 @@ contract DopplerTest is BaseTest {
             ghosts()[i].hook.unlockCallback("");
         }
     }
+
+    // =========================================================================
+    //                   _getNormalizedTimeElapsed Unit Tests
+    // =========================================================================
+
+    function testGetNormalizedTimeElapsed(uint16 bps) public view {
+        vm.assume(bps <= 10_000);
+
+        for (uint256 i; i < ghosts().length; ++i) {
+            uint256 endingTime = ghosts()[i].hook.getEndingTime();
+            uint256 startingTime = ghosts()[i].hook.getStartingTime();
+            uint256 timestamp = (endingTime - startingTime) * bps / 10_000 + startingTime;
+
+            // Assert that the result is within one bps of the expected value
+            assertApproxEqAbs(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp), uint256(bps) * 1e14, 0.5e14);
+        }
+    }
 }
 
 error Unauthorized();
