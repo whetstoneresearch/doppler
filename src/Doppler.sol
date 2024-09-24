@@ -16,6 +16,7 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {console} from "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -45,6 +46,9 @@ contract Doppler is BaseHook {
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
 
+    // TODO: consider what a good tick spacing cieling is
+    int24 constant MAX_TICK_SPACING = 30;
+
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
     bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
@@ -60,13 +64,12 @@ contract Doppler is BaseHook {
     int24 immutable startingTick; // dutch auction starting tick
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
-    // TODO: consider whether this should be signed
-    // TODO: should this actually be "max single epoch increase"?
-    int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
+    int24 immutable gamma; // 1.0001 ** (gamma) = max single epoch change 
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
         IPoolManager _poolManager,
+        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _startingTime,
         uint256 _endingTime,
@@ -76,6 +79,34 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
+        // Starting tick must be greater than ending tick if isToken0
+        // Ending tick must be greater than starting tick if isToken1
+        if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
+        if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
+        // Starting time must be less than ending time
+        if (_startingTime >= _endingTime) revert InvalidTimeRange();
+        // Enforce minimum tick spacing
+        if (_poolKey.tickSpacing == 0) revert InvalidTickSpacing();
+
+        /* Time checks */
+        uint256 timeDelta = _endingTime - _startingTime;
+        // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
+        if (int256(_epochLength * 1e18 / timeDelta) * _gamma / 1e18 == 0) revert InvalidGamma();
+        // _endingTime - startingTime must be divisible by epochLength
+        if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
+
+        /* Gamma checks */
+        // Enforce that the total tick delta is divisible by the total number of epochs
+        int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
+        int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
+        // DA would not exceed total tick change over the course of the sale
+        if (_gamma * totalEpochs > totalTickDelta) revert InvalidGamma();
+        // Enforce that gamma is divisible by tick spacing
+        if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
+        // Gamma must be positive
+        if (_gamma <= 0) revert InvalidGamma();
+
+
         numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
         endingTime = _endingTime;
@@ -84,20 +115,14 @@ contract Doppler is BaseHook {
         epochLength = _epochLength;
         gamma = _gamma;
         isToken0 = _isToken0;
-
-        // TODO: consider enforcing that parameters are consistent with token direction
-        // TODO: consider enforcing that startingTick and endingTick are valid
-        // TODO: consider enforcing startingTime < endingTime
-        // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
-        // TODO: consider enforcing that min and max gamma
     }
 
     function afterInitialize(
         address sender,
         PoolKey calldata key,
-        uint160 sqrtPriceX96,
+        uint160,
         int24 tick,
-        bytes calldata hookData
+        bytes calldata 
     ) external override onlyPoolManager returns (bytes4) {
         // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
         poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
@@ -360,7 +385,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
+        return int256(_getNormalizedTimeElapsed(_getCurrentEpoch() * epochLength + startingTime)) * gamma / 1e18;
     }
 
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
@@ -698,7 +723,13 @@ contract Doppler is BaseHook {
     }
 }
 
+error InvalidGamma();
+error InvalidTimeRange();
 error Unauthorized();
 error BeforeStartTime();
 error SwapBelowRange();
 error InvalidTime();
+error InvalidTickRange();
+error InvalidTickSpacing();
+error InvalidEpochLength();
+error InvalidTickDelta();

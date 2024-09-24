@@ -15,6 +15,7 @@ contract DopplerImplementation is Doppler {
 
     constructor(
         address _poolManager,
+        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _startingTime,
         uint256 _endingTime,
@@ -27,6 +28,7 @@ contract DopplerImplementation is Doppler {
     )
         Doppler(
             IPoolManager(_poolManager),
+            _poolKey,
             _numTokensToSell,
             _startingTime,
             _endingTime,
