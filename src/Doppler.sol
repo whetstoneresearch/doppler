@@ -654,7 +654,8 @@ contract Doppler is BaseHook {
 
         Position[] memory newPositions = new Position[](3);
         // TODO: should we do this? or is it ok to just not deal with the lower slug at all at this stage?
-        newPositions[0] = Position({tickLower: 0, tickUpper: 0, liquidity: 0, salt: uint8(uint256(LOWER_SLUG_SALT))});
+        newPositions[0] =
+            Position({tickLower: tick, tickUpper: tick, liquidity: 0, salt: uint8(uint256(LOWER_SLUG_SALT))});
         newPositions[1] = Position({
             tickLower: upperSlug.tickLower,
             tickUpper: upperSlug.tickUpper,

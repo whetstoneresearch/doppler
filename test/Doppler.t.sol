@@ -578,8 +578,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+            (, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
 
             // Slugs must be inline and continuous
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
@@ -675,8 +674,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (, int256 tickAccumulator4, , ,) =
-                ghosts()[i].hook.state();
+            (, int256 tickAccumulator4,,,) = ghosts()[i].hook.state();
 
             // Get positions
             lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -724,8 +722,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (, int256 tickAccumulator5, , ,) =
-                ghosts()[i].hook.state();
+            (, int256 tickAccumulator5,,,) = ghosts()[i].hook.state();
 
             // Get positions
             lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -742,7 +739,7 @@ contract DopplerTest is BaseTest {
             // Slugs must be inline and continuous
             assertEq(lowerSlug.tickLower, tickLower);
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
-            
+
             // We don't set a priceDiscoverySlug because it's the last epoch
             assertEq(priceDiscoverySlug.liquidity, 0);
 
@@ -778,8 +775,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (, int256 tickAccumulator6, , ,) =
-                ghosts()[i].hook.state();
+            (, int256 tickAccumulator6,,,) = ghosts()[i].hook.state();
 
             // Get positions
             lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -796,7 +792,7 @@ contract DopplerTest is BaseTest {
             // Slugs must be inline and continuous
             assertEq(lowerSlug.tickLower, tickLower);
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
-            
+
             // We don't set a priceDiscoverySlug because it's the last epoch
             assertEq(priceDiscoverySlug.liquidity, 0);
 
