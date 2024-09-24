@@ -503,7 +503,32 @@ contract DopplerTest is BaseTest {
             // Assert that we've done three epochs worth of max dutch auctioning
             assertEq(tickAccumulator, maxTickDeltaPerEpoch * 4);
 
-            // TODO: Validate slug placement
+            // Get positions
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Get global lower and upper ticks
+            (, int24 tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator / 1e18), poolKey.tickSpacing);
+
+            // Get current tick
+            PoolId poolId = poolKey.toId();
+            (, int24 currentTick,,) = manager.getSlot0(poolId);
+
+            // Slugs must be inline and continuous
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+
+            // Lower slug should be unset with ticks at the current price
+            assertEq(lowerSlug.tickLower, lowerSlug.tickUpper);
+            assertEq(lowerSlug.liquidity, 0);
+            assertEq(lowerSlug.tickUpper, currentTick);
+
+            // Upper and price discovery slugs must be set
+            assertNotEq(upperSlug.liquidity, 0);
+            assertNotEq(priceDiscoverySlug.liquidity, 0);
 
             // Relative dutch auction in next epoch
             // ====================================
@@ -556,8 +581,7 @@ contract DopplerTest is BaseTest {
             vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 5);
 
             // Get current tick
-            PoolId poolId = poolKey.toId();
-            (, int24 currentTick,,) = manager.getSlot0(poolId);
+            (, currentTick,,) = manager.getSlot0(poolId);
 
             // Trigger rebalance
             swapRouter.swap(
