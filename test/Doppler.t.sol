@@ -18,6 +18,7 @@ import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+
 import {SlugVis} from "./SlugVis.sol";
 
 import {Doppler} from "../src/Doppler.sol";
@@ -290,17 +291,13 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     function testBeforeSwap_RevertsIfNotPoolManager() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            ghosts()[i].hook.beforeSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                ""
-            );
-        }
+        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        hook.beforeSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+            ""
+        );
     }
 
     // =========================================================================
