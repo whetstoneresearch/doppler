@@ -66,44 +66,39 @@ contract DopplerTest is BaseTest {
     }
 
     function testDoesNotRebalanceTwiceInSameEpoch() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            vm.warp(ghosts()[i].hook.getStartingTime());
+        vm.warp(hook.getStartingTime());
 
-            PoolKey memory poolKey = ghosts()[i].key();
-            bool isToken0 = ghosts()[i].hook.getIsToken0();
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            swapRouter.swap(
-                // Swap numeraire to asset
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+            hook.state();
 
-            (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
-                ghosts()[i].hook.state();
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
-            swapRouter.swap(
-                // Swap numeraire to asset
-                // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
-                ""
-            );
+        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+            hook.state();
 
-            (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
-                ghosts()[i].hook.state();
+        // Ensure that state hasn't updated since we're still in the same epoch
+        assertEq(lastEpoch, lastEpoch2);
+        assertEq(tickAccumulator, tickAccumulator2);
+        assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
 
-            // Ensure that state hasn't updated since we're still in the same epoch
-            assertEq(lastEpoch, lastEpoch2);
-            assertEq(tickAccumulator, tickAccumulator2);
-            assertEq(totalTokensSoldLastEpoch, totalTokensSoldLastEpoch2);
-
-            // Ensure that we're tracking the amount of tokens sold
-            assertEq(totalTokensSold + 1 ether, totalTokensSold2);
-        }
+        // Ensure that we're tracking the amount of tokens sold
+        assertEq(totalTokensSold + 1 ether, totalTokensSold2);
     }
 
     function testUpdatesLastEpoch() public {
