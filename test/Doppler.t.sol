@@ -305,18 +305,14 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     function testAfterSwap_revertsIfNotPoolManager() public {
-        for (uint256 i; i < ghosts().length; ++i) {
-            PoolKey memory poolKey = ghosts()[i].key();
-
-            vm.expectRevert(SafeCallback.NotPoolManager.selector);
-            ghosts()[i].hook.afterSwap(
-                address(this),
-                poolKey,
-                IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-                toBalanceDelta(0, 0),
-                ""
-            );
-        }
+        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+            toBalanceDelta(0, 0),
+            ""
+        );
     }
 
     // =========================================================================
