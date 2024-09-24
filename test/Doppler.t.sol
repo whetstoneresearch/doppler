@@ -416,21 +416,18 @@ contract DopplerTest is BaseTest {
         vm.assume(timePercentage <= 100);
         vm.assume(timePercentage > 0);
 
-        for (uint256 i; i < ghosts().length; ++i) {
-            uint256 timeElapsed =
-                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 100;
-            uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
-            vm.warp(timestamp);
+        uint256 timeElapsed = (hook.getEndingTime() - hook.getStartingTime()) * timePercentage / 100;
+        uint256 timestamp = hook.getStartingTime() + timeElapsed;
+        vm.warp(timestamp);
 
-            int256 elapsedGamma = ghosts()[i].hook.getElapsedGamma();
+        int256 elapsedGamma = hook.getElapsedGamma();
 
-            assertApproxEqAbs(
-                int256(ghosts()[i].hook.getGamma()),
-                elapsedGamma * int256(ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
-                    / int256(timestamp - ghosts()[i].hook.getStartingTime()),
-                1
-            );
-        }
+        assertApproxEqAbs(
+            int256(hook.getGamma()),
+            elapsedGamma * int256(hook.getEndingTime() - hook.getStartingTime())
+                / int256(timestamp - hook.getStartingTime()),
+            1
+        );
     }
 
     // =========================================================================
