@@ -382,12 +382,12 @@ contract Doppler is BaseHook {
     {
         // TODO: Consider whether this is the correct direction
         if (isToken0) {
-            lower = startingTick + (accumulator / tickSpacing * tickSpacing);
+            lower = (startingTick + accumulator) / tickSpacing * tickSpacing;
             upper = (lower + gamma) / tickSpacing * tickSpacing;
         } else {
             // Round up to support inverse direction
-            lower = startingTick + (accumulator + tickSpacing - 1 / tickSpacing * tickSpacing);
-            upper = (lower - gamma) + tickSpacing - 1 / tickSpacing * tickSpacing;
+            lower = (startingTick + accumulator + tickSpacing - 1) / tickSpacing * tickSpacing;
+            upper = (lower - gamma + tickSpacing - 1) / tickSpacing * tickSpacing;
         }
     }
 
