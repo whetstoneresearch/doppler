@@ -63,7 +63,6 @@ contract BaseTest is Test, Deployers {
     TestERC20 numeraire;
     TestERC20 token0;
     TestERC20 token1;
-    PoolKey key;
     PoolId poolId;
 
     bool isToken0;
