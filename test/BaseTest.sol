@@ -150,7 +150,6 @@ contract BaseTest is Test, Deployers {
         // Shouldn't use 1 tickSpacing since we want to test that tickSpacing is respected
         doppler0.tickSpacing = 8;
 
-
         doppler0.deploy({
             vm: vm,
             poolManager: address(manager),
@@ -164,7 +163,6 @@ contract BaseTest is Test, Deployers {
             numTokensToSell: numTokensToSell
         });
 
-
         // TODO: Consider if there will be a different mechanism used rather than just minting all the tokens straight to the hook
         // Mint the tokens to sell to the hook
         deal(address(asset), address(targetHookAddress), numTokensToSell);
@@ -177,7 +175,6 @@ contract BaseTest is Test, Deployers {
                 __instances__[i].key(), TickMath.getSqrtPriceAtTick(__instances__[i].hook.getStartingTick()), ""
             );
         }
-
 
         // Deploy swapRouter
         swapRouter = new PoolSwapTest(manager);

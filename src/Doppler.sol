@@ -64,7 +64,7 @@ contract Doppler is BaseHook {
     int24 immutable startingTick; // dutch auction starting tick
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
-    int24 immutable gamma; // 1.0001 ** (gamma) = max single epoch change 
+    int24 immutable gamma; // 1.0001 ** (gamma) = max single epoch change
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
@@ -107,7 +107,6 @@ contract Doppler is BaseHook {
         // Gamma must be positive
         if (_gamma <= 0) revert InvalidGamma();
 
-
         numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
         endingTime = _endingTime;
@@ -118,13 +117,12 @@ contract Doppler is BaseHook {
         isToken0 = _isToken0;
     }
 
-    function afterInitialize(
-        address sender,
-        PoolKey calldata key,
-        uint160,
-        int24 tick,
-        bytes calldata 
-    ) external override onlyPoolManager returns (bytes4) {
+    function afterInitialize(address sender, PoolKey calldata key, uint160, int24 tick, bytes calldata)
+        external
+        override
+        onlyPoolManager
+        returns (bytes4)
+    {
         // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
         poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
         return BaseHook.afterInitialize.selector;
