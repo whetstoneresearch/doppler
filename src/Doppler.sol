@@ -84,8 +84,8 @@ contract Doppler is BaseHook {
         // Ending tick must be greater than starting tick if isToken1
         if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
         if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
-        // Enforce minimum tick spacing
-        if (_poolKey.tickSpacing == 0) revert InvalidTickSpacing();
+        // Enforce maximum tick spacing
+        if (_poolKey.tickSpacing < MAX_TICK_SPACING) revert InvalidTickSpacing();
 
         /* Time checks */
         uint256 timeDelta = _endingTime - _startingTime;
@@ -100,12 +100,10 @@ contract Doppler is BaseHook {
         // Enforce that the total tick delta is divisible by the total number of epochs
         int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
         int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
-        // DA would not exceed total tick change over the course of the sale
-        if (_gamma * totalEpochs > totalTickDelta) revert InvalidGamma();
+        // DA worst case is starting tick - ending tick
+        if (_gamma * totalEpochs == totalTickDelta) revert InvalidGamma();
         // Enforce that gamma is divisible by tick spacing
         if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
-        // Gamma must be positive
-        if (_gamma <= 0) revert InvalidGamma();
 
         numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
