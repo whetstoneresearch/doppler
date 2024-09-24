@@ -1094,14 +1094,16 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                     _computeLiquidity Unit Tests
+    //                     _unlockCallback Unit Tests
     // =========================================================================
 
-    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
-        public
-        view
-    {
-        for (uint256 i; i < ghosts().length; ++i) {}
+    function testUnlockCallback_RevertsIfNotCalledByPoolManager() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            vm.warp(ghosts()[i].hook.getStartingTime());
+            
+            vm.expectRevert(NotPoolManager.selector);
+            ghosts()[i].hook.unlockCallback("");
+        }
     }
 }
 
@@ -1109,3 +1111,4 @@ error Unauthorized();
 error InvalidTime();
 error Wrap__FailedHookCall(address, bytes);
 error SwapBelowRange();
+error NotPoolManager();
