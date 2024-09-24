@@ -424,6 +424,12 @@ contract Doppler is BaseHook {
             slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
             slug.liquidity = _computeLiquidity(!isToken0, sqrtPriceLower, sqrtPriceNext, totalProceeds_);
         }
+
+        // We make sure that the lower tick and upper tick are equal if no liquidity
+        // else we don't properly enforce that swaps can't be made below the lower slug
+        if (slug.liquidity == 0) {
+            slug.tickLower = slug.tickUpper;
+        }
     }
 
     function _computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold_, int24 currentTick)
