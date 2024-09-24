@@ -14,17 +14,11 @@ import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/li
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
-import {BaseTest, Instance} from "./BaseTest.sol";
+import {BaseTest, TestERC20} from "./BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
 /// TODO: I duplicated this from the test file just to test this out for now.
 contract DopplerBeforeSwapTest is BaseTest {
-    using PoolIdLibrary for PoolKey;
-
-    function setUp() public override {
-        super.setUp();
-    }
-
     // =========================================================================
     //                         beforeSwap Unit Tests
     // =========================================================================
@@ -33,32 +27,33 @@ contract DopplerBeforeSwapTest is BaseTest {
     // TODO: Doppler.sol#L122 is using `amount1` instead of `amount0`.
     function testBeforeSwap_RebalanceToken1() public {
         // Deploy a new Doppler with `isToken0 = false`
-        Instance memory doppler1;
-        doppler1.token0 = ghost().token0; // uses existing tokens
-        doppler1.token1 = ghost().token1;
-        doppler1.hook = targetHookAddress;
-        doppler1.tickSpacing = MIN_TICK_SPACING;
-        doppler1.deploy({
-            vm: vm,
-            poolManager: address(manager),
-            timeTilStart: 500 seconds,
-            duration: 1 days,
-            startTick: -100_000,
-            endTick: -200_000,
-            epochLength: 1 days,
-            gamma: 1_000,
-            isToken0: false,
-            numTokensToSell: 100_000e18
-        });
 
-        __instances__.push(doppler1);
+        TestERC20 asset_ = new TestERC20(2 ** 128);
+        TestERC20 numeraire_ = new TestERC20(2 ** 128);
 
-        vm.warp(ghost().hook.getStartingTime());
+        // Reorg the asset and the numeraire so the asset will be the token1
+        (asset_, numeraire_) = address(asset_) > address(numeraire_) ? (asset_, numeraire_) : (numeraire_, asset_);
+
+        _deploy(
+            asset_,
+            numeraire_,
+            DopplerConfig({
+                numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
+                startingTime: DEFAULT_STARTING_TIME,
+                endingTime: DEFAULT_ENDING_TIME,
+                gamma: DEFAULT_GAMMA,
+                epochLength: 1 days,
+                fee: DEFAULT_FEE,
+                tickSpacing: DEFAULT_TICK_SPACING
+            })
+        );
+
+        vm.warp(hook.getStartingTime());
 
         vm.prank(address(manager));
-        (bytes4 selector0, int128 hookDelta) = ghost().hook.afterSwap(
+        (bytes4 selector0, int128 hookDelta) = hook.afterSwap(
             address(this),
-            ghost().key(),
+            key,
             IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 1e2, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
             toBalanceDelta(-1e2, 10e18),
             ""
@@ -67,14 +62,12 @@ contract DopplerBeforeSwapTest is BaseTest {
         assertEq(selector0, BaseHook.afterSwap.selector);
         assertEq(hookDelta, 0);
 
-        vm.warp(ghost().hook.getStartingTime() + ghost().hook.getEpochLength());
-
-        PoolKey memory poolKey = ghost().key();
+        vm.warp(hook.getStartingTime() + hook.getEpochLength());
 
         vm.prank(address(manager));
-        (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = ghost().hook.beforeSwap(
+        (bytes4 selector, BeforeSwapDelta delta, uint24 fee) = hook.beforeSwap(
             address(this),
-            poolKey,
+            key,
             IPoolManager.SwapParams({zeroForOne: false, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
             ""
         );
