@@ -374,22 +374,19 @@ contract DopplerTest is BaseTest {
     function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint64 timePercentage) public {
         vm.assume(timePercentage <= 1e18);
 
-        for (uint256 i; i < ghosts().length; ++i) {
-            uint256 timeElapsed =
-                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 1e18;
-            uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
-            vm.warp(timestamp);
+        uint256 timeElapsed = (hook.getEndingTime() - hook.getStartingTime()) * timePercentage / 1e18;
+        uint256 timestamp = hook.getStartingTime() + timeElapsed;
+        vm.warp(timestamp);
 
-            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(timestamp);
+        uint256 expectedAmountSold = hook.getExpectedAmountSold(timestamp);
 
-            assertApproxEqAbs(
-                timestamp,
-                ghosts()[i].hook.getStartingTime()
-                    + (expectedAmountSold * 1e18 / ghosts()[i].hook.getNumTokensToSell())
-                        * (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) / 1e18,
-                1
-            );
-        }
+        assertApproxEqAbs(
+            timestamp,
+            hook.getStartingTime()
+                + (expectedAmountSold * 1e18 / hook.getNumTokensToSell()) * (hook.getEndingTime() - hook.getStartingTime())
+                    / 1e18,
+            1
+        );
     }
 
     // =========================================================================
