@@ -600,8 +600,12 @@ contract Doppler is BaseHook {
                 poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: newPositions[i].tickLower,
-                        tickUpper: newPositions[i].tickUpper,
+                        tickLower: newPositions[i].tickLower < newPositions[i].tickUpper
+                            ? newPositions[i].tickLower
+                            : newPositions[i].tickUpper,
+                        tickUpper: newPositions[i].tickUpper > newPositions[i].tickLower
+                            ? newPositions[i].tickUpper
+                            : newPositions[i].tickLower,
                         liquidityDelta: int128(newPositions[i].liquidity),
                         salt: bytes32(uint256(newPositions[i].salt))
                     }),
