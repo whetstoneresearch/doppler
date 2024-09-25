@@ -24,15 +24,13 @@ contract SlugVisTest is BaseTest {
         swapRouter.swap(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
-                poolKey,
-                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-                PoolSwapTest.TestSettings(true, false),
+            poolKey,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
             ""
         );
 
-        SlugVis.visualizeSlugs(
-            block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions
-        );
+        SlugVis.visualizeSlugs(block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
     }
 
     function test_visualizePoolAtInitialization() public {
@@ -50,8 +48,6 @@ contract SlugVisTest is BaseTest {
             ""
         );
 
-        SlugVis.visualizeSlugs(
-            block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions
-        );
+        SlugVis.visualizeSlugs(block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
     }
 }
