@@ -17,6 +17,9 @@ import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 
+// TODO: Remove this
+import {console2} from "forge-std/console2.sol";
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
