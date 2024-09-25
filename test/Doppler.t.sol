@@ -675,7 +675,38 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    // testLowerSlug_NoLiquidity
+    function testLowerSlug_NoLiquidity() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to starting time
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // We sell some tokens to trigger the initial rebalance
+            // We haven't sold any tokens in previous epochs so we shouldn't place a lower slug
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            // Get the lower slug
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+
+            // Assert that lowerSlug ticks are equal and non-zero
+            assertEq(lowerSlug.tickLower, lowerSlug.tickUpper);
+            assertNotEq(lowerSlug.tickLower, 0);
+
+            // Assert that the lowerSlug has no liquidity
+            assertEq(lowerSlug.liquidity, 0);
+        }
+    }
 
     // testLowerSlug_SufficientLiquidity (fuzz?)
 
