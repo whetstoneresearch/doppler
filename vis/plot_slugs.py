@@ -1,10 +1,11 @@
-import sys
-import re
 import json
-import pandas as pd
-import matplotlib.pyplot as plt
+import re
+import sys
+
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 # Read the Forge test output from stdin
 output = sys.stdin.read()
@@ -98,7 +99,7 @@ for i, json_str in enumerate(json_lines):
 
     ax.axvline(current_tick, color='dodgerblue', linestyle="--", label='Current Tick')
 
-    ax.set_xlim(min_tick - 1000, max_tick + 1000)
+    ax.set_xlim(min_tick - 50, max_tick + 50)
     ax.set_ylim(0, np.log(max_liquidity) * 1.1 if max_liquidity > 0 else 1)
 
     ax.set_xlabel('Ticks')
