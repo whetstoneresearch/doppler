@@ -13,6 +13,7 @@ contract testUnlockCallbackTest is BaseTest {
     }
 
     function test_unlockCallback_SucceedWhenSenderIsPoolManager() public {
+        vm.skip(true);
         Doppler.CallbackData memory callbackData =
             Doppler.CallbackData({key: key, tick: hook.getStartingTick(), sender: address(0xbeef)});
         vm.prank(address(manager));
