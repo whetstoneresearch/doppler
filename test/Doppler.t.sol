@@ -468,6 +468,22 @@ contract DopplerTest is BaseTest {
         }
     }
 
+    // testLowerSlug_SufficientProceeds
+
+    // testLowerSlug_InsufficientProceeds
+
+    // testLowerSlug_NoLiquidity
+
+    // testLowerSlug_SufficientLiquidity (fuzz?)
+
+    // testUpperSlug_UnderSold
+
+    // testUpperSlug_OverSold
+
+    // testPriceDiscoverySlug_RemainingEpoch
+
+    // testPriceDiscoverySlug_LastEpoch
+
     function testFullFlow() public {
         for (uint256 i; i < ghosts().length; ++i) {
             PoolKey memory poolKey = ghosts()[i].key();
