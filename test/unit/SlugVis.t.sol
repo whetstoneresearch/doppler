@@ -2,7 +2,6 @@ pragma solidity 0.8.26;
 
 import {BaseTest} from "../shared/BaseTest.sol";
 import {SlugVis} from "./SlugVis.sol";
-import {SlugData} from "../../src/Doppler.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
