@@ -20,6 +20,7 @@ import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {SlugVis} from "./SlugVis.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
 
 import {Doppler, Position} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -507,8 +508,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (, int256 tickAccumulator,,,) =
-                ghosts()[i].hook.state();
+            (, int256 tickAccumulator,,,) = ghosts()[i].hook.state();
 
             // Get the slugs
             Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -520,17 +520,17 @@ contract DopplerTest is BaseTest {
                 ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator / 1e18), poolKey.tickSpacing);
 
             // TODO: This could hit the insufficient proceeds case with other hooks, in which case
-            //       lowerSlug and upperSlug may not be touching. Surprisingly, we still have 
+            //       lowerSlug and upperSlug may not be touching. Surprisingly, we still have
             //       sufficient proceeds in this case. The important part is that we don't revert
             //       and still place liquidity in the slugs as expected.
-            // TODO: This should also hit the upper slug oversold case and not place an upper slug but 
+            // TODO: This should also hit the upper slug oversold case and not place an upper slug but
             //       doesn't seem to due to rounding. Consider whether this is a problem or whether we
             //       even need that case at all.
             // Validate that all positions are placed continuously
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
             assertEq(priceDiscoverySlug.tickUpper, tickUpper);
-            
+
             // Validate that the lower slug and price discovery slug have liquidity
             assertGt(lowerSlug.liquidity, 1e18);
             assertGt(priceDiscoverySlug.liquidity, 1e18);
@@ -538,7 +538,7 @@ contract DopplerTest is BaseTest {
             // Validate that the upper slug has very little liquidity (dust)
             assertLt(upperSlug.liquidity, 1e18);
 
-            // TODO: Validate that the lower slug has enough liquidity to handle all tokens sold 
+            // TODO: Validate that the lower slug has enough liquidity to handle all tokens sold
             //       back into the curve.
         }
     }
@@ -569,8 +569,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
-                ghosts()[i].hook.state();
+            (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
 
             assertEq(lastEpoch, 3);
             // Confirm we sold the correct amount
@@ -590,8 +589,7 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (, int256 tickAccumulator2,,,) =
-                ghosts()[i].hook.state();
+            (, int256 tickAccumulator2,,,) = ghosts()[i].hook.state();
 
             // Get the lower slug
             Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -604,7 +602,7 @@ contract DopplerTest is BaseTest {
             // Validate that the lower slug is spanning the full range
             assertEq(tickLower, lowerSlug.tickLower);
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
-            
+
             // Validate that the lower slug has liquidity
             assertGt(lowerSlug.liquidity, 0);
         }
@@ -653,8 +651,7 @@ contract DopplerTest is BaseTest {
                 block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
             );
 
-            (, int256 tickAccumulator2,,,) =
-                ghosts()[i].hook.state();
+            (, int256 tickAccumulator2,,,) = ghosts()[i].hook.state();
 
             // Get the lower slug
             Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -672,7 +669,7 @@ contract DopplerTest is BaseTest {
             } else {
                 assertEq(lowerSlug.tickLower - lowerSlug.tickUpper, poolKey.tickSpacing);
             }
-            
+
             // Validate that the lower slug has liquidity
             assertGt(lowerSlug.liquidity, 0);
         }
@@ -692,9 +689,7 @@ contract DopplerTest is BaseTest {
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
                 poolKey,
-                IPoolManager.SwapParams(
-                    !isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-                ),
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
                 PoolSwapTest.TestSettings(true, false),
                 ""
             );
@@ -717,7 +712,75 @@ contract DopplerTest is BaseTest {
 
     // testUpperSlug_OverSold
 
-    // testPriceDiscoverySlug_RemainingEpoch
+    function testPriceDiscoverySlug_RemainingEpoch() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to second last epoch
+            vm.warp(
+                ghosts()[i].hook.getStartingTime()
+                    + ghosts()[i].hook.getEpochLength()
+                        * (
+                            (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
+                                / ghosts()[i].hook.getEpochLength() - 2
+                        )
+            );
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            SlugVis.visualizeSlugs(
+                block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
+            );
+
+            // Get the upper and price discover slugs
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Assert that the slugs are continuous
+            assertEq(ghosts()[i].hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower);
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+
+            // Assert that all tokens to sell are in the upper and price discovery slugs.
+            // This should be the case since we haven't sold any tokens and we're now
+            // at the second last epoch, which means that upper slug should hold all tokens
+            // excluding the final epoch worth and price discovery slug should hold the final
+            // epoch worth of tokens
+            uint256 totalAssetLpSize;
+            if (isToken0) {
+                totalAssetLpSize += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+                totalAssetLpSize += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickUpper),
+                    priceDiscoverySlug.liquidity
+                );
+            } else {
+                totalAssetLpSize += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+                totalAssetLpSize += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickUpper),
+                    priceDiscoverySlug.liquidity
+                );
+            }
+            assertApproxEqAbs(totalAssetLpSize, ghosts()[i].hook.getNumTokensToSell(), 10_000);
+        }
+    }
 
     // testPriceDiscoverySlug_LastEpoch
 
