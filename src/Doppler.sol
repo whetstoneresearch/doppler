@@ -45,6 +45,9 @@ contract Doppler is BaseHook {
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
 
+    // TODO: consider what a good tick spacing cieling is
+    int24 constant MAX_TICK_SPACING = 30;
+
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
     bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
@@ -60,13 +63,12 @@ contract Doppler is BaseHook {
     int24 immutable startingTick; // dutch auction starting tick
     int24 immutable endingTick; // dutch auction ending tick
     uint256 immutable epochLength; // length of each epoch (seconds)
-    // TODO: consider whether this should be signed
-    // TODO: should this actually be "max single epoch increase"?
-    int24 immutable gamma; // 1.0001 ** (gamma) = max single block increase
+    int24 immutable gamma; // 1.0001 ** (gamma) = max single epoch change
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
 
     constructor(
         IPoolManager _poolManager,
+        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _startingTime,
         uint256 _endingTime,
@@ -76,6 +78,33 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
+        /* Tick checks */
+        // Starting tick must be greater than ending tick if isToken0
+        // Ending tick must be greater than starting tick if isToken1
+        if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
+        if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
+        // Enforce maximum tick spacing
+        if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
+
+        /* Time checks */
+        uint256 timeDelta = _endingTime - _startingTime;
+        // Starting time must be less than ending time
+        if (_startingTime >= _endingTime) revert InvalidTimeRange();
+        // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
+        // TODO: Consider whether this should check if the left side is less than tickSpacing
+        if (int256(_epochLength * 1e18 / timeDelta) * _gamma / 1e18 == 0) revert InvalidGamma();
+        // _endingTime - startingTime must be divisible by epochLength
+        if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
+
+        /* Gamma checks */
+        // Enforce that the total tick delta is divisible by the total number of epochs
+        int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
+        int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
+        // DA worst case is starting tick - ending tick
+        if (_gamma * totalEpochs != totalTickDelta) revert InvalidGamma();
+        // Enforce that gamma is divisible by tick spacing
+        if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
+
         numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
         endingTime = _endingTime;
@@ -84,21 +113,14 @@ contract Doppler is BaseHook {
         epochLength = _epochLength;
         gamma = _gamma;
         isToken0 = _isToken0;
-
-        // TODO: consider enforcing that parameters are consistent with token direction
-        // TODO: consider enforcing that startingTick and endingTick are valid
-        // TODO: consider enforcing startingTime < endingTime
-        // TODO: consider enforcing that epochLength is a factor of endingTime - startingTime
-        // TODO: consider enforcing that min and max gamma
     }
 
-    function afterInitialize(
-        address sender,
-        PoolKey calldata key,
-        uint160 sqrtPriceX96,
-        int24 tick,
-        bytes calldata hookData
-    ) external override onlyPoolManager returns (bytes4) {
+    function afterInitialize(address sender, PoolKey calldata key, uint160, int24 tick, bytes calldata)
+        external
+        override
+        onlyPoolManager
+        returns (bytes4)
+    {
         // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
         poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
         return BaseHook.afterInitialize.selector;
@@ -241,7 +263,7 @@ contract Doppler is BaseHook {
         // TODO: Consider whether it's ok to overwrite currentTick
         currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero
@@ -261,23 +283,8 @@ contract Doppler is BaseHook {
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
 
-        uint128 liquidity;
-        uint256 requiredProceeds;
-        if (totalTokensSold_ != 0) {
-            if (isToken0) {
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-                // TODO: Should we be rounding up here?
-                requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
-            } else {
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-                // TODO: Should we be rounding up here?
-                requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
-            }
-        }
+        uint256 requiredProceeds =
+            totalTokensSold_ != 0 ? _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold_) : 0;
 
         // Get existing positions
         Position[] memory prevPositions = new Position[](3);
@@ -360,7 +367,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed(block.timestamp)) * int256(gamma) / 1e18;
+        return int256(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime)) * gamma / 1e18;
     }
 
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
@@ -371,23 +378,46 @@ contract Doppler is BaseHook {
         }
     }
 
+    function _computeRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 amount)
+        internal
+        view
+        returns (uint256 requiredProceeds)
+    {
+        uint128 liquidity;
+        if (isToken0) {
+            // TODO: Check max liquidity per tick
+            //       Should we spread liquidity across multiple ticks if necessary?
+            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, amount);
+            // TODO: Should we be rounding up here?
+            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceUpper, liquidity, true);
+        } else {
+            // TODO: Check max liquidity per tick
+            //       Should we spread liquidity across multiple ticks if necessary?
+            liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceUpper, amount);
+            // TODO: Should we be rounding up here?
+            requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceUpper, liquidity, true);
+        }
+    }
+
     // TODO: Consider whether overflow is reasonably possible
     //       I think some validation logic will be necessary
     //       Maybe we just need to bound to int24.max/min
     // Returns a multiple of tickSpacing
-    function _getTicksBasedOnState(int24 accumulator, int24 tickSpacing)
+    function _getTicksBasedOnState(int256 accumulator, int24 tickSpacing)
         internal
         view
         returns (int24 lower, int24 upper)
     {
         // TODO: Consider whether this is the correct direction
         if (isToken0) {
-            lower = (startingTick + accumulator) / tickSpacing * tickSpacing;
-            upper = (lower + gamma) / tickSpacing * tickSpacing;
+            lower = (startingTick + int24(accumulator / 1e18)) / tickSpacing * tickSpacing;
+            // gamma is always divisible by tickSpacing so this is ok
+            upper = lower + gamma;
         } else {
             // Round up to support inverse direction
-            lower = (startingTick + accumulator + tickSpacing - 1) / tickSpacing * tickSpacing;
-            upper = (lower - gamma + tickSpacing - 1) / tickSpacing * tickSpacing;
+            lower = (startingTick + int24(accumulator / 1e18) + tickSpacing - 1) / tickSpacing * tickSpacing;
+            // gamma is always divisible by tickSpacing so this is ok
+            upper = lower - gamma;
         }
     }
 
@@ -412,7 +442,7 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
             slug.tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-            slug.tickUpper = isToken0 ? slug.tickLower - key.tickSpacing : slug.tickLower + key.tickSpacing;
+            slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
                 TickMath.getSqrtPriceAtTick(slug.tickLower),
@@ -698,7 +728,13 @@ contract Doppler is BaseHook {
     }
 }
 
+error InvalidGamma();
+error InvalidTimeRange();
 error Unauthorized();
 error BeforeStartTime();
 error SwapBelowRange();
 error InvalidTime();
+error InvalidTickRange();
+error InvalidTickSpacing();
+error InvalidEpochLength();
+error InvalidTickDelta();
