@@ -11,7 +11,7 @@ import {BaseTest, TestERC20} from "test/shared/BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
 /// TODO: I duplicated this from the test file just to test this out for now.
-contract DopplerBeforeSwapTest is BaseTest {
+contract BeforeSwapTest is BaseTest {
     // =========================================================================
     //                         beforeSwap Unit Tests
     // =========================================================================
