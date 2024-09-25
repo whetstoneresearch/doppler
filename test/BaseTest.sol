@@ -103,7 +103,8 @@ contract BaseTest is Test, Deployers {
     /// @dev Reuses an existing pair of asset and numeraire tokens and deploys the related Doppler
     /// hook with a given configuration.
     function _deploy(TestERC20 asset_, TestERC20 numeraire_, DopplerConfig memory config) public {
-        _deploy(asset_, numeraire_);
+        asset = asset_;
+        numeraire = numeraire_;
         _deployDoppler(config);
     }
 
