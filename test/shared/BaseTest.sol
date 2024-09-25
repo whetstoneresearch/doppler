@@ -134,6 +134,14 @@ contract BaseTest is Test, Deployers {
         startTick = isToken0 ? int24(0) : int24(0);
         endTick = isToken0 ? int24(-172_800) : int24(172_800);
 
+        key = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: config.fee,
+            tickSpacing: config.tickSpacing,
+            hooks: IHooks(address(hook))
+        });
+
         deployCodeTo(
             "DopplerImplementation.sol:DopplerImplementation",
             abi.encode(
@@ -151,14 +159,6 @@ contract BaseTest is Test, Deployers {
             ),
             address(hook)
         );
-
-        key = PoolKey({
-            currency0: Currency.wrap(address(token0)),
-            currency1: Currency.wrap(address(token1)),
-            fee: config.fee,
-            tickSpacing: config.tickSpacing,
-            hooks: IHooks(address(hook))
-        });
 
         poolId = key.toId();
 

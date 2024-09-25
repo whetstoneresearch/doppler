@@ -88,7 +88,7 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (, int24 tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), key.tickSpacing);
+        (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator3, key.tickSpacing);
 
         // Get current tick
         PoolId poolId = key.toId();
@@ -170,7 +170,7 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (, int24 tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+        (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Get current tick
         PoolId poolId = poolKey.toId();
@@ -262,7 +262,7 @@ contract RebalanceTest is BaseTest {
 
         // Get global lower and upper ticks
         (int24 tickLower, int24 tickUpper) =
-            hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+            hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
@@ -322,7 +322,7 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (, int24 tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator / 1e18), poolKey.tickSpacing);
+        (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
         // Get current tick
         PoolId poolId = poolKey.toId();
@@ -388,7 +388,7 @@ contract RebalanceTest is BaseTest {
         priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (, tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+        (, tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Slugs must be inline and continuous
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
@@ -445,7 +445,7 @@ contract RebalanceTest is BaseTest {
 
         // Get global lower and upper ticks
         (int24 tickLower, int24 tickUpper2) =
-            hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
+            hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
@@ -488,7 +488,7 @@ contract RebalanceTest is BaseTest {
         priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (tickLower, tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator4 / 1e18), poolKey.tickSpacing);
+        (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
@@ -531,7 +531,7 @@ contract RebalanceTest is BaseTest {
         priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (tickLower, tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator5 / 1e18), poolKey.tickSpacing);
+        (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
@@ -579,7 +579,7 @@ contract RebalanceTest is BaseTest {
         priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (tickLower, tickUpper) = hook.getTicksBasedOnState(int24(tickAccumulator6 / 1e18), poolKey.tickSpacing);
+        (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
