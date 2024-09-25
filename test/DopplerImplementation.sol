@@ -15,6 +15,7 @@ contract DopplerImplementation is Doppler {
 
     constructor(
         address _poolManager,
+        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _startingTime,
         uint256 _endingTime,
@@ -27,6 +28,7 @@ contract DopplerImplementation is Doppler {
     )
         Doppler(
             IPoolManager(_poolManager),
+            _poolKey,
             _numTokensToSell,
             _startingTime,
             _endingTime,
@@ -87,7 +89,7 @@ contract DopplerImplementation is Doppler {
         return _getElapsedGamma();
     }
 
-    function getTicksBasedOnState(int24 accumulator, int24 tickSpacing) public view returns (int24, int24) {
+    function getTicksBasedOnState(int256 accumulator, int24 tickSpacing) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator, tickSpacing);
     }
 

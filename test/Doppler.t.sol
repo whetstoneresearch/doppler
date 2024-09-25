@@ -264,7 +264,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -351,7 +351,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -447,7 +447,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (int24 tickLower, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -510,7 +510,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -578,7 +578,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+            (, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Slugs must be inline and continuous
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
@@ -635,7 +635,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (int24 tickLower, int24 tickUpper2) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator3 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -683,7 +683,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator4 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -731,7 +731,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator5 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -784,7 +784,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator6 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -1059,7 +1059,7 @@ contract DopplerTest is BaseTest {
             PoolKey memory poolKey = ghosts()[i].key();
 
             (int24 tickLower, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(accumulator), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(accumulator, poolKey.tickSpacing);
             int24 gamma = ghosts()[i].hook.getGamma();
 
             if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
