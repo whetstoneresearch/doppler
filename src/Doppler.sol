@@ -246,14 +246,18 @@ contract Doppler is BaseHook {
             //       May be worth bounding to a maximum int24.max/min
             // TODO: Consider whether this is the correct direction
             //       Assumes that higher tick for token0 implies higher price
-            accumulatorDelta = _getElapsedGamma();
-            isToken0
-                ? expectedTick = tauTick + int24(accumulatorDelta / 1e18)
-                : expectedTick = tauTick - int24(accumulatorDelta / 1e18);
+            if (isToken0) {
+                accumulatorDelta = _getElapsedGamma();
+            } else {
+                accumulatorDelta = -_getElapsedGamma();
+            }
+
+            expectedTick = tauTick + int24(accumulatorDelta / 1e18);
         }
 
+        newAccumulator = state.tickAccumulator + accumulatorDelta;
+        // Only sstore if there is a nonzero delta
         if (accumulatorDelta != 0) {
-            newAccumulator = state.tickAccumulator + accumulatorDelta;
             state.tickAccumulator = newAccumulator;
         }
 
@@ -446,6 +450,7 @@ contract Doppler is BaseHook {
                 targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
             }
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
+            // TODO: Consider whether the target price should actually be tickUpper
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
             slug.tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
