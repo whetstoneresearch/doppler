@@ -468,7 +468,72 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    // testLowerSlug_SufficientProceeds
+    function testLowerSlug_SufficientProceeds() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // We start at the third epoch to allow some dutch auctioning
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2);
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Compute the expected amount sold to see how many tokens will be supplied in the upper slug
+            // We should always have sufficient proceeds if we don't swap beyond the upper slug
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 3
+            );
+
+            // We sell half the expected amount to ensure that we don't surpass the upper slug
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+                ghosts()[i].hook.state();
+
+            assertEq(lastEpoch, 3);
+            // Confirm we sold the correct amount
+            assertEq(totalTokensSold, expectedAmountSold / 2);
+            // Previous epoch references non-existent epoch
+            assertEq(totalTokensSoldLastEpoch, 0);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 3); // Next epoch
+
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (, int256 tickAccumulator2,,,) =
+                ghosts()[i].hook.state();
+
+            // Get the lower slug
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+
+            // Get global lower tick
+            (int24 tickLower,) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+
+            // Validate that the lower slug is spanning the full range
+            assertEq(tickLower, lowerSlug.tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            
+            // Validate that the lower slug has liquidity
+            assertGt(lowerSlug.liquidity, 0);
+        }
+    }
 
     // testLowerSlug_InsufficientProceeds
 
