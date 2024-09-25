@@ -1,30 +1,17 @@
 pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
 
-import {Deployers} from "v4-core/test/utils/Deployers.sol";
-import {TestERC20} from "v4-core/src/test/TestERC20.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
-import {CurrencyLibrary, Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import {toBalanceDelta} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
-
-import {SlugVis} from "./SlugVis.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 
-import {Doppler, Unauthorized, InvalidTime, SwapBelowRange} from "../../src/Doppler.sol";
-import {DopplerImplementation} from "../shared/DopplerImplementation.sol";
-import {BaseTest} from "../shared/BaseTest.sol";
+import {Unauthorized, InvalidTime, SwapBelowRange} from "src/Doppler.sol";
+import {BaseTest} from "test/shared/BaseTest.sol";
 
 contract DopplerTest is BaseTest {
     // =========================================================================
