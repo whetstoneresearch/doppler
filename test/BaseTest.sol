@@ -125,6 +125,8 @@ contract BaseTest is Test, Deployers {
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
 
+        (isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
+
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
         startTick = isToken0 ? int24(-100_000) : int24(100_000);
