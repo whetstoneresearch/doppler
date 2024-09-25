@@ -607,69 +607,73 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    // function testLowerSlug_InsufficientProceeds() public {
-    //     for (uint256 i; i < ghosts().length; ++i) {
-    //         // Go to starting time
-    //         vm.warp(ghosts()[i].hook.getStartingTime());
+    // TODO: Currently this is not actually hitting the insufficient proceeds case
+    function testLowerSlug_InsufficientProceeds() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to starting time
+            vm.warp(ghosts()[i].hook.getStartingTime());
 
-    //         PoolKey memory poolKey = ghosts()[i].key();
-    //         bool isToken0 = ghosts()[i].hook.getIsToken0();
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-    //         // Compute the amount of tokens available in both the upper and price discovery slugs
-    //         // Should be two epochs of liquidity available since we're at the startingTime
-    //         uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
-    //             ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2
-    //         );
+            // Compute the amount of tokens available in both the upper and price discovery slugs
+            // Should be two epochs of liquidity available since we're at the startingTime
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2
+            );
 
-    //         // We sell half the expected amount to ensure that we don't surpass the upper slug
-    //         swapRouter.swap(
-    //             // Swap numeraire to asset
-    //             // If zeroForOne, we use max price limit (else vice versa)
-    //             poolKey,
-    //             IPoolManager.SwapParams(
-    //                 !isToken0, int256(expectedAmountSold), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-    //             ),
-    //             PoolSwapTest.TestSettings(true, false),
-    //             ""
-    //         );
+            // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold * 9 / 10), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
 
-    //         vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
 
-    //         // We swap again just to trigger the rebalancing logic in the new epoch
-    //         // We swap in the opposite direction because we already ran out of liquidity
-    //         swapRouter.swap(
-    //             // Swap asset to numeraire
-    //             // If zeroForOne, we use max price limit (else vice versa)
-    //             poolKey,
-    //             IPoolManager.SwapParams(isToken0, 1 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-    //             PoolSwapTest.TestSettings(true, false),
-    //             ""
-    //         );
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
 
-    //         (, int256 tickAccumulator2,,,) =
-    //             ghosts()[i].hook.state();
+            SlugVis.visualizeSlugs(
+                block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
+            );
 
-    //         // Get the lower slug
-    //         Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
-    //         Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            (, int256 tickAccumulator2,,,) =
+                ghosts()[i].hook.state();
 
-    //         // Get global lower tick
-    //         (int24 tickLower,) =
-    //             ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+            // Get the lower slug
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
 
-    //         // Validate that the lower slug only spans one tickSpacing and not the full range
-    //         assertNotEq(tickLower, lowerSlug.tickLower);
-    //         assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
-    //         if (isToken0) {
-    //             assertEq(lowerSlug.tickUpper - lowerSlug.tickLower, poolKey.tickSpacing);
-    //         } else {
-    //             assertEq(lowerSlug.tickLower - lowerSlug.tickUpper, poolKey.tickSpacing);
-    //         }
+            // Get global lower tick
+            (int24 tickLower,) =
+                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+
+            // Validate that the lower slug only spans one tickSpacing and not the full range
+            assertNotEq(tickLower, lowerSlug.tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            if (isToken0) {
+                assertEq(lowerSlug.tickUpper - lowerSlug.tickLower, poolKey.tickSpacing);
+            } else {
+                assertEq(lowerSlug.tickLower - lowerSlug.tickUpper, poolKey.tickSpacing);
+            }
             
-    //         // Validate that the lower slug has liquidity
-    //         assertGt(lowerSlug.liquidity, 0);
-    //     }
-    // }
+            // Validate that the lower slug has liquidity
+            assertGt(lowerSlug.liquidity, 0);
+        }
+    }
 
     // testLowerSlug_NoLiquidity
 
