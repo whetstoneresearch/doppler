@@ -22,7 +22,6 @@ contract SlugVisTest is BaseTest {
             PoolKey memory poolKey = ghosts()[i].key();
             bool isToken0 = ghosts()[i].hook.getIsToken0();
 
-
             swapRouter.swap(
                 // Swap numeraire to asset
                 // If zeroForOne, we use max price limit (else vice versa)
@@ -32,7 +31,9 @@ contract SlugVisTest is BaseTest {
                 ""
             );
 
-            SlugVis.visualizeSlugs(block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions);
+            SlugVis.visualizeSlugs(
+                block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
+            );
         }
     }
 
@@ -52,7 +53,9 @@ contract SlugVisTest is BaseTest {
                 ""
             );
 
-            SlugVis.visualizeSlugs(block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions);
+            SlugVis.visualizeSlugs(
+                block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
+            );
         }
     }
 }
