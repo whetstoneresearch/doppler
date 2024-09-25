@@ -16,7 +16,6 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import {console} from "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -283,6 +282,7 @@ contract Doppler is BaseHook {
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
+        console.log("here2?");
 
         uint128 liquidity;
         uint256 requiredProceeds;
@@ -312,11 +312,15 @@ contract Doppler is BaseHook {
         uint256 numeraireAvailable =
             isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
 
+        console.log("here3?");
         SlugData memory lowerSlug = _computeLowerSlugData(
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
         );
+        console.log("here4?");
         SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
+        console.log("here5?");
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
+        console.log("here6?");
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -383,7 +387,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed(_getCurrentEpoch() - 1 * epochLength + startingTime)) * gamma / 1e18;
+        return int256(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime)) * gamma / 1e18;
     }
 
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
