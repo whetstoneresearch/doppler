@@ -22,9 +22,9 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {SlugVis} from "./SlugVis.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 
-import {Doppler, Unauthorized, InvalidTime, SwapBelowRange} from "../src/Doppler.sol";
-import {DopplerImplementation} from "./DopplerImplementation.sol";
-import {BaseTest} from "./BaseTest.sol";
+import {Doppler, Unauthorized, InvalidTime, SwapBelowRange} from "../../src/Doppler.sol";
+import {DopplerImplementation} from "../shared/DopplerImplementation.sol";
+import {BaseTest} from "../shared/BaseTest.sol";
 
 contract DopplerTest is BaseTest {
     // =========================================================================

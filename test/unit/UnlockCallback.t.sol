@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {console} from "forge-std/console.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
-import {BaseTest} from "test/BaseTest.sol";
+import {BaseTest} from "../shared/BaseTest.sol";
 import {Doppler} from "src/Doppler.sol";
 
 contract testUnlockCallbackTest is BaseTest {

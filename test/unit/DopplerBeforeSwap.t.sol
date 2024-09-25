@@ -14,7 +14,7 @@ import {BalanceDelta, toBalanceDelta, BalanceDeltaLibrary} from "v4-periphery/li
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
-import {BaseTest, TestERC20} from "./BaseTest.sol";
+import {BaseTest, TestERC20} from "../shared/BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
 /// TODO: I duplicated this from the test file just to test this out for now.
