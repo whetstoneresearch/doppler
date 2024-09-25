@@ -35,11 +35,12 @@ contract BaseTest is Test, Deployers {
 
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
-    uint256 constant DEFAULT_ENDING_TIME = 7 days;
-    uint256 constant DEFAULT_GAMMA = 1_000;
-    uint256 constant DEFAULT_EPOCH_LENGTH = 50 seconds;
-    uint24 constant DEFAULT_FEE = 3000;
-    int24 constant DEFAULT_TICK_SPACING = 1;
+    uint256 constant DEFAULT_ENDING_TIME = 2 days;
+    uint256 constant DEFAULT_GAMMA = 800;
+    uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
+    // default to feeless case for now
+    uint24 constant DEFAULT_FEE = 0;
+    int24 constant DEFAULT_TICK_SPACING = 8;
 
     uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
 
@@ -130,13 +131,14 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(-100_000) : int24(100_000);
-        endTick = isToken0 ? int24(-200_000) : int24(200_000);
+        startTick = isToken0 ? int24(0) : int24(0);
+        endTick = isToken0 ? int24(-172_800) : int24(172_800);
 
         deployCodeTo(
             "DopplerImplementation.sol:DopplerImplementation",
             abi.encode(
                 manager,
+                key,
                 config.numTokensToSell,
                 config.startingTime,
                 config.endingTime,
