@@ -5,12 +5,18 @@ import {Test} from "forge-std/Test.sol";
 import {AddressSet, LibAddressSet} from "./AddressSet.sol";
 import {DopplerImplementation} from "test/shared/DopplerImplementation.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import {TestERC20} from "v4-core/src/test/TestERC20.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
 
 contract DopplerHandler is Test {
     using LibAddressSet for AddressSet;
 
+    PoolKey public poolKey;
     DopplerImplementation public hook;
     PoolSwapTest public swapRouter;
+    TestERC20 public token0;
+    TestERC20 public token1;
 
     uint256 public ghost_reserve0;
     uint256 public ghost_reserve1;
@@ -42,8 +48,17 @@ contract DopplerHandler is Test {
         _;
     }
 
-    constructor(DopplerImplementation hook_, PoolSwapTest swapRouter_) {
+    constructor(PoolKey memory poolKey_, DopplerImplementation hook_, PoolSwapTest swapRouter_) {
+        poolKey = poolKey_;
         hook = hook_;
         swapRouter = swapRouter_;
+
+        token0 = TestERC20(Currency.unwrap(poolKey.currency0));
+        token1 = TestERC20(Currency.unwrap(poolKey.currency1));
+
+        ghost_reserve0 = token0.balanceOf(address(hook));
+        ghost_reserve1 = token1.balanceOf(address(hook));
     }
+
+    function buyExactAmount(uint256 amount) public createActor countCall(this.buyExactAmount.selector) {}
 }
