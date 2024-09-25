@@ -523,6 +523,9 @@ contract DopplerTest is BaseTest {
             //       lowerSlug and upperSlug may not be touching. Surprisingly, we still have 
             //       sufficient proceeds in this case. The important part is that we don't revert
             //       and still place liquidity in the slugs as expected.
+            // TODO: This should also hit the upper slug oversold case and not place an upper slug but 
+            //       doesn't seem to due to rounding. Consider whether this is a problem or whether we
+            //       even need that case at all.
             // Validate that all positions are placed continuously
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
