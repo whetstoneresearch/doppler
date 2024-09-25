@@ -5,6 +5,7 @@ import {toBalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
+import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 
 import {BaseTest, TestERC20} from "test/shared/BaseTest.sol";
 
@@ -14,6 +15,16 @@ contract DopplerBeforeSwapTest is BaseTest {
     // =========================================================================
     //                         beforeSwap Unit Tests
     // =========================================================================
+
+    function testBeforeSwap_RevertsIfNotPoolManager() public {
+        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        hook.beforeSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
+            ""
+        );
+    }
 
     // TODO: get this test to trigger the case in `_rebalance` where `requiredProceeds > totalProceeds_`.
     // TODO: Doppler.sol#L122 is using `amount1` instead of `amount0`.

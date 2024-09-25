@@ -18,20 +18,6 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     // =========================================================================
-    //                         beforeSwap Unit Tests
-    // =========================================================================
-
-    function testBeforeSwap_RevertsIfNotPoolManager() public {
-        vm.expectRevert(SafeCallback.NotPoolManager.selector);
-        hook.beforeSwap(
-            address(this),
-            key,
-            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1}),
-            ""
-        );
-    }
-
-    // =========================================================================
     //                          afterSwap Unit Tests
     // =========================================================================
 
