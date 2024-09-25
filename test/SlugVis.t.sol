@@ -11,10 +11,6 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 contract SlugVisTest is BaseTest {
     using PoolIdLibrary for PoolKey;
 
-    function setUp() public override {
-        super.setUp();
-    }
-
     function testSlugVis() public {
         vm.warp(hook.getStartingTime());
 
