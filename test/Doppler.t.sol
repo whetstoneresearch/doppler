@@ -20,8 +20,9 @@ import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 
 import {SlugVis} from "./SlugVis.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 
-import {Doppler} from "../src/Doppler.sol";
+import {Doppler, Unauthorized, InvalidTime, SwapBelowRange} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 import {BaseTest} from "./BaseTest.sol";
 
@@ -34,7 +35,9 @@ contract DopplerTest is BaseTest {
         vm.warp(hook.getStartingTime() - 1); // 1 second before the start time
 
         vm.expectRevert(
-            abi.encodeWithSelector(Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(InvalidTime.selector))
+            abi.encodeWithSelector(
+                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(InvalidTime.selector)
+            )
         );
         swapRouter.swap(
             // Swap numeraire to asset
@@ -48,7 +51,9 @@ contract DopplerTest is BaseTest {
         vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
 
         vm.expectRevert(
-            abi.encodeWithSelector(Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(InvalidTime.selector))
+            abi.encodeWithSelector(
+                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(InvalidTime.selector)
+            )
         );
         swapRouter.swap(
             // Swap numeraire to asset
@@ -227,7 +232,9 @@ contract DopplerTest is BaseTest {
         vm.warp(hook.getStartingTime());
 
         vm.expectRevert(
-            abi.encodeWithSelector(Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector))
+            abi.encodeWithSelector(
+                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector)
+            )
         );
         // Attempt 0 amount swap below lower slug
         swapRouter.swap(
@@ -267,7 +274,9 @@ contract DopplerTest is BaseTest {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector))
+            abi.encodeWithSelector(
+                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector)
+            )
         );
         // Unsell beyond remaining tokens, moving price below lower slug
         swapRouter.swap(
@@ -471,8 +480,3 @@ contract DopplerTest is BaseTest {
         view
     {}
 }
-
-error Unauthorized();
-error InvalidTime();
-error Wrap__FailedHookCall(address, bytes);
-error SwapBelowRange();

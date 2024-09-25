@@ -181,5 +181,3 @@ contract BaseTest is Test, Deployers {
         token1.approve(address(modifyLiquidityRouter), type(uint256).max);
     }
 }
-
-error Unauthorized();

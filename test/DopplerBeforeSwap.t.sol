@@ -77,5 +77,3 @@ contract DopplerBeforeSwapTest is BaseTest {
         assertEq(fee, 0);
     }
 }
-
-error Unauthorized();
