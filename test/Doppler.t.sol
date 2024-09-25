@@ -1,7 +1,7 @@
 pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {TestERC20} from "v4-core/src/test/TestERC20.sol";
@@ -23,7 +23,7 @@ import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.
 
 import {Doppler, Position} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
-import {BaseTest} from "./BaseTest.sol";
+import {BaseTest, Instance} from "./BaseTest.sol";
 
 contract DopplerTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -468,6 +468,30 @@ contract DopplerTest is BaseTest {
         }
     }
 
+    function validateLowerSlug(
+        Instance memory ghost,
+        bool isToken0,
+        Position memory lowerSlug,
+        Position memory upperSlug,
+        int24 tickLower,
+        int24 tickUpper,
+        uint256 totalProceeds,
+        uint256 totalTokensSold
+    ) internal {
+        if (
+            ghost.hook.getRequiredProceeds(
+                TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), totalTokensSold
+            ) > totalProceeds
+        ) {
+            int24 expectedTickLower = ghost.hook.computeTickAtPrice(isToken0, totalProceeds, totalTokensSold);
+            assertEq(lowerSlug.tickLower, expectedTickLower);
+            assertEq(lowerSlug.tickUpper, lowerSlug.tickLower + ghost.key().tickSpacing);
+        } else {
+            assertEq(lowerSlug.tickLower, tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+        }
+    }
+
     function testFullFlow() public {
         for (uint256 i; i < ghosts().length; ++i) {
             PoolKey memory poolKey = ghosts()[i].key();
@@ -579,6 +603,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower and upper ticks
             (, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+            console.log("here?");
 
             // Slugs must be inline and continuous
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
@@ -609,8 +634,13 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
-                ghosts()[i].hook.state();
+            (
+                uint40 lastEpoch3,
+                int256 tickAccumulator3,
+                uint256 totalTokensSold3,
+                uint256 totalProceeds3,
+                uint256 totalTokensSoldLastEpoch3
+            ) = ghosts()[i].hook.state();
 
             assertEq(lastEpoch3, 6);
             // Assert that all sales are accounted for
@@ -641,12 +671,14 @@ contract DopplerTest is BaseTest {
             (, currentTick,,) = manager.getSlot0(poolId);
 
             // Slugs must be inline and continuous
-            assertEq(lowerSlug.tickLower, tickLower);
-            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            validateLowerSlug(
+                ghosts()[i], isToken0, lowerSlug, upperSlug, tickLower, tickUpper2, totalProceeds3, totalTokensSold3
+            );
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
             assertEq(priceDiscoverySlug.tickUpper, tickUpper2);
 
             // All slugs must be set
+            console.log("here3");
             assertNotEq(lowerSlug.liquidity, 0);
             assertNotEq(upperSlug.liquidity, 0);
             assertNotEq(priceDiscoverySlug.liquidity, 0);
@@ -689,6 +721,7 @@ contract DopplerTest is BaseTest {
             (, currentTick,,) = manager.getSlot0(poolId);
 
             // Slugs must be inline and continuous
+            console.log("here3");
             assertEq(lowerSlug.tickLower, tickLower);
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
@@ -737,6 +770,7 @@ contract DopplerTest is BaseTest {
             (, currentTick,,) = manager.getSlot0(poolId);
 
             // Slugs must be inline and continuous
+            console.log("here4");
             assertEq(lowerSlug.tickLower, tickLower);
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
 
@@ -790,6 +824,7 @@ contract DopplerTest is BaseTest {
             (, currentTick,,) = manager.getSlot0(poolId);
 
             // Slugs must be inline and continuous
+            console.log("here5");
             assertEq(lowerSlug.tickLower, tickLower);
             assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
 

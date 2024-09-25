@@ -8,6 +8,7 @@ import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {Doppler, SlugData, Position} from "../src/Doppler.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 
 contract DopplerImplementation is Doppler {
     using PoolIdLibrary for PoolKey;
@@ -89,12 +90,26 @@ contract DopplerImplementation is Doppler {
         return _getElapsedGamma();
     }
 
-    function getTicksBasedOnState(int24 accumulator, int24 tickSpacing) public view returns (int24, int24) {
+    function getTicksBasedOnState(int256 accumulator, int24 tickSpacing) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator, tickSpacing);
     }
 
     function getCurrentEpoch() public view returns (uint256) {
         return _getCurrentEpoch();
+    }
+
+    function computeTickAtPrice(bool isToken0, uint256 totalProceeds, uint256 totalTokensSold)
+        public
+        pure
+        returns (int24)
+    {
+        if (isToken0) {
+            uint160 targetPriceX96 = _computeTargetPriceX96(totalProceeds, totalTokensSold);
+            return 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+        } else {
+            uint160 targetPriceX96 = _computeTargetPriceX96(totalTokensSold, totalProceeds);
+            return 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+        }
     }
 
     function computeLowerSlugData(
@@ -136,5 +151,13 @@ contract DopplerImplementation is Doppler {
     function getCurrentTick(PoolId poolId) public view returns (int24) {
         (, int24 currentTick,,) = poolManager.getSlot0(poolId);
         return currentTick;
+    }
+
+    function getRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 totalTokensSold)
+        public
+        view
+        returns (uint256)
+    {
+        return _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold);
     }
 }

@@ -16,6 +16,7 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {console} from "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -263,7 +264,7 @@ contract Doppler is BaseHook {
         // TODO: Consider whether it's ok to overwrite currentTick
         currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(newAccumulator / 1e18), key.tickSpacing);
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero
@@ -282,25 +283,9 @@ contract Doppler is BaseHook {
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceUpper = TickMath.getSqrtPriceAtTick(tickUpper);
-        console.log("here2?");
 
-        uint128 liquidity;
-        uint256 requiredProceeds;
-        if (totalTokensSold_ != 0) {
-            if (isToken0) {
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-                // TODO: Should we be rounding up here?
-                requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
-            } else {
-                // TODO: Check max liquidity per tick
-                //       Should we spread liquidity across multiple ticks if necessary?
-                liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceNext, totalTokensSold_);
-                // TODO: Should we be rounding up here?
-                requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceNext, liquidity, true);
-            }
-        }
+        uint256 requiredProceeds =
+            totalTokensSold_ != 0 ? _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold_) : 0;
 
         // Get existing positions
         Position[] memory prevPositions = new Position[](3);
@@ -312,15 +297,11 @@ contract Doppler is BaseHook {
         uint256 numeraireAvailable =
             isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
 
-        console.log("here3?");
         SlugData memory lowerSlug = _computeLowerSlugData(
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
         );
-        console.log("here4?");
         SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
-        console.log("here5?");
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
-        console.log("here6?");
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -398,23 +379,44 @@ contract Doppler is BaseHook {
         }
     }
 
+    function _computeRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 amount)
+        internal
+        view
+        returns (uint256 requiredProceeds)
+    {
+        uint128 liquidity;
+        if (isToken0) {
+            // TODO: Check max liquidity per tick
+            //       Should we spread liquidity across multiple ticks if necessary?
+            liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, amount);
+            // TODO: Should we be rounding up here?
+            requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceUpper, liquidity, true);
+        } else {
+            // TODO: Check max liquidity per tick
+            //       Should we spread liquidity across multiple ticks if necessary?
+            liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceUpper, amount);
+            // TODO: Should we be rounding up here?
+            requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceUpper, liquidity, true);
+        }
+    }
+
     // TODO: Consider whether overflow is reasonably possible
     //       I think some validation logic will be necessary
     //       Maybe we just need to bound to int24.max/min
     // Returns a multiple of tickSpacing
-    function _getTicksBasedOnState(int24 accumulator, int24 tickSpacing)
+    function _getTicksBasedOnState(int256 accumulator, int24 tickSpacing)
         internal
         view
         returns (int24 lower, int24 upper)
     {
         // TODO: Consider whether this is the correct direction
         if (isToken0) {
-            lower = (startingTick + accumulator) / tickSpacing * tickSpacing;
+            lower = (startingTick + int24(accumulator / 1e18)) / tickSpacing * tickSpacing;
             // gamma is always divisible by tickSpacing so this is ok
             upper = lower + gamma;
         } else {
             // Round up to support inverse direction
-            lower = (startingTick + accumulator + tickSpacing - 1) / tickSpacing * tickSpacing;
+            lower = (startingTick + int24(accumulator / 1e18) + tickSpacing - 1) / tickSpacing * tickSpacing;
             // gamma is always divisible by tickSpacing so this is ok
             upper = lower - gamma;
         }
@@ -441,7 +443,7 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
             slug.tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
-            slug.tickUpper = isToken0 ? slug.tickLower - key.tickSpacing : slug.tickLower + key.tickSpacing;
+            slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
                 TickMath.getSqrtPriceAtTick(slug.tickLower),
