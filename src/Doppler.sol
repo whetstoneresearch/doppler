@@ -233,6 +233,7 @@ contract Doppler is BaseHook {
 
         int256 accumulatorDelta;
         int256 newAccumulator;
+        int24 expectedTick;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
@@ -241,15 +242,14 @@ contract Doppler is BaseHook {
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
-            int24 expectedTick;
             // TODO: Overflow possible?
             //       May be worth bounding to a maximum int24.max/min
             // TODO: Consider whether this is the correct direction
             //       Assumes that higher tick for token0 implies higher price
+            accumulatorDelta = _getElapsedGamma();
             isToken0
-                ? expectedTick = tauTick + int24(_getElapsedGamma())
-                : expectedTick = tauTick - int24(_getElapsedGamma());
-            accumulatorDelta = int256(expectedTick - currentTick) * 1e18;
+                ? expectedTick = tauTick + int24(accumulatorDelta / 1e18)
+                : expectedTick = tauTick - int24(accumulatorDelta / 1e18);
         }
 
         if (accumulatorDelta != 0) {
@@ -264,7 +264,10 @@ contract Doppler is BaseHook {
         accumulatorDelta /= 1e18;
 
         // TODO: Consider whether it's ok to overwrite currentTick
-        currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
+        // Use expectedTick if it's set, otherwise increment by accumulatorDelta
+        currentTick = expectedTick != 0
+            ? _alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing)
+            : _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
