@@ -491,7 +491,7 @@ contract Doppler is BaseHook {
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
             int24 computedDelta = int24(_getGammaShare() * gamma / 1e18);
-            int24 accumulatorDelta = computedDelta > 0 ? computedDelta : key.tickSpacing;
+            int24 accumulatorDelta = computedDelta > key.tickSpacing ? computedDelta : key.tickSpacing;
             slug.tickLower = currentTick;
             slug.tickUpper = _alignComputedTickWithTickSpacing(
                 isToken0 ? slug.tickLower + accumulatorDelta : slug.tickLower - accumulatorDelta, key.tickSpacing
