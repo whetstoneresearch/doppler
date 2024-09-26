@@ -700,10 +700,10 @@ contract Doppler is BaseHook {
 
         if (isToken0) {
             poolManager.sync(key.currency0);
-            key.currency0.transfer(address(poolManager), uint256(int256(finalDelta.amount0())));
+            key.currency0.transfer(address(poolManager), uint256(int256(-finalDelta.amount0())));
         } else {
             poolManager.sync(key.currency1);
-            key.currency1.transfer(address(poolManager), uint256(int256(finalDelta.amount1())));
+            key.currency1.transfer(address(poolManager), uint256(int256(-finalDelta.amount1())));
         }
 
         Position[] memory newPositions = new Position[](3);
