@@ -1,7 +1,7 @@
 pragma solidity 0.8.26;
 
 import {console} from "forge-std/console.sol";
-import {SlugData, Position} from "../src/Doppler.sol";
+import {SlugData, Position} from "../../src/Doppler.sol";
 
 struct SlugDataWithName {
     string name;
