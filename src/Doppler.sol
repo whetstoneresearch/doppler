@@ -452,7 +452,8 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // TODO: Consider whether the target price should actually be tickUpper
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-            slug.tickLower = 2 * TickMath.getTickAtSqrtPrice(targetPriceX96);
+            slug.tickLower =
+                _alignComputedTickWithTickSpacing(2 * TickMath.getTickAtSqrtPrice(targetPriceX96), key.tickSpacing);
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
