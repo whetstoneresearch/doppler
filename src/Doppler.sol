@@ -520,7 +520,7 @@ contract Doppler is BaseHook {
         PoolKey memory key,
         SlugData memory upperSlug,
         int24 tickUpper,
-        uint256 totalTokensRemaining
+        uint256 assetAvailable
     ) internal view returns (SlugData memory slug) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
@@ -531,7 +531,7 @@ contract Doppler is BaseHook {
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
-                tokensToLp = tokensToLp > totalTokensRemaining ? totalTokensRemaining : tokensToLp;
+                tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
                 slug.tickLower = isToken0 ? upperSlug.tickUpper : tickUpper;
                 if (isToken0) {
                     slug.tickUpper = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
