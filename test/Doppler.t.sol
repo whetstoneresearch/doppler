@@ -608,7 +608,6 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    // TODO: Currently this is not actually hitting the insufficient proceeds case
     function testLowerSlug_InsufficientProceeds() public {
         for (uint256 i; i < ghosts().length; ++i) {
             // Go to starting time
@@ -647,23 +646,19 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            SlugVis.visualizeSlugs(
-                block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
-            );
-
-            (, int256 tickAccumulator2,,,) = ghosts()[i].hook.state();
+            (, int256 tickAccumulator,,,) = ghosts()[i].hook.state();
 
             // Get the lower slug
             Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
             Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower tick
-            (int24 tickLower,) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+            (, int24 tickUpper) =
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
-            // Validate that the lower slug only spans one tickSpacing and not the full range
-            assertNotEq(tickLower, lowerSlug.tickLower);
-            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            // Validate that lower slug is not above the current tick
+            assertLe(lowerSlug.tickUpper, ghosts()[i].hook.getCurrentTick(poolKey.toId()));
             if (isToken0) {
                 assertEq(lowerSlug.tickUpper - lowerSlug.tickLower, poolKey.tickSpacing);
             } else {
@@ -672,6 +667,10 @@ contract DopplerTest is BaseTest {
 
             // Validate that the lower slug has liquidity
             assertGt(lowerSlug.liquidity, 0);
+
+            // Validate that upper slug and price discovery slug are placed continuously
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper);
         }
     }
 
