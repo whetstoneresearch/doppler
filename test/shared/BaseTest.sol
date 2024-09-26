@@ -14,7 +14,6 @@ import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import {console} from "forge-std/console.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
