@@ -58,7 +58,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator,,,) = hook.state();
+        (, int256 tickAccumulator, uint256 totalTokensSold,,) = hook.state();
 
         // Get the slugs
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -89,8 +89,15 @@ contract RebalanceTest is BaseTest {
         // Validate that the upper slug has very little liquidity (dust)
         assertLt(upperSlug.liquidity, 1e18);
 
-        // TODO: Validate that the lower slug has enough liquidity to handle all tokens sold
-        //       back into the curve.
+        // Validate that we can swap all tokens back into the curve
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
     }
 
     function test_rebalance_LowerSlug_SufficientProceeds() public {
@@ -136,7 +143,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator2,,,) = hook.state();
+        (, int256 tickAccumulator2, uint256 totalTokensSold2,,) = hook.state();
 
         // Get the lower slug
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -151,6 +158,16 @@ contract RebalanceTest is BaseTest {
 
         // Validate that the lower slug has liquidity
         assertGt(lowerSlug.liquidity, 0);
+
+        // Validate that we can swap all tokens back into the curve
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold2), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
     }
 
     function test_rebalance_LowerSlug_InsufficientProceeds() public {
@@ -188,7 +205,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator,,,) = hook.state();
+        (, int256 tickAccumulator, uint256 totalTokensSold,,) = hook.state();
 
         // Get the lower slug
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -212,6 +229,16 @@ contract RebalanceTest is BaseTest {
         // Validate that upper slug and price discovery slug are placed continuously
         assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
         assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+
+        // Validate that we can swap all tokens back into the curve
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
     }
 
     function test_rebalance_LowerSlug_NoLiquidity() public {
@@ -784,6 +811,16 @@ contract RebalanceTest is BaseTest {
         assertNotEq(upperSlug.liquidity, 0);
         assertNotEq(priceDiscoverySlug.liquidity, 0);
 
+        // Validate that we can swap all tokens back into the curve
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
         // Swap in second last epoch
         // ========================
 
@@ -816,9 +853,10 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
 
-        // Slugs must be inline and continuous
-        assertEq(lowerSlug.tickLower, tickLower);
-        assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+        // Lower slug must not be greater than current tick
+        assertLe(lowerSlug.tickUpper, currentTick);
+
+        // Upper slugs must be inline and continuous
         assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
         assertEq(priceDiscoverySlug.tickUpper, tickUpper);
 
