@@ -137,4 +137,12 @@ contract DopplerImplementation is Doppler {
         (, int24 currentTick,,) = poolManager.getSlot0(poolId);
         return currentTick;
     }
+
+    function getRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 totalTokensSold)
+        public
+        view
+        returns (uint256)
+    {
+        return _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold);
+    }
 }

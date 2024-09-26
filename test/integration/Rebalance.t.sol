@@ -9,6 +9,8 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {console} from "forge-std/console.sol";
+import {SlugVis} from "test/shared/SlugVis.sol";
 
 import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
@@ -261,8 +263,7 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Get global lower and upper ticks
-        (int24 tickLower, int24 tickUpper) =
-            hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+        (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
@@ -443,9 +444,10 @@ contract RebalanceTest is BaseTest {
         upperSlug = hook.getPositions(bytes32(uint256(2)));
         priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
+        SlugVis.visualizeSlugs(block.timestamp, currentTick, hook.getPositions);
+
         // Get global lower and upper ticks
-        (int24 tickLower, int24 tickUpper2) =
-            hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
+        (int24 tickLower, int24 tickUpper2) = hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
