@@ -302,11 +302,15 @@ contract Doppler is BaseHook {
         prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
         BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
 
-        uint256 numeraireAvailable =
-            isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
-        uint256 assetAvailable =
-            isToken0 ? uint256(uint128(tokensRemoved.amount0())) : uint256(uint128(tokensRemoved.amount1()));
-        assetAvailable += isToken0 ? key.currency0.balanceOfSelf() : key.currency1.balanceOfSelf();
+        uint256 numeraireAvailable;
+        uint256 assetAvailable;
+        if (isToken0) {
+            numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
+            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf();
+        } else {
+            numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
+            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
+        }
 
         SlugData memory lowerSlug = _computeLowerSlugData(
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
