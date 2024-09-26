@@ -149,4 +149,16 @@ contract DopplerTest is BaseTest {
         // Assert that the result is within one bps of the expected value
         assertApproxEqAbs(hook.getNormalizedTimeElapsed(timestamp), uint256(bps) * 1e14, 0.5e14);
     }
+
+    // =========================================================================
+    //                       _getGammaShare Unit Tests
+    // =========================================================================
+
+    function testGetGammaShare() public view {
+        uint256 endingTime = hook.getEndingTime();
+        uint256 startingTime = hook.getStartingTime();
+        uint256 epochLength = hook.getEpochLength();
+
+        assertApproxEqAbs(epochLength, uint256(hook.getGammaShare()) * (endingTime - startingTime) / 1e18, 1);
+    }
 }
