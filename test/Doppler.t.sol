@@ -264,8 +264,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -351,8 +350,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -517,17 +515,19 @@ contract DopplerTest is BaseTest {
 
             // Get global upper tick
             (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
-            // TODO: This could hit the insufficient proceeds case with other hooks, in which case
-            //       lowerSlug and upperSlug may not be touching. Surprisingly, we still have
-            //       sufficient proceeds in this case. The important part is that we don't revert
-            //       and still place liquidity in the slugs as expected.
+            // TODO: Depending on the hook, this can hit the insufficient or sufficient proceeds case.
+            //       Currently we're hitting insufficient. As such, the assertions should be agnostic
+            //       to either case and should only validate that the slugs are placed correctly.
             // TODO: This should also hit the upper slug oversold case and not place an upper slug but
             //       doesn't seem to due to rounding. Consider whether this is a problem or whether we
-            //       even need that case at all.
-            // Validate that all positions are placed continuously
-            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            //       even need that case at all
+
+            // Validate that lower slug is not above the current tick
+            assertLe(lowerSlug.tickUpper, ghosts()[i].hook.getCurrentTick(poolKey.toId()));
+
+            // Validate that upper slug and price discovery slug are placed continuously
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
             assertEq(priceDiscoverySlug.tickUpper, tickUpper);
 
@@ -875,8 +875,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -1048,8 +1047,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
+            (tickLower, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -1096,8 +1094,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
+            (tickLower, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -1149,8 +1146,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
+            (tickLower, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -1424,8 +1420,7 @@ contract DopplerTest is BaseTest {
         for (uint256 i; i < ghosts().length; ++i) {
             PoolKey memory poolKey = ghosts()[i].key();
 
-            (int24 tickLower, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(accumulator, poolKey.tickSpacing);
+            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(accumulator, poolKey.tickSpacing);
             int24 gamma = ghosts()[i].hook.getGamma();
 
             if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
