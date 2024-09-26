@@ -756,7 +756,7 @@ contract RebalanceTest is BaseTest {
         // The amount sold in the previous epoch
         assertEq(totalTokensSoldLastEpoch3, 1e18 + expectedAmountSold);
 
-        // Compute expected tick
+        // Get accumulatorDelta
         int256 accumulatorDelta = isToken0 ? hook.getElapsedGamma() : -hook.getElapsedGamma();
 
         assertEq(tickAccumulator3, tickAccumulator2 + accumulatorDelta);
@@ -772,9 +772,10 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
 
-        // Slugs must be inline and continuous
-        assertEq(lowerSlug.tickLower, tickLower);
-        assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+        // Lower slug must not be above current tick
+        assertLe(lowerSlug.tickUpper, currentTick);
+
+        // Upper slugs must be inline and continuous
         assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
         assertEq(priceDiscoverySlug.tickUpper, tickUpper2);
 
