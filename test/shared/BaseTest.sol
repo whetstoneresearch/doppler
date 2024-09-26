@@ -14,6 +14,7 @@ import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
+import {console} from "forge-std/console.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
@@ -62,13 +63,13 @@ contract BaseTest is Test, Deployers {
         )
     );
 
+    bool isToken0;
     TestERC20 asset;
     TestERC20 numeraire;
     TestERC20 token0;
     TestERC20 token1;
     PoolId poolId;
 
-    bool isToken0;
     int24 startTick;
     int24 endTick;
 
@@ -122,7 +123,8 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new Doppler hook with a given configuration.
     function _deployDoppler(DopplerConfig memory config) public {
-        isToken0 = asset < numeraire;
+        // isToken0 = asset < numeraire;
+        vm.envOr("IS_TOKEN_0", true);
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
