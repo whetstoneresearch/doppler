@@ -136,11 +136,17 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                     _computeLiquidity Unit Tests
+    //                  _getNormalizedTimeElapsed Unit Tests
     // =========================================================================
 
-    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
-        public
-        view
-    {}
+    function testGetNormalizedTimeElapsed(uint16 bps) public view {
+        vm.assume(bps <= 10_000);
+
+        uint256 endingTime = hook.getEndingTime();
+        uint256 startingTime = hook.getStartingTime();
+        uint256 timestamp = (endingTime - startingTime) * bps / 10_000 + startingTime;
+
+        // Assert that the result is within one bps of the expected value
+        assertApproxEqAbs(hook.getNormalizedTimeElapsed(timestamp), uint256(bps) * 1e14, 0.5e14);
+    }
 }
