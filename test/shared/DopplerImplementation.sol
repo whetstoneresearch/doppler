@@ -101,6 +101,14 @@ contract DopplerImplementation is Doppler {
         return _getNormalizedTimeElapsed(timestamp);
     }
 
+    function getGammaShare() public view returns (int256) {
+        return _getGammaShare();
+    }
+
+    function alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) public view returns (int24) {
+        return _alignComputedTickWithTickSpacing(tick, tickSpacing);
+    }
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
