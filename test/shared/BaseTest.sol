@@ -63,13 +63,13 @@ contract BaseTest is Test, Deployers {
         )
     );
 
-    bool isToken0;
     TestERC20 asset;
     TestERC20 numeraire;
     TestERC20 token0;
     TestERC20 token1;
     PoolId poolId;
 
+    bool isToken0;
     int24 startTick;
     int24 endTick;
 
