@@ -97,6 +97,10 @@ contract DopplerImplementation is Doppler {
         return _getCurrentEpoch();
     }
 
+    function getNormalizedTimeElapsed(uint256 timestamp) public view returns (uint256) {
+        return _getNormalizedTimeElapsed(timestamp);
+    }
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
