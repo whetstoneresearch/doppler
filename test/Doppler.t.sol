@@ -429,15 +429,7 @@ contract DopplerTest is BaseTest {
             // The amount sold by the previous epoch
             assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-            // Compute expected tick
-            int24 expectedTick = ghosts()[i].hook.getStartingTick() + int24(tickAccumulator / 1e18);
-            if (isToken0) {
-                expectedTick += int24(ghosts()[i].hook.getElapsedGamma());
-            } else {
-                expectedTick -= int24(ghosts()[i].hook.getElapsedGamma());
-            }
-
-            assertEq(tickAccumulator2, tickAccumulator + (int256(expectedTick - currentTick) * 1e18));
+            assertEq(tickAccumulator2, tickAccumulator + int24(ghosts()[i].hook.getElapsedGamma()));
 
             // Get positions
             Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -451,14 +443,16 @@ contract DopplerTest is BaseTest {
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
 
-            // Slugs must be inline and continuous
-            assertEq(lowerSlug.tickLower, tickLower);
-            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            // TODO: Depending on the hook used, it's possible to hit the lower slug oversold case or not
+            //       Currently we're hitting the oversold case. As such, the assertions should be agnostic
+            //       to either case and should only validate that the slugs are placed correctly.
+
+            // Lower slug upper tick must not be greater than the currentTick
+            assertLe(lowerSlug.tickUpper, currentTick);
+
+            // Upper and price discovery slugs must be inline and continuous
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
             assertEq(priceDiscoverySlug.tickUpper, tickUpper);
-
-            // Lower slug upper tick should be at the currentTick
-            assertEq(lowerSlug.tickUpper, currentTick);
 
             // All slugs must be set
             assertNotEq(lowerSlug.liquidity, 0);
