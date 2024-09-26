@@ -20,6 +20,7 @@ import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {SlugVis} from "./SlugVis.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
 
 import {Doppler, Position} from "../src/Doppler.sol";
 import {DopplerImplementation} from "./DopplerImplementation.sol";
@@ -263,8 +264,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -350,8 +350,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -430,15 +429,7 @@ contract DopplerTest is BaseTest {
             // The amount sold by the previous epoch
             assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-            // Compute expected tick
-            int24 expectedTick = ghosts()[i].hook.getStartingTick() + int24(tickAccumulator / 1e18);
-            if (isToken0) {
-                expectedTick += int24(ghosts()[i].hook.getElapsedGamma());
-            } else {
-                expectedTick -= int24(ghosts()[i].hook.getElapsedGamma());
-            }
-
-            assertEq(tickAccumulator2, tickAccumulator + (int256(expectedTick - currentTick) * 1e18));
+            assertEq(tickAccumulator2, tickAccumulator + int24(ghosts()[i].hook.getElapsedGamma()));
 
             // Get positions
             Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
@@ -452,19 +443,384 @@ contract DopplerTest is BaseTest {
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
 
-            // Slugs must be inline and continuous
-            assertEq(lowerSlug.tickLower, tickLower);
-            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+            // TODO: Depending on the hook used, it's possible to hit the lower slug oversold case or not
+            //       Currently we're hitting the oversold case. As such, the assertions should be agnostic
+            //       to either case and should only validate that the slugs are placed correctly.
+
+            // Lower slug upper tick must not be greater than the currentTick
+            assertLe(lowerSlug.tickUpper, currentTick);
+
+            // Upper and price discovery slugs must be inline and continuous
             assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
             assertEq(priceDiscoverySlug.tickUpper, tickUpper);
-
-            // Lower slug upper tick should be at the currentTick
-            assertEq(lowerSlug.tickUpper, currentTick);
 
             // All slugs must be set
             assertNotEq(lowerSlug.liquidity, 0);
             assertNotEq(upperSlug.liquidity, 0);
             assertNotEq(priceDiscoverySlug.liquidity, 0);
+        }
+    }
+
+    function testExtremeOversoldCase() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to starting time
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Compute the amount of tokens available in both the upper and price discovery slugs
+            // Should be two epochs of liquidity available since we're at the startingTime
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2
+            );
+
+            // We sell all available tokens
+            // This increases the price to the pool maximum
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (, int256 tickAccumulator,,,) = ghosts()[i].hook.state();
+
+            // Get the slugs
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Get global upper tick
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+
+            // TODO: Depending on the hook, this can hit the insufficient or sufficient proceeds case.
+            //       Currently we're hitting insufficient. As such, the assertions should be agnostic
+            //       to either case and should only validate that the slugs are placed correctly.
+            // TODO: This should also hit the upper slug oversold case and not place an upper slug but
+            //       doesn't seem to due to rounding. Consider whether this is a problem or whether we
+            //       even need that case at all
+
+            // Validate that lower slug is not above the current tick
+            assertLe(lowerSlug.tickUpper, ghosts()[i].hook.getCurrentTick(poolKey.toId()));
+
+            // Validate that upper slug and price discovery slug are placed continuously
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+
+            // Validate that the lower slug and price discovery slug have liquidity
+            assertGt(lowerSlug.liquidity, 1e18);
+            assertGt(priceDiscoverySlug.liquidity, 1e18);
+
+            // Validate that the upper slug has very little liquidity (dust)
+            assertLt(upperSlug.liquidity, 1e18);
+
+            // TODO: Validate that the lower slug has enough liquidity to handle all tokens sold
+            //       back into the curve.
+        }
+    }
+
+    function testLowerSlug_SufficientProceeds() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // We start at the third epoch to allow some dutch auctioning
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2);
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Compute the expected amount sold to see how many tokens will be supplied in the upper slug
+            // We should always have sufficient proceeds if we don't swap beyond the upper slug
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 3
+            );
+
+            // We sell half the expected amount to ensure that we don't surpass the upper slug
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = ghosts()[i].hook.state();
+
+            assertEq(lastEpoch, 3);
+            // Confirm we sold the correct amount
+            assertEq(totalTokensSold, expectedAmountSold / 2);
+            // Previous epoch references non-existent epoch
+            assertEq(totalTokensSoldLastEpoch, 0);
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 3); // Next epoch
+
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (, int256 tickAccumulator2,,,) = ghosts()[i].hook.state();
+
+            // Get the lower slug
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+
+            // Get global lower tick
+            (int24 tickLower,) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+
+            // Validate that the lower slug is spanning the full range
+            assertEq(tickLower, lowerSlug.tickLower);
+            assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+
+            // Validate that the lower slug has liquidity
+            assertGt(lowerSlug.liquidity, 0);
+        }
+    }
+
+    function testLowerSlug_InsufficientProceeds() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to starting time
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // Compute the amount of tokens available in both the upper and price discovery slugs
+            // Should be two epochs of liquidity available since we're at the startingTime
+            uint256 expectedAmountSold = ghosts()[i].hook.getExpectedAmountSold(
+                ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2
+            );
+
+            // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(
+                    !isToken0, int256(expectedAmountSold * 9 / 10), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+                ),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            vm.warp(ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength()); // Next epoch
+
+            // We swap again just to trigger the rebalancing logic in the new epoch
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            (, int256 tickAccumulator,,,) = ghosts()[i].hook.state();
+
+            // Get the lower slug
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Get global lower tick
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+
+            // Validate that lower slug is not above the current tick
+            assertLe(lowerSlug.tickUpper, ghosts()[i].hook.getCurrentTick(poolKey.toId()));
+            if (isToken0) {
+                assertEq(lowerSlug.tickUpper - lowerSlug.tickLower, poolKey.tickSpacing);
+            } else {
+                assertEq(lowerSlug.tickLower - lowerSlug.tickUpper, poolKey.tickSpacing);
+            }
+
+            // Validate that the lower slug has liquidity
+            assertGt(lowerSlug.liquidity, 0);
+
+            // Validate that upper slug and price discovery slug are placed continuously
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+            assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+        }
+    }
+
+    function testLowerSlug_NoLiquidity() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to starting time
+            vm.warp(ghosts()[i].hook.getStartingTime());
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // We sell some tokens to trigger the initial rebalance
+            // We haven't sold any tokens in previous epochs so we shouldn't place a lower slug
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            // Get the lower slug
+            Position memory lowerSlug = ghosts()[i].hook.getPositions(bytes32(uint256(1)));
+
+            // Assert that lowerSlug ticks are equal and non-zero
+            assertEq(lowerSlug.tickLower, lowerSlug.tickUpper);
+            assertNotEq(lowerSlug.tickLower, 0);
+
+            // Assert that the lowerSlug has no liquidity
+            assertEq(lowerSlug.liquidity, 0);
+        }
+    }
+
+    // testLowerSlug_SufficientLiquidity (fuzz?)
+
+    // testUpperSlug_UnderSold
+
+    // testUpperSlug_OverSold
+
+    function testPriceDiscoverySlug_RemainingEpoch() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to second last epoch
+            vm.warp(
+                ghosts()[i].hook.getStartingTime()
+                    + ghosts()[i].hook.getEpochLength()
+                        * (
+                            (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
+                                / ghosts()[i].hook.getEpochLength() - 2
+                        )
+            );
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            // Get the upper and price discover slugs
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Assert that the slugs are continuous
+            assertEq(ghosts()[i].hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower);
+            assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
+
+            // Assert that all tokens to sell are in the upper and price discovery slugs.
+            // This should be the case since we haven't sold any tokens and we're now
+            // at the second last epoch, which means that upper slug should hold all tokens
+            // excluding the final epoch worth and price discovery slug should hold the final
+            // epoch worth of tokens
+            uint256 totalAssetLpSize;
+            if (isToken0) {
+                totalAssetLpSize += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+                totalAssetLpSize += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickUpper),
+                    priceDiscoverySlug.liquidity
+                );
+            } else {
+                totalAssetLpSize += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+                totalAssetLpSize += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(priceDiscoverySlug.tickUpper),
+                    priceDiscoverySlug.liquidity
+                );
+            }
+            assertApproxEqAbs(totalAssetLpSize, ghosts()[i].hook.getNumTokensToSell(), 10_000);
+        }
+    }
+
+    function testPriceDiscoverySlug_LastEpoch() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to the last epoch
+            vm.warp(
+                ghosts()[i].hook.getStartingTime()
+                    + ghosts()[i].hook.getEpochLength()
+                        * (
+                            (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
+                                / ghosts()[i].hook.getEpochLength() - 1
+                        )
+            );
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            // Get the upper and price discover slugs
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Assert that the upperSlug is correctly placed
+            assertEq(ghosts()[i].hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower);
+
+            // Assert that the priceDiscoverySlug has no liquidity
+            assertEq(priceDiscoverySlug.liquidity, 0);
+
+            // Assert that all tokens to sell are in the upper and price discovery slugs.
+            // This should be the case since we haven't sold any tokens and we're now
+            // at the last epoch, which means that upper slug should hold all tokens
+            uint256 totalAssetLpSize;
+            if (isToken0) {
+                totalAssetLpSize += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+            } else {
+                totalAssetLpSize += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+            }
+            assertApproxEqAbs(totalAssetLpSize, ghosts()[i].hook.getNumTokensToSell(), 10_000);
         }
     }
 
@@ -509,8 +865,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
             // Get current tick
             PoolId poolId = poolKey.toId();
@@ -682,8 +1037,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
+            (tickLower, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -730,8 +1084,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
+            (tickLower, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -783,8 +1136,7 @@ contract DopplerTest is BaseTest {
             priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower and upper ticks
-            (tickLower, tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
+            (tickLower, tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
 
             // Get current tick
             (, currentTick,,) = manager.getSlot0(poolId);
@@ -1027,23 +1379,60 @@ contract DopplerTest is BaseTest {
     //                   _getElapsedGamma Unit Tests
     // =========================================================================
 
-    function testGetElapsedGamma_ReturnsExpectedAmountSold(uint8 timePercentage) public {
-        vm.assume(timePercentage <= 100);
-        vm.assume(timePercentage > 0);
-
+    function testGetElapsedGamma_ReturnsExpectedAmountSold() public {
         for (uint256 i; i < ghosts().length; ++i) {
-            uint256 timeElapsed =
-                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 100;
-            uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
+            uint256 timestamp = ghosts()[i].hook.getStartingTime();
             vm.warp(timestamp);
 
-            int256 elapsedGamma = ghosts()[i].hook.getElapsedGamma();
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
 
-            assertApproxEqAbs(
-                int256(ghosts()[i].hook.getGamma()),
-                elapsedGamma * int256(ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
-                    / int256(timestamp - ghosts()[i].hook.getStartingTime()),
-                1
+            timestamp = ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength();
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2;
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getEpochLength() * 2;
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getEpochLength();
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getEndingTime();
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
             );
         }
     }
@@ -1058,8 +1447,7 @@ contract DopplerTest is BaseTest {
         for (uint256 i; i < ghosts().length; ++i) {
             PoolKey memory poolKey = ghosts()[i].key();
 
-            (int24 tickLower, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(accumulator, poolKey.tickSpacing);
+            (int24 tickLower, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(accumulator, poolKey.tickSpacing);
             int24 gamma = ghosts()[i].hook.getGamma();
 
             if (ghosts()[i].hook.getStartingTick() > ghosts()[i].hook.getEndingTick()) {
