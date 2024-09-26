@@ -17,8 +17,6 @@ import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 
-// TODO: Remove this
-
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -737,7 +735,7 @@ contract Doppler is BaseHook {
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false,
-            afterInitialize: false,
+            afterInitialize: true,
             beforeAddLiquidity: true,
             beforeRemoveLiquidity: false,
             afterAddLiquidity: false,
