@@ -597,7 +597,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower tick
             (int24 tickLower,) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Validate that the lower slug is spanning the full range
             assertEq(tickLower, lowerSlug.tickLower);
@@ -659,7 +659,7 @@ contract DopplerTest is BaseTest {
 
             // Get global lower tick
             (int24 tickLower,) =
-                ghosts()[i].hook.getTicksBasedOnState(int24(tickAccumulator2 / 1e18), poolKey.tickSpacing);
+                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Validate that the lower slug only spans one tickSpacing and not the full range
             assertNotEq(tickLower, lowerSlug.tickLower);
