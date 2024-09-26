@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {TokenFactory} from "src/TokenFactory.sol";
-import {Ownable} from "lib/solady/src/auth/Ownable.sol";
+import {Ownable} from "openzeppelin/access/Ownable.sol";
 import {PoolManager, PoolKey, Currency, IHooks} from "v4-core/src/PoolManager.sol";
 
 enum FactoryState {
@@ -26,7 +26,7 @@ contract Airlock is Ownable {
     mapping(address => FactoryState) public getFactoryState;
     mapping(address => Token) public getToken;
 
-    constructor(PoolManager poolManager_) {
+    constructor(PoolManager poolManager_) Ownable(msg.sender) {
         poolManager = poolManager_;
     }
 
