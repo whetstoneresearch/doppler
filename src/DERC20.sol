@@ -9,7 +9,6 @@ import {Ownable} from "openzeppelin/access/Ownable.sol";
 /**
  * TODO:
  * - Add mint cap: bounded annual max inflation which can only go down
- * - Governor can only start minting after 365 days
  */
 error MintingNotStartedYet();
 
@@ -19,6 +18,7 @@ contract DERC20 is ERC20Votes, Ownable {
     address public feeCollector;
 
     uint256 public immutable mintStartDate;
+    uint256 public immutable yearlyMintCap;
 
     constructor(
         string memory name_,
