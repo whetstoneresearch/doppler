@@ -161,4 +161,68 @@ contract DopplerTest is BaseTest {
 
         assertApproxEqAbs(epochLength, uint256(hook.getGammaShare()) * (endingTime - startingTime) / 1e18, 1);
     }
+
+    // =========================================================================
+    //                       _getEpochEndWithOffset Unit Tests
+    // =========================================================================
+
+    function testGetEpochEndWithOffset() public {
+        uint256 startingTime = hook.getStartingTime();
+        uint256 endingTime = hook.getEndingTime();
+        uint256 epochLength = hook.getEpochLength();
+
+        // Assert cases without offset
+
+        vm.warp(startingTime - 1);
+        uint256 epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength);
+
+        vm.warp(startingTime);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength);
+
+        vm.warp(startingTime + epochLength);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+        vm.warp(startingTime + epochLength * 2);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 3);
+
+        vm.warp(endingTime - 1);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, endingTime);
+
+        // Assert cases with epoch
+
+        vm.warp(startingTime - 1);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+        vm.warp(startingTime);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+        vm.warp(startingTime + epochLength);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 3);
+
+        vm.warp(startingTime + epochLength * 2);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 4);
+
+        vm.warp(endingTime - epochLength - 1);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, endingTime);
+    }
 }
