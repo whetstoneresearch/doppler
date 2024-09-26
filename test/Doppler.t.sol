@@ -737,10 +737,6 @@ contract DopplerTest is BaseTest {
                 ""
             );
 
-            SlugVis.visualizeSlugs(
-                block.timestamp, ghosts()[i].hook.getCurrentTick(poolKey.toId()), ghosts()[i].hook.getPositions
-            );
-
             // Get the upper and price discover slugs
             Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
@@ -782,7 +778,61 @@ contract DopplerTest is BaseTest {
         }
     }
 
-    // testPriceDiscoverySlug_LastEpoch
+    function testPriceDiscoverySlug_LastEpoch() public {
+        for (uint256 i; i < ghosts().length; ++i) {
+            // Go to the last epoch
+            vm.warp(
+                ghosts()[i].hook.getStartingTime()
+                    + ghosts()[i].hook.getEpochLength()
+                        * (
+                            (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
+                                / ghosts()[i].hook.getEpochLength() - 1
+                        )
+            );
+
+            PoolKey memory poolKey = ghosts()[i].key();
+            bool isToken0 = ghosts()[i].hook.getIsToken0();
+
+            // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
+            swapRouter.swap(
+                // Swap numeraire to asset
+                // If zeroForOne, we use max price limit (else vice versa)
+                poolKey,
+                IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+                PoolSwapTest.TestSettings(true, false),
+                ""
+            );
+
+            // Get the upper and price discover slugs
+            Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
+            Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
+
+            // Assert that the upperSlug is correctly placed
+            assertEq(ghosts()[i].hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower);
+
+            // Assert that the priceDiscoverySlug has no liquidity
+            assertEq(priceDiscoverySlug.liquidity, 0);
+
+            // Assert that all tokens to sell are in the upper and price discovery slugs.
+            // This should be the case since we haven't sold any tokens and we're now
+            // at the last epoch, which means that upper slug should hold all tokens
+            uint256 totalAssetLpSize;
+            if (isToken0) {
+                totalAssetLpSize += LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+            } else {
+                totalAssetLpSize += LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                    TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                    upperSlug.liquidity
+                );
+            }
+            assertApproxEqAbs(totalAssetLpSize, ghosts()[i].hook.getNumTokensToSell(), 10_000);
+        }
+    }
 
     function testFullFlow() public {
         for (uint256 i; i < ghosts().length; ++i) {
