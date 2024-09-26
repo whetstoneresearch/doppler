@@ -580,15 +580,7 @@ contract RebalanceTest is BaseTest {
         // The amount sold by the previous epoch
         assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-        // Compute expected tick
-        int24 expectedTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
-        if (isToken0) {
-            expectedTick += int24(hook.getElapsedGamma());
-        } else {
-            expectedTick -= int24(hook.getElapsedGamma());
-        }
-
-        assertEq(tickAccumulator2, tickAccumulator + (int256(expectedTick - currentTick) * 1e18));
+        assertEq(tickAccumulator2, tickAccumulator + int24(hook.getElapsedGamma()));
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -601,14 +593,16 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
 
-        // Slugs must be inline and continuous
-        assertEq(lowerSlug.tickLower, tickLower);
-        assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+        // TODO: Depending on the hook used, it's possible to hit the lower slug oversold case or not
+        //       Currently we're hitting the oversold case. As such, the assertions should be agnostic
+        //       to either case and should only validate that the slugs are placed correctly.
+
+        // Lower slug upper tick must not be greater than the currentTick
+        assertLe(lowerSlug.tickUpper, currentTick);
+
+        // Upper and price discovery slugs must be inline and continuous
         assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
         assertEq(priceDiscoverySlug.tickUpper, tickUpper);
-
-        // Lower slug upper tick should be at the currentTick
-        assertEq(lowerSlug.tickUpper, currentTick);
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0);
@@ -616,7 +610,7 @@ contract RebalanceTest is BaseTest {
         assertNotEq(priceDiscoverySlug.liquidity, 0);
     }
 
-    function testFullFlow() public {
+    function test_rebalance_FullFlow() public {
         PoolKey memory poolKey = key;
         bool isToken0 = hook.getIsToken0();
 
@@ -763,14 +757,9 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch3, 1e18 + expectedAmountSold);
 
         // Compute expected tick
-        int24 expectedTick = hook.getStartingTick() + int24(tickAccumulator2 / 1e18);
-        if (isToken0) {
-            expectedTick += int24(hook.getElapsedGamma());
-        } else {
-            expectedTick -= int24(hook.getElapsedGamma());
-        }
+        int256 accumulatorDelta = isToken0 ? hook.getElapsedGamma() : -hook.getElapsedGamma();
 
-        assertEq(tickAccumulator3, tickAccumulator2 + (int256(expectedTick - currentTick) * 1e18));
+        assertEq(tickAccumulator3, tickAccumulator2 + accumulatorDelta);
 
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));

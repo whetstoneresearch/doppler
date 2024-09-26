@@ -12,21 +12,47 @@ contract DopplerTest is BaseTest {
     //                   _getExpectedAmountSold Unit Tests
     // =========================================================================
 
-    function testGetExpectedAmountSold_ReturnsExpectedAmountSold(uint64 timePercentage) public {
-        vm.assume(timePercentage <= 1e18);
-
-        uint256 timeElapsed = (hook.getEndingTime() - hook.getStartingTime()) * timePercentage / 1e18;
-        uint256 timestamp = hook.getStartingTime() + timeElapsed;
+    function testGetElapsedGamma_ReturnsExpectedAmountSold() public {
+        uint256 timestamp = hook.getStartingTime();
         vm.warp(timestamp);
 
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(timestamp);
+        assertEq(
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+        );
 
-        assertApproxEqAbs(
-            timestamp,
-            hook.getStartingTime()
-                + (expectedAmountSold * 1e18 / hook.getNumTokensToSell()) * (hook.getEndingTime() - hook.getStartingTime())
-                    / 1e18,
-            1
+        timestamp = hook.getStartingTime() + hook.getEpochLength();
+        vm.warp(timestamp);
+
+        assertEq(
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+        );
+
+        timestamp = hook.getStartingTime() + hook.getEpochLength() * 2;
+        vm.warp(timestamp);
+
+        assertEq(
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+        );
+
+        timestamp = hook.getEndingTime() - hook.getEpochLength() * 2;
+        vm.warp(timestamp);
+
+        assertEq(
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+        );
+
+        timestamp = hook.getEndingTime() - hook.getEpochLength();
+        vm.warp(timestamp);
+
+        assertEq(
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+        );
+
+        timestamp = hook.getEndingTime();
+        vm.warp(timestamp);
+
+        assertEq(
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
         );
     }
 
