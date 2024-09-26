@@ -480,11 +480,12 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold_, int24 currentTick, uint256 assetAvailable)
-        internal
-        view
-        returns (SlugData memory slug)
-    {
+    function _computeUpperSlugData(
+        PoolKey memory key,
+        uint256 totalTokensSold_,
+        int24 currentTick,
+        uint256 assetAvailable
+    ) internal view returns (SlugData memory slug) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
 
@@ -515,11 +516,12 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computePriceDiscoverySlugData(PoolKey memory key, SlugData memory upperSlug, int24 tickUpper, uint256 totalTokensRemaining)
-        internal
-        view
-        returns (SlugData memory slug)
-    {
+    function _computePriceDiscoverySlugData(
+        PoolKey memory key,
+        SlugData memory upperSlug,
+        int24 tickUpper,
+        uint256 totalTokensRemaining
+    ) internal view returns (SlugData memory slug) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
