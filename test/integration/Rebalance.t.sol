@@ -343,6 +343,9 @@ contract RebalanceTest is BaseTest {
         }
     }
 
+    // TODO: test_rebalance_UpperSlug_Oversold
+    //       This case may not actually be possible, but if it is, we need a test case
+
     function test_rebalance_PriceDiscoverySlug_RemainingEpoch() public {
         // Go to second last epoch
         vm.warp(
