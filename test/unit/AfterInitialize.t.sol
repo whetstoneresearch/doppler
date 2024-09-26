@@ -23,8 +23,6 @@ contract AfterInitializeTest is BaseTest {
         // that all state is as expected
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
-
         (, int256 tickAccumulator,,,) = hook.state();
 
         // Get the slugs
@@ -42,8 +40,8 @@ contract AfterInitializeTest is BaseTest {
         assertEq(priceDiscoverySlug.tickUpper, tickUpper);
 
         // Assert that upper and price discovery slugs have liquidity
-        assertEq(upperSlug.liquidity, 0);
-        assertEq(priceDiscoverySlug.liquidity, 0);
+        assertNotEq(upperSlug.liquidity, 0);
+        assertNotEq(priceDiscoverySlug.liquidity, 0);
 
         // Assert that lower slug has both ticks as the startingTick
         assertEq(lowerSlug.tickLower, hook.getStartingTick());
