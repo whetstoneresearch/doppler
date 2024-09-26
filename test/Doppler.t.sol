@@ -508,8 +508,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global upper tick
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
             // TODO: Depending on the hook, this can hit the insufficient or sufficient proceeds case.
             //       Currently we're hitting insufficient. As such, the assertions should be agnostic
@@ -590,8 +589,7 @@ contract DopplerTest is BaseTest {
             Position memory upperSlug = ghosts()[i].hook.getPositions(bytes32(uint256(2)));
 
             // Get global lower tick
-            (int24 tickLower,) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+            (int24 tickLower,) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
             // Validate that the lower slug is spanning the full range
             assertEq(tickLower, lowerSlug.tickLower);
@@ -648,8 +646,7 @@ contract DopplerTest is BaseTest {
             Position memory priceDiscoverySlug = ghosts()[i].hook.getPositions(bytes32(uint256(3)));
 
             // Get global lower tick
-            (, int24 tickUpper) =
-                ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+            (, int24 tickUpper) = ghosts()[i].hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
             // Validate that lower slug is not above the current tick
             assertLe(lowerSlug.tickUpper, ghosts()[i].hook.getCurrentTick(poolKey.toId()));
@@ -1382,23 +1379,60 @@ contract DopplerTest is BaseTest {
     //                   _getElapsedGamma Unit Tests
     // =========================================================================
 
-    function testGetElapsedGamma_ReturnsExpectedAmountSold(uint8 timePercentage) public {
-        vm.assume(timePercentage <= 100);
-        vm.assume(timePercentage > 0);
-
+    function testGetElapsedGamma_ReturnsExpectedAmountSold() public {
         for (uint256 i; i < ghosts().length; ++i) {
-            uint256 timeElapsed =
-                (ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime()) * timePercentage / 100;
-            uint256 timestamp = ghosts()[i].hook.getStartingTime() + timeElapsed;
+            uint256 timestamp = ghosts()[i].hook.getStartingTime();
             vm.warp(timestamp);
 
-            int256 elapsedGamma = ghosts()[i].hook.getElapsedGamma();
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
 
-            assertApproxEqAbs(
-                int256(ghosts()[i].hook.getGamma()),
-                elapsedGamma * int256(ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getStartingTime())
-                    / int256(timestamp - ghosts()[i].hook.getStartingTime()),
-                1
+            timestamp = ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength();
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getStartingTime() + ghosts()[i].hook.getEpochLength() * 2;
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getEpochLength() * 2;
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getEndingTime() - ghosts()[i].hook.getEpochLength();
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
+            );
+
+            timestamp = ghosts()[i].hook.getEndingTime();
+            vm.warp(timestamp);
+
+            assertEq(
+                ghosts()[i].hook.getElapsedGamma(),
+                int256(ghosts()[i].hook.getNormalizedTimeElapsed(timestamp)) * int256(ghosts()[i].hook.getGamma())
+                    / 1e18
             );
         }
     }
