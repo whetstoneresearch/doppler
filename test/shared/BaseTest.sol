@@ -122,8 +122,7 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new Doppler hook with a given configuration.
     function _deployDoppler(DopplerConfig memory config) public {
-        // isToken0 = asset < numeraire;
-        vm.envOr("IS_TOKEN_0", true);
+        isToken0 = vm.envOr("IS_TOKEN_0", true);
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
