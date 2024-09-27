@@ -17,8 +17,8 @@ contract Governance is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl
 {
-    constructor(IVotes _token, TimelockController _timelock)
-        Governor("MyGovernor")
+    constructor(string memory name_, IVotes _token, TimelockController _timelock)
+        Governor(name_)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(4)
         GovernorTimelockControl(_timelock)
