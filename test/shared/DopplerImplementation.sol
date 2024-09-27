@@ -109,6 +109,10 @@ contract DopplerImplementation is Doppler {
         return _alignComputedTickWithTickSpacing(tick, tickSpacing);
     }
 
+    function getEpochEndWithOffset(uint256 offset) public view returns (uint256) {
+        return _getEpochEndWithOffset(offset);
+    }
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
