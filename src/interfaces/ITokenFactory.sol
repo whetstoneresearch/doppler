@@ -2,5 +2,12 @@
 pragma solidity ^0.8.13;
 
 interface ITokenFactory {
-    function create(bytes memory tokenData) external returns (address);
+    function create(
+        string memory name,
+        string memory symbol,
+        uint256 totalSupply,
+        address recipient,
+        address owner,
+        bytes memory tokenData
+    ) external returns (address);
 }
