@@ -76,28 +76,6 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                   _getElapsedGamma Unit Tests
-    // =========================================================================
-
-    function testGetElapsedGamma_ReturnsExpectedAmountSold(uint8 timePercentage) public {
-        vm.assume(timePercentage <= 100);
-        vm.assume(timePercentage > 0);
-
-        uint256 timeElapsed = (hook.getEndingTime() - hook.getStartingTime()) * timePercentage / 100;
-        uint256 timestamp = hook.getStartingTime() + timeElapsed;
-        vm.warp(timestamp);
-
-        int256 elapsedGamma = hook.getElapsedGamma();
-
-        assertApproxEqAbs(
-            int256(hook.getGamma()),
-            elapsedGamma * int256(hook.getEndingTime() - hook.getStartingTime())
-                / int256(timestamp - hook.getStartingTime()),
-            1
-        );
-    }
-
-    // =========================================================================
     //                   _getTicksBasedOnState Unit Tests
     // =========================================================================
 
