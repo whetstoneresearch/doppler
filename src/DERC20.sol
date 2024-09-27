@@ -50,6 +50,14 @@ contract DERC20 is ERC20Votes, ERC20Permit, Ownable {
         _mint(to, value);
     }
 
+    function clock() public view override returns (uint48) {
+        return uint48(block.timestamp);
+    }
+
+    function CLOCK_MODE() public pure override returns (string memory) {
+        return "mode=timestamp";
+    }
+
     function nonces(address owner) public view virtual override(ERC20Permit, Nonces) returns (uint256) {
         return super.nonces(owner);
     }
