@@ -136,11 +136,93 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                     _computeLiquidity Unit Tests
+    //                  _getNormalizedTimeElapsed Unit Tests
     // =========================================================================
 
-    function testComputeLiquidity_IsSymmetric(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
-        public
-        view
-    {}
+    function testGetNormalizedTimeElapsed(uint16 bps) public view {
+        vm.assume(bps <= 10_000);
+
+        uint256 endingTime = hook.getEndingTime();
+        uint256 startingTime = hook.getStartingTime();
+        uint256 timestamp = (endingTime - startingTime) * bps / 10_000 + startingTime;
+
+        // Assert that the result is within one bps of the expected value
+        assertApproxEqAbs(hook.getNormalizedTimeElapsed(timestamp), uint256(bps) * 1e14, 0.5e14);
+    }
+
+    // =========================================================================
+    //                       _getGammaShare Unit Tests
+    // =========================================================================
+
+    function testGetGammaShare() public view {
+        uint256 endingTime = hook.getEndingTime();
+        uint256 startingTime = hook.getStartingTime();
+        uint256 epochLength = hook.getEpochLength();
+
+        assertApproxEqAbs(epochLength, uint256(hook.getGammaShare()) * (endingTime - startingTime) / 1e18, 1);
+    }
+
+    // =========================================================================
+    //                       _getEpochEndWithOffset Unit Tests
+    // =========================================================================
+
+    function testGetEpochEndWithOffset() public {
+        uint256 startingTime = hook.getStartingTime();
+        uint256 endingTime = hook.getEndingTime();
+        uint256 epochLength = hook.getEpochLength();
+
+        // Assert cases without offset
+
+        vm.warp(startingTime - 1);
+        uint256 epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength);
+
+        vm.warp(startingTime);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength);
+
+        vm.warp(startingTime + epochLength);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+        vm.warp(startingTime + epochLength * 2);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 3);
+
+        vm.warp(endingTime - 1);
+        epochEndWithOffset = hook.getEpochEndWithOffset(0);
+
+        assertEq(epochEndWithOffset, endingTime);
+
+        // Assert cases with epoch
+
+        vm.warp(startingTime - 1);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+        vm.warp(startingTime);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 2);
+
+        vm.warp(startingTime + epochLength);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 3);
+
+        vm.warp(startingTime + epochLength * 2);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, startingTime + epochLength * 4);
+
+        vm.warp(endingTime - epochLength - 1);
+        epochEndWithOffset = hook.getEpochEndWithOffset(1);
+
+        assertEq(epochEndWithOffset, endingTime);
+    }
 }

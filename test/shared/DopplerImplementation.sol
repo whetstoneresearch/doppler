@@ -101,6 +101,14 @@ contract DopplerImplementation is Doppler {
         return _getNormalizedTimeElapsed(timestamp);
     }
 
+    function getGammaShare() public view returns (int256) {
+        return _getGammaShare();
+    }
+
+    function getEpochEndWithOffset(uint256 offset) public view returns (uint256) {
+        return _getEpochEndWithOffset(offset);
+    }
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
