@@ -204,9 +204,8 @@ contract Doppler is BaseHook {
 
         state.lastEpoch = uint40(currentEpoch);
 
-        // Cache state vars to avoid multiple SLOADs
+        // Cache state var to avoid multiple SLOADs
         uint256 totalTokensSold_ = state.totalTokensSold;
-        uint256 totalProceeds_ = state.totalProceeds;
 
         // TODO: consider if this should be the expected amount sold at the start of the current epoch or at the current time
         // i think logically it makes sense to use the current time to get the most accurate rebalance
@@ -549,8 +548,8 @@ contract Doppler is BaseHook {
     {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
-                // TODO: consider what to do with feeDeltas
-                (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
+                // TODO: consider what to do with feeDeltas (second return variable)
+                (BalanceDelta positionDeltas, ) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: lastEpochPositions[i].tickLower,
@@ -638,7 +637,7 @@ contract Doppler is BaseHook {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
+        (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
         SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);

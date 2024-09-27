@@ -587,8 +587,8 @@ contract RebalanceTest is BaseTest {
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
-        // Get global lower and upper ticks
-        (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
+        // Get global upper tick
+        (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Get current tick
         (, currentTick,,) = manager.getSlot0(poolId);
