@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {TokenFactory} from "src/TokenFactory.sol";
+import {IPoolManager, PoolKey, Currency, IHooks} from "v4-core/src/PoolManager.sol";
 import {Ownable} from "openzeppelin/access/Ownable.sol";
-import {PoolManager, PoolKey, Currency, IHooks} from "v4-core/src/PoolManager.sol";
+import {ITokenFactory} from "src/interfaces/ITokenFactory.sol";
+import {IGovernanceFactory} from "src/interfaces/IGovernanceFactory.sol";
+import {IHookFactory} from "src/interfaces/IHookFactory.sol";
 
 enum FactoryState {
     NotWhitelisted,
     TokenFactory,
     GovernanceFactory,
-    LiquidityFactory
+    HookFactory
 }
 
 error WrongFactoryState();
@@ -21,12 +23,12 @@ struct Token {
 }
 
 contract Airlock is Ownable {
-    PoolManager public immutable poolManager;
+    IPoolManager public immutable poolManager;
 
     mapping(address => FactoryState) public getFactoryState;
     mapping(address => Token) public getToken;
 
-    constructor(PoolManager poolManager_) Ownable(msg.sender) {
+    constructor(IPoolManager poolManager_) Ownable(msg.sender) {
         poolManager = poolManager_;
     }
 
@@ -35,31 +37,35 @@ contract Airlock is Ownable {
      * - Creating a token should incur fees (platform and frontend fees)
      *
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
-     * @param governanceFactory Minimal governance housing the Uniswap v2 LP tokens
-     * @param hook Address of the Uniswap v4 hook
+     * @param governanceFactory Address of the factory contract deploying the governance
+     * @param hookFactory Address of the factory contract deploying the Uniswap v4 hook
      */
     function create(
         address tokenFactory,
+        string memory name,
+        string memory symbol,
+        uint256 totalSupply,
+        address owner,
+        bytes memory tokenData,
         address governanceFactory,
-        address hook,
+        bytes memory governanceData,
+        address hookFactory,
+        bytes memory hookData,
         uint256 liquidityAmount,
         address stageAdmin,
         address[] memory recipients,
-        uint256[] memory amounts,
-        string memory name,
-        string memory symbol,
-        bytes memory hookData
-    ) external returns (address token) {
+        uint256[] memory amounts
+    ) external returns (address token, address governance, address hook) {
         require(getFactoryState[tokenFactory] == FactoryState.TokenFactory, WrongFactoryState());
         require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
-        require(getFactoryState[hook] == FactoryState.LiquidityFactory, WrongFactoryState());
-        token = TokenFactory(tokenFactory).create(name, symbol, 1_000_000_000e18, msg.sender); // TODO: Define the total supply
+        require(getFactoryState[hookFactory] == FactoryState.HookFactory, WrongFactoryState());
 
-        getToken[token] = Token({
-            governance: address(0), // TODO: Deploy a minimal governance contract
-            hasMigrated: false,
-            hook: hook
-        });
+        // FIXME: Address of the hook is unknown at this point
+        token = ITokenFactory(tokenFactory).create(name, symbol, totalSupply, hook, owner, tokenData);
+        (governance,) = IGovernanceFactory(governanceFactory).create(token, governanceData);
+        hook = IHookFactory(hookFactory).create(poolManager, hookData);
+
+        getToken[token] = Token({governance: governance, hasMigrated: false, hook: hook});
 
         PoolKey memory key = PoolKey({
             // TODO: Currently only ETH pairs are supported
@@ -72,8 +78,7 @@ contract Airlock is Ownable {
 
         uint160 sqrtPriceX96;
 
-        // TODO: We might want to call `approve` to let the hook take some of our tokens.
-        poolManager.initialize(key, sqrtPriceX96, hookData);
+        poolManager.initialize(key, sqrtPriceX96, new bytes(0));
     }
 
     /**
