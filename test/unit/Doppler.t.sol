@@ -101,7 +101,7 @@ contract DopplerTest is BaseTest {
     //                   _getTicksBasedOnState Unit Tests
     // =========================================================================
 
-    // TODO: int16 accumulator might over/underflow with certain states
+    // TODO: int16 accumulator might over/underflow with certain hook configurations
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
     function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(accumulator, key.tickSpacing);
