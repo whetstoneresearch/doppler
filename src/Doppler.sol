@@ -302,14 +302,21 @@ contract Doppler is BaseHook {
         prevPositions[2] = positions[DISCOVERY_SLUG_SALT];
         BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
 
-        uint256 numeraireAvailable =
-            isToken0 ? uint256(uint128(tokensRemoved.amount1())) : uint256(uint128(tokensRemoved.amount0()));
+        uint256 numeraireAvailable;
+        uint256 assetAvailable;
+        if (isToken0) {
+            numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
+            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf();
+        } else {
+            numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
+            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
+        }
 
         SlugData memory lowerSlug = _computeLowerSlugData(
             key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
         );
-        SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
+        SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper, assetAvailable);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -473,17 +480,18 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computeUpperSlugData(PoolKey memory key, uint256 totalTokensSold_, int24 currentTick)
-        internal
-        view
-        returns (SlugData memory slug)
-    {
+    function _computeUpperSlugData(
+        PoolKey memory key,
+        uint256 totalTokensSold_,
+        int24 currentTick,
+        uint256 assetAvailable
+    ) internal view returns (SlugData memory slug) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
 
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
-            tokensToLp = uint256(tokensSoldDelta);
+            tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
             int24 computedDelta = int24(_getGammaShare() * gamma / 1e18);
             int24 accumulatorDelta = computedDelta > 0 ? computedDelta : key.tickSpacing;
             slug.tickLower = currentTick;
@@ -502,16 +510,18 @@ contract Doppler is BaseHook {
                 TickMath.getSqrtPriceAtTick(slug.tickUpper),
                 tokensToLp
             );
+            assetAvailable -= tokensToLp;
         } else {
             slug.liquidity = 0;
         }
     }
 
-    function _computePriceDiscoverySlugData(PoolKey memory key, SlugData memory upperSlug, int24 tickUpper)
-        internal
-        view
-        returns (SlugData memory slug)
-    {
+    function _computePriceDiscoverySlugData(
+        PoolKey memory key,
+        SlugData memory upperSlug,
+        int24 tickUpper,
+        uint256 assetAvailable
+    ) internal view returns (SlugData memory slug) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
@@ -521,6 +531,7 @@ contract Doppler is BaseHook {
 
             if (epochT1toT2Delta > 0) {
                 uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
+                tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
                 slug.tickLower = isToken0 ? upperSlug.tickUpper : tickUpper;
                 if (isToken0) {
                     slug.tickUpper = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
@@ -656,8 +667,8 @@ contract Doppler is BaseHook {
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
-        SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper);
+        SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick, numTokensToSell);
+        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper, numTokensToSell);
 
         BalanceDelta finalDelta;
 
