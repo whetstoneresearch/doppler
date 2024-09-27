@@ -20,6 +20,8 @@ struct Token {
     address governance;
     bool hasMigrated;
     address hook;
+    address[] recipients;
+    uint256[] amounts;
 }
 
 contract Airlock is Ownable {
@@ -51,7 +53,7 @@ contract Airlock is Ownable {
         bytes memory governanceData,
         address hookFactory,
         bytes memory hookData,
-        uint256 liquidityAmount,
+        uint256 liquidityAmount, // TODO: Maybe we should use an amount of tokens instead of liquidity?
         address stageAdmin,
         address[] memory recipients,
         uint256[] memory amounts
@@ -62,10 +64,11 @@ contract Airlock is Ownable {
 
         // FIXME: Address of the hook is unknown at this point
         token = ITokenFactory(tokenFactory).create(name, symbol, totalSupply, hook, owner, tokenData);
-        (governance,) = IGovernanceFactory(governanceFactory).create(token, governanceData);
+        (governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
         hook = IHookFactory(hookFactory).create(poolManager, hookData);
 
-        getToken[token] = Token({governance: governance, hasMigrated: false, hook: hook});
+        getToken[token] =
+            Token({governance: governance, hasMigrated: false, hook: hook, recipients: recipients, amounts: amounts});
 
         PoolKey memory key = PoolKey({
             // TODO: Currently only ETH pairs are supported
