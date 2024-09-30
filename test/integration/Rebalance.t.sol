@@ -153,8 +153,12 @@ contract RebalanceTest is BaseTest {
         (int24 tickLower,) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Validate that the lower slug is spanning the full range
-        assertEq(tickLower, lowerSlug.tickLower);
-        assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
+        if (hook.getCurrentTick(poolKey.toId()) == tickLower) {
+            assertEq(tickLower - poolKey.tickSpacing, lowerSlug.tickLower, "lowerSlug.tickLower != global tickLower");
+        } else {
+            assertEq(tickLower, lowerSlug.tickLower, "lowerSlug.tickUpper != global tickLower");
+        }
+        assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "lowerSlug.tickUpper != upperSlug.tickLower");
 
         // Validate that the lower slug has liquidity
         assertGt(lowerSlug.liquidity, 0);
