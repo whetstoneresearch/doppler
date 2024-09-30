@@ -126,7 +126,6 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    // TODO: consider reverting or returning if after end time
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
@@ -135,8 +134,6 @@ contract Doppler is BaseHook {
     {
         if (block.timestamp < startingTime || block.timestamp > endingTime) revert InvalidTime();
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
-            // TODO: consider whether there's any logic we wanna run regardless
-
             // TODO: Should there be a fee?
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
@@ -164,13 +161,11 @@ contract Doppler is BaseHook {
             if (currentTick < tickLower) revert SwapBelowRange();
 
             int128 amount0 = swapDelta.amount0();
-            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount0 >= 0
                 ? state.totalTokensSold += uint256(uint128(amount0))
                 : state.totalTokensSold -= uint256(uint128(-amount0));
 
             int128 amount1 = swapDelta.amount1();
-            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount1 >= 0
                 ? state.totalProceeds -= uint256(uint128(amount1))
                 : state.totalProceeds += uint256(uint128(-amount1));
@@ -178,13 +173,11 @@ contract Doppler is BaseHook {
             if (currentTick > tickLower) revert SwapBelowRange();
 
             int128 amount1 = swapDelta.amount1();
-            // TODO: ensure this is the correct direction, i.e. negative amount means tokens were sold
             amount1 >= 0
                 ? state.totalTokensSold += uint256(uint128(amount1))
                 : state.totalTokensSold -= uint256(uint128(-amount1));
 
             int128 amount0 = swapDelta.amount0();
-            // TODO: ensure this is the correct direction, i.e. positive amount means tokens were bought
             amount0 >= 0
                 ? state.totalProceeds -= uint256(uint128(amount0))
                 : state.totalProceeds += uint256(uint128(-amount0));
@@ -211,15 +204,12 @@ contract Doppler is BaseHook {
 
         state.lastEpoch = uint40(currentEpoch);
 
-        // Cache state vars to avoid multiple SLOADs
+        // Cache state var to avoid multiple SLOADs
         uint256 totalTokensSold_ = state.totalTokensSold;
-        uint256 totalProceeds_ = state.totalProceeds;
 
         // TODO: consider if this should be the expected amount sold at the start of the current epoch or at the current time
         // i think logically it makes sense to use the current time to get the most accurate rebalance
         uint256 expectedAmountSold = _getExpectedAmountSold(block.timestamp);
-        // TODO: consider whether net sold should be divided by epochsPassed to get per epoch amount
-        //       i think probably makes sense to divide by epochsPassed then multiply the delta later like we're doing now
         int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
@@ -239,10 +229,7 @@ contract Doppler is BaseHook {
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
-            // TODO: Overflow possible?
-            //       May be worth bounding to a maximum int24.max/min
-            // TODO: Consider whether this is the correct direction
-            //       Assumes that higher tick for token0 implies higher price
+
             if (isToken0) {
                 accumulatorDelta = _getElapsedGamma();
             } else {
@@ -264,7 +251,6 @@ contract Doppler is BaseHook {
         //       Maybe this is only necessary for the oversold case anyway?
         accumulatorDelta /= 1e18;
 
-        // TODO: Consider whether it's ok to overwrite currentTick
         // Use expectedTick if it's set, otherwise increment by accumulatorDelta
         currentTick = expectedTick != 0
             ? _alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing)
@@ -276,15 +262,13 @@ contract Doppler is BaseHook {
         // If we try to add liquidity in this range though, we revert with a divide by zero
         // Thus we have to create a gap between the two
         if (currentTick == tickLower) {
-            // TODO: Consider whether direction is accurate
+            // TODO: May be worth bounding to a maximum int24.max/min to prevent over/underflow
             if (isToken0) {
                 tickLower -= key.tickSpacing;
             } else {
                 tickLower += key.tickSpacing;
             }
         }
-
-        // TODO: Consider what's redundant below if currentTick is unchanged
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
@@ -384,6 +368,7 @@ contract Doppler is BaseHook {
         return int256(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime)) * gamma / 1e18;
     }
 
+    // TODO: Consider bounding to int24.max/min
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
         if (isToken0) {
             return (tick / tickSpacing) * tickSpacing;
@@ -557,7 +542,9 @@ contract Doppler is BaseHook {
         pure
         returns (uint128)
     {
-        // TODO: Consider a better option
+        // TODO: This is probably not necessary anymore since we're bounding liquidity by
+        //       the amount of tokens available to provide. Should still carefully consider
+        //       whether this is necessary
         // We decrement the amount by 1 to avoid rounding errors
         amount = amount != 0 ? amount - 1 : amount;
 
@@ -574,8 +561,8 @@ contract Doppler is BaseHook {
     {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
-                // TODO: consider what to do with feeDeltas
-                (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = poolManager.modifyLiquidity(
+                // TODO: consider what to do with feeDeltas (second return variable)
+                (BalanceDelta positionDeltas,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: lastEpochPositions[i].tickLower,
@@ -663,7 +650,7 @@ contract Doppler is BaseHook {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
 
-        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
+        (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
         SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick, numTokensToSell);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper, numTokensToSell);
@@ -707,7 +694,6 @@ contract Doppler is BaseHook {
         }
 
         Position[] memory newPositions = new Position[](3);
-        // TODO: should we do this? or is it ok to just not deal with the lower slug at all at this stage?
         newPositions[0] =
             Position({tickLower: tick, tickUpper: tick, liquidity: 0, salt: uint8(uint256(LOWER_SLUG_SALT))});
         newPositions[1] = Position({
