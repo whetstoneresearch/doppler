@@ -62,10 +62,11 @@ contract Airlock is Ownable {
         require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
         require(getFactoryState[hookFactory] == FactoryState.HookFactory, WrongFactoryState());
 
-        // FIXME: Address of the hook is unknown at this point
+        (address predictedHook, bytes32 salt) = IHookFactory(hookFactory).predict(poolManager, hookData);
+        hook = IHookFactory(hookFactory).create(poolManager, hookData, salt);
+
         token = ITokenFactory(tokenFactory).create(name, symbol, totalSupply, hook, owner, tokenData);
         (governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
-        hook = IHookFactory(hookFactory).create(poolManager, hookData);
 
         getToken[token] =
             Token({governance: governance, hasMigrated: false, hook: hook, recipients: recipients, amounts: amounts});
