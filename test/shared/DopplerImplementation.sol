@@ -105,12 +105,12 @@ contract DopplerImplementation is Doppler {
         return _getGammaShare();
     }
 
-    function alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) public view returns (int24) {
-        return _alignComputedTickWithTickSpacing(tick, tickSpacing);
-    }
-
     function getEpochEndWithOffset(uint256 offset) public view returns (uint256) {
         return _getEpochEndWithOffset(offset);
+    }
+
+    function alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) public view returns (int24) {
+        return _alignComputedTickWithTickSpacing(tick, tickSpacing);
     }
 
     function computeLowerSlugData(

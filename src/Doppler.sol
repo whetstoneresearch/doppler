@@ -371,9 +371,23 @@ contract Doppler is BaseHook {
     // TODO: Consider bounding to int24.max/min
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
         if (isToken0) {
-            return (tick / tickSpacing) * tickSpacing;
+            // Round down if isToken0
+            if (tick < 0) {
+                // If the tick is negative, we round up (negatively) the negative result to round down
+                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;    
+            } else {
+                // Else if positive, we simply round down
+                return (tick / tickSpacing) * tickSpacing;
+            }
         } else {
-            return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+            // Round up if isToken1
+            if (tick < 0) {
+                // If the tick is negative, we round down the negative result to round up
+                return (tick / tickSpacing) * tickSpacing;
+            } else {
+                // Else if positive, we simply round up
+                return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+            }
         }
     }
 
