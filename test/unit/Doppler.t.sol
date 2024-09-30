@@ -163,7 +163,7 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                       _getEpochEndWithOffset Unit Tests
+    //                    _getEpochEndWithOffset Unit Tests
     // =========================================================================
 
     function testGetEpochEndWithOffset() public {
@@ -224,5 +224,31 @@ contract DopplerTest is BaseTest {
         epochEndWithOffset = hook.getEpochEndWithOffset(1);
 
         assertEq(epochEndWithOffset, endingTime);
+    }
+
+    // =========================================================================
+    //               _alignComputedTickWithTickSpacing Unit Tests
+    // =========================================================================
+
+    function testAlignComputedTickWithTickSpacing(int24 tick, uint8 tickSpacing) public view {
+        vm.assume(tickSpacing > 0);
+        vm.assume(tickSpacing <= 30);
+
+        int24 castTickSpacing = int24(int256(uint256(tickSpacing)));
+        vm.assume(int256(tick) + int256(castTickSpacing) <= type(int24).max);
+        vm.assume(int256(tick) - int256(castTickSpacing) >= type(int24).min);
+
+        bool isToken0 = hook.getIsToken0();
+        int24 alignedTick = hook.alignComputedTickWithTickSpacing(tick, castTickSpacing);
+
+        // Validate that alignedTick is a multiple of tickSpacing
+        assertEq(alignedTick % int24(int8(tickSpacing)), 0);
+
+        // Validate that alignedTick is less than or equal to tick (depending on direction)
+        if (isToken0) {
+            assertLe(alignedTick, tick);
+        } else {
+            assertGe(alignedTick, tick);
+        }
     }
 }
