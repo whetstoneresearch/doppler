@@ -10,7 +10,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function afterInvariant() public view {}
 
-    function invariant_works() public view {
+    function invariant_works() public pure {
         assertTrue(true);
     }
 }

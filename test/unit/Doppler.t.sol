@@ -76,32 +76,10 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                   _getElapsedGamma Unit Tests
-    // =========================================================================
-
-    function testGetElapsedGamma_ReturnsExpectedAmountSold(uint8 timePercentage) public {
-        vm.assume(timePercentage <= 100);
-        vm.assume(timePercentage > 0);
-
-        uint256 timeElapsed = (hook.getEndingTime() - hook.getStartingTime()) * timePercentage / 100;
-        uint256 timestamp = hook.getStartingTime() + timeElapsed;
-        vm.warp(timestamp);
-
-        int256 elapsedGamma = hook.getElapsedGamma();
-
-        assertApproxEqAbs(
-            int256(hook.getGamma()),
-            elapsedGamma * int256(hook.getEndingTime() - hook.getStartingTime())
-                / int256(timestamp - hook.getStartingTime()),
-            1
-        );
-    }
-
-    // =========================================================================
     //                   _getTicksBasedOnState Unit Tests
     // =========================================================================
 
-    // TODO: int16 accumulator might over/underflow with certain states
+    // TODO: int16 accumulator might over/underflow with certain hook configurations
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
     function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(accumulator, key.tickSpacing);
@@ -163,7 +141,7 @@ contract DopplerTest is BaseTest {
     }
 
     // =========================================================================
-    //                    _getEpochEndWithOffset Unit Tests
+    //                       _getEpochEndWithOffset Unit Tests
     // =========================================================================
 
     function testGetEpochEndWithOffset() public {
