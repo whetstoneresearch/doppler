@@ -42,6 +42,9 @@ contract BaseTest is Test, Deployers {
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
 
+    address constant TOKEN_A = address(0x8888);
+    address constant TOKEN_B = address(0x9999);
+
     uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
@@ -111,8 +114,11 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens.
     function _deployTokens() public {
-        asset = new TestERC20(2 ** 128);
-        numeraire = new TestERC20(2 ** 128);
+        isToken0 = vm.envOr("IS_TOKEN_0", true);
+        deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_A) : address(TOKEN_B));
+        deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_B) : address(TOKEN_A));
+        asset = TestERC20(isToken0 ? address(TOKEN_A) : address(TOKEN_B));
+        numeraire = TestERC20(isToken0 ? address(TOKEN_B) : address(TOKEN_A));
     }
 
     /// @dev Deploys a new Doppler hook with the default configuration.
