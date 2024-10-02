@@ -10,9 +10,14 @@ contract GovernanceFactory is IGovernanceFactory {
         external
         returns (address governance, TimelockController timelockController)
     {
-        timelockController = new TimelockController(2 days, new address[](0), new address[](0), address(0));
+        timelockController = new TimelockController(2 days, new address[](0), new address[](0), address(this));
         governance = address(
             new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))
         );
+        timelockController.grantRole(keccak256("PROPOSER_ROLE"), governance);
+        // TODO: Check if this is really necessary
+        timelockController.grantRole(keccak256("EXECUTOR_ROLE"), address(0));
+
+        timelockController.renounceRole(bytes32(0x00), address(this));
     }
 }
