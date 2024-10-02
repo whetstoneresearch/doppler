@@ -3,15 +3,17 @@ pragma solidity ^0.8.13;
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {console} from "forge-std/console.sol";
+import {Test} from "forge-std/Test.sol";
 import {Airlock, FactoryState} from "src/Airlock.sol";
 import {TokenFactory} from "src/TokenFactory.sol";
 import {DopplerFactory} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
+import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 import {Doppler} from "src/Doppler.sol";
 import {HookMiner} from "src/HookMiner.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 
-contract AirlockTest is Deployers {
+contract AirlockTest is Test, Deployers {
     Airlock airlock;
     TokenFactory tokenFactory;
     DopplerFactory dopplerFactory;
@@ -46,9 +48,9 @@ contract AirlockTest is Deployers {
         (address token, address governance, address hook) = airlock.create(
             name,
             symbol,
+            totalSupply,
             startingTime,
             endingTime,
-            totalSupply,
             numeraire,
             owner,
             address(tokenFactory),
@@ -60,5 +62,8 @@ contract AirlockTest is Deployers {
             recipients,
             amounts
         );
+
+        assertEq(ERC20(token).balanceOf(hook), totalSupply / 2, "Wrong Hook balance");
+        assertEq(ERC20(token).balanceOf(address(airlock)), totalSupply / 2, "Wrong Airlock balance");
     }
 }
