@@ -31,6 +31,14 @@ contract AirlockTest is Test, Deployers {
         airlock.setFactoryState(address(governanceFactory), FactoryState.GovernanceFactory);
     }
 
+    /**
+     * TODO: Check all the following:
+     * - Who is the owner of the token?
+     * - Who is the owner of the governance?
+     * - Was the v4 pool correctly initialized?
+     * - Were all the hook parameters correctly set?
+     * -
+     */
     function test_Airlock_create() public {
         address numeraire = address(0);
         uint256 totalSupply = 100_000_000_000 ether;
