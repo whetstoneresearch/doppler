@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IPoolManager, PoolKey, Currency, IHooks} from "v4-core/src/PoolManager.sol";
+import {IPoolManager, PoolKey, Currency, IHooks, TickMath} from "v4-core/src/PoolManager.sol";
 import {Ownable} from "openzeppelin/access/Ownable.sol";
+import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 import {ITokenFactory} from "src/interfaces/ITokenFactory.sol";
 import {IGovernanceFactory} from "src/interfaces/IGovernanceFactory.sol";
 import {IHookFactory} from "src/interfaces/IHookFactory.sol";
@@ -24,6 +25,8 @@ struct Token {
     uint256[] amounts;
 }
 
+event Create(address asset, address indexed numeraire, address governance, address hook);
+
 contract Airlock is Ownable {
     IPoolManager public immutable poolManager;
 
@@ -43,46 +46,82 @@ contract Airlock is Ownable {
      * @param hookFactory Address of the factory contract deploying the Uniswap v4 hook
      */
     function create(
-        address tokenFactory,
         string memory name,
         string memory symbol,
         uint256 totalSupply,
+        uint256 startingTime,
+        uint256 endingTime,
+        address numeraire,
         address owner,
+        address tokenFactory,
         bytes memory tokenData,
         address governanceFactory,
         bytes memory governanceData,
         address hookFactory,
         bytes memory hookData,
-        uint256 liquidityAmount, // TODO: Maybe we should use an amount of tokens instead of liquidity?
-        address stageAdmin,
         address[] memory recipients,
         uint256[] memory amounts
-    ) external returns (address token, address governance, address hook) {
+    ) external returns (address, address, address) {
+        // The following parameters are hardcoded for now, let's decide if we want to let the user set them:
+        int24 minTick = -100_000;
+        int24 maxTick = 200_000;
+        uint256 epochLength = 50;
+        uint256 gamma = 1_000;
+
         require(getFactoryState[tokenFactory] == FactoryState.TokenFactory, WrongFactoryState());
         require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
         require(getFactoryState[hookFactory] == FactoryState.HookFactory, WrongFactoryState());
 
-        (address predictedHook, bytes32 salt) = IHookFactory(hookFactory).predict(poolManager, hookData);
-        hook = IHookFactory(hookFactory).create(poolManager, hookData, salt);
+        // FIXME: For now we're transferring the whole supply into this contract + receiving the ownership
+        address token =
+            ITokenFactory(tokenFactory).create(name, symbol, totalSupply, address(this), address(this), tokenData);
 
-        token = ITokenFactory(tokenFactory).create(name, symbol, totalSupply, hook, owner, tokenData);
-        (governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
+        bool isToken0 = token < numeraire ? true : false;
+
+        // FIXME: We might want to double compare the minted / predicted addresses?
+        (address predictedHook, bytes32 salt) = IHookFactory(hookFactory).predict(
+            poolManager,
+            totalSupply / 2,
+            startingTime,
+            endingTime,
+            isToken0 ? minTick : maxTick,
+            isToken0 ? maxTick : minTick,
+            epochLength,
+            gamma,
+            isToken0,
+            hookData
+        );
+        address hook = IHookFactory(hookFactory).create(
+            poolManager,
+            totalSupply / 2,
+            startingTime,
+            endingTime,
+            isToken0 ? minTick : maxTick,
+            isToken0 ? maxTick : minTick,
+            epochLength,
+            gamma,
+            isToken0,
+            hookData,
+            salt
+        );
+        ERC20(token).transfer(hook, totalSupply / 2);
+
+        (address governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
 
         getToken[token] =
             Token({governance: governance, hasMigrated: false, hook: hook, recipients: recipients, amounts: amounts});
 
         PoolKey memory key = PoolKey({
-            // TODO: Currently only ETH pairs are supported
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(token),
+            currency0: Currency.wrap(isToken0 ? token : numeraire),
+            currency1: Currency.wrap(isToken0 ? numeraire : token),
             fee: 0, // TODO: Do we want users to have the ability to set the fee?
             tickSpacing: 60, // TODO: Do we want users to have the ability to set the tickSpacing?
             hooks: IHooks(hook)
         });
 
-        uint160 sqrtPriceX96 = 4295128739;
+        poolManager.initialize(key, TickMath.getSqrtPriceAtTick(isToken0 ? minTick : maxTick), new bytes(0));
 
-        poolManager.initialize(key, sqrtPriceX96, new bytes(0));
+        return (token, governance, hook);
     }
 
     /**
