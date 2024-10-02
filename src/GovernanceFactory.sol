@@ -11,6 +11,8 @@ contract GovernanceFactory is IGovernanceFactory {
         returns (address governance, TimelockController timelockController)
     {
         timelockController = new TimelockController(2 days, new address[](0), new address[](0), address(0));
-        governance = address(new Governance(name, IVotes(token), TimelockController(timelockController)));
+        governance = address(
+            new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))
+        );
     }
 }
