@@ -107,6 +107,8 @@ contract Airlock is Ownable {
         ERC20(token).transfer(hook, totalSupply / 2);
 
         (address governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
+        // FIXME: I think the Timelock should be the owner of the token contract?
+        Ownable(token).transferOwnership(governance);
 
         getToken[token] =
             Token({governance: governance, hasMigrated: false, hook: hook, recipients: recipients, amounts: amounts});
