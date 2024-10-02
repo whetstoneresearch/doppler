@@ -80,7 +80,7 @@ contract Airlock is Ownable {
             hooks: IHooks(hook)
         });
 
-        uint160 sqrtPriceX96;
+        uint160 sqrtPriceX96 = 4295128739;
 
         poolManager.initialize(key, sqrtPriceX96, new bytes(0));
     }
