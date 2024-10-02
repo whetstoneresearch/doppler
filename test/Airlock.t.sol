@@ -29,43 +29,36 @@ contract AirlockTest is Deployers {
         airlock.setFactoryState(address(governanceFactory), FactoryState.GovernanceFactory);
     }
 
-    uint256 numTokensToSell;
-    uint256 startingTime;
-    uint256 endingTime;
-    int24 startingTick;
-    int24 endingTick;
-    uint256 epochLength;
-    uint256 gamma;
-    bool isToken0;
-
-    bytes public tokenData =
-        abi.encode(numTokensToSell, startingTime, endingTime, startingTick, endingTick, epochLength, gamma, isToken0);
-
     function test_Airlock_create() public {
+        address numeraire = address(0);
+        uint256 totalSupply = 100_000_000_000 ether;
+        uint256 startingTime = 1 days;
+        uint256 endingTime = 8 days;
+        string memory name = "NAME";
+        string memory symbol = "SBML";
+        address owner = address(0xb0b);
+        bytes memory tokenData = abi.encode(0, new address[](0), address(0));
+        bytes memory governanceData = new bytes(0);
+        bytes memory hookData = new bytes(0);
+        address[] memory recipients = new address[](0);
+        uint256[] memory amounts = new uint256[](0);
+
         (address token, address governance, address hook) = airlock.create(
+            name,
+            symbol,
+            startingTime,
+            endingTime,
+            totalSupply,
+            numeraire,
+            owner,
             address(tokenFactory),
-            "NAME",
-            "SYMBOL",
-            1_000_000 ether,
-            address(0xb0b),
-            abi.encode(0, new address[](0), address(0)),
+            tokenData,
             address(governanceFactory),
-            new bytes(0), // No extra data for now
+            governanceData,
             address(dopplerFactory),
-            abi.encode(
-                100_000e18,
-                1_500, // 500 seconds from now
-                1_500 + 86_400, // 1 day from the start time
-                -100_000,
-                -200_000,
-                50,
-                1_000,
-                true
-            ),
-            1_000_000 ether,
-            address(0xbeef),
-            new address[](0),
-            new uint256[](0)
+            hookData,
+            recipients,
+            amounts
         );
     }
 }
