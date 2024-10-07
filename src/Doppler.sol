@@ -19,6 +19,7 @@ import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/Tran
 
 import {console} from "forge-std/console.sol";
 
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -443,8 +444,6 @@ contract Doppler is BaseHook {
     ) internal view returns (SlugData memory slug) {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
-        console.log("tickLower", tickLower);
-        console.log("currentTick", currentTick);
         if (requiredProceeds > totalProceeds_) {
             uint160 targetPriceX96;
             if (isToken0) {
@@ -456,7 +455,6 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // TODO: Consider whether the target price should actually be tickUpper
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-            console.log("tickLower unadjusted", 2 * TickMath.getTickAtSqrtPrice(targetPriceX96));
             slug.tickLower =
                 _alignComputedTickWithTickSpacing(2 * TickMath.getTickAtSqrtPrice(targetPriceX96), key.tickSpacing);
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
