@@ -220,7 +220,6 @@ contract Doppler is BaseHook {
 
         int256 accumulatorDelta;
         int256 newAccumulator;
-        int24 expectedTick;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
@@ -228,15 +227,11 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
-            int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
-
             if (isToken0) {
                 accumulatorDelta = _getElapsedGamma();
             } else {
                 accumulatorDelta = -_getElapsedGamma();
             }
-
-            expectedTick = tauTick + int24(accumulatorDelta / 1e18);
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -249,12 +244,11 @@ contract Doppler is BaseHook {
         //       e.g. if accumulatorDelta is 4e18 for two epochs in a row, should we bump up by a tickSpacing
         //       after the second epoch, or only adjust on significant epochs?
         //       Maybe this is only necessary for the oversold case anyway?
-        accumulatorDelta /= 1e18;
+        int24 expectedTick = startingTick + int24(newAccumulator / 1e18);
+
 
         // Use expectedTick if it's set, otherwise increment by accumulatorDelta
-        currentTick = expectedTick != 0
-            ? _alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing)
-            : _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
+        currentTick = _alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
