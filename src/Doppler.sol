@@ -48,7 +48,7 @@ contract Doppler is BaseHook {
 
     // TODO: consider what a good tick spacing cieling is
     int24 constant MAX_TICK_SPACING = 30;
-    
+
     // use invalid tick as default expectedTick
     int24 constant MAX_INT24 = TickMath.MAX_TICK + 1;
 
@@ -226,7 +226,7 @@ contract Doppler is BaseHook {
 
         int256 accumulatorDelta;
         int256 newAccumulator;
-        int24 expectedTick = MAX_INT24; // use an invalid tick 
+        int24 expectedTick = MAX_INT24; // use an invalid tick
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
@@ -457,8 +457,9 @@ contract Doppler is BaseHook {
             // TODO: Consider whether the target price should actually be tickUpper
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
             // This should probably be + tickSpacing in the case of !isToken0
-            slug.tickLower =
-                _alignComputedTickWithTickSpacing(TickMath.getTickAtSqrtPrice(targetPriceX96), key.tickSpacing) / 2 - key.tickSpacing;
+            slug.tickLower = _alignComputedTickWithTickSpacing(
+                TickMath.getTickAtSqrtPrice(targetPriceX96), key.tickSpacing
+            ) / 2 - key.tickSpacing;
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
