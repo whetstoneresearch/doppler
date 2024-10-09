@@ -253,7 +253,6 @@ contract Doppler is BaseHook {
         //       Maybe this is only necessary for the oversold case anyway?
         accumulatorDelta /= 1e18;
 
-        // Use expectedTick if it's set, otherwise increment by accumulatorDelta
         currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
