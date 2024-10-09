@@ -16,6 +16,7 @@ import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMat
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -47,6 +48,9 @@ contract Doppler is BaseHook {
 
     // TODO: consider what a good tick spacing cieling is
     int24 constant MAX_TICK_SPACING = 30;
+    
+    // use invalid tick as default expectedTick
+    int24 constant MAX_INT24 = TickMath.MAX_TICK + 1;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -78,6 +82,8 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
+        _startingTick += _gamma;
+        _endingTick += _gamma;
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
@@ -220,7 +226,7 @@ contract Doppler is BaseHook {
 
         int256 accumulatorDelta;
         int256 newAccumulator;
-        int24 expectedTick;
+        int24 expectedTick = MAX_INT24; // use an invalid tick 
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
@@ -235,8 +241,8 @@ contract Doppler is BaseHook {
             } else {
                 accumulatorDelta = -_getElapsedGamma();
             }
-
             expectedTick = tauTick + int24(accumulatorDelta / 1e18);
+            accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -252,9 +258,7 @@ contract Doppler is BaseHook {
         accumulatorDelta /= 1e18;
 
         // Use expectedTick if it's set, otherwise increment by accumulatorDelta
-        currentTick = expectedTick != 0
-            ? _alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing)
-            : _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
+        currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -364,7 +368,7 @@ contract Doppler is BaseHook {
     }
 
     function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime)) * gamma / 1e18;
+        return int256(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime)) * gamma;
     }
 
     // TODO: Consider bounding to int24.max/min
@@ -452,8 +456,9 @@ contract Doppler is BaseHook {
             // TODO: Consider whether this can revert due to InvalidSqrtPrice check
             // TODO: Consider whether the target price should actually be tickUpper
             // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+            // This should probably be + tickSpacing in the case of !isToken0
             slug.tickLower =
-                _alignComputedTickWithTickSpacing(2 * TickMath.getTickAtSqrtPrice(targetPriceX96), key.tickSpacing);
+                _alignComputedTickWithTickSpacing(TickMath.getTickAtSqrtPrice(targetPriceX96), key.tickSpacing) / 2 - key.tickSpacing;
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
