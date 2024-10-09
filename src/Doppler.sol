@@ -49,9 +49,6 @@ contract Doppler is BaseHook {
     // TODO: consider what a good tick spacing cieling is
     int24 constant MAX_TICK_SPACING = 30;
 
-    // use invalid tick as default expectedTick
-    int24 constant MAX_INT24 = TickMath.MAX_TICK + 1;
-
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
     bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
