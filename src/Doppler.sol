@@ -223,7 +223,6 @@ contract Doppler is BaseHook {
 
         int256 accumulatorDelta;
         int256 newAccumulator;
-        int24 expectedTick = MAX_INT24; // use an invalid tick
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
@@ -238,7 +237,7 @@ contract Doppler is BaseHook {
             } else {
                 accumulatorDelta = -_getElapsedGamma();
             }
-            expectedTick = tauTick + int24(accumulatorDelta / 1e18);
+            int24 expectedTick = tauTick + int24(accumulatorDelta / 1e18);
             accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
         }
 
