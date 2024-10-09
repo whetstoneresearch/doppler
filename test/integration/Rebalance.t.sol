@@ -17,6 +17,8 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
+import {console} from "forge-std/console.sol";
+
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -232,6 +234,15 @@ contract RebalanceTest is BaseTest {
         // Validate that upper slug and price discovery slug are placed continuously
         assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
         assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+
+        uint256 amount0Delta = LiquidityAmounts.getAmount0ForLiquidity(
+            TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+            TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+            lowerSlug.liquidity
+        );
+
+        // assert that the lowerSlug can support the purchase of 99.9% of the tokens sold
+        assertApproxEqAbs(amount0Delta, totalTokensSold, totalTokensSold * 999 / 1000);
 
         // Validate that we can swap all tokens back into the curve
         swapRouter.swap(
