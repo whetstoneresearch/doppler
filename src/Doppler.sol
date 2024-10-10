@@ -18,8 +18,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 
-import {console} from "forge-std/console.sol";
-
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -226,26 +224,22 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
-            // console.log("accDelta1", accumulatorDelta);
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
-            // console.log("accDelta2", accumulatorDelta);
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
+            Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
 
             if (isToken0) {
                 accumulatorDelta = _getElapsedGamma();
+                currentTick = currentTick > pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
             } else {
                 accumulatorDelta = -_getElapsedGamma();
+                currentTick = currentTick < pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
             }
-            // console.log("elapsedGamma", accumulatorDelta);
-            // console.log("tauTick", tauTick);
             int24 expectedTick = tauTick + int24(accumulatorDelta / 1e18);
-            // console.log("expectedTick", expectedTick);
-            // console.log("currentTick", currentTick);
             accumulatorDelta = int256(currentTick + (isToken0 ? expectedTick : -expectedTick)) * 1e18;
-            // console.log("accDelta3", accumulatorDelta);
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -259,10 +253,8 @@ contract Doppler is BaseHook {
         //       after the second epoch, or only adjust on significant epochs?
         //       Maybe this is only necessary for the oversold case anyway?
         accumulatorDelta /= 1e18;
-        // console.log("accumulatorDelta", accumulatorDelta);
 
         currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
-        // console.log("currentTick", currentTick);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -362,7 +354,6 @@ contract Doppler is BaseHook {
 
     // TODO: consider whether it's safe to always round down
     function _getExpectedAmountSold(uint256 timestamp) internal view returns (uint256) {
-        console.log("norm", _getNormalizedTimeElapsed(timestamp));
         return FullMath.mulDiv(_getNormalizedTimeElapsed(timestamp), numTokensToSell, 1e18);
     }
 
