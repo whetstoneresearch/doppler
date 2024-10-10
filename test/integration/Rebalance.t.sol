@@ -241,6 +241,8 @@ contract RebalanceTest is BaseTest {
 
         // assert that the lowerSlug can support the purchase of 99.9% of the tokens sold
         assertApproxEqAbs(amount0Delta, totalTokensSold, totalTokensSold * 1 / 1000);
+        // TODO: Figure out how this can possibly fail even though the following trade succeeds
+        // assertGt(amount0Delta, totalTokensSold);
 
         // Validate that we can swap all tokens back into the curve
         swapRouter.swap(

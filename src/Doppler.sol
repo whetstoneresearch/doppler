@@ -238,7 +238,7 @@ contract Doppler is BaseHook {
                 accumulatorDelta = -_getElapsedGamma();
             }
             int24 expectedTick = tauTick + int24(accumulatorDelta / 1e18);
-            accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
+            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -454,7 +454,7 @@ contract Doppler is BaseHook {
             // This should probably be + tickSpacing in the case of !isToken0
             slug.tickLower = _alignComputedTickWithTickSpacing(
                 TickMath.getTickAtSqrtPrice(targetPriceX96) / 2, key.tickSpacing
-            ) - key.tickSpacing;
+            ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
