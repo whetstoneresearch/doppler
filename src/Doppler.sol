@@ -83,8 +83,15 @@ contract Doppler is BaseHook {
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
-        if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
-        if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
+        if (_startingTick != endingTick) {
+            if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
+            if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
+
+            int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
+            int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
+            // DA worst case is starting tick - ending tick
+            if (_gamma * totalEpochs != totalTickDelta) revert InvalidGamma();
+        }
         // Enforce maximum tick spacing
         if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
 
@@ -100,10 +107,6 @@ contract Doppler is BaseHook {
 
         /* Gamma checks */
         // Enforce that the total tick delta is divisible by the total number of epochs
-        int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
-        int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
-        // DA worst case is starting tick - ending tick
-        if (_gamma * totalEpochs != totalTickDelta) revert InvalidGamma();
         // Enforce that gamma is divisible by tick spacing
         if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
 
