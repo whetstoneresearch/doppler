@@ -707,12 +707,16 @@ contract RebalanceTest is BaseTest {
         // The amount sold by the previous epoch
         assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-        assertEq(tickAccumulator2, tickAccumulator + int24(hook.getElapsedGamma()));
+        int24 tauTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
+        int24 expectedTick = tauTick + int24(hook.getElapsedGamma() / 1e18);
+
+        assertEq(tickAccumulator2, tickAccumulator + int256(currentTick + expectedTick) * 1e18);
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+
 
         // Get global upper tick
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);

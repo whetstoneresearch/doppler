@@ -18,6 +18,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -239,7 +240,7 @@ contract Doppler is BaseHook {
                 currentTick = currentTick < pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
             }
             int24 expectedTick = tauTick + int24(accumulatorDelta / 1e18);
-            accumulatorDelta = int256(currentTick + (isToken0 ? expectedTick : -expectedTick)) * 1e18;
+            accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
