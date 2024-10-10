@@ -18,6 +18,8 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 
+import {console} from "forge-std/console.sol";
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -79,8 +81,6 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0
     ) BaseHook(_poolManager) {
-        _startingTick += _gamma;
-        _endingTick += _gamma;
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
@@ -226,9 +226,11 @@ contract Doppler is BaseHook {
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
+            // console.log("accDelta1", accumulatorDelta);
         } else if (totalTokensSold_ <= expectedAmountSold) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            // console.log("accDelta2", accumulatorDelta);
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
 
@@ -237,8 +239,13 @@ contract Doppler is BaseHook {
             } else {
                 accumulatorDelta = -_getElapsedGamma();
             }
+            // console.log("elapsedGamma", accumulatorDelta);
+            // console.log("tauTick", tauTick);
             int24 expectedTick = tauTick + int24(accumulatorDelta / 1e18);
-            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
+            // console.log("expectedTick", expectedTick);
+            // console.log("currentTick", currentTick);
+            accumulatorDelta = int256(currentTick + (isToken0 ? expectedTick : -expectedTick)) * 1e18;
+            // console.log("accDelta3", accumulatorDelta);
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -252,8 +259,10 @@ contract Doppler is BaseHook {
         //       after the second epoch, or only adjust on significant epochs?
         //       Maybe this is only necessary for the oversold case anyway?
         accumulatorDelta /= 1e18;
+        // console.log("accumulatorDelta", accumulatorDelta);
 
         currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
+        // console.log("currentTick", currentTick);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -344,7 +353,7 @@ contract Doppler is BaseHook {
     }
 
     function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
-        return (timestamp - startingTime) * 1e18 / (endingTime - startingTime);
+        return FullMath.mulDiv(timestamp - startingTime, 1e18, endingTime - startingTime);
     }
 
     function _getGammaShare() internal view returns (int256) {
@@ -353,7 +362,8 @@ contract Doppler is BaseHook {
 
     // TODO: consider whether it's safe to always round down
     function _getExpectedAmountSold(uint256 timestamp) internal view returns (uint256) {
-        return _getNormalizedTimeElapsed(timestamp) * numTokensToSell / 1e18;
+        console.log("norm", _getNormalizedTimeElapsed(timestamp));
+        return FullMath.mulDiv(_getNormalizedTimeElapsed(timestamp), numTokensToSell, 1e18);
     }
 
     // Returns 18 decimal fixed point value
@@ -368,24 +378,29 @@ contract Doppler is BaseHook {
 
     // TODO: Consider bounding to int24.max/min
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
+        // if (isToken0) {
+        //     // Round down if isToken0
+        //     if (tick < 0) {
+        //         // If the tick is negative, we round up (negatively) the negative result to round down
+        //         return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+        //     } else {
+        //         // Else if positive, we simply round down
+        //         return (tick / tickSpacing) * tickSpacing;
+        //     }
+        // } else {
+        //     // Round up if isToken1
+        //     if (tick < 0) {
+        //         // If the tick is negative, we round down the negative result to round up
+        //         return (tick / tickSpacing) * tickSpacing;
+        //     } else {
+        //         // Else if positive, we simply round up
+        //         return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+        //     }
+        // }
         if (isToken0) {
-            // Round down if isToken0
-            if (tick < 0) {
-                // If the tick is negative, we round up (negatively) the negative result to round down
-                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
-            } else {
-                // Else if positive, we simply round down
-                return (tick / tickSpacing) * tickSpacing;
-            }
+            return (tick / tickSpacing) * tickSpacing;
         } else {
-            // Round up if isToken1
-            if (tick < 0) {
-                // If the tick is negative, we round down the negative result to round up
-                return (tick / tickSpacing) * tickSpacing;
-            } else {
-                // Else if positive, we simply round up
-                return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
-            }
+            return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
         }
     }
 
@@ -530,7 +545,7 @@ contract Doppler is BaseHook {
                 _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
             if (epochT1toT2Delta > 0) {
-                uint256 tokensToLp = (uint256(epochT1toT2Delta) * numTokensToSell) / 1e18;
+                uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
                 tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
                 slug.tickLower = isToken0 ? upperSlug.tickUpper : tickUpper;
                 if (isToken0) {

@@ -17,6 +17,8 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
+import {console} from "forge-std/console.sol";
+
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -32,6 +34,30 @@ contract RebalanceTest is BaseTest {
         // Should be two epochs of liquidity available since we're at the startingTime
         uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength() * 2);
 
+        Position memory uSlug = hook.getPositions(bytes32(uint256(2)));
+        Position memory pdSlug = hook.getPositions(bytes32(uint256(3)));
+
+        uint256 uAmount0Delta = LiquidityAmounts.getAmount0ForLiquidity(
+            TickMath.getSqrtPriceAtTick(uSlug.tickLower),
+            TickMath.getSqrtPriceAtTick(uSlug.tickUpper),
+            uSlug.liquidity
+        );
+
+        uint256 pdAmount0Delta = LiquidityAmounts.getAmount0ForLiquidity(
+            TickMath.getSqrtPriceAtTick(pdSlug.tickLower),
+            TickMath.getSqrtPriceAtTick(pdSlug.tickUpper),
+            pdSlug.liquidity
+        );
+
+        console.log("uAmount0Delta", uAmount0Delta);
+        console.log("pdAmount0Delta", pdAmount0Delta);
+        console.log("total", uAmount0Delta + pdAmount0Delta);
+        console.log("gt", uAmount0Delta + pdAmount0Delta > expectedAmountSold);
+        console.log("amt over", expectedAmountSold - (uAmount0Delta + pdAmount0Delta));
+        console.log("expectedAmountSold", expectedAmountSold);
+
+
+
         // We sell all available tokens
         // This increases the price to the pool maximum
         swapRouter.swap(
@@ -45,6 +71,10 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
+        console.log("currentTick", hook.getCurrentTick(poolKey.toId()));
+
+
+        
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
@@ -97,6 +127,7 @@ contract RebalanceTest is BaseTest {
             PoolSwapTest.TestSettings(true, false),
             ""
         );
+        console.log("here3?");
     }
 
     function test_rebalance_LowerSlug_SufficientProceeds() public {
