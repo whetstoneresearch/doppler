@@ -17,8 +17,6 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
-import {console} from "forge-std/console.sol";
-
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
