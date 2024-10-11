@@ -41,14 +41,15 @@ struct Position {
     uint8 salt;
 }
 
+// TODO: consider what a good tick spacing cieling is
+int24 constant MAX_TICK_SPACING = 30;
+
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
 
-    // TODO: consider what a good tick spacing cieling is
-    int24 constant MAX_TICK_SPACING = 30;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
