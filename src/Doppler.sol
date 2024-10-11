@@ -294,9 +294,8 @@ contract Doppler is BaseHook {
             assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
         }
 
-        SlugData memory lowerSlug = _computeLowerSlugData(
-            key, requiredProceeds, numeraireAvailable, totalTokensSold_, sqrtPriceLower, sqrtPriceNext
-        );
+        SlugData memory lowerSlug =
+            _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
         SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper, assetAvailable);
         // TODO: If we're not actually modifying liquidity, skip below logic
@@ -374,7 +373,7 @@ contract Doppler is BaseHook {
             // Round down if isToken0
             if (tick < 0) {
                 // If the tick is negative, we round up (negatively) the negative result to round down
-                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;    
+                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
             } else {
                 // Else if positive, we simply round down
                 return (tick / tickSpacing) * tickSpacing;
@@ -421,15 +420,13 @@ contract Doppler is BaseHook {
         view
         returns (int24 lower, int24 upper)
     {
-        // TODO: Consider whether this is the correct direction
+        int24 accumulatorDelta = int24(accumulator / 1e18);
+        int24 adjustedTick = startingTick + accumulatorDelta;
+        lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
+
         if (isToken0) {
-            lower = (startingTick + int24(accumulator / 1e18)) / tickSpacing * tickSpacing;
-            // gamma is always divisible by tickSpacing so this is ok
             upper = lower + gamma;
         } else {
-            // Round up to support inverse direction
-            lower = (startingTick + int24(accumulator / 1e18) + tickSpacing - 1) / tickSpacing * tickSpacing;
-            // gamma is always divisible by tickSpacing so this is ok
             upper = lower - gamma;
         }
     }
@@ -439,8 +436,8 @@ contract Doppler is BaseHook {
         uint256 requiredProceeds,
         uint256 totalProceeds_,
         uint256 totalTokensSold_,
-        uint160 sqrtPriceLower,
-        uint160 sqrtPriceNext
+        int24 tickLower,
+        int24 currentTick
     ) internal view returns (SlugData memory slug) {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
@@ -465,9 +462,14 @@ contract Doppler is BaseHook {
                 totalProceeds_
             );
         } else {
-            slug.tickLower = TickMath.getTickAtSqrtPrice(sqrtPriceLower);
-            slug.tickUpper = TickMath.getTickAtSqrtPrice(sqrtPriceNext);
-            slug.liquidity = _computeLiquidity(!isToken0, sqrtPriceLower, sqrtPriceNext, totalProceeds_);
+            slug.tickLower = tickLower;
+            slug.tickUpper = currentTick;
+            slug.liquidity = _computeLiquidity(
+                !isToken0,
+                TickMath.getSqrtPriceAtTick(tickLower),
+                TickMath.getSqrtPriceAtTick(currentTick),
+                totalProceeds_
+            );
         }
 
         // We make sure that the lower tick and upper tick are equal if no liquidity
