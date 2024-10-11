@@ -115,6 +115,13 @@ contract ConstructorTest is BaseTest {
         deployDoppler(InvalidTickSpacing.selector, config, 200, 100, true);
     }
 
+    function testConstructor_RevertsInvalidTickSpacing_WhenTickSpacingNotDivisibleByStartAndEndTick() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.tickSpacing = 77;
+
+        deployDoppler(InvalidTickSpacing.selector, config, 200, 100, true);
+    }
+
     function testConstructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanOrEqualToEndingTime() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.startingTime = 1000;
@@ -145,6 +152,23 @@ contract ConstructorTest is BaseTest {
     function testConstructor_RevertsInvalidGamma_WhenGammaNotDivisibleByTickSpacing() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.gamma += 1;
+
+        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+    }
+
+    function testConstructor_RevertsInvalidGamma_WhenGammaTimesTotalEpochsNotDivisibleByTotalTickDelta() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.gamma = 10;
+        config.startingTime = 1000;
+        config.endingTime = 5000;
+        config.epochLength = 1000;
+
+        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+    }
+
+    function testConstructor_RevertsInvalidGamma_WhenGammaIsNegative() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.gamma = -1;
 
         deployDoppler(InvalidGamma.selector, config, 200, 100, true);
     }
