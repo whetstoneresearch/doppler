@@ -11,8 +11,6 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import {console} from "forge-std/console.sol";
-
 
 using PoolIdLibrary for PoolKey;
 
@@ -23,6 +21,7 @@ contract ConstructorTest is BaseTest {
     }
 
     function deployDoppler(
+        bytes4 selector,
         DopplerConfig memory config,
         int24 _startTick,
         int24 _endTick,
@@ -42,7 +41,10 @@ contract ConstructorTest is BaseTest {
             tickSpacing: config.tickSpacing,
             hooks: IHooks(address(hook))
         });
-
+        
+        if (selector != 0) {
+            vm.expectRevert(selector);
+        }
         deployCodeTo(
             "DopplerImplementation.sol:DopplerImplementation",
             abi.encode(
@@ -55,10 +57,16 @@ contract ConstructorTest is BaseTest {
                 _endTick,
                 config.epochLength,
                 config.gamma,
-                isToken0
+                isToken0,
+                hook
             ),
             address(hook)
         );
+        if (selector == 0) {
+            poolId = key.toId();
+
+            manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick), new bytes(0));
+        }
     }
 
     function testConstructor_RevertsInvalidTickRange_WhenIsToken0_AndStartingTickLEEndingTick() public {
@@ -68,8 +76,7 @@ contract ConstructorTest is BaseTest {
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
-        vm.expectRevert(InvalidTickRange.selector);
-        deployDoppler(config, _startTick, _endTick, _isToken0);
+        deployDoppler(InvalidTickRange.selector, config, _startTick, _endTick, _isToken0);
     }
 
     function testConstructor_RevertsInvalidTickRange_WhenNotIsToken0_AndStartingTickGEEndingTick() public {
@@ -79,8 +86,7 @@ contract ConstructorTest is BaseTest {
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
-        vm.expectRevert(InvalidTickRange.selector);
-        deployDoppler(config, _startTick, _endTick, _isToken0);
+        deployDoppler(InvalidTickRange.selector, config, _startTick, _endTick, _isToken0);
     }
 
     function testConstructor_RevertsInvalidGamma_tickDeltaNotDivisibleByEpochsTimesGamma() public {
@@ -98,8 +104,7 @@ contract ConstructorTest is BaseTest {
         config.endingTime = _endingTime;
         config.epochLength = _epochLength;
 
-        vm.expectRevert(InvalidGamma.selector);
-        deployDoppler(config, _startTick, _endTick, _isToken0);
+        deployDoppler(InvalidGamma.selector, config, _startTick, _endTick, _isToken0);
     }
 
     function testConstructor_RevertsInvalidTickSpacing_WhenTickSpacingGreaterThanMax() public {
@@ -107,8 +112,7 @@ contract ConstructorTest is BaseTest {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.tickSpacing = int24(maxTickSpacing + 1);
 
-        vm.expectRevert(InvalidTickSpacing.selector);
-        deployDoppler(config, 200, 100, true);
+        deployDoppler(InvalidTickSpacing.selector, config, 200, 100, true);
     }
 
     function testConstructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanOrEqualToEndingTime() public {
@@ -116,8 +120,7 @@ contract ConstructorTest is BaseTest {
         config.startingTime = 1000;
         config.endingTime = 1000;
 
-        vm.expectRevert(InvalidTimeRange.selector);
-        deployDoppler(config, 200, 100, true);
+        deployDoppler(InvalidTimeRange.selector, config, 200, 100, true);
     }
 
     function testConstructor_RevertsInvalidGamma_WhenGammaCalculationZero() public {
@@ -127,8 +130,7 @@ contract ConstructorTest is BaseTest {
         config.epochLength = 1;
         config.gamma = 0;
 
-        vm.expectRevert(InvalidGamma.selector);
-        deployDoppler(config, 200, 100, true);
+        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
     }
 
     function testConstructor_RevertsInvalidEpochLength_WhenTimeDeltaNotDivisibleByEpochLength() public {
@@ -137,25 +139,23 @@ contract ConstructorTest is BaseTest {
         config.endingTime = 5000;
         config.epochLength = 3000;
 
-        vm.expectRevert(InvalidEpochLength.selector);
-        deployDoppler(config, 200, 100, true);
+        deployDoppler(InvalidEpochLength.selector, config, 200, 100, true);
     }
 
     function testConstructor_RevertsInvalidGamma_WhenGammaNotDivisibleByTickSpacing() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.gamma += 1;
 
-        vm.expectRevert(InvalidGamma.selector);
-        deployDoppler(config, 200, 100, true);
+        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
     }
 
     function testConstructor_Succeeds_WithValidParameters() public {
         bool _isToken0 = true;
-        int24 _startTick = 200;
-        int24 _endTick = 100;
+        int24 _startTick = 0;
+        int24 _endTick = -172_800;
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
-        deployDoppler(config, _startTick, _endTick, _isToken0);
+        deployDoppler(0, config, _startTick, _endTick, _isToken0);
     }
 }
