@@ -225,7 +225,7 @@ contract Doppler is BaseHook {
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
+            accumulatorDelta = _getMaxTickDeltaPerEpoch()
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
