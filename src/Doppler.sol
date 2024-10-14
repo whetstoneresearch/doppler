@@ -537,52 +537,46 @@ contract Doppler is BaseHook {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
+        // Return early if we're on the final epoch
         if (nextEpochEndTime != epochEndTime) {
-            uint256 epochT1toT2Delta =
-                _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
-
-            if (epochT1toT2Delta > 0) {
-                uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
-                tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
-                slug.tickLower = isToken0 ? upperSlug.tickUpper : tickUpper;
-                if (isToken0) {
-                    slug.tickUpper = tickUpper == upperSlug.tickUpper ? tickUpper + key.tickSpacing : tickUpper;
-                } else {
-                    slug.tickUpper =
-                        tickUpper == upperSlug.tickUpper ? tickUpper - key.tickSpacing : upperSlug.tickUpper;
-                }
-
-                slug.liquidity = _computeLiquidity(
-                    isToken0,
-                    TickMath.getSqrtPriceAtTick(slug.tickLower),
-                    TickMath.getSqrtPriceAtTick(slug.tickUpper),
-                    tokensToLp
-                );
-            }
+            // TODO: Consider whether it's safe to return an empty slug array
+            //       It might be important that we place at least something into storage
+            //       Although I think we should ensure that we update storage for all slugs regardless
+            return;
         }
 
-        // Get epoch end time and next epoch end time
-        // Compute epochT1toT2Delta
-            // We should be able to reuse this if we've computed it before since it should always be the same
-                // Should include a note that this is an invariant
-        // Compute tokensToLp
-            // This can also be reused if we've computed it before
-        // Compute slug ranges
-            // (tickUpper - upperSlug.tickUpper) / numPDSlugs
-                // We're okay with a negative amount here as it gets added to slug.tickLower
-
-        // Loop over numPDSlugs
-            // If epoch (i) end time is equal to next epoch (i+1) end time, break
-            // Compute slug.tickLower
-                // If i == 0, we use the upperSlug.tickUpper
-                // Else we use the tick upper of i - 1
-            // Compute slug.tickUpper
-                // slug.tickLower + slugRange
-            // Compute liquidity
-                // We reuse tokensToLp since it should be the same for all epochs
-                    // Include a note that this is an invariant
-                
+        uint256 epochT1toT2Delta =
+            _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
         
+        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
+        tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
+
+        int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / numPDSlugs;
+
+        for (uint256 i; i < numPDSlugs; ++i) {
+            // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
+            // and don't need to provide any more slugs
+            if (_getEpochEndWithOffset(i) == _getEpochEndWithOffset(i + 1)) {
+                break;
+            }
+
+            if (i == 0) {
+                slugs[i].tickLower == upperSlug.tickUpper;
+            } else {
+                slugs[i].tickLower = slugs[i - 1].tickUpper;
+            }
+            // TODO: Bound by the type(int24).max/min
+            slugs[i].tickUpper = slugs[i].tickLower + slugRangeDelta;
+            
+            slugs[i].liquidity = _computeLiquidity(
+                isToken0,
+                TickMath.getSqrtPriceAtTick(slugs[i].tickLower),
+                TickMath.getSqrtPriceAtTick(slugs[i].tickUpper),
+                // We reuse tokensToLp since it should be the same for all epochs
+                // This is dependent on the invariant that (endingTime - startingTime) % epochLength == 0
+                tokensToLp
+            );
+        }
     }
 
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
