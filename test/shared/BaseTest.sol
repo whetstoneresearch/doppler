@@ -29,6 +29,7 @@ contract BaseTest is Test, Deployers {
         uint256 epochLength;
         uint24 fee;
         int24 tickSpacing;
+        uint256 numPDSlugs;
     }
 
     // Constants
@@ -41,6 +42,7 @@ contract BaseTest is Test, Deployers {
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
+    uint256 constant DEFAULT_NUM_PD_SLUGS = 1;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
@@ -54,7 +56,8 @@ contract BaseTest is Test, Deployers {
         gamma: DEFAULT_GAMMA,
         epochLength: DEFAULT_EPOCH_LENGTH,
         fee: DEFAULT_FEE,
-        tickSpacing: DEFAULT_TICK_SPACING
+        tickSpacing: DEFAULT_TICK_SPACING,
+        numPDSlugs: DEFAULT_NUM_PD_SLUGS
     });
 
     // Context
@@ -163,6 +166,7 @@ contract BaseTest is Test, Deployers {
                 config.epochLength,
                 config.gamma,
                 isToken0,
+                config.numPDSlugs,
                 hook
             ),
             address(hook)

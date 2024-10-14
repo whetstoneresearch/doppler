@@ -546,10 +546,7 @@ contract Doppler is BaseHook {
 
         // Return early if we're on the final epoch
         if (nextEpochEndTime != epochEndTime) {
-            // TODO: Consider whether it's safe to return an empty slug array
-            //       It might be important that we place at least something into storage
-            //       Although I think we should ensure that we update storage for all slugs regardless
-            return;
+            return slugs;
         }
 
         uint256 epochT1toT2Delta =
@@ -558,7 +555,7 @@ contract Doppler is BaseHook {
         uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
         tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
 
-        int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / numPDSlugs;
+        int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
 
         for (uint256 i; i < numPDSlugs; ++i) {
             // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end

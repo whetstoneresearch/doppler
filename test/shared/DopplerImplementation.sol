@@ -24,6 +24,7 @@ contract DopplerImplementation is Doppler {
         uint256 _epochLength,
         int24 _gamma,
         bool _isToken0,
+        uint256 _numPDSlugs,
         IHooks addressToEtch
     )
         Doppler(
@@ -36,7 +37,8 @@ contract DopplerImplementation is Doppler {
             _endingTick,
             _epochLength,
             _gamma,
-            _isToken0
+            _isToken0,
+            _numPDSlugs
         )
     {
         Hooks.validateHookPermissions(addressToEtch, getHookPermissions());
