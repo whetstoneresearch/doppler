@@ -308,7 +308,7 @@ contract Doppler is BaseHook {
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
         SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper, assetAvailable);
+        SlugData[] memory priceDiscoverySlugs = _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetAvailable);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -327,9 +327,9 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         newPositions[2] = Position({
-            tickLower: priceDiscoverySlug.tickLower,
-            tickUpper: priceDiscoverySlug.tickUpper,
-            liquidity: priceDiscoverySlug.liquidity,
+            tickLower: priceDiscoverySlugs.tickLower,
+            tickUpper: priceDiscoverySlugs.tickUpper,
+            liquidity: priceDiscoverySlugs.liquidity,
             salt: uint8(uint256(DISCOVERY_SLUG_SALT))
         });
 
@@ -705,7 +705,7 @@ contract Doppler is BaseHook {
         (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
         SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick, numTokensToSell);
-        SlugData memory priceDiscoverySlug = _computePriceDiscoverySlugData(key, upperSlug, tickUpper, numTokensToSell);
+        SlugData[] memory priceDiscoverySlugs = _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, numTokensToSell);
 
         BalanceDelta finalDelta;
 
@@ -727,9 +727,9 @@ contract Doppler is BaseHook {
             (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                 key,
                 IPoolManager.ModifyLiquidityParams({
-                    tickLower: priceDiscoverySlug.tickLower,
-                    tickUpper: priceDiscoverySlug.tickUpper,
-                    liquidityDelta: int128(priceDiscoverySlug.liquidity),
+                    tickLower: priceDiscoverySlugs.tickLower,
+                    tickUpper: priceDiscoverySlugs.tickUpper,
+                    liquidityDelta: int128(priceDiscoverySlugs.liquidity),
                     salt: DISCOVERY_SLUG_SALT
                 }),
                 ""
@@ -755,9 +755,9 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         newPositions[2] = Position({
-            tickLower: priceDiscoverySlug.tickLower,
-            tickUpper: priceDiscoverySlug.tickUpper,
-            liquidity: priceDiscoverySlug.liquidity,
+            tickLower: priceDiscoverySlugs.tickLower,
+            tickUpper: priceDiscoverySlugs.tickUpper,
+            liquidity: priceDiscoverySlugs.liquidity,
             salt: uint8(uint256(DISCOVERY_SLUG_SALT))
         });
 

@@ -133,13 +133,13 @@ contract DopplerImplementation is Doppler {
         return _computeUpperSlugData(poolKey, totalTokensSold, currentTick, assetAvailable);
     }
 
-    function computePriceDiscoverySlugData(
+    function computePriceDiscoverySlugsData(
         PoolKey memory poolKey,
         SlugData memory upperSlug,
         int24 tickUpper,
         uint256 assetAvailable
-    ) public view returns (SlugData memory) {
-        return _computePriceDiscoverySlugData(poolKey, upperSlug, tickUpper, assetAvailable);
+    ) public view returns (SlugData[] memory) {
+        return _computePriceDiscoverySlugsData(poolKey, upperSlug, tickUpper, assetAvailable);
     }
 
     function getPositions(bytes32 salt) public view returns (Position memory) {
