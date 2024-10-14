@@ -219,6 +219,8 @@ contract Doppler is BaseHook {
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
+        Position memory upSlug = positions[UPPER_SLUG_SALT];
+
         int256 accumulatorDelta;
         int256 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
@@ -228,7 +230,6 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
-            Position memory upSlug = positions[UPPER_SLUG_SALT];
             Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
 
             int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
@@ -264,7 +265,7 @@ contract Doppler is BaseHook {
         //       Maybe this is only necessary for the oversold case anyway?
         accumulatorDelta /= 1e18;
 
-        currentTick = _alignComputedTickWithTickSpacing(currentTick + int24(accumulatorDelta), key.tickSpacing);
+        currentTick = _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
