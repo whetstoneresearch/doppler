@@ -528,12 +528,12 @@ contract Doppler is BaseHook {
         }
     }
 
-    function _computePriceDiscoverySlugData(
+    function _computePriceDiscoverySlugsData(
         PoolKey memory key,
         SlugData memory upperSlug,
         int24 tickUpper,
         uint256 assetAvailable
-    ) internal view returns (SlugData memory slug) {
+    ) internal view returns (SlugData[] memory slugs) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
 
@@ -560,6 +560,29 @@ contract Doppler is BaseHook {
                 );
             }
         }
+
+        // Get epoch end time and next epoch end time
+        // Compute epochT1toT2Delta
+            // We should be able to reuse this if we've computed it before since it should always be the same
+                // Should include a note that this is an invariant
+        // Compute tokensToLp
+            // This can also be reused if we've computed it before
+        // Compute slug ranges
+            // (tickUpper - upperSlug.tickUpper) / numPDSlugs
+                // We're okay with a negative amount here as it gets added to slug.tickLower
+
+        // Loop over numPDSlugs
+            // If epoch (i) end time is equal to next epoch (i+1) end time, break
+            // Compute slug.tickLower
+                // If i == 0, we use the upperSlug.tickUpper
+                // Else we use the tick upper of i - 1
+            // Compute slug.tickUpper
+                // slug.tickLower + slugRange
+            // Compute liquidity
+                // We reuse tokensToLp since it should be the same for all epochs
+                    // Include a note that this is an invariant
+                
+        
     }
 
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
