@@ -44,6 +44,9 @@ struct Position {
 // TODO: consider what a good tick spacing cieling is
 int24 constant MAX_TICK_SPACING = 30;
 
+// TODO: consider what a good max would be
+uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
+
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -68,6 +71,7 @@ contract Doppler is BaseHook {
     uint256 immutable epochLength; // length of each epoch (seconds)
     int24 immutable gamma; // 1.0001 ** (gamma) = max single epoch change
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    uint256 immutable numPDSlugs; // number of price discovery slugs
 
     constructor(
         IPoolManager _poolManager,
@@ -79,7 +83,8 @@ contract Doppler is BaseHook {
         int24 _endingTick,
         uint256 _epochLength,
         int24 _gamma,
-        bool _isToken0
+        bool _isToken0,
+        uint256 _numPDSlugs
     ) BaseHook(_poolManager) {
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
@@ -108,6 +113,9 @@ contract Doppler is BaseHook {
         // Enforce that gamma is divisible by tick spacing
         if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
 
+        /* Num price discovery slug checks */
+        if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
+
         numTokensToSell = _numTokensToSell;
         startingTime = _startingTime;
         endingTime = _endingTime;
@@ -116,6 +124,7 @@ contract Doppler is BaseHook {
         epochLength = _epochLength;
         gamma = _gamma;
         isToken0 = _isToken0;
+        numPDSlugs = _numPDSlugs;
     }
 
     function afterInitialize(address sender, PoolKey calldata key, uint160, int24 tick, bytes calldata)
@@ -768,3 +777,4 @@ error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
 error InvalidTickDelta();
+error InvalidNumPDSlugs();
