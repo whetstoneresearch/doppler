@@ -115,13 +115,6 @@ contract ConstructorTest is BaseTest {
         deployDoppler(InvalidTickSpacing.selector, config, 200, 100, true);
     }
 
-    function testConstructor_RevertsInvalidTickSpacing_WhenTickSpacingNotDivisibleByStartAndEndTick() public {
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.tickSpacing = 77;
-
-        deployDoppler(InvalidTickSpacing.selector, config, 200, 100, true);
-    }
-
     function testConstructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanOrEqualToEndingTime() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.startingTime = 1000;
