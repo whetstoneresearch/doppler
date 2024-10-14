@@ -18,7 +18,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 
-
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -49,7 +48,6 @@ contract Doppler is BaseHook {
     using StateLibrary for IPoolManager;
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
-
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -230,18 +228,28 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
-            int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
+            Position memory upSlug = positions[UPPER_SLUG_SALT];
             Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
 
+            int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
+            int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+
+            // The expectedTick is where the upperSlug.tickUpper is/would be placed
+            // The upperTick is not always placed so we have to compute it's placement in case it's not
+            // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
+            int24 expectedTick = _alignComputedTickWithTickSpacing(
+                isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
+            );
+
+            // We bound the currentTick by the top of the curve
+            // currentTick == min(currentTick, pdSlug.tickUpper) reversed for token1
             if (isToken0) {
-                accumulatorDelta = _getElapsedGamma();
                 currentTick = currentTick > pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
             } else {
-                accumulatorDelta = -_getElapsedGamma();
                 currentTick = currentTick < pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
             }
-            int24 expectedTick = tauTick + int24(accumulatorDelta / 1e18);
-            accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
+
+            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -363,10 +371,6 @@ contract Doppler is BaseHook {
     // TODO: consider whether it's safe to always round down
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
         return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
-    }
-
-    function _getElapsedGamma() internal view returns (int256) {
-        return int256(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime)) * gamma;
     }
 
     // TODO: Consider bounding to int24.max/min
