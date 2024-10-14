@@ -139,8 +139,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(800) : int24(0);
-        endTick = isToken0 ? int24(-172_000) : int24(172_800);
+        startTick = isToken0 ? int24(800) : int24(-800);
+        endTick = isToken0 ? int24(-172_000) : int24(172_000);
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
