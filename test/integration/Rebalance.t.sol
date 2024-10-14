@@ -44,7 +44,7 @@ contract RebalanceTest is BaseTest {
             PoolSwapTest.TestSettings(true, false),
             ""
         );
-
+        
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
@@ -707,12 +707,17 @@ contract RebalanceTest is BaseTest {
         // The amount sold by the previous epoch
         assertEq(totalTokensSoldLastEpoch2, expectedAmountSold * 3 / 2);
 
-        assertEq(tickAccumulator2, tickAccumulator + int24(hook.getElapsedGamma()));
+        int24 tauTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
+        int24 expectedTick = tauTick + int24(hook.getElapsedGamma() / 1e18);
+        int256 accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
+
+        assertEq(tickAccumulator2, tickAccumulator + accumulatorDelta);
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+
 
         // Get global upper tick
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
@@ -901,9 +906,11 @@ contract RebalanceTest is BaseTest {
         );
 
         // Get accumulatorDelta
-        int256 accumulatorDelta = isToken0 ? hook.getElapsedGamma() : -hook.getElapsedGamma();
+        int24 tauTick = hook.getStartingTick() + int24(tickAccumulator2 / 1e18);
+        int24 expectedTick = tauTick + int24(hook.getElapsedGamma() / 1e18);
+        int256 accumulatorDelta = int256(currentTick + expectedTick) * 1e18;
 
-        assertEq(tickAccumulator3, tickAccumulator2 + accumulatorDelta);
+        assertEq(tickAccumulator3, tickAccumulator2 + accumulatorDelta, "third swap: tickAccumulator3 != tickAccumulator2 + accumulatorDelta");
 
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));

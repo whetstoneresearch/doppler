@@ -25,7 +25,7 @@ contract BaseTest is Test, Deployers {
         uint256 numTokensToSell;
         uint256 startingTime;
         uint256 endingTime;
-        uint256 gamma;
+        int24 gamma;
         uint256 epochLength;
         uint24 fee;
         int24 tickSpacing;
@@ -36,11 +36,14 @@ contract BaseTest is Test, Deployers {
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
     uint256 constant DEFAULT_ENDING_TIME = 2 days;
-    uint256 constant DEFAULT_GAMMA = 800;
+    int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
+
+    address constant TOKEN_A = address(0x8888);
+    address constant TOKEN_B = address(0x9999);
 
     uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
 
@@ -114,8 +117,11 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens.
     function _deployTokens() public {
-        asset = new TestERC20(2 ** 128);
-        numeraire = new TestERC20(2 ** 128);
+        isToken0 = vm.envOr("IS_TOKEN_0", true);
+        deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_A) : address(TOKEN_B));
+        deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_B) : address(TOKEN_A));
+        asset = TestERC20(isToken0 ? address(TOKEN_A) : address(TOKEN_B));
+        numeraire = TestERC20(isToken0 ? address(TOKEN_B) : address(TOKEN_A));
     }
 
     /// @dev Deploys a new Doppler hook with the default configuration.
@@ -125,7 +131,6 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new Doppler hook with a given configuration.
     function _deployDoppler(DopplerConfig memory config) public {
-        isToken0 = asset < numeraire;
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
@@ -134,8 +139,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(0) : int24(0);
-        endTick = isToken0 ? int24(-172_800) : int24(172_800);
+        startTick = isToken0 ? int24(800) : int24(0);
+        endTick = isToken0 ? int24(-172_000) : int24(172_800);
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
