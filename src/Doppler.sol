@@ -8,7 +8,6 @@ import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
 import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
@@ -31,6 +30,7 @@ struct State {
     uint256 totalTokensSold; // total tokens sold
     uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
     uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
+    BalanceDelta feesAccrued; // fees accrued to the pool
 }
 
 struct Position {
@@ -582,7 +582,7 @@ contract Doppler is BaseHook {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
                 // TODO: consider what to do with feeDeltas (second return variable)
-                (BalanceDelta positionDeltas,) = poolManager.modifyLiquidity(
+                (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: lastEpochPositions[i].tickLower,
@@ -592,7 +592,8 @@ contract Doppler is BaseHook {
                     }),
                     ""
                 );
-                deltas = deltas + positionDeltas;
+                deltas = add(deltas, positionDeltas);
+                state.feesAccrued = add(state.feesAccrued, feesAccrued);
             }
         }
     }

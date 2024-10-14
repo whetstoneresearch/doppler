@@ -64,7 +64,7 @@ contract SwapTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
         swapRouter.swap(
@@ -76,7 +76,7 @@ contract SwapTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) =
             hook.state();
 
         // Ensure that state hasn't updated since we're still in the same epoch
@@ -100,7 +100,7 @@ contract SwapTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch,,,,) = hook.state();
+        (uint40 lastEpoch,,,,,) = hook.state();
 
         assertEq(lastEpoch, 1);
 
@@ -115,7 +115,7 @@ contract SwapTest is BaseTest {
             ""
         );
 
-        (lastEpoch,,,,) = hook.state();
+        (lastEpoch,,,,,) = hook.state();
 
         assertEq(lastEpoch, 2);
     }
@@ -143,7 +143,7 @@ contract SwapTest is BaseTest {
             ""
         );
 
-        (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = hook.state();
+        (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
         assertEq(totalTokensSold, 2e18);
         assertEq(totalTokensSoldLastEpoch, 1e18);
