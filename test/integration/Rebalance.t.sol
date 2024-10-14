@@ -30,7 +30,7 @@ contract RebalanceTest is BaseTest {
 
         // Compute the amount of tokens available in both the upper and price discovery slugs
         // Should be two epochs of liquidity available since we're at the startingTime
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength() * 2);
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(2);
 
         // We sell all available tokens
         // This increases the price to the pool maximum
@@ -108,7 +108,7 @@ contract RebalanceTest is BaseTest {
 
         // Compute the expected amount sold to see how many tokens will be supplied in the upper slug
         // We should always have sufficient proceeds if we don't swap beyond the upper slug
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength() * 3);
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // We sell half the expected amount to ensure that we don't surpass the upper slug
         swapRouter.swap(
@@ -182,7 +182,7 @@ contract RebalanceTest is BaseTest {
 
         // Compute the amount of tokens available in both the upper and price discovery slugs
         // Should be two epochs of liquidity available since we're at the startingTime
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength() * 2);
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(2);
 
         // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
         swapRouter.swap(
@@ -292,7 +292,7 @@ contract RebalanceTest is BaseTest {
         bool isToken0 = hook.getIsToken0();
 
         // Compute the amount of tokens available in the upper slug
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength());
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // We sell half the expected amount to ensure that we hit the undersold case
         swapRouter.swap(
@@ -578,7 +578,7 @@ contract RebalanceTest is BaseTest {
         bool isToken0 = hook.getIsToken0();
 
         // Get the expected amount sold by next epoch
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength());
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // We sell half the expected amount
         swapRouter.swap(
@@ -659,7 +659,7 @@ contract RebalanceTest is BaseTest {
         bool isToken0 = hook.getIsToken0();
 
         // Get the expected amount sold by next epoch
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength());
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // We buy 1.5x the expectedAmountSold
         swapRouter.swap(
@@ -813,7 +813,7 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * 4);
 
         // Get the expected amount sold by next epoch
-        uint256 expectedAmountSold = hook.getExpectedAmountSold(hook.getStartingTime() + hook.getEpochLength() * 5);
+        uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // Trigger the oversold case by selling more than expected
         swapRouter.swap(
@@ -840,7 +840,7 @@ contract RebalanceTest is BaseTest {
 
         // Assert that we reduced the accumulator by the relative amount of the max dutch auction
         // corresponding to the amount that we're undersold by
-        uint256 expectedAmountSold2 = hook.getExpectedAmountSold(block.timestamp);
+        uint256 expectedAmountSold2 = hook.getExpectedAmountSoldWithEpochOffset(1);
         // Note: We use the totalTokensSold from the previous epoch (1e18) since this logic was executed
         //       before the most recent swap was accounted for (in the after swap)
         assertEq(
