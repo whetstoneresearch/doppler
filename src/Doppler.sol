@@ -16,6 +16,8 @@ import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import "forge-std/console.sol";
 
 
 struct SlugData {
@@ -43,13 +45,14 @@ struct Position {
 
 // TODO: consider what a good tick spacing cieling is
 int24 constant MAX_TICK_SPACING = 30;
+uint256 constant MAX_SWAP_FEE = 1e6;
 
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
-
+    using ProtocolFeeLibrary for *;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -156,34 +159,47 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4, int128) {
         // Get current tick
         PoolId poolId = key.toId();
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        (, int24 currentTick, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
+        uint24 swapFee = uint16(protocolFee).calculateSwapFee(lpFee);
 
         if (isToken0) {
             if (currentTick < tickLower) revert SwapBelowRange();
 
             int128 amount0 = swapDelta.amount0();
-            amount0 >= 0
-                ? state.totalTokensSold += uint256(uint128(amount0))
-                : state.totalTokensSold -= uint256(uint128(-amount0));
-
+            if (amount0 >= 0) {
+                state.totalTokensSold += uint256(uint128(amount0));
+            } else {
+                uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                state.totalTokensSold -= tokensSoldLessFee;
+            }
+                
             int128 amount1 = swapDelta.amount1();
-            amount1 >= 0
-                ? state.totalProceeds -= uint256(uint128(amount1))
-                : state.totalProceeds += uint256(uint128(-amount1));
+            if (amount1 >= 0) {
+                state.totalProceeds -= uint256(uint128(amount1));
+            } else {
+                uint256 proceedsLessFee = FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                state.totalProceeds += proceedsLessFee;
+            }
         } else {
             if (currentTick > tickLower) revert SwapBelowRange();
 
             int128 amount1 = swapDelta.amount1();
-            amount1 >= 0
-                ? state.totalTokensSold += uint256(uint128(amount1))
-                : state.totalTokensSold -= uint256(uint128(-amount1));
+            if (amount1 >= 0) {
+                state.totalTokensSold += uint256(uint128(amount1));
+            } else {
+                uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                state.totalTokensSold -= tokensSoldLessFee;
+            }
 
             int128 amount0 = swapDelta.amount0();
-            amount0 >= 0
-                ? state.totalProceeds -= uint256(uint128(amount0))
-                : state.totalProceeds += uint256(uint128(-amount0));
+            if (amount0 >= 0) {
+                state.totalProceeds -= uint256(uint128(amount0));
+            } else {
+                uint256 proceedsLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                state.totalProceeds += proceedsLessFee;
+            }
         }
 
         return (BaseHook.afterSwap.selector, 0);

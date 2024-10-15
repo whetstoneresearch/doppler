@@ -117,7 +117,9 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens.
     function _deployTokens() public {
+        bool isEthPair = vm.envOr("ETH_PAIR", false);
         isToken0 = vm.envOr("IS_TOKEN_0", true);
+        isToken0 = !isEthPair && isToken0;
         deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_A) : address(TOKEN_B));
         deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_B) : address(TOKEN_A));
         asset = TestERC20(isToken0 ? address(TOKEN_A) : address(TOKEN_B));
