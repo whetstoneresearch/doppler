@@ -728,13 +728,13 @@ contract Doppler is BaseHook {
         }
 
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            if (priceDiscoverySlugs[2 + i].liquidity != 0) {
+            if (priceDiscoverySlugs[i].liquidity != 0) {
                 (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: priceDiscoverySlugs[2 + i].tickLower,
-                        tickUpper: priceDiscoverySlugs[2 + i].tickUpper,
-                        liquidityDelta: int128(priceDiscoverySlugs[2 + i].liquidity),
+                        tickLower: priceDiscoverySlugs[i].tickLower,
+                        tickUpper: priceDiscoverySlugs[i].tickUpper,
+                        liquidityDelta: int128(priceDiscoverySlugs[i].liquidity),
                         salt: DISCOVERY_SLUG_SALT
                     }),
                     ""
@@ -766,9 +766,9 @@ contract Doppler is BaseHook {
 
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             newPositions[2 + i] = Position({
-                tickLower: priceDiscoverySlugs[2 + i].tickLower,
-                tickUpper: priceDiscoverySlugs[2 + i].tickUpper,
-                liquidity: priceDiscoverySlugs[2 + i].liquidity,
+                tickLower: priceDiscoverySlugs[i].tickLower,
+                tickUpper: priceDiscoverySlugs[i].tickUpper,
+                liquidity: priceDiscoverySlugs[i].liquidity,
                 salt: uint8(3 + i)
             });
 
