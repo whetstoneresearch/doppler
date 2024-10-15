@@ -157,10 +157,11 @@ contract SwapTest is BaseTest {
         vm.warp(hook.getStartingTime());
         (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
         uint24 swapFee = uint16(protocolFee).calculateSwapFee(lpFee);
+        uint256 assetBalanceBefore = asset.balanceOf(address(this));
 
         int256 amountIn = 1 ether;
 
-        uint256 amountOutLessFee = FullMath.mulDiv(uint256(amountIn), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+        uint256 amountInLessFee = FullMath.mulDiv(uint256(amountIn), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
 
         swapRouter.swap(
             key,
@@ -171,11 +172,14 @@ contract SwapTest is BaseTest {
 
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
 
-        assertEq(totalProceeds, amountOutLessFee);
+        assertEq(totalProceeds, amountInLessFee);
 
-        amountOutLessFee = FullMath.mulDiv(uint256(totalTokensSold), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-        console.log("totalTokensSold", totalTokensSold);
-        console.log("amountOutLessFee", amountOutLessFee);
+        // amountInLessFee = FullMath.mulDiv(uint256(totalTokensSold), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+        // console.log("totalTokensSold", totalTokensSold);
+        // console.log("amountInLessFee", amountInLessFee);
+        uint256 assetBalanceAfter = asset.balanceOf(address(this));
+
+        assertEq(assetBalanceAfter - assetBalanceBefore, amountInLessFee);
 
         swapRouter.swap(
             key,
@@ -186,7 +190,7 @@ contract SwapTest is BaseTest {
 
         (,,, uint256 totalTokensSold2,,) = hook.state();
 
-        assertEq(totalTokensSold2, totalTokensSold - amountOutLessFee);
+        assertEq(totalTokensSold2, totalTokensSold - amountInLessFee);
     }
 
     function test_swap_CannotSwapBelowLowerSlug_AfterInitialization() public {
