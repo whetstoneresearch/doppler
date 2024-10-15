@@ -574,7 +574,7 @@ contract Doppler is BaseHook {
             }
 
             if (i == 0) {
-                slugs[i].tickLower == upperSlug.tickUpper;
+                slugs[i].tickLower = upperSlug.tickUpper;
             } else {
                 slugs[i].tickLower = slugs[i - 1].tickUpper;
             }
