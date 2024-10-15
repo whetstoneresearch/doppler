@@ -172,7 +172,9 @@ contract Doppler is BaseHook {
                 state.totalTokensSold += uint256(uint128(amount0));
             } else {
                 uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                console.log("tokensSoldLessFee", tokensSoldLessFee);
                 state.totalTokensSold -= tokensSoldLessFee;
+                console.log("state.totalTokensSold", state.totalTokensSold);
             }
                 
             int128 amount1 = swapDelta.amount1();
@@ -201,6 +203,8 @@ contract Doppler is BaseHook {
                 state.totalProceeds += proceedsLessFee;
             }
         }
+
+        console.log("state.totalTokensSold", state.totalTokensSold);
 
         return (BaseHook.afterSwap.selector, 0);
     }
