@@ -116,6 +116,7 @@ contract Doppler is BaseHook {
         if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
 
         /* Num price discovery slug checks */
+        if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
 
         numTokensToSell = _numTokensToSell;
