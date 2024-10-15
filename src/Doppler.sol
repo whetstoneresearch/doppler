@@ -329,12 +329,12 @@ contract Doppler is BaseHook {
             liquidity: upperSlug.liquidity,
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
-        for (uint256 i; i < numPDSlugs; ++i) {
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             newPositions[2 + i] = Position({
                 tickLower: priceDiscoverySlugs[i].tickLower,
                 tickUpper: priceDiscoverySlugs[i].tickUpper,
                 liquidity: priceDiscoverySlugs[i].liquidity,
-                salt: uint8(uint256(DISCOVERY_SLUG_SALT))
+                salt: uint8(3 + i)
             });
         }
 
@@ -345,7 +345,12 @@ contract Doppler is BaseHook {
         positions[LOWER_SLUG_SALT] = newPositions[0];
         positions[UPPER_SLUG_SALT] = newPositions[1];
         for (uint256 i; i < numPDSlugs; ++i) {
-            positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
+            if (i >= priceDiscoverySlugs.length) {
+                // Clear the position from storage if it's not being placed
+                delete positions[bytes32(uint256(3 + i))];
+            } else {
+                positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
+            }
         }
     }
 
@@ -722,7 +727,7 @@ contract Doppler is BaseHook {
             finalDelta = add(finalDelta, callerDelta);
         }
 
-        for (uint256 i; i < numPDSlugs; ++i) {
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             if (priceDiscoverySlugs[2 + i].liquidity != 0) {
                 (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                     key,
@@ -755,18 +760,18 @@ contract Doppler is BaseHook {
             liquidity: upperSlug.liquidity,
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
-        for (uint256 i; i < numPDSlugs; ++i) {
+
+        positions[LOWER_SLUG_SALT] = newPositions[0];
+        positions[UPPER_SLUG_SALT] = newPositions[1];
+
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             newPositions[2 + i] = Position({
                 tickLower: priceDiscoverySlugs[2 + i].tickLower,
                 tickUpper: priceDiscoverySlugs[2 + i].tickUpper,
                 liquidity: priceDiscoverySlugs[2 + i].liquidity,
-                salt: uint8(uint256(DISCOVERY_SLUG_SALT))
+                salt: uint8(3 + i)
             });
-        }
 
-        positions[LOWER_SLUG_SALT] = newPositions[0];
-        positions[UPPER_SLUG_SALT] = newPositions[1];
-        for (uint256 i; i < numPDSlugs; ++i) {
             positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
         }
 
