@@ -708,7 +708,7 @@ contract Doppler is BaseHook {
 
         BalanceDelta finalDelta;
 
-        {
+        if (upperSlug.liquidity != 0) {
             (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                 key,
                 IPoolManager.ModifyLiquidityParams({
@@ -722,8 +722,8 @@ contract Doppler is BaseHook {
             finalDelta = add(finalDelta, callerDelta);
         }
 
-        {
-            for (uint256 i; i < numPDSlugs; ++i) {
+        for (uint256 i; i < numPDSlugs; ++i) {
+            if (priceDiscoverySlugs[2 + i].liquidity != 0) {
                 (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
