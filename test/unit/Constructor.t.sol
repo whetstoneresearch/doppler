@@ -191,9 +191,9 @@ contract ConstructorTest is BaseTest {
     }
 
     function testConstructor_Succeeds_WithValidParameters() public {
-        bool _isToken0 = true;
+        bool _isToken0 = isToken0;
         int24 _startTick = 0;
-        int24 _endTick = -172_800;
+        int24 _endTick = _isToken0 ? int24(-172_800) : int24(172_800);
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
