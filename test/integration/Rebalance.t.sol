@@ -282,12 +282,6 @@ contract RebalanceTest is BaseTest {
         // TODO: Figure out how this can possibly fail even though the following trade succeeds
         assertGt(amount0Delta, totalTokensSold);
 
-        uint256 amount0Delta = LiquidityAmounts.getAmount0ForLiquidity(
-            TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
-            TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
-            lowerSlug.liquidity
-        );
-
         // assert that the lowerSlug can support the purchase of 99.9% of the tokens sold
         assertApproxEqAbs(amount0Delta, totalTokensSold, totalTokensSold * 1 / 1000);
         // TODO: Figure out how this can possibly fail even though the following trade succeeds
