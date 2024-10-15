@@ -41,6 +41,7 @@ contract BaseTest is Test, Deployers {
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
+    uint24 constant DEFAULT_PROTOCOL_FEE = 5;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);

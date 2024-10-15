@@ -2,6 +2,7 @@ pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 
+import {MAX_SWAP_FEE} from "src/Doppler.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
@@ -13,10 +14,12 @@ import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SlugVis} from "test/shared/SlugVis.sol";
+import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 
 import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -745,12 +748,16 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_CollectsFeeFromAllSlugs() public {
+        PoolKey memory poolKey = key;
+        vm.startPrank(address(0));
+        manager.setProtocolFee(poolKey, DEFAULT_PROTOCOL_FEE);
+        vm.stopPrank();
+
         vm.warp(hook.getStartingTime());
 
-        PoolKey memory poolKey = key;
         bool isToken0 = hook.getIsToken0();
 
-        uint64 fee = key.fee;
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
 
         (,,,,, BalanceDelta feesAccrued) = hook.state();
 
@@ -807,12 +814,24 @@ contract RebalanceTest is BaseTest {
         );
 
         (,,,,,feesAccrued) = hook.state();
-        int128 amount0ExpectedFee = int128(int256(amount0ToSwap * fee / 1_000_000));
-        int128 amount1ExpectedFee = int128(int256(amount1ToSwap * fee / 1_000_000));
 
-        expectedFeesAccrued = toBalanceDelta(amount0ExpectedFee, amount1ExpectedFee);
 
-        assertTrue(feesAccrued == expectedFeesAccrued);
+        // https://github.com/Uniswap/v4-core/blob/main/src/libraries/ProtocolFeeLibrary.sol#L34
+        uint256 overlappingFeePerUnit = (protocolFee * lpFee + MAX_SWAP_FEE + 1) / MAX_SWAP_FEE;
+
+        uint256 overlappingFeeAmount0 = FullMath.mulDiv(amount0ToSwap, overlappingFeePerUnit, MAX_SWAP_FEE);
+        uint256 overlappingFeeAmount1 = FullMath.mulDiv(amount1ToSwap, overlappingFeePerUnit, MAX_SWAP_FEE);
+
+        // TODO: is there a better way to control for the protocol fee rounding?
+        uint256 amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount0 - 1;
+        uint256 amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE);
+
+        expectedFeesAccrued = toBalanceDelta(int128(uint128(amount0ExpectedFee)), int128(uint128(amount1ExpectedFee)));
+
+        assertEq(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0());
+        assertEq(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1());
+
+        // assertTrue(feesAccrued == expectedFeesAccrued);
     }
 
     function test_rebalance_FullFlow() public {
