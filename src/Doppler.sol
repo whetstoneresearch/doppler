@@ -756,7 +756,7 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         for (uint256 i; i < numPDSlugs; ++i) {
-            newPositions[2] = Position({
+            newPositions[2 + i] = Position({
                 tickLower: priceDiscoverySlugs[2 + i].tickLower,
                 tickUpper: priceDiscoverySlugs[2 + i].tickUpper,
                 liquidity: priceDiscoverySlugs[2 + i].liquidity,
