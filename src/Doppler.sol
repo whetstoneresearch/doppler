@@ -17,6 +17,7 @@ import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+import {console} from "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -633,8 +634,8 @@ contract Doppler is BaseHook {
                 (BalanceDelta positionDeltas,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: lastEpochPositions[i].tickLower,
-                        tickUpper: lastEpochPositions[i].tickUpper,
+                        tickLower: isToken0 ? lastEpochPositions[i].tickLower : lastEpochPositions[i].tickUpper,
+                        tickUpper: isToken0 ? lastEpochPositions[i].tickUpper : lastEpochPositions[i].tickLower,
                         liquidityDelta: -int128(lastEpochPositions[i].liquidity),
                         salt: bytes32(uint256(lastEpochPositions[i].salt))
                     }),
@@ -669,12 +670,8 @@ contract Doppler is BaseHook {
                 poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: newPositions[i].tickLower < newPositions[i].tickUpper
-                            ? newPositions[i].tickLower
-                            : newPositions[i].tickUpper,
-                        tickUpper: newPositions[i].tickUpper > newPositions[i].tickLower
-                            ? newPositions[i].tickUpper
-                            : newPositions[i].tickLower,
+                        tickLower: isToken0 ? newPositions[i].tickLower : newPositions[i].tickUpper,
+                        tickUpper: isToken0 ? newPositions[i].tickUpper : newPositions[i].tickLower,
                         liquidityDelta: int128(newPositions[i].liquidity),
                         salt: bytes32(uint256(newPositions[i].salt))
                     }),
@@ -729,8 +726,8 @@ contract Doppler is BaseHook {
             (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                 key,
                 IPoolManager.ModifyLiquidityParams({
-                    tickLower: upperSlug.tickLower,
-                    tickUpper: upperSlug.tickUpper,
+                    tickLower: isToken0 ? upperSlug.tickLower : upperSlug.tickUpper,
+                    tickUpper: isToken0 ? upperSlug.tickUpper : upperSlug.tickLower,
                     liquidityDelta: int128(upperSlug.liquidity),
                     salt: UPPER_SLUG_SALT
                 }),
@@ -744,8 +741,8 @@ contract Doppler is BaseHook {
                 (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: priceDiscoverySlugs[i].tickLower,
-                        tickUpper: priceDiscoverySlugs[i].tickUpper,
+                        tickLower: isToken0 ? priceDiscoverySlugs[i].tickLower : priceDiscoverySlugs[i].tickUpper,
+                        tickUpper: isToken0 ? priceDiscoverySlugs[i].tickUpper : priceDiscoverySlugs[i].tickLower,
                         liquidityDelta: int128(priceDiscoverySlugs[i].liquidity),
                         salt: bytes32(uint256(3 + i))
                     }),
