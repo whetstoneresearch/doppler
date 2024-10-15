@@ -542,7 +542,7 @@ contract Doppler is BaseHook {
         uint256 assetAvailable
     ) internal view returns (SlugData[] memory slugs) {
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time two epochs from now
+        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time of next epoch
 
         // Return early if we're on the final epoch
         if (nextEpochEndTime != epochEndTime) {
