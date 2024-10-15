@@ -17,7 +17,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import "forge-std/console.sol";
 
 
 struct SlugData {
@@ -172,9 +171,7 @@ contract Doppler is BaseHook {
                 state.totalTokensSold += uint256(uint128(amount0));
             } else {
                 uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                console.log("tokensSoldLessFee", tokensSoldLessFee);
                 state.totalTokensSold -= tokensSoldLessFee;
-                console.log("state.totalTokensSold", state.totalTokensSold);
             }
                 
             int128 amount1 = swapDelta.amount1();
@@ -204,7 +201,6 @@ contract Doppler is BaseHook {
             }
         }
 
-        console.log("state.totalTokensSold", state.totalTokensSold);
 
         return (BaseHook.afterSwap.selector, 0);
     }
