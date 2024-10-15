@@ -47,7 +47,8 @@ contract BeforeSwapTest is BaseTest {
                 gamma: DEFAULT_GAMMA,
                 epochLength: 1 days,
                 fee: DEFAULT_FEE,
-                tickSpacing: DEFAULT_TICK_SPACING
+                tickSpacing: DEFAULT_TICK_SPACING,
+                numPDSlugs: DEFAULT_NUM_PD_SLUGS
             })
         );
 
