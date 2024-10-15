@@ -506,7 +506,7 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Assert that the upperSlug is correctly placed
-        assertEq(hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower);
+        assertEq(hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower, "currentTick != upperSlug.tickLower");
 
         // Assert that the priceDiscoverySlug has no liquidity
         assertEq(priceDiscoverySlug.liquidity, 0);
