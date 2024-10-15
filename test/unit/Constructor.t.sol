@@ -2,7 +2,16 @@ pragma solidity 0.8.26;
 
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {DopplerImplementation} from "test/shared/DopplerImplementation.sol";
-import {MAX_TICK_SPACING, InvalidTickRange, InvalidGamma, InvalidEpochLength, InvalidTimeRange, InvalidTickSpacing} from "src/Doppler.sol";
+import {
+    MAX_TICK_SPACING,
+    MAX_PRICE_DISCOVERY_SLUGS,
+    InvalidTickRange,
+    InvalidGamma,
+    InvalidEpochLength,
+    InvalidTimeRange,
+    InvalidTickSpacing,
+    InvalidNumPDSlugs
+} from "src/Doppler.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
@@ -41,7 +50,7 @@ contract ConstructorTest is BaseTest {
             tickSpacing: config.tickSpacing,
             hooks: IHooks(address(hook))
         });
-        
+
         if (selector != 0) {
             vm.expectRevert(selector);
         }
@@ -73,7 +82,7 @@ contract ConstructorTest is BaseTest {
     function testConstructor_RevertsInvalidTickRange_WhenIsToken0_AndStartingTickLEEndingTick() public {
         bool _isToken0 = true;
         int24 _startTick = 100;
-        int24 _endTick = 101; 
+        int24 _endTick = 101;
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
@@ -83,7 +92,7 @@ contract ConstructorTest is BaseTest {
     function testConstructor_RevertsInvalidTickRange_WhenNotIsToken0_AndStartingTickGEEndingTick() public {
         bool _isToken0 = false;
         int24 _startTick = 200;
-        int24 _endTick = 100; 
+        int24 _endTick = 100;
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
@@ -165,6 +174,20 @@ contract ConstructorTest is BaseTest {
         config.gamma = -1;
 
         deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+    }
+
+    function testConstructor_RevertsInvalidNumPDSlugs_WithZeroSlugs() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.numPDSlugs = 0;
+
+        deployDoppler(InvalidNumPDSlugs.selector, config, 0, -172_800, true);
+    }
+
+    function testConstructor_RevertsInvalidNumPDSlugs_GreaterThanMax() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.numPDSlugs = MAX_PRICE_DISCOVERY_SLUGS + 1;
+
+        deployDoppler(InvalidNumPDSlugs.selector, config, 0, -172_800, true);
     }
 
     function testConstructor_Succeeds_WithValidParameters() public {
