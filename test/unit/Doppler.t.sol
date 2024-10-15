@@ -8,53 +8,6 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 
 contract DopplerTest is BaseTest {
-    // =========================================================================
-    //                   _getExpectedAmountSold Unit Tests
-    // =========================================================================
-
-    function testGetElapsedGamma_ReturnsExpectedAmountSold() public {
-        uint256 timestamp = hook.getStartingTime();
-        vm.warp(timestamp);
-
-        assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
-        );
-
-        timestamp = hook.getStartingTime() + hook.getEpochLength();
-        vm.warp(timestamp);
-
-        assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
-        );
-
-        timestamp = hook.getStartingTime() + hook.getEpochLength() * 2;
-        vm.warp(timestamp);
-
-        assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
-        );
-
-        timestamp = hook.getEndingTime() - hook.getEpochLength() * 2;
-        vm.warp(timestamp);
-
-        assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
-        );
-
-        timestamp = hook.getEndingTime() - hook.getEpochLength();
-        vm.warp(timestamp);
-
-        assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
-        );
-
-        timestamp = hook.getEndingTime();
-        vm.warp(timestamp);
-
-        assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
-        );
-    }
 
     // =========================================================================
     //                  _getMaxTickDeltaPerEpoch Unit Tests
