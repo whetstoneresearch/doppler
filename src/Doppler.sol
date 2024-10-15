@@ -220,7 +220,7 @@ contract Doppler is BaseHook {
 
         // TODO: consider if this should be the expected amount sold at the start of the current epoch or at the current time
         // i think logically it makes sense to use the current time to get the most accurate rebalance
-        uint256 expectedAmountSold = _getExpectedAmountSoldLastEpoch();
+        uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
         int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
@@ -387,11 +387,9 @@ contract Doppler is BaseHook {
         return int256(epochLength * 1e18 / (endingTime - startingTime));
     }
 
-    // TODO: consider whether it's safe to always round down
-    function _getExpectedAmountSoldLastEpoch() internal view returns (uint256) {
-        return FullMath.mulDiv(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime), numTokensToSell, 1e18);
-    }
-
+    // 0 == end of last epoch
+    // 1 == end of current epoch 
+    // n == end of nth epoch from current
     function _getExpectedAmountSoldWithEpochOffset(uint256 offset) internal view returns (uint256) {
         return FullMath.mulDiv(_getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime), numTokensToSell, 1e18);
     }

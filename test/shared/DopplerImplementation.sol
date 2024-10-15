@@ -79,10 +79,6 @@ contract DopplerImplementation is Doppler {
         return gamma;
     }
 
-    function getExpectedAmountSoldLastEpoch() public view returns (uint256) {
-        return _getExpectedAmountSoldLastEpoch();
-    }
-
     function getExpectedAmountSoldWithEpochOffset(uint256 offset) public view returns (uint256) {
         return _getExpectedAmountSoldWithEpochOffset(offset);
     }

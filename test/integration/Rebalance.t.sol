@@ -945,7 +945,7 @@ contract RebalanceTest is BaseTest {
 
         // Assert that we reduced the accumulator by the relative amount of the max dutch auction
         // corresponding to the amount that we're undersold by
-        uint256 expectedAmountSold2 = hook.getExpectedAmountSoldLastEpoch();
+        uint256 expectedAmountSold2 = hook.getExpectedAmountSoldWithEpochOffset(0);
         // Note: We use the totalTokensSold from the previous epoch (1e18) since this logic was executed
         //       before the most recent swap was accounted for (in the after swap)
         assertEq(
