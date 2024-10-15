@@ -18,6 +18,8 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 
+import {console2} from "forge-std/console2.sol";
+
 
 struct SlugData {
     int24 tickLower;
@@ -289,7 +291,7 @@ contract Doppler is BaseHook {
             totalTokensSold_ != 0 ? _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold_) : 0;
 
         // Get existing positions
-        Position[] memory prevPositions = new Position[](3);
+        Position[] memory prevPositions = new Position[](2 + numPDSlugs);
         prevPositions[0] = positions[LOWER_SLUG_SALT];
         prevPositions[1] = positions[UPPER_SLUG_SALT];
         for (uint256 i; i < numPDSlugs; ++i) {
@@ -316,7 +318,7 @@ contract Doppler is BaseHook {
         // TODO: Consider whether we need slippage protection
 
         // Get new positions
-        Position[] memory newPositions = new Position[](3);
+        Position[] memory newPositions = new Position[](2 + numPDSlugs);
         newPositions[0] = Position({
             tickLower: lowerSlug.tickLower,
             tickUpper: lowerSlug.tickUpper,
@@ -545,7 +547,9 @@ contract Doppler is BaseHook {
         SlugData memory upperSlug,
         int24 tickUpper,
         uint256 assetAvailable
-    ) internal view returns (SlugData[] memory slugs) {
+    ) internal view returns (SlugData[] memory) {
+        SlugData[] memory slugs = new SlugData[](numPDSlugs);
+
         uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time of next epoch
 
@@ -587,6 +591,8 @@ contract Doppler is BaseHook {
                 tokensToLp
             );
         }
+
+        return slugs;
     }
 
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
@@ -735,7 +741,7 @@ contract Doppler is BaseHook {
                         tickLower: priceDiscoverySlugs[i].tickLower,
                         tickUpper: priceDiscoverySlugs[i].tickUpper,
                         liquidityDelta: int128(priceDiscoverySlugs[i].liquidity),
-                        salt: DISCOVERY_SLUG_SALT
+                        salt: bytes32(uint256(3 + i))
                     }),
                     ""
                 );
@@ -751,7 +757,7 @@ contract Doppler is BaseHook {
             key.currency1.transfer(address(poolManager), uint256(int256(-finalDelta.amount1())));
         }
 
-        Position[] memory newPositions = new Position[](3);
+        Position[] memory newPositions = new Position[](2 + numPDSlugs);
         newPositions[0] =
             Position({tickLower: tick, tickUpper: tick, liquidity: 0, salt: uint8(uint256(LOWER_SLUG_SALT))});
         newPositions[1] = Position({
