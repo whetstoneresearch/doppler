@@ -230,7 +230,7 @@ contract Doppler is BaseHook {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed)
                 * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
-            Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
+            int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
 
             int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
@@ -242,12 +242,13 @@ contract Doppler is BaseHook {
                 isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
             );
 
-            // We bound the currentTick by the top of the curve
-            // currentTick == min(currentTick, pdSlug.tickUpper) reversed for token1
+            // We bound the currentTick by the top of the curve (tauTick + gamma)
+            // This is necessary because there is no liquidity above the curve and we need to
+            // ensure that the accumulatorDelta is just based on meaningful (in range) ticks
             if (isToken0) {
-                currentTick = currentTick > pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
+                currentTick = currentTick > (tauTick + gamma) ? (tauTick + gamma) : currentTick;
             } else {
-                currentTick = currentTick < pdSlug.tickUpper ? pdSlug.tickUpper : currentTick;
+                currentTick = currentTick < (tauTick + gamma) ? (tauTick + gamma) : currentTick;
             }
 
             accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
