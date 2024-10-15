@@ -572,6 +572,7 @@ contract Doppler is BaseHook {
             // TODO: Bound by the type(int24).max/min
             slugs[i].tickUpper = slugs[i].tickLower + slugRangeDelta;
             
+            // TODO: Ensure we don't compute liquidity for a 0 tick range
             slugs[i].liquidity = _computeLiquidity(
                 isToken0,
                 TickMath.getSqrtPriceAtTick(slugs[i].tickLower),
