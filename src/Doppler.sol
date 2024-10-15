@@ -550,7 +550,7 @@ contract Doppler is BaseHook {
         uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time of next epoch
 
         // Return early if we're on the final epoch
-        if (nextEpochEndTime != epochEndTime) {
+        if (nextEpochEndTime == epochEndTime) {
             return slugs;
         }
 
