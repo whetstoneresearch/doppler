@@ -580,7 +580,7 @@ contract Doppler is BaseHook {
                 slugs[i].tickLower = slugs[i - 1].tickUpper;
             }
             // TODO: Bound by the type(int24).max/min
-            slugs[i].tickUpper = slugs[i].tickLower + slugRangeDelta;
+            slugs[i].tickUpper = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
             
             // TODO: Ensure we don't compute liquidity for a 0 tick range
             slugs[i].liquidity = _computeLiquidity(
