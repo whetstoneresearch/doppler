@@ -71,6 +71,8 @@ contract Doppler is BaseHook {
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 immutable numPDSlugs; // number of price discovery slugs
 
+    receive() external payable {}
+
     constructor(
         IPoolManager _poolManager,
         PoolKey memory _poolKey,
@@ -237,8 +239,8 @@ contract Doppler is BaseHook {
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch()
-                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+            accumulatorDelta =
+                _getMaxTickDeltaPerEpoch() * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
             Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
