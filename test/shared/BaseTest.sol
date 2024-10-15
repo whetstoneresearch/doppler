@@ -166,7 +166,7 @@ contract BaseTest is Test, Deployers {
                 config.epochLength,
                 config.gamma,
                 isToken0,
-                config.numPDSlugs,
+                3,
                 hook
             ),
             address(hook)
