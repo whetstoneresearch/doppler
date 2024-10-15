@@ -175,6 +175,16 @@ contract BaseTest is Test, Deployers {
         poolId = key.toId();
 
         manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick), new bytes(0));
+
+        uint24 protocolFee = uint24(vm.envOr("PROTOCOL_FEE", uint256(0)));
+
+        protocolFee = (uint24(protocolFee) << 12) | uint24(protocolFee);
+
+        if (protocolFee > 0) {
+            vm.startPrank(address(0));
+            manager.setProtocolFee(key, protocolFee);
+            vm.stopPrank();
+        }
     }
 
     function setUp() public virtual {
