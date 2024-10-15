@@ -62,7 +62,10 @@ contract RebalanceTest is BaseTest {
         // Get the slugs
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
-        Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        Position[] memory priceDiscoverySlugs = new Position[](hook.getNumPDSlugs());
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global upper tick
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
@@ -77,13 +80,26 @@ contract RebalanceTest is BaseTest {
         // Validate that lower slug is not above the current tick
         assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()));
 
-        // Validate that upper slug and price discovery slug are placed continuously
-        assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
-        assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+        // Validate that upper slug and all price discovery slugs are placed continuously
+        assertEq(upperSlug.tickUpper, priceDiscoverySlugs[0].tickLower);
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            if (i == 0) {
+                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+            } else {
+                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+            }
 
-        // Validate that the lower slug and price discovery slug have liquidity
+            if (i == priceDiscoverySlugs.length - 1) {
+                // We allow some room for rounding down to the nearest tickSpacing for each slug
+                assertApproxEqAbs(priceDiscoverySlugs[i].tickUpper, tickUpper, hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)));
+            }
+
+            // Validate that each price discovery slug has liquidity
+            assertGt(priceDiscoverySlugs[i].liquidity, 1e18);
+        }
+
+        // Validate that the lower slug has liquidity
         assertGt(lowerSlug.liquidity, 1e18);
-        assertGt(priceDiscoverySlug.liquidity, 1e18);
 
         // Validate that the upper slug has very little liquidity (dust)
         assertLt(upperSlug.liquidity, 1e18);
@@ -779,7 +795,10 @@ contract RebalanceTest is BaseTest {
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
-        Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        Position[] memory priceDiscoverySlugs = new Position[](hook.getNumPDSlugs());
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global lower and upper ticks
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
@@ -790,12 +809,22 @@ contract RebalanceTest is BaseTest {
 
         // Slugs must be inline and continuous
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "first swap: lowerSlug.tickUpper != upperSlug.tickLower");
-        assertEq(
-            upperSlug.tickUpper,
-            priceDiscoverySlug.tickLower,
-            "first swap: upperSlug.tickUpper != priceDiscoverySlug.tickLower"
-        );
-        assertEq(priceDiscoverySlug.tickUpper, tickUpper, "first swap: priceDiscoverySlug.tickUpper != tickUpper");
+        
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            if (i == 0) {
+                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+            } else {
+                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+            }
+
+            if (i == priceDiscoverySlugs.length - 1) {
+                // We allow some room for rounding down to the nearest tickSpacing for each slug
+                assertApproxEqAbs(priceDiscoverySlugs[i].tickUpper, tickUpper, hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)));
+            }
+
+            // Validate that each price discovery slug has liquidity
+            assertGt(priceDiscoverySlugs[i].liquidity, 1e18);
+        }
 
         // Lower slug should be unset with ticks at the current price
         assertEq(lowerSlug.tickLower, lowerSlug.tickUpper, "first swap: lowerSlug.tickLower != lowerSlug.tickUpper");
@@ -804,7 +833,6 @@ contract RebalanceTest is BaseTest {
 
         // Upper and price discovery slugs must be set
         assertNotEq(upperSlug.liquidity, 0, "first swap: upperSlug.liquidity != 0");
-        assertNotEq(priceDiscoverySlug.liquidity, 0, "first swap: priceDiscoverySlug.liquidity != 0");
 
         // Relative dutch auction in next epoch
         // ====================================
@@ -852,24 +880,35 @@ contract RebalanceTest is BaseTest {
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
         upperSlug = hook.getPositions(bytes32(uint256(2)));
-        priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global lower and upper ticks
         (, tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Slugs must be inline and continuous
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "second swap: lowerSlug.tickUpper != upperSlug.tickLower");
-        assertEq(
-            upperSlug.tickUpper,
-            priceDiscoverySlug.tickLower,
-            "second swap: upperSlug.tickUpper != priceDiscoverySlug.tickLower"
-        );
-        assertEq(priceDiscoverySlug.tickUpper, tickUpper, "second swap: priceDiscoverySlug.tickUpper != tickUpper");
+        
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            if (i == 0) {
+                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+            } else {
+                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+            }
+
+            if (i == priceDiscoverySlugs.length - 1) {
+                // We allow some room for rounding down to the nearest tickSpacing for each slug
+                assertApproxEqAbs(priceDiscoverySlugs[i].tickUpper, tickUpper, hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)));
+            }
+
+            // Validate that each price discovery slug has liquidity
+            assertGt(priceDiscoverySlugs[i].liquidity, 1e18);
+        }
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0, "second swap: lowerSlug.liquidity != 0");
         assertNotEq(upperSlug.liquidity, 0, "second swap: upperSlug.liquidity != 0");
-        assertNotEq(priceDiscoverySlug.liquidity, 0, "second swap: priceDiscoverySlug.liquidity != 0");
 
         // Oversold case triggers correct increase
         // =======================================
@@ -915,7 +954,9 @@ contract RebalanceTest is BaseTest {
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
         upperSlug = hook.getPositions(bytes32(uint256(2)));
-        priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global lower and upper ticks
         (int24 tickLower, int24 tickUpper2) = hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
@@ -927,17 +968,25 @@ contract RebalanceTest is BaseTest {
         assertLe(lowerSlug.tickUpper, currentTick, "third swap: lowerSlug.tickUpper > currentTick");
 
         // Upper slugs must be inline and continuous
-        assertEq(
-            upperSlug.tickUpper,
-            priceDiscoverySlug.tickLower,
-            "third swap: upperSlug.tickUpper != priceDiscoverySlug.tickLower"
-        );
-        assertEq(priceDiscoverySlug.tickUpper, tickUpper2, "third swap: priceDiscoverySlug.tickUpper != tickUpper2");
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            if (i == 0) {
+                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+            } else {
+                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+            }
+
+            if (i == priceDiscoverySlugs.length - 1) {
+                // We allow some room for rounding down to the nearest tickSpacing for each slug
+                assertApproxEqAbs(priceDiscoverySlugs[i].tickUpper, tickUpper2, hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)));
+            }
+
+            // Validate that each price discovery slug has liquidity
+            assertGt(priceDiscoverySlugs[i].liquidity, 1e18);
+        }
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0, "third swap: lowerSlug.liquidity != 0");
         assertNotEq(upperSlug.liquidity, 0, "third swap: upperSlug.liquidity != 0");
-        assertNotEq(priceDiscoverySlug.liquidity, 0, "third swap: priceDiscoverySlug.liquidity != 0");
 
         // Validate that we can swap all tokens back into the curve
         swapRouter.swap(
@@ -973,7 +1022,9 @@ contract RebalanceTest is BaseTest {
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
         upperSlug = hook.getPositions(bytes32(uint256(2)));
-        priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global lower and upper ticks
         (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
@@ -985,17 +1036,15 @@ contract RebalanceTest is BaseTest {
         assertLe(lowerSlug.tickUpper, currentTick, "fourth swap: lowerSlug.tickUpper > currentTick");
 
         // Upper slugs must be inline and continuous
-        assertEq(
-            upperSlug.tickUpper,
-            priceDiscoverySlug.tickLower,
-            "fourth swap: upperSlug.tickUpper != priceDiscoverySlug.tickLower"
-        );
-        assertEq(priceDiscoverySlug.tickUpper, tickUpper, "fourth swap: priceDiscoverySlug.tickUpper != tickUpper");
+        // In this case we only have one price discovery slug since we're on the second last epoch
+        assertEq(upperSlug.tickUpper, priceDiscoverySlugs[0].tickLower);
+
+        // Validate that the price discovery slug has liquidity
+        assertGt(priceDiscoverySlugs[0].liquidity, 1e18);
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0, "fourth swap: lowerSlug.liquidity != 0");
         assertNotEq(upperSlug.liquidity, 0, "fourth swap: upperSlug.liquidity != 0");
-        assertNotEq(priceDiscoverySlug.liquidity, 0, "fourth swap: priceDiscoverySlug.liquidity != 0");
 
         // Swap in last epoch
         // =========================
@@ -1021,7 +1070,9 @@ contract RebalanceTest is BaseTest {
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
         upperSlug = hook.getPositions(bytes32(uint256(2)));
-        priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global lower and upper ticks
         (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
@@ -1042,7 +1093,10 @@ contract RebalanceTest is BaseTest {
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "fifth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
         // We don't set a priceDiscoverySlug because it's the last epoch
-        assertEq(priceDiscoverySlug.liquidity, 0, "fifth swap: priceDiscoverySlug.liquidity != 0");
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            // Validate that each price discovery slug has no liquidity
+            assertEq(priceDiscoverySlugs[i].liquidity, 0);
+        }
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0, "fifth swap: lowerSlug.liquidity != 0");
@@ -1077,7 +1131,9 @@ contract RebalanceTest is BaseTest {
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
         upperSlug = hook.getPositions(bytes32(uint256(2)));
-        priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global lower and upper ticks
         (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
@@ -1096,7 +1152,10 @@ contract RebalanceTest is BaseTest {
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "sixth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
         // We don't set a priceDiscoverySlug because it's the last epoch
-        assertEq(priceDiscoverySlug.liquidity, 0, "sixth swap: priceDiscoverySlug.liquidity != 0");
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            // Validate that each price discovery slug has no liquidity
+            assertEq(priceDiscoverySlugs[i].liquidity, 0);
+        }
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0, "sixth swap: lowerSlug.liquidity != 0");
