@@ -41,6 +41,10 @@ contract BaseTest is Test, Deployers {
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
+    uint24 constant DEFAULT_PROTOCOL_FEE = 5;
+
+    address constant TOKEN_A = address(0x8888);
+    address constant TOKEN_B = address(0x9999);
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
@@ -142,6 +146,9 @@ contract BaseTest is Test, Deployers {
         startTick = isToken0 ? int24(800) : int24(-800);
         endTick = isToken0 ? int24(-172_000) : int24(172_000);
 
+        // Default to feeless case because it's easier to reason about
+        config.fee = uint24(vm.envOr("FEE", uint256(0)));
+
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
             currency1: Currency.wrap(address(token1)),
@@ -171,6 +178,16 @@ contract BaseTest is Test, Deployers {
         poolId = key.toId();
 
         manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick), new bytes(0));
+
+        uint24 protocolFee = uint24(vm.envOr("PROTOCOL_FEE", uint256(0)));
+
+        protocolFee = (uint24(protocolFee) << 12) | uint24(protocolFee);
+
+        if (protocolFee > 0) {
+            vm.startPrank(address(0));
+            manager.setProtocolFee(key, protocolFee);
+            vm.stopPrank();
+        }
     }
 
     function setUp() public virtual {

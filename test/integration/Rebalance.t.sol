@@ -2,16 +2,20 @@ pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 
+import {MAX_SWAP_FEE} from "src/Doppler.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {BalanceDelta, add, BalanceDeltaLibrary, toBalanceDelta} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {SlugVis} from "test/shared/SlugVis.sol";
+import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 
 import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
@@ -20,6 +24,8 @@ import {Position} from "../../src/Doppler.sol";
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
+    using BalanceDeltaLibrary for BalanceDelta;
+    using ProtocolFeeLibrary for *;
 
     function test_rebalance_ExtremeOversoldCase() public {
         // Go to starting time
@@ -57,7 +63,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator, uint256 totalTokensSold,,) = hook.state();
+        (, int256 tickAccumulator, uint256 totalTokensSold,,,) = hook.state();
 
         // Get the slugs
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -122,7 +128,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) = hook.state();
+        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
         assertEq(lastEpoch, 3);
         // Confirm we sold the correct amount
@@ -142,7 +148,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator2, uint256 totalTokensSold2,,) = hook.state();
+        (, int256 tickAccumulator2, uint256 totalTokensSold2,,,) = hook.state();
 
         // Get the lower slug
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -208,7 +214,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator, uint256 totalTokensSold,,) = hook.state();
+        (, int256 tickAccumulator, uint256 totalTokensSold,,,) = hook.state();
 
         // Get the lower slug
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -318,7 +324,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator,,,) = hook.state();
+        (, int256 tickAccumulator,,,,) = hook.state();
 
         // Get the slugs
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -492,7 +498,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
         assertEq(lastEpoch, 1);
@@ -511,7 +517,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) = hook.state();
+        (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) = hook.state();
 
         assertEq(lastEpoch2, 1);
         // We unsold all the previously sold tokens
@@ -531,7 +537,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
+        (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3,) =
             hook.state();
 
         assertEq(lastEpoch3, 2);
@@ -592,7 +598,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
         assertEq(lastEpoch, 1);
@@ -613,7 +619,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) =
             hook.state();
 
         assertEq(lastEpoch2, 2);
@@ -673,7 +679,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
         assertEq(lastEpoch, 1);
@@ -698,7 +704,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) =
             hook.state();
 
         assertEq(lastEpoch2, 2);
@@ -742,6 +748,88 @@ contract RebalanceTest is BaseTest {
         assertNotEq(priceDiscoverySlug.liquidity, 0);
     }
 
+    function test_rebalance_CollectsFeeFromAllSlugs() public {
+        PoolKey memory poolKey = key;
+
+        vm.warp(hook.getStartingTime());
+
+        bool isToken0 = hook.getIsToken0();
+
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
+
+        (,,,,, BalanceDelta feesAccrued) = hook.state();
+
+        BalanceDelta expectedFeesAccrued = toBalanceDelta(0, 0);
+
+        assertTrue(feesAccrued == expectedFeesAccrued);
+
+        Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
+
+        uint256 amount1ToSwap = LiquidityAmounts.getAmount1ForLiquidity(
+            TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+            TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+            upperSlug.liquidity
+        ) * 9 / 10;
+
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(
+                !isToken0, -int256(amount1ToSwap), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+            ),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
+        uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
+            TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+            TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+            upperSlug.liquidity
+        ) * 9 / 10;
+
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(isToken0, -int256(amount0ToSwap), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
+        vm.warp(hook.getStartingTime() + hook.getEpochLength());
+        
+        // trigger rebalance to accrue fees
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            poolKey,
+            IPoolManager.SwapParams(
+                isToken0, 1, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+            ),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
+        (,,,,,feesAccrued) = hook.state();
+
+
+        // https://github.com/Uniswap/v4-core/blob/main/src/libraries/ProtocolFeeLibrary.sol#L34
+        uint256 overlappingFeePerUnit0 = (protocolFee.getZeroForOneFee() * lpFee + MAX_SWAP_FEE) / MAX_SWAP_FEE;
+        uint256 overlappingFeePerUnit1 = (protocolFee.getOneForZeroFee() * lpFee + MAX_SWAP_FEE) / MAX_SWAP_FEE;
+        uint256 overlappingFeeAmount0 = FullMath.mulDiv(amount0ToSwap, overlappingFeePerUnit0, MAX_SWAP_FEE);
+        uint256 overlappingFeeAmount1 = FullMath.mulDiv(amount1ToSwap, overlappingFeePerUnit1, MAX_SWAP_FEE);
+
+        // TODO: find a better way to control for the protocol fee rounding
+        uint256 amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount0;
+        uint256 amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount1 - 1;
+
+        expectedFeesAccrued = toBalanceDelta(int128(uint128(amount0ExpectedFee)), int128(uint128(amount1ExpectedFee)));
+
+        assertEq(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0());
+        assertEq(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1());
+    }
+
     function test_rebalance_FullFlow() public {
         PoolKey memory poolKey = key;
         bool isToken0 = hook.getIsToken0();
@@ -762,7 +850,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
+        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
         assertEq(lastEpoch, 4, "first swap: lastEpoch != 4");
@@ -827,7 +915,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2) =
+        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) =
             hook.state();
 
         assertEq(lastEpoch2, 5, "second swap: lastEpoch2 != 5");
@@ -890,7 +978,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3) =
+        (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3,) =
             hook.state();
 
         assertEq(lastEpoch3, 6, "third swap: lastEpoch3 != 6");
@@ -968,7 +1056,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator4,,,) = hook.state();
+        (, int256 tickAccumulator4,,,,) = hook.state();
 
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -1016,7 +1104,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator5,,,) = hook.state();
+        (, int256 tickAccumulator5,,,,) = hook.state();
 
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -1058,7 +1146,7 @@ contract RebalanceTest is BaseTest {
         );
 
         uint256 numTokensToSell = hook.getNumTokensToSell();
-        (,, uint256 totalTokensSold4,,) = hook.state();
+        (,, uint256 totalTokensSold4,,,) = hook.state();
 
         // Swap all remaining tokens
         swapRouter.swap(
@@ -1072,7 +1160,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (, int256 tickAccumulator6,,,) = hook.state();
+        (, int256 tickAccumulator6,,,,) = hook.state();
 
         // Get positions
         lowerSlug = hook.getPositions(bytes32(uint256(1)));
