@@ -85,10 +85,6 @@ contract DopplerImplementation is Doppler {
         return _getMaxTickDeltaPerEpoch();
     }
 
-    function getElapsedGamma() public view returns (int256) {
-        return _getElapsedGamma();
-    }
-
     function getTicksBasedOnState(int256 accumulator, int24 tickSpacing) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator, tickSpacing);
     }
