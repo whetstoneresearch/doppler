@@ -58,6 +58,7 @@ contract ConstructorTest is BaseTest {
                 config.epochLength,
                 config.gamma,
                 isToken0,
+                config.numPDSlugs,
                 hook
             ),
             address(hook)
