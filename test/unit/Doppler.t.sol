@@ -17,42 +17,42 @@ contract DopplerTest is BaseTest {
         vm.warp(timestamp);
 
         assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
         );
 
         timestamp = hook.getStartingTime() + hook.getEpochLength();
         vm.warp(timestamp);
 
         assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
         );
 
         timestamp = hook.getStartingTime() + hook.getEpochLength() * 2;
         vm.warp(timestamp);
 
         assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
         );
 
         timestamp = hook.getEndingTime() - hook.getEpochLength() * 2;
         vm.warp(timestamp);
 
         assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
         );
 
         timestamp = hook.getEndingTime() - hook.getEpochLength();
         vm.warp(timestamp);
 
         assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
         );
 
         timestamp = hook.getEndingTime();
         vm.warp(timestamp);
 
         assertEq(
-            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma()) / 1e18
+            hook.getElapsedGamma(), int256(hook.getNormalizedTimeElapsed(timestamp)) * int256(hook.getGamma())
         );
     }
 

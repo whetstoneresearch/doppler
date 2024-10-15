@@ -25,7 +25,7 @@ contract BaseTest is Test, Deployers {
         uint256 numTokensToSell;
         uint256 startingTime;
         uint256 endingTime;
-        uint256 gamma;
+        int24 gamma;
         uint256 epochLength;
         uint24 fee;
         int24 tickSpacing;
@@ -36,7 +36,7 @@ contract BaseTest is Test, Deployers {
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
     uint256 constant DEFAULT_ENDING_TIME = 2 days;
-    uint256 constant DEFAULT_GAMMA = 800;
+    int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
@@ -131,7 +131,6 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new Doppler hook with a given configuration.
     function _deployDoppler(DopplerConfig memory config) public {
-        isToken0 = vm.envOr("IS_TOKEN_0", true);
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
@@ -140,8 +139,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(0) : int24(0);
-        endTick = isToken0 ? int24(-172_800) : int24(172_800);
+        startTick = isToken0 ? int24(800) : int24(-800);
+        endTick = isToken0 ? int24(-172_000) : int24(172_000);
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),

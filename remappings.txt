@@ -1,4 +1,5 @@
 v4-core/=lib/v4-periphery/lib/v4-core/
+solady/=lib/solady/src/
 @ensdomains/=lib/v4-core/node_modules/@ensdomains/
 @openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/
 @openzeppelin/contracts/=lib/v4-core/lib/openzeppelin-contracts/contracts/
