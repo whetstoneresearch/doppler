@@ -220,7 +220,7 @@ contract Doppler is BaseHook {
 
         // TODO: consider if this should be the expected amount sold at the start of the current epoch or at the current time
         // i think logically it makes sense to use the current time to get the most accurate rebalance
-        uint256 expectedAmountSold = _getExpectedAmountSold(block.timestamp);
+        uint256 expectedAmountSold = _getExpectedAmountSoldLastEpoch();
         int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
@@ -388,8 +388,12 @@ contract Doppler is BaseHook {
     }
 
     // TODO: consider whether it's safe to always round down
-    function _getExpectedAmountSold(uint256 timestamp) internal view returns (uint256) {
-        return FullMath.mulDiv(_getNormalizedTimeElapsed(timestamp), numTokensToSell, 1e18);
+    function _getExpectedAmountSoldLastEpoch() internal view returns (uint256) {
+        return FullMath.mulDiv(_getNormalizedTimeElapsed((_getCurrentEpoch() - 1) * epochLength + startingTime), numTokensToSell, 1e18);
+    }
+
+    function _getExpectedAmountSoldWithEpochOffset(uint256 offset) internal view returns (uint256) {
+        return FullMath.mulDiv(_getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime), numTokensToSell, 1e18);
     }
 
     // Returns 18 decimal fixed point value
@@ -518,8 +522,7 @@ contract Doppler is BaseHook {
         int24 currentTick,
         uint256 assetAvailable
     ) internal view returns (SlugData memory slug) {
-        uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        int256 tokensSoldDelta = int256(_getExpectedAmountSold(epochEndTime)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
+        int256 tokensSoldDelta = int256(_getExpectedAmountSoldWithEpochOffset(1)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
 
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
