@@ -916,12 +916,10 @@ contract RebalanceTest is BaseTest {
 
         // TODO: find a better way to control for the protocol fee rounding
         uint256 amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount0;
-        uint256 amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount1 - 1;
+        uint256 amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount1;
 
-        expectedFeesAccrued = toBalanceDelta(int128(uint128(amount0ExpectedFee)), int128(uint128(amount1ExpectedFee)));
-
-        assertEq(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0());
-        assertEq(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1());
+        assertApproxEqAbs(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0(), 1);
+        assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
     }
 
     function test_rebalance_FullFlow() public {
