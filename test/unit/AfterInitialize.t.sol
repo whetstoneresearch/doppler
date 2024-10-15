@@ -28,7 +28,10 @@ contract AfterInitializeTest is BaseTest {
         // Get the slugs
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
-        Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
+        Position[] memory priceDiscoverySlugs = new Position[](hook.getNumPDSlugs());
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
 
         // Get global ticks
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
@@ -36,12 +39,25 @@ contract AfterInitializeTest is BaseTest {
         // Assert that all slugs are continuous
         assertEq(tickLower, lowerSlug.tickLower);
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
-        assertEq(upperSlug.tickUpper, priceDiscoverySlug.tickLower);
-        assertEq(priceDiscoverySlug.tickUpper, tickUpper);
+        
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            if (i == 0) {
+                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+            } else {
+                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+            }
+
+            if (i == priceDiscoverySlugs.length - 1) {
+                // We allow some room for rounding down to the nearest tickSpacing for each slug
+                assertApproxEqAbs(priceDiscoverySlugs[i].tickUpper, tickUpper, hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)));
+            }
+
+            // Validate that each price discovery slug has liquidity
+            assertGt(priceDiscoverySlugs[i].liquidity, 0);
+        }
 
         // Assert that upper and price discovery slugs have liquidity
         assertNotEq(upperSlug.liquidity, 0);
-        assertNotEq(priceDiscoverySlug.liquidity, 0);
 
         // Assert that lower slug has both ticks as the startingTick
         assertEq(lowerSlug.tickLower, hook.getStartingTick());

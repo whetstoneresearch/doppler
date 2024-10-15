@@ -24,6 +24,7 @@ contract DopplerImplementation is Doppler {
         uint256 _epochLength,
         int24 _gamma,
         bool _isToken0,
+        uint256 _numPDSlugs,
         IHooks addressToEtch
     )
         Doppler(
@@ -36,7 +37,8 @@ contract DopplerImplementation is Doppler {
             _endingTick,
             _epochLength,
             _gamma,
-            _isToken0
+            _isToken0,
+            _numPDSlugs
         )
     {
         Hooks.validateHookPermissions(addressToEtch, getHookPermissions());
@@ -85,10 +87,6 @@ contract DopplerImplementation is Doppler {
         return _getMaxTickDeltaPerEpoch();
     }
 
-    function getElapsedGamma() public view returns (int256) {
-        return _getElapsedGamma();
-    }
-
     function getTicksBasedOnState(int256 accumulator, int24 tickSpacing) public view returns (int24, int24) {
         return _getTicksBasedOnState(accumulator, tickSpacing);
     }
@@ -107,6 +105,10 @@ contract DopplerImplementation is Doppler {
 
     function getEpochEndWithOffset(uint256 offset) public view returns (uint256) {
         return _getEpochEndWithOffset(offset);
+    }
+
+    function getNumPDSlugs() public view returns (uint256) {
+        return numPDSlugs;
     }
 
     function alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) public view returns (int24) {
@@ -133,13 +135,13 @@ contract DopplerImplementation is Doppler {
         return _computeUpperSlugData(poolKey, totalTokensSold, currentTick, assetAvailable);
     }
 
-    function computePriceDiscoverySlugData(
+    function computePriceDiscoverySlugsData(
         PoolKey memory poolKey,
         SlugData memory upperSlug,
         int24 tickUpper,
         uint256 assetAvailable
-    ) public view returns (SlugData memory) {
-        return _computePriceDiscoverySlugData(poolKey, upperSlug, tickUpper, assetAvailable);
+    ) public view returns (SlugData[] memory) {
+        return _computePriceDiscoverySlugsData(poolKey, upperSlug, tickUpper, assetAvailable);
     }
 
     function getPositions(bytes32 salt) public view returns (Position memory) {
