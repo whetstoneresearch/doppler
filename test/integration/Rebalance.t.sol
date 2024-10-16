@@ -914,14 +914,19 @@ contract RebalanceTest is BaseTest {
 
 
         // https://github.com/Uniswap/v4-core/blob/main/src/libraries/ProtocolFeeLibrary.sol#L34
-        uint256 overlappingFeePerUnit0 = (protocolFee.getZeroForOneFee() * lpFee + MAX_SWAP_FEE) / MAX_SWAP_FEE;
-        uint256 overlappingFeePerUnit1 = (protocolFee.getOneForZeroFee() * lpFee + MAX_SWAP_FEE) / MAX_SWAP_FEE;
-        uint256 overlappingFeeAmount0 = FullMath.mulDiv(amount0ToSwap, overlappingFeePerUnit0, MAX_SWAP_FEE);
-        uint256 overlappingFeeAmount1 = FullMath.mulDiv(amount1ToSwap, overlappingFeePerUnit1, MAX_SWAP_FEE);
-
-        // TODO: find a better way to control for the protocol fee rounding
-        uint256 amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount0;
-        uint256 amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount1;
+        uint256 amount0ExpectedFee;
+        uint256 amount1ExpectedFee;
+        if (protocolFee > 0) {
+            uint256 overlappingFeePerUnit0 = (protocolFee.getZeroForOneFee() * lpFee + MAX_SWAP_FEE) / MAX_SWAP_FEE;
+            uint256 overlappingFeePerUnit1 = (protocolFee.getOneForZeroFee() * lpFee + MAX_SWAP_FEE) / MAX_SWAP_FEE;
+            uint256 overlappingFeeAmount0 = FullMath.mulDiv(amount0ToSwap, overlappingFeePerUnit0, MAX_SWAP_FEE);
+            uint256 overlappingFeeAmount1 = FullMath.mulDiv(amount1ToSwap, overlappingFeePerUnit1, MAX_SWAP_FEE);
+            amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount0;
+            amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE) - overlappingFeeAmount1;
+        } else {
+            amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE);
+            amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE);
+        }
 
         assertApproxEqAbs(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0(), 1);
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);

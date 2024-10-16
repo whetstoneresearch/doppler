@@ -142,8 +142,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(800) : int24(-800);
-        endTick = isToken0 ? int24(-172_000) : int24(172_000);
+        startTick = isToken0 ? int24(1600) : int24(-1600);
+        endTick = isToken0 ? int24(-171_200) : int24(171_200);
 
         // Default to feeless case because it's easier to reason about
         config.fee = uint24(vm.envOr("FEE", uint256(0)));
