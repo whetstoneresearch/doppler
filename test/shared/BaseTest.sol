@@ -73,13 +73,14 @@ contract BaseTest is Test, Deployers {
         )
     );
 
-    TestERC20 asset;
-    TestERC20 numeraire;
-    TestERC20 token0;
-    TestERC20 token1;
+    address asset;
+    address numeraire;
+    address token0;
+    address token1;
     PoolId poolId;
 
     bool isToken0;
+    bool usingEth;
     int24 startTick;
     int24 endTick;
 
@@ -99,7 +100,7 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Reuses an existing pair of asset and numeraire tokens and deploys the related
     /// Doppler hook with the default configuration.
-    function _deploy(TestERC20 asset_, TestERC20 numeraire_) public {
+    function _deploy(address asset_, address numeraire_) public {
         asset = asset_;
         numeraire = numeraire_;
         _deployDoppler();
@@ -114,7 +115,7 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Reuses an existing pair of asset and numeraire tokens and deploys the related Doppler
     /// hook with a given configuration.
-    function _deploy(TestERC20 asset_, TestERC20 numeraire_, DopplerConfig memory config) public {
+    function _deploy(address asset_, address numeraire_, DopplerConfig memory config) public {
         asset = asset_;
         numeraire = numeraire_;
         _deployDoppler(config);
@@ -123,10 +124,25 @@ contract BaseTest is Test, Deployers {
     /// @dev Deploys a new pair of asset and numeraire tokens.
     function _deployTokens() public {
         isToken0 = vm.envOr("IS_TOKEN_0", true);
-        deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_A) : address(TOKEN_B));
-        deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_B) : address(TOKEN_A));
-        asset = TestERC20(isToken0 ? address(TOKEN_A) : address(TOKEN_B));
-        numeraire = TestERC20(isToken0 ? address(TOKEN_B) : address(TOKEN_A));
+        usingEth = vm.envOr("USING_ETH", false);
+
+        if (usingEth) {
+            isToken0 = false;
+            deployCodeTo("TestERC20.sol:TestERC20", abi.encode(2 ** 128), address(TOKEN_B));
+            token0 = address(0);
+            token1 = address(TOKEN_B);
+            numeraire = token0;
+            asset = token1;
+        } else {
+            deployCodeTo(
+                "TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_A) : address(TOKEN_B)
+            );
+            deployCodeTo(
+                "TestERC20.sol:TestERC20", abi.encode(2 ** 128), isToken0 ? address(TOKEN_B) : address(TOKEN_A)
+            );
+            asset = isToken0 ? TOKEN_A : TOKEN_B;
+            numeraire = isToken0 ? TOKEN_B : TOKEN_A;
+        }
     }
 
     /// @dev Deploys a new Doppler hook with the default configuration.
@@ -140,7 +156,7 @@ contract BaseTest is Test, Deployers {
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
 
-        (isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
+        TestERC20(asset).transfer(address(hook), config.numTokensToSell);
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
@@ -190,10 +206,12 @@ contract BaseTest is Test, Deployers {
         // Note: Only used to validate that liquidity can't be manually modified
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
-        // Approve the router to spend tokens on behalf of the test contract
-        token0.approve(address(swapRouter), type(uint256).max);
-        token1.approve(address(swapRouter), type(uint256).max);
-        token0.approve(address(modifyLiquidityRouter), type(uint256).max);
-        token1.approve(address(modifyLiquidityRouter), type(uint256).max);
+        if (token0 != address(0)) {
+            // Approve the router to spend tokens on behalf of the test contract
+            TestERC20(token0).approve(address(swapRouter), type(uint256).max);
+            TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        }
+        TestERC20(token1).approve(address(swapRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
     }
 }
