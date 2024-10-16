@@ -63,11 +63,13 @@ contract BaseTest is Test, Deployers {
     // Context
 
     DopplerImplementation hook = DopplerImplementation(
-        address(
-            uint160(
-                Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-                    | Hooks.AFTER_INITIALIZE_FLAG
-            ) ^ (0x4444 << 144)
+        payable(
+            address(
+                uint160(
+                    Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                        | Hooks.AFTER_INITIALIZE_FLAG
+                ) ^ (0x4444 << 144)
+            )
         )
     );
 
