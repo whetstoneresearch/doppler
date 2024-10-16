@@ -35,11 +35,11 @@ contract BeforeSwapTest is BaseTest {
         TestERC20 numeraire_ = new TestERC20(2 ** 128);
 
         // Reorg the asset and the numeraire so the asset will be the token1
-        (asset_, numeraire_) = address(asset_) > address(numeraire_) ? (asset_, numeraire_) : (numeraire_, asset_);
+        (asset_, numeraire_) = asset_ > numeraire_ ? (asset_, numeraire_) : (numeraire_, asset_);
 
         _deploy(
-            asset_,
-            numeraire_,
+            address(asset_),
+            address(numeraire_),
             DopplerConfig({
                 numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
                 startingTime: DEFAULT_STARTING_TIME,
