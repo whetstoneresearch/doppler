@@ -1283,30 +1283,6 @@ contract RebalanceTest is BaseTest {
         (,, uint256 totalTokensSold4,,,) = hook.state();
 
 
-        uint256 amount1DeltaUpper = LiquidityAmounts.getAmount1ForLiquidity(
-            TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
-            TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
-            upperSlug.liquidity
-        );
-
-        uint256 amount1DeltaPd = LiquidityAmounts.getAmount1ForLiquidity(
-            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[0].tickLower),
-            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[0].tickUpper),
-            priceDiscoverySlugs[0].liquidity
-        );
-
-        uint256 amount1DeltaPd2 = LiquidityAmounts.getAmount1ForLiquidity(
-            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[1].tickLower),
-            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[1].tickUpper),
-            priceDiscoverySlugs[1].liquidity
-        );
-
-        SlugVis.visualizeSlugs(hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolId), hook.getPositions);
-
-        // console.log("numTokensToSell", numTokensToSell);
-        // console.log("balance manager asset", asset.balanceOf(address(manager)));
-
-
         // Swap all remaining tokens
         swapRouter.swap(
             // Swap numeraire to asset
