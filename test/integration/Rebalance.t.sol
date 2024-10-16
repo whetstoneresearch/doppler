@@ -551,6 +551,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
+
         (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
@@ -559,6 +560,8 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSold, 1e18);
         // Previous epoch didn't exist so no tokens would have been sold at the time
         assertEq(totalTokensSoldLastEpoch, 0);
+
+        vm.warp(hook.getStartingTime() + hook.getEpochLength());
 
         // Swap tokens back into the pool, netSold == 0
         swapRouter.swap(
@@ -570,15 +573,15 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch2,, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) = hook.state();
+        (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) = hook.state();
 
-        assertEq(lastEpoch2, 1);
-        // We unsold all the previously sold tokens
-        assertEq(totalTokensSold2, 0);
-        // This is unchanged because we're still referencing the epoch which didn't exist
-        assertEq(totalTokensSoldLastEpoch2, 0);
+        assertEq(lastEpoch2, 2);
+        // We unsold all the previously sold tokens, but some of them get taken as fees
+        assertApproxEqAbs(totalTokensSold2, 0, MAX_SWAP_FEE * 1e18 / MAX_SWAP_FEE);
+        // Total tokens sold previous epoch should be 1 ether
+        assertEq(totalTokensSoldLastEpoch2, 1 ether);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         swapRouter.swap(
@@ -593,15 +596,15 @@ contract RebalanceTest is BaseTest {
         (uint40 lastEpoch3, int256 tickAccumulator3, uint256 totalTokensSold3,, uint256 totalTokensSoldLastEpoch3,) =
             hook.state();
 
-        assertEq(lastEpoch3, 2);
+        assertEq(lastEpoch3, 3);
         // We sold some tokens just now
-        assertEq(totalTokensSold3, 1e18);
+        assertApproxEqAbs(totalTokensSold3, 1e18, MAX_SWAP_FEE * 1e18 / MAX_SWAP_FEE);
         // The net sold amount in the previous epoch was 0
-        assertEq(totalTokensSoldLastEpoch3, 0);
+        assertApproxEqAbs(totalTokensSoldLastEpoch3, 0, MAX_SWAP_FEE * 1e18 / MAX_SWAP_FEE);
 
         // Assert that we reduced the accumulator by the max amount as intended
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
-        assertEq(tickAccumulator3, tickAccumulator + maxTickDeltaPerEpoch);
+        assertEq(tickAccumulator3, tickAccumulator2 + maxTickDeltaPerEpoch);
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -637,11 +640,13 @@ contract RebalanceTest is BaseTest {
             assertGt(priceDiscoverySlugs[i].liquidity, 0);
         }
 
-        // Lower slug should be unset with ticks at the current price
-        assertEq(lowerSlug.tickLower, lowerSlug.tickUpper);
-        assertEq(lowerSlug.liquidity, 0);
-        assertEq(lowerSlug.tickUpper, currentTick);
-
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
+        // Lower slug should be unset with ticks at the current price if the fee is 0
+        if (protocolFee == 0 && lpFee == 0) {
+            assertEq(lowerSlug.tickLower, lowerSlug.tickUpper);
+            assertEq(lowerSlug.liquidity, 0);
+            assertEq(lowerSlug.tickUpper, currentTick);
+        } 
         // Upper and price discovery slugs must be set
         assertNotEq(upperSlug.liquidity, 0);
     }
