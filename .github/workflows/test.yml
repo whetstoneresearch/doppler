@@ -1,0 +1,55 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  check:
+    strategy:
+      fail-fast: true
+
+    name: Foundry project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Forge build
+        run: |
+          forge --version
+          forge build --sizes
+        id: build
+
+      - name: Run Forge tests isToken0 (true)
+        run: |
+          export IS_TOKEN_0=TRUE
+          forge test -vvv --via-ir
+        id: test0
+
+      - name: Run Forge tests isToken0 (false)
+        run: |
+          export IS_TOKEN_0=FALSE
+          forge test -vvv --via-ir
+        id: test1
+
+      - name: Run Forge tests usingEth
+        run: |
+          export USING_ETH=TRUE
+          forge test -vvv --via-ir
+        id: test2
