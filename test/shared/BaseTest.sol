@@ -146,7 +146,7 @@ contract BaseTest is Test, Deployers {
         endTick = isToken0 ? int24(-171_200) : int24(171_200);
 
         // Default to feeless case because it's easier to reason about
-        config.fee = uint24(vm.envOr("FEE", uint256(0)));
+        config.fee = uint24(vm.envOr("FEE", uint24(5)));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),

@@ -1282,6 +1282,8 @@ contract RebalanceTest is BaseTest {
         uint256 numTokensToSell = hook.getNumTokensToSell();
         (,, uint256 totalTokensSold4,,,) = hook.state();
 
+        console.log("numTokensToSell", numTokensToSell);
+        console.log("totalTokensSold4", totalTokensSold4);
 
         // Swap all remaining tokens
         swapRouter.swap(
