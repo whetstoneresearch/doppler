@@ -1,6 +1,14 @@
 name: test
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
 
 env:
   FOUNDRY_PROFILE: ci
@@ -28,7 +36,9 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run Forge tests
+      - name: Run Forge tests isToken0 (true)
         run: |
-          forge test -vvv
-        id: test
+          export IS_TOKEN_0=TRUE
+          forge test -vvv --via-ir
+        id: test0
+
