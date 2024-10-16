@@ -17,8 +17,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import "forge-std/console.sol";
-
 
 struct SlugData {
     int24 tickLower;
@@ -497,12 +495,7 @@ contract Doppler is BaseHook {
             uint160 targetPriceX96;
             if (isToken0) {
                 // Q96 Target price (not sqrtPrice)
-                targetPriceX96 = _computeTargetPriceX96(totalProceeds_ + uint160(uint128(state.feesAccrued.amount1())), totalTokensSold_ - uint160(uint128(state.feesAccrued.amount0())));
-                console.log("totalProceeds_", totalProceeds_);
-                console.log("totalTokensSold_", totalTokensSold_);
-                console.log("state.feesAccrued.amount1()", uint128(state.feesAccrued.amount1()));
-                console.log("state.feesAccrued.amount0()", uint128(state.feesAccrued.amount0()));
-                // targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
+                targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
             } else {
                 targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
             }
@@ -513,7 +506,6 @@ contract Doppler is BaseHook {
                 // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
                 TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)), key.tickSpacing
             ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
-            console.log("tickLower", slug.tickLower);
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
                 !isToken0,
