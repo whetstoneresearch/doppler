@@ -55,7 +55,9 @@ contract SwapTest is BaseTest {
     function test_swap_DoesNotRebalanceTwiceInSameEpoch() public {
         vm.warp(hook.getStartingTime());
 
-        swapRouter.swap(
+        vm.deal(address(this), 1000000863784789316);
+
+        swapRouter.swap{value: 1000000863784789316}(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
@@ -67,7 +69,9 @@ contract SwapTest is BaseTest {
         (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch) =
             hook.state();
 
-        swapRouter.swap(
+        vm.deal(address(this), 1000002591357352448);
+
+        swapRouter.swap{value: 1000002591357352448}(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
@@ -91,7 +95,9 @@ contract SwapTest is BaseTest {
     function test_swap_UpdatesLastEpoch() public {
         vm.warp(hook.getStartingTime());
 
-        swapRouter.swap(
+        vm.deal(address(this), 1000000863784789316);
+
+        swapRouter.swap{value: 1000000863784789316}(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
@@ -123,7 +129,9 @@ contract SwapTest is BaseTest {
     function test_swap_UpdatesTotalTokensSoldLastEpoch() public {
         vm.warp(hook.getStartingTime());
 
-        swapRouter.swap(
+        vm.deal(address(this), 1000000863784789316);
+
+        swapRouter.swap{value: 1000000863784789316}(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
@@ -171,8 +179,10 @@ contract SwapTest is BaseTest {
     function test_swap_CannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
         vm.warp(hook.getStartingTime());
 
+        vm.deal(address(this), 1000000863784789316);
+
         // Sell some tokens
-        swapRouter.swap(
+        swapRouter.swap{value: 1000000863784789316}(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
