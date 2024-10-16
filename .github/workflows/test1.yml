@@ -1,9 +1,10 @@
-name: test
+name: Test isToken0 false
 
 on: workflow_dispatch
 
 env:
   FOUNDRY_PROFILE: ci
+  IS_TOKEN0: false
 
 jobs:
   check:
