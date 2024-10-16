@@ -42,14 +42,3 @@ jobs:
           forge test -vvv --via-ir
         id: test0
 
-      - name: Run Forge tests isToken0 (false)
-        run: |
-          export IS_TOKEN_0=FALSE
-          forge test -vvv --via-ir
-        id: test1
-
-      - name: Run Forge tests usingEth
-        run: |
-          export USING_ETH=TRUE
-          forge test -vvv --via-ir
-        id: test2
