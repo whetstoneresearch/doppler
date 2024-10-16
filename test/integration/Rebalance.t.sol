@@ -20,6 +20,7 @@ import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/Protoco
 import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -1281,13 +1282,38 @@ contract RebalanceTest is BaseTest {
         uint256 numTokensToSell = hook.getNumTokensToSell();
         (,, uint256 totalTokensSold4,,,) = hook.state();
 
+
+        uint256 amount1DeltaUpper = LiquidityAmounts.getAmount1ForLiquidity(
+            TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+            TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+            upperSlug.liquidity
+        );
+
+        uint256 amount1DeltaPd = LiquidityAmounts.getAmount1ForLiquidity(
+            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[0].tickLower),
+            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[0].tickUpper),
+            priceDiscoverySlugs[0].liquidity
+        );
+
+        uint256 amount1DeltaPd2 = LiquidityAmounts.getAmount1ForLiquidity(
+            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[1].tickLower),
+            TickMath.getSqrtPriceAtTick(priceDiscoverySlugs[1].tickUpper),
+            priceDiscoverySlugs[1].liquidity
+        );
+
+        SlugVis.visualizeSlugs(hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolId), hook.getPositions);
+
+        // console.log("numTokensToSell", numTokensToSell);
+        // console.log("balance manager asset", asset.balanceOf(address(manager)));
+
+
         // Swap all remaining tokens
         swapRouter.swap(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             poolKey,
             IPoolManager.SwapParams(
-                !isToken0, int256(numTokensToSell - totalTokensSold4), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+            !isToken0, int256(numTokensToSell - totalTokensSold4), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
             ),
             PoolSwapTest.TestSettings(true, false),
             ""

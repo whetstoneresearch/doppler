@@ -30,7 +30,7 @@ contract SlugVisTest is BaseTest {
             ""
         );
 
-        SlugVis.visualizeSlugs(block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
+        SlugVis.visualizeSlugs(hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
     }
 
     function test_visualizePoolAtInitialization() public {
@@ -48,6 +48,6 @@ contract SlugVisTest is BaseTest {
             ""
         );
 
-        SlugVis.visualizeSlugs(block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
+        SlugVis.visualizeSlugs(hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
     }
 }

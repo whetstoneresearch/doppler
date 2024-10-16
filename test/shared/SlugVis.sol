@@ -16,27 +16,35 @@ bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 library SlugVis {
     function visualizeSlugs(
+        uint256 numPDSlugs,
         uint256 timestamp,
         int24 currentTick,
         function (bytes32) view external returns (Position memory) fx
     ) public view {
         string memory json;
-        (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData memory pdSlug) = getSlugDataFromPositions(fx);
-        SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(lowerSlug, upperSlug, pdSlug);
+        (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData[] memory pdSlugs) = getSlugDataFromPositions(numPDSlugs, fx);
+        SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(numPDSlugs, lowerSlug, upperSlug, pdSlugs);
         json = _constructJson(currentTick, timestamp, slugs);
         console.log(json);
     }
 
     function checkSlugsAndCreateNamedSlugArray(
+        uint256 numPDSlugs,
         SlugData memory lowerSlug,
         SlugData memory upperSlug,
-        SlugData memory pdSlug
+        SlugData[] memory pdSlugs
     ) internal pure returns (SlugDataWithName[] memory) {
         bool lowerSlugExists = lowerSlug.liquidity > 0;
         bool upperSlugExists = upperSlug.liquidity > 0;
-        bool pdSlugExists = pdSlug.liquidity > 0;
+        uint256 numPdSlugs = 0;
 
-        uint256 numSlugs = (lowerSlugExists ? 1 : 0) + (upperSlugExists ? 1 : 0) + (pdSlugExists ? 1 : 0);
+
+        for (uint256 i = 0; i < numPDSlugs; i++) {
+            pdSlugs[i].liquidity > 0 ? numPdSlugs++ : numPdSlugs;
+            i++;
+        }
+
+        uint256 numSlugs = (lowerSlugExists ? 1 : 0) + (upperSlugExists ? 1 : 0) + numPdSlugs;
 
         SlugDataWithName[] memory namedSlugs = new SlugDataWithName[](numSlugs);
         uint256 index = 0;
@@ -49,21 +57,27 @@ library SlugVis {
             namedSlugs[index++] =
                 SlugDataWithName("upperSlug", upperSlug.liquidity, upperSlug.tickLower, upperSlug.tickUpper);
         }
-        if (pdSlugExists) {
-            namedSlugs[index] = SlugDataWithName("pdSlug", pdSlug.liquidity, pdSlug.tickLower, pdSlug.tickUpper);
+        // for (uint256 i = 0; i < hook.numPDSlugs(); i++) {
+        if (numPdSlugs > 0) {
+            for (uint256 i = 0; i < numPdSlugs; i++) {
+                namedSlugs[index++] = SlugDataWithName(string(abi.encodePacked("pdSlug", i)), pdSlugs[i].liquidity, pdSlugs[i].tickLower, pdSlugs[i].tickUpper);
+            }
         }
 
         return namedSlugs;
     }
 
-    function getSlugDataFromPositions(function (bytes32) view external returns (Position memory) fx)
+    function getSlugDataFromPositions(uint256 numPDSlugs, function (bytes32) view external returns (Position memory) fx)
         internal
         view
-        returns (SlugData memory, SlugData memory, SlugData memory)
+        returns (SlugData memory, SlugData memory, SlugData[] memory)
     {
         Position memory lowerPosition = fx(LOWER_SLUG_SALT);
         Position memory upperPosition = fx(UPPER_SLUG_SALT);
-        Position memory pdPosition = fx(DISCOVERY_SLUG_SALT);
+        Position[] memory pdPositions = new Position[](numPDSlugs);
+        for (uint256 i = 0; i < numPDSlugs; i++) {
+            pdPositions[i] = fx(bytes32(uint256(i + 3)));
+        }
 
         SlugData memory lowerSlug = SlugData({
             liquidity: lowerPosition.liquidity,
@@ -75,12 +89,15 @@ library SlugVis {
             tickLower: upperPosition.tickLower,
             tickUpper: upperPosition.tickUpper
         });
-        SlugData memory pdSlug = SlugData({
-            liquidity: pdPosition.liquidity,
-            tickLower: pdPosition.tickLower,
-            tickUpper: pdPosition.tickUpper
-        });
-        return (lowerSlug, upperSlug, pdSlug);
+        SlugData[] memory pdSlugs = new SlugData[](numPDSlugs);
+        for (uint256 i = 0; i < numPDSlugs; i++) {
+            pdSlugs[i] = SlugData({
+                liquidity: pdPositions[i].liquidity,
+                tickLower: pdPositions[i].tickLower,
+                tickUpper: pdPositions[i].tickUpper
+            });
+        }
+        return (lowerSlug, upperSlug, pdSlugs);
     }
 
     function _constructJson(int24 currentTick, uint256 timestamp, SlugDataWithName[] memory slugs)
