@@ -38,15 +38,19 @@ contract BaseTest is Test, Deployers {
 
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
     uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
-    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 1_000e18;
+    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
     uint256 constant DEFAULT_ENDING_TIME = 2 days;
     int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
+
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
     uint256 constant DEFAULT_NUM_PD_SLUGS = 1;
+
+    int24 constant DEFAULT_START_TICK = 1600;
+    int24 constant DEFAULT_END_TICK = 171_200;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
