@@ -157,6 +157,7 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        if (earlyExit) revert MaximumProceedsReached();
         if (block.timestamp < startingTime) revert InvalidTime();
         // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp > endingTime && !insufficientProceeds) {
@@ -268,6 +269,11 @@ contract Doppler is BaseHook {
                     FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
+        }
+        
+        // if we reach or exceed the maximumProceeds, we trigger the early exit condition
+        if (state.totalProceeds >= maximumProceeds) {
+            earlyExit = true;
         }
 
         return (BaseHook.afterSwap.selector, 0);
@@ -923,3 +929,4 @@ error InvalidSwap();
 error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
+error MaximumProceedsReached();
