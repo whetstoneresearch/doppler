@@ -7,7 +7,7 @@ import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {TestERC20} from "v4-core/src/test/TestERC20.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {PoolManager} from "v4-core/src/PoolManager.sol";
+import {PoolManager, IPoolManager} from "v4-core/src/PoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
@@ -226,5 +226,39 @@ contract BaseTest is Test, Deployers {
         }
         TestERC20(token1).approve(address(swapRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+    }
+
+    function computeBuyAmountIn(uint256 amountOut) public pure returns (uint256 amountIn) {
+        revert("please implement me sir");
+    }
+
+    function computeAmountOut(uint256 amountIn) public {}
+
+    function buy(int256 amount) public {
+        // Negative means exactIn, positive means exactOut.
+        uint256 mintAmount = amount < 0 ? uint256(amount) : computeBuyAmountIn(uint256(amount));
+
+        if (usingEth) {
+            deal(address(this), uint256(mintAmount));
+        } else {
+            TestERC20(numeraire).mint(address(this), uint256(mintAmount));
+            TestERC20(numeraire).approve(address(swapRouter), uint256(mintAmount));
+        }
+
+        swapRouter.swap{value: usingEth ? mintAmount : 0}(
+            key,
+            IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+    }
+
+    function sell(int256 amount) public {
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
     }
 }
