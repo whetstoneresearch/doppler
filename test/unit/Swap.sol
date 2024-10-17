@@ -47,13 +47,13 @@ contract SwapTest is BaseTest {
     function test_swap_RevertsAfterEndTimeInsufficientProceedsAssetBuy() public {
         vm.warp(hook.getStartingTime()); // 1 second after the end time
 
-        int256 targetProceeds = int256(hook.getTargetProceeds());
+        int256 minimumProceeds = int256(hook.getMinimumProceeds());
 
         swapRouter.swap(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
-            IPoolManager.SwapParams(!isToken0, -(targetProceeds / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            IPoolManager.SwapParams(!isToken0, -minimumProceeds / 2, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(true, false),
             ""
         );
@@ -79,13 +79,13 @@ contract SwapTest is BaseTest {
     function test_swap_CanRepurchaseNumeraireAfterEndTimeInsufficientProceeds() public {
         vm.warp(hook.getStartingTime()); // 1 second after the end time
 
-        int256 targetProceeds = int256(hook.getTargetProceeds());
+        int256 minimumProceeds = int256(hook.getMinimumProceeds());
 
         swapRouter.swap(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
-            IPoolManager.SwapParams(!isToken0, -(targetProceeds / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            IPoolManager.SwapParams(!isToken0, -minimumProceeds / 2, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(true, false),
             ""
         );
@@ -116,13 +116,13 @@ contract SwapTest is BaseTest {
     function test_swap_RevertsAfterEndTimeSufficientProceeds() public {
         vm.warp(hook.getStartingTime()); // 1 second after the end time
 
-        int256 targetProceeds = int256(hook.getTargetProceeds());
+        int256 minimumProceeds = int256(hook.getMinimumProceeds());
 
         swapRouter.swap(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
-            IPoolManager.SwapParams(!isToken0, targetProceeds, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            IPoolManager.SwapParams(!isToken0, minimumProceeds, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(true, false),
             ""
         );

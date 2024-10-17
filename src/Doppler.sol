@@ -61,12 +61,14 @@ contract Doppler is BaseHook {
 
     // TODO: consider if we can use smaller uints
     // TODO: consider whether these need to be public
-    bool public insufficientProceeds; // triggers if the pool matures and targetProceeds is not met
+    bool public insufficientProceeds; // triggers if the pool matures and minimumProceeds is not met
+    bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
-    uint256 immutable targetProceeds; // target proceeds to be sold
+    uint256 immutable minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 immutable maximumProceeds; // proceeds amount that will trigger early exit condition
     uint256 immutable startingTime; // sale start time
     uint256 immutable endingTime; // sale end time
     int24 immutable startingTick; // dutch auction starting tick
@@ -80,7 +82,8 @@ contract Doppler is BaseHook {
         IPoolManager _poolManager,
         PoolKey memory _poolKey,
         uint256 _numTokensToSell,
-        uint256 _targetProceeds,
+        uint256 _minimumProceeds,
+        uint256 _maximumProceeds,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -125,7 +128,8 @@ contract Doppler is BaseHook {
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
 
         numTokensToSell = _numTokensToSell;
-        targetProceeds = _targetProceeds;
+        minimumProceeds = _minimumProceeds;
+        maximumProceeds = _maximumProceeds;
         startingTime = _startingTime;
         endingTime = _endingTime;
         startingTick = _startingTick;
@@ -156,7 +160,7 @@ contract Doppler is BaseHook {
         if (block.timestamp < startingTime) revert InvalidTime();
         // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp > endingTime && !insufficientProceeds) {
-            if (state.totalProceeds < targetProceeds) {
+            if (state.totalProceeds < minimumProceeds) {
                 insufficientProceeds = true;
 
                 PoolId poolId = key.toId();
