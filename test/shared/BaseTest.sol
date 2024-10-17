@@ -14,6 +14,7 @@ import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
+import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
@@ -88,6 +89,10 @@ contract BaseTest is Test, Deployers {
 
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
+
+    // Contracts
+
+    Quoter quoter;
 
     // Deploy functions
 
@@ -226,10 +231,22 @@ contract BaseTest is Test, Deployers {
         }
         TestERC20(token1).approve(address(swapRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        quoter = new Quoter(manager);
     }
 
-    function computeBuyAmountIn(uint256 amountOut) public pure returns (uint256 amountIn) {
-        revert("please implement me sir");
+    function computeBuyAmountIn(uint256 amountOut) public returns (uint256) {
+        (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
+            IQuoter.QuoteExactSingleParams({
+                poolKey: key,
+                zeroForOne: !isToken0,
+                exactAmount: uint128(amountOut),
+                sqrtPriceLimitX96: !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT,
+                hookData: ""
+            })
+        );
+
+        return uint256(uint128(deltaAmounts[0]));
     }
 
     function computeAmountOut(uint256 amountIn) public {}
@@ -247,7 +264,7 @@ contract BaseTest is Test, Deployers {
 
         swapRouter.swap{value: usingEth ? mintAmount : 0}(
             key,
-            IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
             ""
         );
