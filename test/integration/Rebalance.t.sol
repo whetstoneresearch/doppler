@@ -885,11 +885,7 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_CollectsFeeFromAllSlugs() public {
-        PoolKey memory poolKey = key;
-
         vm.warp(hook.getStartingTime());
-
-        bool isToken0 = hook.getIsToken0();
 
         (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
 
@@ -907,14 +903,7 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, -int256(amount1ToSwap), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(-int256(amount1ToSwap));
 
         uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
             TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
@@ -922,26 +911,12 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-        swapRouter.swap(
-            // Swap asset to numeraire
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(isToken0, -int256(amount0ToSwap), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(-int256(amount0ToSwap));
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength());
 
         // trigger rebalance to accrue fees
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(isToken0, 1, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(1);
 
         (,,,,, feesAccrued) = hook.state();
 
