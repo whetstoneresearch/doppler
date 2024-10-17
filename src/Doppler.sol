@@ -101,7 +101,10 @@ contract Doppler is BaseHook {
         if (_startingTime >= _endingTime) revert InvalidTimeRange();
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
         // TODO: Consider whether this should check if the left side is less than tickSpacing
-        if (int256(_epochLength * 1e18 / timeDelta) * _gamma / 1e18 == 0) revert InvalidGamma();
+        if (int256(FullMath.mulDiv(FullMath.mulDiv(_epochLength, 1e18, timeDelta), uint256(int256(_gamma)), 1e18)) == 0)
+        {
+            revert InvalidGamma();
+        }
         // _endingTime - startingTime must be divisible by epochLength
         if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
 
@@ -254,12 +257,15 @@ contract Doppler is BaseHook {
         if (netSold <= 0) {
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
+            // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             accumulatorDelta = _getMaxTickDeltaPerEpoch()
-                * int256(1e18 - (totalTokensSold_ * 1e18 / expectedAmountSold)) / 1e18;
+                * int256(1e18 - FullMath.mulDiv(totalTokensSold_, 1e18, expectedAmountSold)) / 1e18;
+
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
             Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
 
+            // Safe from overflow since the result is <= gamma which is an int24 already
             int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
@@ -340,7 +346,8 @@ contract Doppler is BaseHook {
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
         SlugData memory upperSlug = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
-        SlugData[] memory priceDiscoverySlugs = _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetAvailable);
+        SlugData[] memory priceDiscoverySlugs =
+            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetAvailable);
         // TODO: If we're not actually modifying liquidity, skip below logic
         // TODO: Consider whether we need slippage protection
 
@@ -401,19 +408,24 @@ contract Doppler is BaseHook {
     }
 
     function _getGammaShare() internal view returns (int256) {
-        return int256(epochLength * 1e18 / (endingTime - startingTime));
+        return int256(FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)));
     }
 
     // 0 == end of last epoch
-    // 1 == end of current epoch 
+    // 1 == end of current epoch
     // n == end of nth epoch from current
     function _getExpectedAmountSoldWithEpochOffset(uint256 offset) internal view returns (uint256) {
-        return FullMath.mulDiv(_getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime), numTokensToSell, 1e18);
+        return FullMath.mulDiv(
+            _getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime),
+            numTokensToSell,
+            1e18
+        );
     }
 
     // Returns 18 decimal fixed point value
     // TODO: consider whether it's safe to always round down
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
+        // Safe from overflow since max value is (2**24-1) * 1e18
         return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
     }
 
@@ -504,7 +516,8 @@ contract Doppler is BaseHook {
             // This should probably be + tickSpacing in the case of !isToken0
             slug.tickLower = _alignComputedTickWithTickSpacing(
                 // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
-                TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)), key.tickSpacing
+                TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
+                key.tickSpacing
             ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
             slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
             slug.liquidity = _computeLiquidity(
@@ -542,7 +555,8 @@ contract Doppler is BaseHook {
         uint256 tokensToLp;
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
-            int24 computedDelta = int24(_getGammaShare() * gamma / 1e18);
+            int24 computedDelta =
+                int24(int256(FullMath.mulDiv(uint256(_getGammaShare()), uint256(int256(gamma)), 1e18)));
             int24 accumulatorDelta = computedDelta > key.tickSpacing ? computedDelta : key.tickSpacing;
             slug.tickLower = currentTick;
             slug.tickUpper = _alignComputedTickWithTickSpacing(
@@ -582,9 +596,8 @@ contract Doppler is BaseHook {
             return slugs;
         }
 
-        uint256 epochT1toT2Delta =
-            _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
-        
+        uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
+
         uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
         tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
 
@@ -604,7 +617,7 @@ contract Doppler is BaseHook {
             }
             // TODO: Bound by the type(int24).max/min
             slugs[i].tickUpper = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
-            
+
             // TODO: Ensure we don't compute liquidity for a 0 tick range
             slugs[i].liquidity = _computeLiquidity(
                 isToken0,
@@ -740,7 +753,8 @@ contract Doppler is BaseHook {
         (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
         SlugData memory upperSlug = _computeUpperSlugData(key, 0, tick, numTokensToSell);
-        SlugData[] memory priceDiscoverySlugs = _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, numTokensToSell);
+        SlugData[] memory priceDiscoverySlugs =
+            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, numTokensToSell);
 
         BalanceDelta finalDelta;
 
