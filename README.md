@@ -18,19 +18,15 @@ We make use of 4 Uniswap v4 hook functions in our contract:
 
 ## Curve accumulation
 
-- Places bonding curve according to token sales along a pre-defined schedule based on number of tokens to sell (numTokensToSell) per duration (endingTime - startingTime)
-- We rebalance the curve every epoch according to this sales schedule
-- If sales are behind schedule, the curve is reduced via a dutch auction mechanism according to the relative amount that we're behind schedule
-    - The maximum amount to dutch auction the curve in an epoch is computed as the (endingTick - startingTick) divided by the number of epochs ((endingTime - startingTime) / epochLength)
-    - In the case that there was a net sold amount of <=0 (computed as the number of asset tokens swapped out of the curve - the number of asset tokens swapped into the curve) in the previous epoch, we dutch auction the curve by this maximum amount
-    - If the net sold amount is greater than 0 but we haven't sold as many tokens as expected (computed as percentage(elapsed time / duration) * numTokensToSell), then we dutch auction the curve by the relative amount we are undersold by applied to the max dutch auction amount, e.g. if we've sold 80% of the expected amount, we're undersold by 20% and thus we dutch auction by 20% of the maximum amount
-- If sales are ahead of schedule, i.e. totalTokensSold > expected amount sold (computed as percentage(elapsed time / duration) * numTokensToSell), we move the curve upwards by the amount that we have oversold
-    - We compute this increase as the delta between the current tick and the expected tick (this is generally the upperSlug.upperTick, which represents the point at which we have sold the expected amount)
-- From whichever of the above outcomes we've hit, we accumulate a tick delta to the tickAccumulator. This value is used to derive the current bonding curve at any given time
-    - We derive the lowermost tick of the curve (tickLower) as the startingTick + tickAccumulator
-    - We derive the uppermost tick of the curve (tickUpper) as the tickLower + gamma
-    - TODO: Other derivations?
-    - We can see how the tickAccumulator is accumulated in this [graph](https://www.desmos.com/calculator/fjnd0mcpst), with the red line corresponding to the max dutch auction case, the orange line corresponding to the relative dutch auction case, and the green line corresponding to the oversold case
+We rebalance our bonding curve according to token sales along a pre-defined schedule based on the number of tokens to sell, `numTokensToSell`, over the duration, `endingTime - startingTime`. This rebalance occurs immediately preceeding the first swap in every epoch, in the `beforeSwap` hook. If we don't have any swaps in a given epoch then the rebalance applies retroactively to all missed epochs.
+
+If sales are behind schedule, the curve is reduced via a dutch auction mechanism according to the relative amount that we're behind schedule. The maximum amount to dutch auction the curve in a single epoch is computed as the `endingTick - startingTick` divided by the total number of epochs, `(endingTime - startingTime) / epochLength`. In the case that there was a net sold amount of zero or less, computed as `totalTokensSold - totalTokensSoldLastEpoch`, we dutch auction the curve by this maximum amount.
+
+If the net sold amount is greater than zero, but we haven't sold as many tokens as expected, computed as `percentage(elapsed time / duration) * numTokensToSell`, then we dutch auction the curve by the relative amount we are undersold by multiplied by the maximum dutch auction amount, e.g. if we've sold 80% of the expected amount, we're undersold by 20% and thus we dutch auction by 20% of the maximum dutch auction amount.
+
+If sales are ahead of schedule, i.e. `totalTokensSold` is greater than the expected amount sold, computed as `percentage(elapsed time / duration) * numTokensToSell`, we move the curve upwards by the amount that we have oversold by. We compute this increase as the delta between the current tick and the expected tick, which is generally the upper tick of the upper slug, which represents the point at which we have sold the expected amount (See Liquidity Placement).
+
+For whichever of the above outcomes we've hit, we accumulate a tick delta to the `tickAccumulator`. This value is used to derive the current bonding curve at any given time. We derive the lowermost tick of the curve, `tickLower`, as the `startingTick + tickAccumulator`. We derive the uppermost tick of the curve, `tickUpper`, as the `tickLower + gamma`. TODO: Other derivations worth mentioning? We can see how the tickAccumulator is accumulated in this [graph](https://www.desmos.com/calculator/fjnd0mcpst), with the red line corresponding to the max dutch auction case, the orange line corresponding to the relative dutch auction case, and the green line corresponding to the oversold case.
 
 ## Liquidity placement (slugs)
 
