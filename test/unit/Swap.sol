@@ -12,7 +12,6 @@ import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import {console} from "forge-std/console.sol";
 import {
     InvalidTime,
     SwapBelowRange,
@@ -54,7 +53,7 @@ contract SwapTest is BaseTest {
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
-            IPoolManager.SwapParams(!isToken0, targetProceeds / 2, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            IPoolManager.SwapParams(!isToken0, -(targetProceeds / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(true, false),
             ""
         );
@@ -75,6 +74,43 @@ contract SwapTest is BaseTest {
             PoolSwapTest.TestSettings(true, false),
             ""
         );
+    }
+
+    function test_swap_CanRepurchaseNumeraireAfterEndTimeInsufficientProceeds() public {
+        vm.warp(hook.getStartingTime()); // 1 second after the end time
+
+        int256 targetProceeds = int256(hook.getTargetProceeds());
+
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, -(targetProceeds / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
+        vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
+
+        (,, uint256 totalTokensSold,,,) = hook.state();
+
+        assertGt(totalTokensSold, 0);
+
+        // assert that we can sell back all tokens
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
+        (,, uint256 totalTokensSold2, uint256 totalProceeds2,,) = hook.state();
+
+        // assert that we get the totalProceeds near 0
+        assertApproxEqAbs(totalProceeds2, 0, 1e18);
+        assertEq(totalTokensSold2, 0);
     }
 
     function test_swap_RevertsAfterEndTimeSufficientProceeds() public {

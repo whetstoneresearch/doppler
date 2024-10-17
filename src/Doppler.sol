@@ -18,8 +18,6 @@ import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/Tran
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 
-import {console} from "forge-std/console.sol";
-
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -180,9 +178,11 @@ contract Doppler is BaseHook {
                     salt: uint8(uint256(LOWER_SLUG_SALT))
                 });
 
-                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper);
+                // add or subtract tickSpacing so that the we're above/below the lowerSlug.tickUpper
+                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(_alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing) + (isToken0 ? key.tickSpacing : -key.tickSpacing));
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
+
                 positions[LOWER_SLUG_SALT] = newPositions[0];
                 for (uint256 i; i < numPDSlugs + 2; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
@@ -723,6 +723,7 @@ contract Doppler is BaseHook {
                 ""
             );
         }
+
 
         for (uint256 i; i < newPositions.length; ++i) {
             if (newPositions[i].liquidity != 0) {
