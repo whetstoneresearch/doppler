@@ -19,35 +19,23 @@ contract SlugVisTest is BaseTest {
         vm.warp(hook.getStartingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
 
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
+        buy(1 ether);
+
+        SlugVis.visualizeSlugs(
+            hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions
         );
-
-        SlugVis.visualizeSlugs(hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
     }
 
     function test_visualizePoolAtInitialization() public {
         vm.warp(hook.getStartingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
 
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
+        buy(1);
+
+        SlugVis.visualizeSlugs(
+            hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions
         );
-
-        SlugVis.visualizeSlugs(hook.getNumPDSlugs(), block.timestamp, hook.getCurrentTick(poolKey.toId()), hook.getPositions);
     }
 }
