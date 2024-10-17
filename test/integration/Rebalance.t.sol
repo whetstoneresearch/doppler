@@ -512,14 +512,7 @@ contract RebalanceTest is BaseTest {
         bool isToken0 = hook.getIsToken0();
 
         // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(1);
 
         // Get the upper and price discover slugs
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
