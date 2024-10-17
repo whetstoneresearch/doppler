@@ -18,6 +18,8 @@ import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/Tran
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 
+import {console} from "forge-std/console.sol";
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -154,10 +156,37 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (block.timestamp < startingTime) revert InvalidTime();
-        // only check proceeds if we're past maturity 
+        // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp > endingTime && !insufficientProceeds) {
             if (state.totalProceeds < targetProceeds) {
                 insufficientProceeds = true;
+
+                PoolId poolId = key.toId();
+                (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+
+                Position[] memory prevPositions = new Position[](2 + numPDSlugs);
+                prevPositions[0] = positions[LOWER_SLUG_SALT];
+                prevPositions[1] = positions[UPPER_SLUG_SALT];
+
+                // TODO: Consider what to do if numeraireAvailable is 0
+                uint256 numeraireAvailable = isToken0 ? uint256(uint128(_clearPositions(prevPositions, key).amount1())) : uint256(uint128(_clearPositions(prevPositions, key).amount0()));
+                SlugData memory lowerSlug = _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold);
+                Position[] memory newPositions = new Position[](1);
+
+                newPositions[0] = Position({
+                    tickLower: lowerSlug.tickLower,
+                    tickUpper: lowerSlug.tickUpper,
+                    liquidity: lowerSlug.liquidity,
+                    salt: uint8(uint256(LOWER_SLUG_SALT))
+                });
+
+                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper);
+                uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
+                _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
+                positions[LOWER_SLUG_SALT] = newPositions[0];
+                for (uint256 i; i < numPDSlugs + 2; ++i) {
+                    delete positions[bytes32(uint256(2 + i))];
+                }
             } else {
                 revert InvalidSwapAfterMaturitySufficientProceeds();
             }
@@ -202,15 +231,17 @@ contract Doppler is BaseHook {
             if (amount0 >= 0) {
                 state.totalTokensSold += uint256(uint128(amount0));
             } else {
-                uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 tokensSoldLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalTokensSold -= tokensSoldLessFee;
             }
-                
+
             int128 amount1 = swapDelta.amount1();
             if (amount1 >= 0) {
                 state.totalProceeds -= uint256(uint128(amount1));
             } else {
-                uint256 proceedsLessFee = FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 proceedsLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
@@ -220,7 +251,8 @@ contract Doppler is BaseHook {
             if (amount1 >= 0) {
                 state.totalTokensSold += uint256(uint128(amount1));
             } else {
-                uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 tokensSoldLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalTokensSold -= tokensSoldLessFee;
             }
 
@@ -228,11 +260,11 @@ contract Doppler is BaseHook {
             if (amount0 >= 0) {
                 state.totalProceeds -= uint256(uint128(amount0));
             } else {
-                uint256 proceedsLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 proceedsLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
         }
-
 
         return (BaseHook.afterSwap.selector, 0);
     }
@@ -280,7 +312,6 @@ contract Doppler is BaseHook {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             accumulatorDelta = _getMaxTickDeltaPerEpoch()
                 * int256(1e18 - FullMath.mulDiv(totalTokensSold_, 1e18, expectedAmountSold)) / 1e18;
-
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
             Position memory pdSlug = positions[DISCOVERY_SLUG_SALT];
@@ -524,28 +555,7 @@ contract Doppler is BaseHook {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
         if (requiredProceeds > totalProceeds_) {
-            uint160 targetPriceX96;
-            if (isToken0) {
-                // Q96 Target price (not sqrtPrice)
-                targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
-            } else {
-                targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
-            }
-            // TODO: Consider whether the target price should actually be tickUpper
-            // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-            // This should probably be + tickSpacing in the case of !isToken0
-            slug.tickLower = _alignComputedTickWithTickSpacing(
-                // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
-                TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
-                key.tickSpacing
-            ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
-            slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
-            slug.liquidity = _computeLiquidity(
-                !isToken0,
-                TickMath.getSqrtPriceAtTick(slug.tickLower),
-                TickMath.getSqrtPriceAtTick(slug.tickUpper),
-                totalProceeds_
-            );
+            slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_);
         } else {
             slug.tickLower = tickLower;
             slug.tickUpper = currentTick;
@@ -843,6 +853,35 @@ contract Doppler is BaseHook {
         poolManager.settle();
 
         return new bytes(0);
+    }
+
+    function _computeLowerSlugInsufficientProceeds(PoolKey memory key, uint256 totalProceeds_, uint256 totalTokensSold_)
+        internal
+        view
+        returns (SlugData memory slug)
+    {
+        uint160 targetPriceX96;
+        if (isToken0) {
+            // Q96 Target price (not sqrtPrice)
+            targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
+        } else {
+            targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
+        }
+        // TODO: Consider whether the target price should actually be tickUpper
+        // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+        // This should probably be + tickSpacing in the case of !isToken0
+        slug.tickLower = _alignComputedTickWithTickSpacing(
+            // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
+            TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
+            key.tickSpacing
+        ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
+        slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
+        slug.liquidity = _computeLiquidity(
+            !isToken0,
+            TickMath.getSqrtPriceAtTick(slug.tickLower),
+            TickMath.getSqrtPriceAtTick(slug.tickUpper),
+            totalProceeds_
+        );
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {

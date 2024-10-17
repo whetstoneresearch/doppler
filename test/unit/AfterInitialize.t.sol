@@ -39,7 +39,7 @@ contract AfterInitializeTest is BaseTest {
         // Assert that all slugs are continuous
         assertEq(tickLower, lowerSlug.tickLower);
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower);
-        
+
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             if (i == 0) {
                 assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
@@ -49,7 +49,11 @@ contract AfterInitializeTest is BaseTest {
 
             if (i == priceDiscoverySlugs.length - 1) {
                 // We allow some room for rounding down to the nearest tickSpacing for each slug
-                assertApproxEqAbs(priceDiscoverySlugs[i].tickUpper, tickUpper, hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)));
+                assertApproxEqAbs(
+                    priceDiscoverySlugs[i].tickUpper,
+                    tickUpper,
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                );
             }
 
             // Validate that each price discovery slug has liquidity

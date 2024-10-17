@@ -8,7 +8,6 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 
 contract DopplerTest is BaseTest {
-
     // =========================================================================
     //                  _getMaxTickDeltaPerEpoch Unit Tests
     // =========================================================================
