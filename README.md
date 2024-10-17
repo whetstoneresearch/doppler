@@ -36,6 +36,8 @@ If sales are ahead of schedule, i.e. `totalTokensSold` is greater than the expec
 
 For whichever of the above outcomes we've hit, we accumulate a tick delta to the `tickAccumulator`. This value is used to derive the current bonding curve at any given time. We derive the lowermost tick of the curve, `tickLower`, as the `startingTick + tickAccumulator`. We derive the uppermost tick of the curve, `tickUpper`, as the `tickLower + gamma`. TODO: Other derivations worth mentioning? We can see how the tickAccumulator is accumulated in this [graph](https://www.desmos.com/calculator/fjnd0mcpst), with the red line corresponding to the max dutch auction case, the orange line corresponding to the relative dutch auction case, and the green line corresponding to the oversold case.
 
+TODO: Add graphs for each case?
+
 ## Liquidity Placement (Slugs)
 
 - Within the bonding curve, we place 3 different types of liquidity positions (slugs)
