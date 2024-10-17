@@ -59,6 +59,7 @@ contract ConstructorTest is BaseTest {
                 manager,
                 key,
                 config.numTokensToSell,
+                config.targetProceeds,
                 config.startingTime,
                 config.endingTime,
                 _startTick,

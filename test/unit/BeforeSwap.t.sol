@@ -42,6 +42,7 @@ contract BeforeSwapTest is BaseTest {
             numeraire_,
             DopplerConfig({
                 numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
+                targetProceeds: DEFAULT_TARGET_PROCEEDS,
                 startingTime: DEFAULT_STARTING_TIME,
                 endingTime: DEFAULT_ENDING_TIME,
                 gamma: DEFAULT_GAMMA,

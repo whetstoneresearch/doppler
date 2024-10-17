@@ -17,6 +17,7 @@ contract DopplerImplementation is Doppler {
         address _poolManager,
         PoolKey memory _poolKey,
         uint256 _numTokensToSell,
+        uint256 _targetProceeds,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -31,6 +32,7 @@ contract DopplerImplementation is Doppler {
             IPoolManager(_poolManager),
             _poolKey,
             _numTokensToSell,
+            _targetProceeds,
             _startingTime,
             _endingTime,
             _startingTick,
@@ -65,6 +67,10 @@ contract DopplerImplementation is Doppler {
 
     function getNumTokensToSell() public view returns (uint256) {
         return numTokensToSell;
+    }
+
+    function getTargetProceeds() public view returns (uint256) {
+        return targetProceeds;
     }
 
     function getStartingTick() public view returns (int24) {

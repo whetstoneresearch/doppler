@@ -61,10 +61,12 @@ contract Doppler is BaseHook {
 
     // TODO: consider if we can use smaller uints
     // TODO: consider whether these need to be public
+    bool public insufficientProceeds; // triggers if the pool matures and targetProceeds is not met
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
+    uint256 immutable targetProceeds; // target proceeds to be sold
     uint256 immutable startingTime; // sale start time
     uint256 immutable endingTime; // sale end time
     int24 immutable startingTick; // dutch auction starting tick
@@ -78,6 +80,7 @@ contract Doppler is BaseHook {
         IPoolManager _poolManager,
         PoolKey memory _poolKey,
         uint256 _numTokensToSell,
+        uint256 _targetProceeds,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -122,6 +125,7 @@ contract Doppler is BaseHook {
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
 
         numTokensToSell = _numTokensToSell;
+        targetProceeds = _targetProceeds;
         startingTime = _startingTime;
         endingTime = _endingTime;
         startingTick = _startingTick;
@@ -143,21 +147,37 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
+    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata)
         external
         override
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime || block.timestamp > endingTime) revert InvalidTime();
+        if (block.timestamp < startingTime) revert InvalidTime();
+        // only check proceeds if we're past maturity 
+        if (block.timestamp > endingTime && !insufficientProceeds) {
+            if (state.totalProceeds < targetProceeds) {
+                insufficientProceeds = true;
+            } else {
+                revert InvalidSwapAfterMaturitySufficientProceeds();
+            }
+        }
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
-            // TODO: Should there be a fee?
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
+        if (!insufficientProceeds) {
+            _rebalance(key);
+        } else if (isToken0) {
+            // if we have insufficient proceeds, only allow swaps from asset -> numeraire
+            if (swapParams.zeroForOne == false) {
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
+            }
+        } else {
+            if (swapParams.zeroForOne == true) {
+                revert InvalidSwapAfterMaturitySufficientProceeds();
+            }
+        }
 
-        _rebalance(key);
-
-        // TODO: Should there be a fee?
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
@@ -855,4 +875,7 @@ error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
 error InvalidTickDelta();
+error InvalidSwap();
 error InvalidNumPDSlugs();
+error InvalidSwapAfterMaturitySufficientProceeds();
+error InvalidSwapAfterMaturityInsufficientProceeds();
