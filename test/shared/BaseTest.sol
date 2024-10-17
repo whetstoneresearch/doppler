@@ -271,9 +271,10 @@ contract BaseTest is Test, Deployers {
     }
 
     function sell(int256 amount) public {
+        TestERC20(asset).approve(address(swapRouter), uint256(amount));
         swapRouter.swap(
             key,
-            IPoolManager.SwapParams(isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            IPoolManager.SwapParams(isToken0, amount, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
             ""
         );
