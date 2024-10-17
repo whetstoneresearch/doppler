@@ -23,7 +23,7 @@ contract AfterInitializeTest is BaseTest {
         // that all state is as expected
 
         PoolKey memory poolKey = key;
-        (, int256 tickAccumulator,,,) = hook.state();
+        (, int256 tickAccumulator,,,,) = hook.state();
 
         // Get the slugs
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));

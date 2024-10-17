@@ -51,7 +51,6 @@ contract ConstructorTest is BaseTest {
             tickSpacing: config.tickSpacing,
             hooks: IHooks(address(hook))
         });
-
         if (selector != 0) {
             vm.expectRevert(selector);
         }
