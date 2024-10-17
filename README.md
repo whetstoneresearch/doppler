@@ -4,7 +4,16 @@ Doppler is a liquidity bootstrapping Protocol built on top of Uniswap v4. Dopple
 
 ## Hooks
 
-TODO
+- We make use of 4 Uniswap v4 hook functions in our contract
+    - afterInitialize
+        - Used to place initial liquidity positions
+    - beforeSwap
+        - Used to trigger rebalancing of the bonding curve if we haven't yet rebalanced in the current epoch
+    - afterSwap
+        - Used to accounting the total amount of asset tokens sold (totalTokensSold) and the total amount of numeraire tokens received from asset sales (totalProceeds)
+        - We exclude the swap fee (consisting of the LP fee and the Uniswap protocol fee) from the accounted amounts such that we don't reinvest LP fees or attempt to reinvest protocol fees taken by Uniswap
+    - beforeAddLiquidity
+        - Used to trigger a revert if a user attempts to provide liquidity since we don't want any external liquidity providers
 
 ## Curve accumulation
 
