@@ -18,6 +18,16 @@ Doppler is a liquidity bootstrapping Protocol built on top of Uniswap v4. Dopple
     - TODO: Other derivations?
     - We can see how the tickAccumulator is accumulated in this [graph](https://www.desmos.com/calculator/fjnd0mcpst), with the red line corresponding to the max dutch auction case, the orange line corresponding to the relative dutch auction case, and the green line corresponding to the oversold case
 
+## Liquidity placement (slugs)
+
+- Within the bonding curve, we place 3 different types of liquidity positions (slugs)
+    - Lower slug, positioned below the current price, allowing for asset tokens to be sold back into the curve
+    - Upper slug, positioned above the current price, allowing for asset tokens to be purchased, places enough tokens to reach the expected amount of tokens sold
+    - Price discovery slug(s), positioned about the upper slug, places enough tokens in each slug to reach the expected amount sold in the next epoch, hook creators can place an arbitrary amount of price discovery slugs, up to a maximum amount
+- Lower slug
+- Upper slug
+- Price discovery slug(s)
+
 ## Usage
 
 ### Build
