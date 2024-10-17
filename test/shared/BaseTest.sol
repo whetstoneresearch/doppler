@@ -47,7 +47,7 @@ contract BaseTest is Test, Deployers {
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
-    uint256 constant DEFAULT_NUM_PD_SLUGS = 1;
+    uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
 
     int24 constant DEFAULT_START_TICK = 1600;
     int24 constant DEFAULT_END_TICK = 171_200;
@@ -152,8 +152,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(1600) : int24(-1600);
-        endTick = isToken0 ? int24(-171_200) : int24(171_200);
+        startTick = isToken0 ? DEFAULT_START_TICK : -DEFAULT_START_TICK;
+        endTick = isToken0 ? -DEFAULT_END_TICK : DEFAULT_END_TICK;
 
         // Default to feeless case because it's easier to reason about
         config.fee = uint24(vm.envOr("FEE", uint24(0)));
@@ -181,7 +181,7 @@ contract BaseTest is Test, Deployers {
                 config.epochLength,
                 config.gamma,
                 isToken0,
-                3,
+                config.numPDSlugs,
                 hook
             ),
             address(hook)
