@@ -60,23 +60,17 @@ Doppler is a liquidity bootstrapping Protocol built on top of Uniswap v4. Dopple
 ### Build
 
 ```shell
-$ forge build
+$ forge build --via-ir
 ```
 
 ### Test
 
 ```shell
-$ forge test
+$ forge test --via-ir
 ```
 
 ### Format
 
 ```shell
 $ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
 ```
