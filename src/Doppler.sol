@@ -61,12 +61,14 @@ contract Doppler is BaseHook {
 
     // TODO: consider if we can use smaller uints
     // TODO: consider whether these need to be public
-    bool public insufficientProceeds; // triggers if the pool matures and targetProceeds is not met
+    bool public insufficientProceeds; // triggers if the pool matures and minimumProceeds is not met
+    bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
-    uint256 immutable targetProceeds; // target proceeds to be sold
+    uint256 immutable minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 immutable maximumProceeds; // proceeds amount that will trigger early exit condition
     uint256 immutable startingTime; // sale start time
     uint256 immutable endingTime; // sale end time
     int24 immutable startingTick; // dutch auction starting tick
@@ -80,7 +82,8 @@ contract Doppler is BaseHook {
         IPoolManager _poolManager,
         PoolKey memory _poolKey,
         uint256 _numTokensToSell,
-        uint256 _targetProceeds,
+        uint256 _minimumProceeds,
+        uint256 _maximumProceeds,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -123,9 +126,13 @@ contract Doppler is BaseHook {
         /* Num price discovery slug checks */
         if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
+        
+        // These can both be zero
+        if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
         numTokensToSell = _numTokensToSell;
-        targetProceeds = _targetProceeds;
+        minimumProceeds = _minimumProceeds;
+        maximumProceeds = _maximumProceeds;
         startingTime = _startingTime;
         endingTime = _endingTime;
         startingTick = _startingTick;
@@ -153,10 +160,11 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        if (earlyExit) revert MaximumProceedsReached();
         if (block.timestamp < startingTime) revert InvalidTime();
         // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp > endingTime && !insufficientProceeds) {
-            if (state.totalProceeds < targetProceeds) {
+            if (state.totalProceeds < minimumProceeds) {
                 insufficientProceeds = true;
 
                 PoolId poolId = key.toId();
@@ -264,6 +272,11 @@ contract Doppler is BaseHook {
                     FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
+        }
+        
+        // if we reach or exceed the maximumProceeds, we trigger the early exit condition
+        if (state.totalProceeds >= maximumProceeds) {
+            earlyExit = true;
         }
 
         return (BaseHook.afterSwap.selector, 0);
@@ -916,6 +929,8 @@ error InvalidTickSpacing();
 error InvalidEpochLength();
 error InvalidTickDelta();
 error InvalidSwap();
+error InvalidProceedLimits();
 error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
+error MaximumProceedsReached();

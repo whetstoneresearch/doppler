@@ -23,7 +23,8 @@ contract BaseTest is Test, Deployers {
     // TODO: Maybe add the start and end ticks to the config?
     struct DopplerConfig {
         uint256 numTokensToSell;
-        uint256 targetProceeds;
+        uint256 minimumProceeds;
+        uint256 maximumProceeds;
         uint256 startingTime;
         uint256 endingTime;
         int24 gamma;
@@ -36,15 +37,20 @@ contract BaseTest is Test, Deployers {
     // Constants
 
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
-    uint256 constant DEFAULT_TARGET_PROCEEDS = 100e18;
+    uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
+    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
     uint256 constant DEFAULT_ENDING_TIME = 2 days;
     int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
+
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 8;
-    uint256 constant DEFAULT_NUM_PD_SLUGS = 1;
+    uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
+
+    int24 constant DEFAULT_START_TICK = 1600;
+    int24 constant DEFAULT_END_TICK = 171_200;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
@@ -53,7 +59,8 @@ contract BaseTest is Test, Deployers {
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
         numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
-        targetProceeds: DEFAULT_TARGET_PROCEEDS,
+        minimumProceeds: DEFAULT_MINIMUM_PROCEEDS,
+        maximumProceeds: DEFAULT_MAXIMUM_PROCEEDS,
         startingTime: DEFAULT_STARTING_TIME,
         endingTime: DEFAULT_ENDING_TIME,
         gamma: DEFAULT_GAMMA,
@@ -145,8 +152,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(1600) : int24(-1600);
-        endTick = isToken0 ? int24(-171_200) : int24(171_200);
+        startTick = isToken0 ? DEFAULT_START_TICK : -DEFAULT_START_TICK;
+        endTick = isToken0 ? -DEFAULT_END_TICK : DEFAULT_END_TICK;
 
         // Default to feeless case because it's easier to reason about
         config.fee = uint24(vm.envOr("FEE", uint24(0)));
@@ -165,7 +172,8 @@ contract BaseTest is Test, Deployers {
                 manager,
                 key,
                 config.numTokensToSell,
-                config.targetProceeds,
+                config.minimumProceeds,
+                config.maximumProceeds,
                 config.startingTime,
                 config.endingTime,
                 startTick,
@@ -173,7 +181,7 @@ contract BaseTest is Test, Deployers {
                 config.epochLength,
                 config.gamma,
                 isToken0,
-                3,
+                config.numPDSlugs,
                 hook
             ),
             address(hook)
