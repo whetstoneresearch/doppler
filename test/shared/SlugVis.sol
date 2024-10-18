@@ -22,7 +22,8 @@ library SlugVis {
         function (bytes32) view external returns (Position memory) fx
     ) public view {
         string memory json;
-        (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData[] memory pdSlugs) = getSlugDataFromPositions(numPDSlugs, fx);
+        (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData[] memory pdSlugs) =
+            getSlugDataFromPositions(numPDSlugs, fx);
         SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(numPDSlugs, lowerSlug, upperSlug, pdSlugs);
         json = _constructJson(currentTick, timestamp, slugs);
         console.log(json);
@@ -37,7 +38,6 @@ library SlugVis {
         bool lowerSlugExists = lowerSlug.liquidity > 0;
         bool upperSlugExists = upperSlug.liquidity > 0;
         uint256 numPdSlugs = 0;
-
 
         for (uint256 i = 0; i < numPDSlugs; i++) {
             pdSlugs[i].liquidity > 0 ? numPdSlugs++ : numPdSlugs;
@@ -60,7 +60,12 @@ library SlugVis {
         // for (uint256 i = 0; i < hook.numPDSlugs(); i++) {
         if (numPdSlugs > 0) {
             for (uint256 i = 0; i < numPdSlugs; i++) {
-                namedSlugs[index++] = SlugDataWithName(string(abi.encodePacked("pdSlug", i)), pdSlugs[i].liquidity, pdSlugs[i].tickLower, pdSlugs[i].tickUpper);
+                namedSlugs[index++] = SlugDataWithName(
+                    string(abi.encodePacked("pdSlug", i)),
+                    pdSlugs[i].liquidity,
+                    pdSlugs[i].tickLower,
+                    pdSlugs[i].tickUpper
+                );
             }
         }
 
