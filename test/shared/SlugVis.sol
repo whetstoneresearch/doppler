@@ -2,6 +2,8 @@ pragma solidity 0.8.26;
 
 import {console} from "forge-std/console.sol";
 import {SlugData, Position} from "../../src/Doppler.sol";
+import {DopplerImplementation} from "./DopplerImplementation.sol";
+import {PoolId} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 
 struct SlugDataWithName {
     string name;
@@ -15,17 +17,17 @@ bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 library SlugVis {
-    function visualizeSlugs(
-        uint256 numPDSlugs,
-        uint256 timestamp,
-        int24 currentTick,
-        function (bytes32) view external returns (Position memory) fx
-    ) public view {
+    function visualizeSlugs(DopplerImplementation hook, PoolId poolId, string memory id, uint256 timestamp)
+        public
+        view
+    {
         string memory json;
+        uint256 numPDSlugs = hook.getNumPDSlugs();
+        int24 currentTick = hook.getCurrentTick(poolId);
         (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData[] memory pdSlugs) =
-            getSlugDataFromPositions(numPDSlugs, fx);
+            getSlugDataFromPositions(numPDSlugs, hook.getPositions);
         SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(numPDSlugs, lowerSlug, upperSlug, pdSlugs);
-        json = _constructJson(currentTick, timestamp, slugs);
+        json = _constructJson(currentTick, id, timestamp, slugs);
         console.log(json);
     }
 
@@ -37,14 +39,15 @@ library SlugVis {
     ) internal pure returns (SlugDataWithName[] memory) {
         bool lowerSlugExists = lowerSlug.liquidity > 0;
         bool upperSlugExists = upperSlug.liquidity > 0;
-        uint256 numPdSlugs = 0;
+        uint256 pdSlugCount = 0;
 
         for (uint256 i = 0; i < numPDSlugs; i++) {
-            pdSlugs[i].liquidity > 0 ? numPdSlugs++ : numPdSlugs;
-            i++;
+            if (pdSlugs[i].liquidity > 0) {
+                pdSlugCount++;
+            }
         }
 
-        uint256 numSlugs = (lowerSlugExists ? 1 : 0) + (upperSlugExists ? 1 : 0) + numPdSlugs;
+        uint256 numSlugs = (lowerSlugExists ? 1 : 0) + (upperSlugExists ? 1 : 0) + pdSlugCount;
 
         SlugDataWithName[] memory namedSlugs = new SlugDataWithName[](numSlugs);
         uint256 index = 0;
@@ -58,10 +61,10 @@ library SlugVis {
                 SlugDataWithName("upperSlug", upperSlug.liquidity, upperSlug.tickLower, upperSlug.tickUpper);
         }
         // for (uint256 i = 0; i < hook.numPDSlugs(); i++) {
-        if (numPdSlugs > 0) {
-            for (uint256 i = 0; i < numPdSlugs; i++) {
+        if (pdSlugCount > 0) {
+            for (uint256 i = 0; i < pdSlugCount; i++) {
                 namedSlugs[index++] = SlugDataWithName(
-                    string(abi.encodePacked("pdSlug", i)),
+                    string(abi.encodePacked("pdSlug", "[", uint2str(i + 1), "]")),
                     pdSlugs[i].liquidity,
                     pdSlugs[i].tickLower,
                     pdSlugs[i].tickUpper
@@ -105,7 +108,7 @@ library SlugVis {
         return (lowerSlug, upperSlug, pdSlugs);
     }
 
-    function _constructJson(int24 currentTick, uint256 timestamp, SlugDataWithName[] memory slugs)
+    function _constructJson(int24 currentTick, string memory id, uint256 timestamp, SlugDataWithName[] memory slugs)
         internal
         pure
         returns (string memory)
@@ -126,6 +129,9 @@ library SlugVis {
                     "\"timestamp\": ",
                     uint2str(timestamp),
                     ",",
+                    "\"id\": \"",
+                    id,
+                    "\",",
                     "\"tickLower\": ",
                     int2str(slugs[i].tickLower),
                     ",",
