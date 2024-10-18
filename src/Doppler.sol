@@ -126,6 +126,9 @@ contract Doppler is BaseHook {
         /* Num price discovery slug checks */
         if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
+        
+        // These can both be zero
+        if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -926,6 +929,7 @@ error InvalidTickSpacing();
 error InvalidEpochLength();
 error InvalidTickDelta();
 error InvalidSwap();
+error InvalidProceedLimits();
 error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();

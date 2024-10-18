@@ -19,7 +19,7 @@ import "forge-std/console.sol";
 
 using PoolIdLibrary for PoolKey;
 
-contract ConstructorTest is BaseTest {
+contract EarlyExitTest is BaseTest {
     function setUp() public override {
         manager = new PoolManager();
         _deployTokens();
@@ -39,7 +39,7 @@ contract ConstructorTest is BaseTest {
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
             currency1: Currency.wrap(address(token1)),
-            fee: config.fee,
+            fee: 0,
             tickSpacing: config.tickSpacing,
             hooks: IHooks(address(hook))
         });
