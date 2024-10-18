@@ -34,7 +34,6 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
 
         // Compute the amount of tokens available in both the upper and price discovery slugs
         // Should be two epochs of liquidity available since we're at the startingTime
@@ -42,28 +41,12 @@ contract RebalanceTest is BaseTest {
 
         // We sell all available tokens
         // This increases the price to the pool maximum
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(
-                !isToken0, int256(expectedAmountSold), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            ),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(int256(expectedAmountSold));
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(1 ether);
 
         (, int256 tickAccumulator, uint256 totalTokensSold,,,) = hook.state();
 
@@ -117,14 +100,7 @@ contract RebalanceTest is BaseTest {
         assertLt(upperSlug.liquidity, 1e18);
 
         // Validate that we can swap all tokens back into the curve
-        swapRouter.swap(
-            // Swap asset to numeraire
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        sell(-int256(totalTokensSold));
     }
 
     function test_rebalance_LowerSlug_SufficientProceeds() public {
