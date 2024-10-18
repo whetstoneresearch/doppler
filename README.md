@@ -34,9 +34,7 @@ If sales are ahead of schedule, i.e. `totalTokensSold` is greater than the expec
 
 ### `tickAccumulator`
 
-For whichever of the above outcomes we've hit, we accumulate a tick delta to the `tickAccumulator`. This value is used to derive the current bonding curve at any given time. We derive the lowermost tick of the curve, `tickLower`, as the `startingTick + tickAccumulator`. We derive the uppermost tick of the curve, `tickUpper`, as the `tickLower + gamma`. TODO: Other derivations worth mentioning? We can see how the tickAccumulator is accumulated in this [graph](https://www.desmos.com/calculator/fjnd0mcpst), with the red line corresponding to the max dutch auction case, the orange line corresponding to the relative dutch auction case, and the green line corresponding to the oversold case.
-
-TODO: Add graphs for each case?
+For whichever of the above outcomes we've hit, we accumulate a tick delta to the `tickAccumulator`. This value is used to derive the current bonding curve at any given time. We derive the lowermost tick of the curve, `tickLower`, as the `startingTick + tickAccumulator`. We derive the uppermost tick of the curve, `tickUpper`, as the `tickLower + gamma`. We can see how the `tickAccumulator` is accumulated in this [graph](https://www.desmos.com/calculator/fjnd0mcpst), with the red line corresponding to the max dutch auction case, the orange line corresponding to the relative dutch auction case, and the green line corresponding to the oversold case.
 
 ## Liquidity Placement (Slugs)
 
@@ -53,7 +51,7 @@ Within the bonding curve, we place 3 different types of liquidity positions, aka
 
 The lower slug is generally placed ranging from the global tickLower to the current tick. We place the total amount of proceeds from asset sales, `totalProceeds`, into the slug, allowing the users to sell their tokens back into the curve. The lower slug must have enough liquidity to support all tokens being sold back into the curve. 
 
-Ocassionally, we will not have sufficient `totalProceeds` to support all tokens being sold back into the curve with the usual slug placement. In this case, we compute the average clearing price of the tokens, computed as `totalProceeds / totalTokensSold` and place the slug at the tick corresponding to that price with a minimally sized range, i.e. range size of `tickSpacing`. This can occur when we oversell... TODO: More detail into why exactly this happens. We compute the required amount of proceeds, `requiredProceeds` as... TODO
+Ocassionally, we will not have sufficient `totalProceeds` to support all tokens being sold back into the curve with the usual slug placement. In this case, we compute the average clearing price of the tokens, computed as `totalProceeds / totalTokensSold` and place the slug at the tick corresponding to that price with a minimally sized range, i.e. range size of `tickSpacing`.
 
 ### Upper Slug
 
