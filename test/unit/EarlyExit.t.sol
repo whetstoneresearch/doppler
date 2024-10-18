@@ -25,9 +25,7 @@ contract EarlyExitTest is BaseTest {
         _deployTokens();
     }
 
-    function deployDoppler(
-        DopplerConfig memory config
-    ) internal {
+    function deployDoppler(DopplerConfig memory config) internal {
         (token0, token1) = isToken0 ? (asset, numeraire) : (numeraire, asset);
         (isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
         vm.label(address(token0), "Token0");

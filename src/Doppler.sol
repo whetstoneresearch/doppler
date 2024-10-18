@@ -126,7 +126,7 @@ contract Doppler is BaseHook {
         /* Num price discovery slug checks */
         if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
-        
+
         // These can both be zero
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
@@ -175,8 +175,11 @@ contract Doppler is BaseHook {
                 prevPositions[1] = positions[UPPER_SLUG_SALT];
 
                 // TODO: Consider what to do if numeraireAvailable is 0
-                uint256 numeraireAvailable = isToken0 ? uint256(uint128(_clearPositions(prevPositions, key).amount1())) : uint256(uint128(_clearPositions(prevPositions, key).amount0()));
-                SlugData memory lowerSlug = _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold);
+                uint256 numeraireAvailable = isToken0
+                    ? uint256(uint128(_clearPositions(prevPositions, key).amount1()))
+                    : uint256(uint128(_clearPositions(prevPositions, key).amount0()));
+                SlugData memory lowerSlug =
+                    _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold);
                 Position[] memory newPositions = new Position[](1);
 
                 newPositions[0] = Position({
@@ -187,7 +190,10 @@ contract Doppler is BaseHook {
                 });
 
                 // add or subtract tickSpacing so that the we're above/below the lowerSlug.tickUpper
-                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(_alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing) + (isToken0 ? key.tickSpacing : -key.tickSpacing));
+                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
+                    _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
+                        + (isToken0 ? key.tickSpacing : -key.tickSpacing)
+                );
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
 
@@ -273,7 +279,7 @@ contract Doppler is BaseHook {
                 state.totalProceeds += proceedsLessFee;
             }
         }
-        
+
         // if we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
             earlyExit = true;
@@ -736,7 +742,6 @@ contract Doppler is BaseHook {
                 ""
             );
         }
-
 
         for (uint256 i; i < newPositions.length; ++i) {
             if (newPositions[i].liquidity != 0) {
