@@ -57,7 +57,7 @@ Ocassionally, we will not have sufficient `totalProceeds` to support all tokens 
 
 The upper slug is generally placed between the current tick and a delta, computed as `epochLength / duration * gamma`. We supply the delta between the expected amount of tokens sold, computed as `percentage(elapsed time / duration) * numTokensToSell`, and the actual `totalTokensSold`. In the case that `totalTokensSold` is greater than the expected amount of tokens sold, we don't place the slug and instead simply set the ticks in storage both as the current tick.
 
-### Price Discovery Slug
+### Price Discovery Slugs
 
 The price discovery slugs are generally placed between the upper slug upper tick and the top the bonding curve, `tickUpper`. The hook creator determines at the time of deployment how many price discovery slugs should be placed. We place the slugs equidistant between the upper slug upper tick and the `tickUpper`, contiguously. We supply tokens in each slug according to the percentage time difference between epochs multiplied by the `numTokensToSell`. Since we're supplying amounts according to remaining epochs, if we run out of future epochs to supply for, we stop placing slugs. In the last epoch there will be no price disovery slugs.
 
