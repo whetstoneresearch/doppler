@@ -165,28 +165,12 @@ contract RebalanceTest is BaseTest {
         uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(2);
 
         // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(
-                !isToken0, int256(expectedAmountSold * 9 / 10), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            ),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(int256(expectedAmountSold * 9 / 10));
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, 1, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(1);
 
         (, int256 tickAccumulator, uint256 totalTokensSold,,,) = hook.state();
 
@@ -245,14 +229,7 @@ contract RebalanceTest is BaseTest {
         assertGt(amount0Delta, totalTokensSold);
 
         // Validate that we can swap all tokens back into the curve
-        swapRouter.swap(
-            // Swap asset to numeraire
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        sell(-int256(totalTokensSold));
     }
 
     function test_rebalance_LowerSlug_NoLiquidity() public {
