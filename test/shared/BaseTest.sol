@@ -263,6 +263,9 @@ contract BaseTest is Test, Deployers {
         return uint256(uint128(deltaAmounts[0]));
     }
 
+    /// @dev Buys a given amount of asset tokens.
+    /// @param amount A negative value specificies the amount of numeraire tokens to spend,
+    /// a positive value specifies the amount of asset tokens to buy.
     function buy(int256 amount) public {
         // Negative means exactIn, positive means exactOut.
         uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
@@ -282,8 +285,10 @@ contract BaseTest is Test, Deployers {
         );
     }
 
+    /// @dev Sells a given amount of asset tokens.
+    /// @param amount A negative value specificies the amount of asset tokens to sell, a positive value
+    /// specifies the amount of numeraire tokens to receive.
     function sell(int256 amount) public {
-        // Negative means exactIn, positive means exactOut.
         uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
         TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
 
