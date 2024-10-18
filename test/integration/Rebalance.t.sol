@@ -108,23 +108,13 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2);
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
 
         // Compute the expected amount sold to see how many tokens will be supplied in the upper slug
         // We should always have sufficient proceeds if we don't swap beyond the upper slug
         uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // We sell half the expected amount to ensure that we don't surpass the upper slug
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(
-                !isToken0, int256(expectedAmountSold / 2), !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            ),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(int256(expectedAmountSold / 2));
 
         (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
@@ -137,14 +127,7 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * 3); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(1 ether);
 
         (, int256 tickAccumulator2, uint256 totalTokensSold2,,,) = hook.state();
 
@@ -167,14 +150,7 @@ contract RebalanceTest is BaseTest {
         assertGt(lowerSlug.liquidity, 0);
 
         // Validate that we can swap all tokens back into the curve
-        swapRouter.swap(
-            // Swap asset to numeraire
-            // If zeroForOne, we use max price limit (else vice versa)
-            poolKey,
-            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold2), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        sell(-int256(totalTokensSold2));
     }
 
     function test_rebalance_LowerSlug_InsufficientProceeds() public {
