@@ -253,7 +253,7 @@ contract BaseTest is Test, Deployers {
 
     function buy(int256 amount) public {
         // Negative means exactIn, positive means exactOut.
-        uint256 mintAmount = amount < 0 ? uint256(amount) : computeBuyAmountIn(uint256(amount));
+        uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyAmountIn(uint256(amount));
 
         if (usingEth) {
             deal(address(this), uint256(mintAmount));
