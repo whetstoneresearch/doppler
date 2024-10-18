@@ -152,8 +152,8 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0 ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK)) : -int24(vm.envOr("START_TICK", DEFAULT_START_TICK));
-        endTick = isToken0 ? -int24(vm.envOr("END_TICK", DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
+        startTick = isToken0 ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK)) : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
+        endTick = isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
 
         // Default to feeless case because it's easier to reason about
         config.fee = uint24(vm.envOr("FEE", uint24(0)));

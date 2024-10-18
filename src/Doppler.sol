@@ -96,7 +96,7 @@ contract Doppler is BaseHook {
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
-        if (_startingTick != endingTick) {
+        if (_startingTick != _endingTick) {
             if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
             if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
 
