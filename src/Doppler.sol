@@ -161,7 +161,13 @@ contract Doppler is BaseHook {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         if (earlyExit) revert MaximumProceedsReached();
+
         if (block.timestamp < startingTime) revert InvalidTime();
+
+        if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
+            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
         // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp > endingTime && !insufficientProceeds) {
             if (state.totalProceeds < minimumProceeds) {
@@ -173,6 +179,9 @@ contract Doppler is BaseHook {
                 Position[] memory prevPositions = new Position[](2 + numPDSlugs);
                 prevPositions[0] = positions[LOWER_SLUG_SALT];
                 prevPositions[1] = positions[UPPER_SLUG_SALT];
+                for (uint256 i; i < numPDSlugs; ++i) {
+                    prevPositions[2 + i] = positions[bytes32(uint256(3 + i))];
+                }
 
                 // TODO: Consider what to do if numeraireAvailable is 0
                 uint256 numeraireAvailable = isToken0
@@ -194,20 +203,21 @@ contract Doppler is BaseHook {
                     _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
                         + (isToken0 ? key.tickSpacing : -key.tickSpacing)
                 );
+
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
-
                 positions[LOWER_SLUG_SALT] = newPositions[0];
-                for (uint256 i; i < numPDSlugs + 2; ++i) {
+
+                // add 1 to numPDSlugs because we don't need to clear the lower slug
+                // but we do need to clear the upper/pd slugs
+                for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
                 }
             } else {
                 revert InvalidSwapAfterMaturitySufficientProceeds();
             }
         }
-        if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
-            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
-        }
+
         if (!insufficientProceeds) {
             _rebalance(key);
         } else if (isToken0) {

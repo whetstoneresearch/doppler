@@ -121,7 +121,7 @@ contract SwapTest is BaseTest {
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
             key,
-            IPoolManager.SwapParams(!isToken0, minimumProceeds, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            IPoolManager.SwapParams(!isToken0, -minimumProceeds * 11 / 10, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(true, false),
             ""
         );
