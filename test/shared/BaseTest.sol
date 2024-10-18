@@ -235,7 +235,7 @@ contract BaseTest is Test, Deployers {
         quoter = new Quoter(manager);
     }
 
-    function computeBuyAmountIn(uint256 amountOut) public returns (uint256) {
+    function computeBuyExactOut(uint256 amountOut) public returns (uint256) {
         (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
             IQuoter.QuoteExactSingleParams({
                 poolKey: key,
@@ -249,11 +249,23 @@ contract BaseTest is Test, Deployers {
         return uint256(uint128(deltaAmounts[0]));
     }
 
-    function computeAmountOut(uint256 amountIn) public {}
+    function computeSellExactOut(uint256 amountOut) public returns (uint256) {
+        (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
+            IQuoter.QuoteExactSingleParams({
+                poolKey: key,
+                zeroForOne: isToken0,
+                exactAmount: uint128(amountOut),
+                sqrtPriceLimitX96: isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT,
+                hookData: ""
+            })
+        );
+
+        return uint256(uint128(deltaAmounts[0]));
+    }
 
     function buy(int256 amount) public {
         // Negative means exactIn, positive means exactOut.
-        uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyAmountIn(uint256(amount));
+        uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
 
         if (usingEth) {
             deal(address(this), uint256(mintAmount));
@@ -271,7 +283,10 @@ contract BaseTest is Test, Deployers {
     }
 
     function sell(int256 amount) public {
-        TestERC20(asset).approve(address(swapRouter), uint256(amount));
+        // Negative means exactIn, positive means exactOut.
+        uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
+        TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
+
         swapRouter.swap(
             key,
             IPoolManager.SwapParams(isToken0, amount, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
