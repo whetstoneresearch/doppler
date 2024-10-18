@@ -40,27 +40,28 @@ TODO: Add graphs for each case?
 
 ## Liquidity Placement (Slugs)
 
-- Within the bonding curve, we place 3 different types of liquidity positions (slugs)
-    - Lower slug, positioned below the current price, allowing for asset tokens to be sold back into the curve
-    - Upper slug, positioned above the current price, allowing for asset tokens to be purchased, places enough tokens to reach the expected amount of tokens sold
-    - Price discovery slug(s), positioned about the upper slug, places enough tokens in each slug to reach the expected amount sold in the next epoch, hook creators can place an arbitrary amount of price discovery slugs, up to a maximum amount
-- Lower slug
-    - The lower slug is generally placed ranging from the global tickLower to the current tick
-    - We place the total amount of proceeds, in the numeraire token (the token used to purchase the asset token), (totalProceeds), into the slug, allowing the users to sell their tokens back into the curve
-        - The lower slug must have enough liquidity to support all tokens being sold back into the curve
-    - Ocassionally, we will not have sufficient totalProceeds to support all tokens being sold back into the curve with the usual slug placement
-        - In this case, we compute the average clearing price of the tokens (computed by totalProceeds / totalTokensSold) and place a the slug at the tick corresponding to that price with a minimally sized range (size of tickSpacing)
-        - This can occur when we oversell... TODO: More detail into why exactly this happens
-        - We compute the required amount of proceeds (requiredProceeds) as... TODO
+Within the bonding curve, we place 3 different types of liquidity positions, aka slugs:
+- Lower slug 
+    - Positioned below the current price, allowing for all purchased asset tokens to be sold back into the curve
 - Upper slug
-    - We generally place the upper slug between the current tick and a delta (computed as epochLength / duration * gamma)
-    - We supply the delta between the expected amount of tokens sold (computed as percentage(elapsed time / duration) * numTokensToSell) and the actual totalTokensSold
-    - In the case that totalTokensSold is greater than the expected amount of tokens sold, we don't place the slug and instead simply set the ticks in storage both as the current tick
+    - Positioned above the current price, allowing for asset tokens to be purchased, places enough tokens to reach the expected amount of tokens sold
 - Price discovery slug(s)
-    - We generally place as many price discovery slugs as the hook creator decided (numPDSlugs)
-    - We place the slugs equidistant between the upper slug upper tick and the global tickUpper, contiguously
-    - We supply tokens in each slug according to the percentage time difference between epochs multiplied by the numTokensToSell
-    - Since we're supplying amounts according to remaining epochs, if we run out of future epochs to supply for, we stop placing slugs. In the last epoch there will be no price disovery slugs
+    - Positioned above the upper slug, places enough tokens in each slug to reach the expected amount sold in the next epoch 
+    - Hook creators can pick an arbitrary amount of price discovery slugs, up to a maximum amount
+
+### Lower Slug
+
+The lower slug is generally placed ranging from the global tickLower to the current tick. We place the total amount of proceeds from asset sales, `totalProceeds`, into the slug, allowing the users to sell their tokens back into the curve. The lower slug must have enough liquidity to support all tokens being sold back into the curve. 
+
+Ocassionally, we will not have sufficient `totalProceeds` to support all tokens being sold back into the curve with the usual slug placement. In this case, we compute the average clearing price of the tokens, computed as `totalProceeds / totalTokensSold` and place the slug at the tick corresponding to that price with a minimally sized range, i.e. range size of `tickSpacing`. This can occur when we oversell... TODO: More detail into why exactly this happens. We compute the required amount of proceeds, `requiredProceeds` as... TODO
+
+### Upper Slug
+
+The upper slug is generally placed between the current tick and a delta, computed as `epochLength / duration * gamma`. We supply the delta between the expected amount of tokens sold, computed as `percentage(elapsed time / duration) * numTokensToSell`, and the actual `totalTokensSold`. In the case that `totalTokensSold` is greater than the expected amount of tokens sold, we don't place the slug and instead simply set the ticks in storage both as the current tick.
+
+### Price Discovery Slug
+
+The price discovery slugs are generally placed between the upper slug upper tick and the top the bonding curve, `tickUpper`. The hook creator determines at the time of deployment how many price discovery slugs should be placed. We place the slugs equidistant between the upper slug upper tick and the `tickUpper`, contiguously. We supply tokens in each slug according to the percentage time difference between epochs multiplied by the `numTokensToSell`. Since we're supplying amounts according to remaining epochs, if we run out of future epochs to supply for, we stop placing slugs. In the last epoch there will be no price disovery slugs.
 
 ## Usage
 
