@@ -22,7 +22,7 @@ The Doppler Protocol rebalance its bonding curve according to token sales along 
 
 ### Max Dutch Auction
 
-If sales are behind schedule, the curve is reduced via a dutch auction mechanism according to the relative amount that the Protocol is behind schedule. The maximum amount to dutch auction the curve in a single epoch is computed as the `endingTick - startingTick` divided by the total number of epochs, `(endingTime - startingTime) / epochLength`. In the case that there was a net sold amount of zero or less, computed as `totalTokensSold - totalTokensSoldLastEpoch`, the Protocol utilizes a dutch auction the curve by this maximum amount.
+If sales are behind schedule, the curve is reduced via a dutch auction mechanism according to the relative amount that the Protocol is behind schedule. The maximum amount to dutch auction the curve in a single epoch is computed as the `endingTick - startingTick` divided by the total number of epochs, `(endingTime - startingTime) / epochLength`. In the case that there was a net sold amount of zero or less, computed as `totalTokensSold - totalTokensSoldLastEpoch`, the Protocol utilizes a dutch auction to shift the curve by this maximum amount.
 
 ### Relative Dutch Auction
 
