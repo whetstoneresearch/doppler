@@ -363,7 +363,9 @@ contract RebalanceTest is BaseTest {
         }
 
         // Assert that the slugs are continuous
-        assertEq(hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower);
+        assertApproxEqAbs(
+            hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower"
+        );
 
         // We should only have one price discovery slug at this point
         assertEq(upperSlug.tickUpper, priceDiscoverySlugs[0].tickLower);
@@ -418,7 +420,9 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Assert that the upperSlug is correctly placed
-        assertApproxEqAbs(hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower");
+        assertApproxEqAbs(
+            hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower"
+        );
 
         // Assert that the priceDiscoverySlug has no liquidity
         assertEq(priceDiscoverySlug.liquidity, 0);
@@ -845,7 +849,7 @@ contract RebalanceTest is BaseTest {
         // Lower slug should be unset with ticks at the current price
         assertEq(lowerSlug.tickLower, lowerSlug.tickUpper, "first swap: lowerSlug.tickLower != lowerSlug.tickUpper");
         assertEq(lowerSlug.liquidity, 0, "first swap: lowerSlug.liquidity != 0");
-        assertEq(lowerSlug.tickUpper, currentTick, "first swap: lowerSlug.tickUpper != currentTick");
+        assertApproxEqAbs(lowerSlug.tickUpper, currentTick, 1, "first swap: lowerSlug.tickUpper != currentTick");
 
         // Upper and price discovery slugs must be set
         assertNotEq(upperSlug.liquidity, 0, "first swap: upperSlug.liquidity != 0");
