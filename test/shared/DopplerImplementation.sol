@@ -143,7 +143,7 @@ contract DopplerImplementation is Doppler {
         uint256 totalTokensSold,
         int24 currentTick,
         uint256 assetAvailable
-    ) public view returns (SlugData memory) {
+    ) public view returns (SlugData memory, uint256 assetRemaining) {
         return _computeUpperSlugData(poolKey, totalTokensSold, currentTick, assetAvailable);
     }
 
