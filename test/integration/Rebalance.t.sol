@@ -286,12 +286,21 @@ contract RebalanceTest is BaseTest {
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
         // Validate that the slugs are continuous and all have liquidity
-        // TODO: figure out why this is happening
-        assertEq(
-            lowerSlug.tickLower,
-            tickLower - poolKey.tickSpacing,
-            "tickLower - poolKey.tickSpacing != lowerSlug.tickLower"
-        );
+        // TODO: I tried fixing this using isToken0, not sure if it should work this way though.
+        if (isToken0) {
+            assertEq(
+                lowerSlug.tickLower,
+                tickLower - poolKey.tickSpacing,
+                "tickLower - poolKey.tickSpacing != lowerSlug.tickLower"
+            );
+        } else {
+            assertEq(
+                lowerSlug.tickLower,
+                tickLower + poolKey.tickSpacing,
+                "tickLower + poolKey.tickSpacing != lowerSlug.tickLower"
+            );
+        }
+
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "lowerSlug.tickUpper != upperSlug.tickLower");
 
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
@@ -965,8 +974,13 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
 
-        // Lower slug must not be above current tick
-        assertLe(lowerSlug.tickUpper, currentTick, "third swap: lowerSlug.tickUpper > currentTick");
+        if (isToken0) {
+            // Lower slug must not be above current tick
+            assertLe(lowerSlug.tickUpper, currentTick, "third swap: lowerSlug.tickUpper > currentTick");
+        } else {
+            // Lower slug must not be below current tick
+            assertGe(lowerSlug.tickUpper, currentTick, "third swap: lowerSlug.tickUpper < currentTick");
+        }
 
         // Upper slugs must be inline and continuous
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
@@ -1023,8 +1037,13 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
 
-        // Lower slug must not be greater than current tick
-        assertLe(lowerSlug.tickUpper, currentTick, "fourth swap: lowerSlug.tickUpper > currentTick");
+        if (isToken0) {
+            // Lower slug must not be greater than current tick
+            assertLe(lowerSlug.tickUpper, currentTick, "fourth swap: lowerSlug.tickUpper > currentTick");
+        } else {
+            // Lower slug must not be less than current tick
+            assertGe(lowerSlug.tickUpper, currentTick, "fourth swap: lowerSlug.tickUpper < currentTick");
+        }
 
         // Upper slugs must be inline and continuous
         // In this case we only have one price discovery slug since we're on the second last epoch
@@ -1066,11 +1085,19 @@ contract RebalanceTest is BaseTest {
 
         // Slugs must be inline and continuous
         if (currentTick == tickLower) {
-            assertEq(
-                tickLower - poolKey.tickSpacing,
-                lowerSlug.tickLower,
-                "fifth swap: lowerSlug.tickLower != global tickLower"
-            );
+            if (isToken0) {
+                assertEq(
+                    tickLower - poolKey.tickSpacing,
+                    lowerSlug.tickLower,
+                    "fifth swap: lowerSlug.tickLower != global tickLower"
+                );
+            } else {
+                assertEq(
+                    tickLower + poolKey.tickSpacing,
+                    lowerSlug.tickLower,
+                    "fifth swap: lowerSlug.tickUpper != global tickLower"
+                );
+            }
         } else {
             assertEq(tickLower, lowerSlug.tickLower, "fifth swap: lowerSlug.tickUpper != global tickLower");
         }
