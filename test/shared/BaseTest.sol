@@ -263,6 +263,22 @@ contract BaseTest is Test, Deployers {
         return uint256(uint128(deltaAmounts[0]));
     }
 
+    function buyExactIn(uint256 amount) public {
+        buy(-int256(amount));
+    }
+
+    function buyExactOut(uint256 amount) public {
+        buy(int256(amount));
+    }
+
+    function sellExactIn(uint256 amount) public {
+        sell(-int256(amount));
+    }
+
+    function sellExactOut(uint256 amount) public {
+        sell(int256(amount));
+    }
+
     /// @dev Buys a given amount of asset tokens.
     /// @param amount A negative value specificies the amount of numeraire tokens to spend,
     /// a positive value specifies the amount of asset tokens to buy.
