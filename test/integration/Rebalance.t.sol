@@ -508,7 +508,6 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch2, 1 ether);
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2); // Next epoch
-        SlugVis.visualizeSlugs(hook, poolKey.toId(), "test", block.timestamp);
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
