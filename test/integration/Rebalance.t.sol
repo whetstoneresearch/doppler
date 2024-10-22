@@ -1096,7 +1096,7 @@ contract RebalanceTest is BaseTest {
         currentTick = hook.getCurrentTick(poolId);
 
         // Slugs must be inline and continuous
-        if (currentTick == tickLower) {
+        if (stdMath.delta(currentTick, tickLower) <= 1) {
             if (isToken0) {
                 assertEq(
                     tickLower - poolKey.tickSpacing,
@@ -1154,15 +1154,15 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
-
-        // if (currentTick == tickLower) {
-        // TODO: figure out why this works, it should in theory be hitting the tickLower == lowerSlug.tickLower case
-        assertEq(
-            tickLower - poolKey.tickSpacing, lowerSlug.tickLower, "sixth swap: lowerSlug.tickLower != global tickLower"
-        );
-        // } else {
-        //     assertEq(tickLower, lowerSlug.tickLower, "sixth swap: lowerSlug.tickUpper != global tickLower");
-        // }
+        if (stdMath.delta(currentTick, tickLower) <= 1 || currentTick == TickMath.MIN_TICK || currentTick == TickMath.MAX_TICK) {
+            assertEq(
+                tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
+                lowerSlug.tickLower,
+                "sixth swap: lowerSlug.tickLower != global tickLower"
+            );
+        } else {
+            assertEq(tickLower, lowerSlug.tickLower, "sixth swap: lowerSlug.tickUpper != global tickLower");
+        }
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "sixth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
         // We don't set a priceDiscoverySlug because it's the last epoch
