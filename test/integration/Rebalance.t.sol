@@ -1154,7 +1154,11 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
-        if (stdMath.delta(currentTick, tickLower) <= 1 || currentTick == TickMath.MIN_TICK || currentTick == TickMath.MAX_TICK) {
+        if (
+            stdMath.delta(currentTick, tickLower) <= 1 ||
+            currentTick == TickMath.MIN_TICK ||
+            currentTick == TickMath.MAX_TICK - 1
+        ) {
             assertEq(
                 tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
                 lowerSlug.tickLower,
