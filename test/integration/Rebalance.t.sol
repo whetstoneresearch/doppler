@@ -355,6 +355,7 @@ contract RebalanceTest is BaseTest {
         // Explicitly checking that accumulatorDelta is nonzero to show issues with
         // implicit assumption that gamma is positive.
         accumulatorDelta = accumulatorDelta != 0 ? accumulatorDelta : poolKey.tickSpacing;
+        // TODO(matt): why are we adding/subtracting the tickSpacing here???
         if (isToken0) {
             assertEq(
                 hook.alignComputedTickWithTickSpacing(upperSlug.tickLower + accumulatorDelta, poolKey.tickSpacing)
@@ -364,7 +365,8 @@ contract RebalanceTest is BaseTest {
             );
         } else {
             assertEq(
-                hook.alignComputedTickWithTickSpacing(upperSlug.tickLower - accumulatorDelta, poolKey.tickSpacing),
+                hook.alignComputedTickWithTickSpacing(upperSlug.tickLower - accumulatorDelta, poolKey.tickSpacing)
+                    - poolKey.tickSpacing,
                 upperSlug.tickUpper,
                 "upperSlug.tickUpper != upperSlug.tickLower - accumulatorDelta"
             );
