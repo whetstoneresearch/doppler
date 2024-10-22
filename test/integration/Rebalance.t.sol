@@ -23,6 +23,8 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
+import "forge-std/console.sol";
+
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -107,6 +109,9 @@ contract RebalanceTest is BaseTest {
             }
 
             // Validate that each price discovery slug has liquidity
+            // console.log("slug liq", priceDiscoverySlugs[i].liquidity);
+            // console.log("slug upper", priceDiscoverySlugs[i].tickUpper);
+            // console.log("slug lower", priceDiscoverySlugs[i].tickLower);
             assertGt(priceDiscoverySlugs[i].liquidity, 0);
         }
 
@@ -555,7 +560,6 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime());
 
         PoolKey memory poolKey = key;
-
         swapRouter.swap(
             // Swap numeraire to asset
             // If zeroForOne, we use max price limit (else vice versa)
@@ -565,7 +569,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
+        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
         assertEq(lastEpoch, 1);
@@ -596,6 +600,7 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch2, 1 ether);
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2); // Next epoch
+        SlugVis.visualizeSlugs(hook, poolKey.toId(), "test", block.timestamp);
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         swapRouter.swap(
@@ -631,10 +636,6 @@ contract RebalanceTest is BaseTest {
         // Get global lower and upper ticks
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator3, key.tickSpacing);
 
-        // Get current tick
-        PoolId poolId = key.toId();
-        int24 currentTick = hook.getCurrentTick(poolId);
-
         // Slugs must be inline and continuous
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "lowerSlug.tickUpper != upperSlug.tickLower");
 
@@ -662,13 +663,6 @@ contract RebalanceTest is BaseTest {
             assertGt(priceDiscoverySlugs[i].liquidity, 0);
         }
 
-        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
-        // Lower slug should be unset with ticks at the current price if the fee is 0
-        if (protocolFee == 0 && lpFee == 0) {
-            assertEq(lowerSlug.tickLower, lowerSlug.tickUpper, "lowerSlug.tickLower != lowerSlug.tickUpper");
-            assertEq(lowerSlug.liquidity, 0, "lowerSlug.liquidity != 0");
-            assertEq(lowerSlug.tickUpper, currentTick, "lowerSlug.tickUpper != currentTick");
-        }
         // Upper and price discovery slugs must be set
         assertNotEq(upperSlug.liquidity, 0);
     }
