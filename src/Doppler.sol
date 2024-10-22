@@ -814,9 +814,9 @@ contract Doppler is BaseHook {
 
         (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
-        (SlugData memory upperSlug, ) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
+        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
         SlugData[] memory priceDiscoverySlugs =
-            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, numTokensToSell);
+            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
         BalanceDelta finalDelta;
 
