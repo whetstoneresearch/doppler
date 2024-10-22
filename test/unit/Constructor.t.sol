@@ -55,6 +55,9 @@ contract ConstructorTest is BaseTest {
         if (selector != 0) {
             vm.expectRevert(selector);
         }
+
+        int24 startTick = _startTick != 0 ? _startTick : isToken0 ? DEFAULT_START_TICK : -DEFAULT_START_TICK;
+        int24 endTick = _endTick != 0 ? _endTick : isToken0 ? -DEFAULT_END_TICK : DEFAULT_END_TICK;
         deployCodeTo(
             "DopplerImplementation.sol:DopplerImplementation",
             abi.encode(
@@ -65,8 +68,8 @@ contract ConstructorTest is BaseTest {
                 config.maximumProceeds,
                 config.startingTime,
                 config.endingTime,
-                _startTick,
-                _endTick,
+                startTick,
+                endTick,
                 config.epochLength,
                 config.gamma,
                 isToken0,
@@ -125,7 +128,7 @@ contract ConstructorTest is BaseTest {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.tickSpacing = int24(maxTickSpacing + 1);
 
-        deployDoppler(InvalidTickSpacing.selector, config, 200, 100, true);
+        deployDoppler(InvalidTickSpacing.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanOrEqualToEndingTime() public {
@@ -133,7 +136,7 @@ contract ConstructorTest is BaseTest {
         config.startingTime = 1000;
         config.endingTime = 1000;
 
-        deployDoppler(InvalidTimeRange.selector, config, 200, 100, true);
+        deployDoppler(InvalidTimeRange.selector, config, DEFAULT_START_TICK, DEFAULT_START_TICK, true);
     }
 
     function testConstructor_RevertsInvalidGamma_WhenGammaCalculationZero() public {
@@ -143,23 +146,21 @@ contract ConstructorTest is BaseTest {
         config.epochLength = 1;
         config.gamma = 0;
 
-        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+        deployDoppler(InvalidGamma.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidEpochLength_WhenTimeDeltaNotDivisibleByEpochLength() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.startingTime = 1000;
-        config.endingTime = 5000;
         config.epochLength = 3000;
 
-        deployDoppler(InvalidEpochLength.selector, config, 200, 100, true);
+        deployDoppler(InvalidEpochLength.selector, config, DEFAULT_START_TICK, DEFAULT_START_TICK, true);
     }
 
     function testConstructor_RevertsInvalidGamma_WhenGammaNotDivisibleByTickSpacing() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.gamma += 1;
 
-        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+        deployDoppler(InvalidGamma.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidGamma_WhenGammaTimesTotalEpochsNotDivisibleByTotalTickDelta() public {
@@ -169,28 +170,28 @@ contract ConstructorTest is BaseTest {
         config.endingTime = 5000;
         config.epochLength = 1000;
 
-        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+        deployDoppler(InvalidGamma.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidGamma_WhenGammaIsNegative() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.gamma = -1;
 
-        deployDoppler(InvalidGamma.selector, config, 200, 100, true);
+        deployDoppler(InvalidGamma.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidNumPDSlugs_WithZeroSlugs() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.numPDSlugs = 0;
 
-        deployDoppler(InvalidNumPDSlugs.selector, config, 0, -172_800, true);
+        deployDoppler(InvalidNumPDSlugs.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidNumPDSlugs_GreaterThanMax() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         config.numPDSlugs = MAX_PRICE_DISCOVERY_SLUGS + 1;
 
-        deployDoppler(InvalidNumPDSlugs.selector, config, 0, -172_800, true);
+        deployDoppler(InvalidNumPDSlugs.selector, config, 0, 0, true);
     }
 
     function testConstructor_RevertsInvalidProceedLimits_WhenMinimumProceedsGreaterThanMaximumProceeds() public {
@@ -198,16 +199,14 @@ contract ConstructorTest is BaseTest {
         config.minimumProceeds = 100;
         config.maximumProceeds = 0;
 
-        deployDoppler(InvalidProceedLimits.selector, config, 0, -172_800, true);
+        deployDoppler(InvalidProceedLimits.selector, config, 0, 0, true);
     }
 
     function testConstructor_Succeeds_WithValidParameters() public {
-        bool _isToken0 = isToken0;
-        int24 _startTick = 0;
-        int24 _endTick = _isToken0 ? int24(-172_800) : int24(172_800);
+        bool _isToken0 = true;
 
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
 
-        deployDoppler(0, config, _startTick, _endTick, _isToken0);
+        deployDoppler(0, config, 0, 0, _isToken0);
     }
 }
