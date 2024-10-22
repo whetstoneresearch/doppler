@@ -17,7 +17,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -425,7 +424,6 @@ contract Doppler is BaseHook {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
             assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
         }
-        console.log("numAvail", numeraireAvailable);
 
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);

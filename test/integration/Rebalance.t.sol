@@ -23,7 +23,6 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
-import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -109,9 +108,6 @@ contract RebalanceTest is BaseTest {
             }
 
             // Validate that each price discovery slug has liquidity
-            // console.log("slug liq", priceDiscoverySlugs[i].liquidity);
-            // console.log("slug upper", priceDiscoverySlugs[i].tickUpper);
-            // console.log("slug lower", priceDiscoverySlugs[i].tickLower);
             assertGt(priceDiscoverySlugs[i].liquidity, 0);
         }
 
