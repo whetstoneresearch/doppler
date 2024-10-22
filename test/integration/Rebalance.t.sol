@@ -733,7 +733,7 @@ contract RebalanceTest is BaseTest {
         //       to either case and should only validate that the slugs are placed correctly.
 
         // Lower slug upper tick must not be greater than the currentTick
-        assertLe(lowerSlug.tickUpper, currentTick);
+        isToken0 ? assertLe(lowerSlug.tickUpper, currentTick) : assertGe(lowerSlug.tickUpper, currentTick);
 
         // Upper and price discovery slugs must be inline and continuous
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
