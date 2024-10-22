@@ -16,6 +16,7 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
+import {CustomRouter} from "test/shared/CustomRouter.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
@@ -95,6 +96,7 @@ contract BaseTest is Test, Deployers {
     // Contracts
 
     Quoter quoter;
+    CustomRouter router;
 
     // Deploy functions
 
@@ -235,6 +237,8 @@ contract BaseTest is Test, Deployers {
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
         quoter = new Quoter(manager);
+
+        router = new CustomRouter(swapRouter, quoter, key, isToken0, usingEth);
     }
 
     function computeBuyExactOut(uint256 amountOut) public returns (uint256) {
