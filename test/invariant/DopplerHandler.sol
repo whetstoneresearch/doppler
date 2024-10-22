@@ -82,7 +82,7 @@ contract DopplerHandler is Test {
         ghost_reserve1 = token1.balanceOf(address(hook));
     }
 
-    /// @notice Buys an amount of asset tokens using an exact amount of numeraires tokens
+    /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
     function buyExactAmountIn(uint256 amount) public createActor countCall(this.buyExactAmountIn.selector) {
         if (isUsingEth) {
             deal(currentActor, amount);
