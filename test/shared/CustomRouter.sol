@@ -68,12 +68,12 @@ contract CustomRouter is Test {
 
     /// @notice Buys asset tokens using an exact amount of numeraire tokens.
     /// @return bought Amount of asset tokens bought.
-    function buyExactIn(uint256 amount) public returns (uint256 bought) {
+    function buyExactIn(uint256 amount) public payable returns (uint256 bought) {
         (bought,) = buy(-int256(amount));
     }
 
     /// @notice Buys an exact amount of asset tokens using numeraire tokens.
-    function buyExactOut(uint256 amount) public returns (uint256 spent) {
+    function buyExactOut(uint256 amount) public payable returns (uint256 spent) {
         (, spent) = buy(int256(amount));
     }
 
@@ -94,10 +94,11 @@ contract CustomRouter is Test {
     /// a positive value specifies the amount of asset tokens to buy.
     /// @return Amount of asset tokens bought.
     /// @return Amount of numeraire tokens used.
-    function buy(int256 amount) public returns (uint256, uint256) {
+    function mintAndBuy(int256 amount) public returns (uint256, uint256) {
         // Negative means exactIn, positive means exactOut.
         uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
 
+        // TODO: Not sure if minting should be done in here, it might be better to mint in the tests.
         if (isUsingEth) {
             deal(address(this), uint256(mintAmount));
         } else {
@@ -106,6 +107,40 @@ contract CustomRouter is Test {
         }
 
         BalanceDelta delta = swapRouter.swap{value: isUsingEth ? mintAmount : 0}(
+            key,
+            IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+
+        uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
+        uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
+
+        uint256 bought = isToken0 ? delta0 : delta1;
+        uint256 spent = isToken0 ? delta1 : delta0;
+
+        TestERC20(asset).transfer(msg.sender, bought);
+
+        return (bought, spent);
+    }
+
+    /// @dev Buys a given amount of asset tokens.
+    /// @param amount A negative value specificies the amount of numeraire tokens to spend,
+    /// a positive value specifies the amount of asset tokens to buy.
+    /// @return Amount of asset tokens bought.
+    /// @return Amount of numeraire tokens used.
+    function buy(int256 amount) public payable returns (uint256, uint256) {
+        // Negative means exactIn, positive means exactOut.
+        uint256 transferAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
+
+        if (isUsingEth) {
+            require(msg.value == transferAmount, "Incorrect amount of ETH sent");
+        } else {
+            TestERC20(numeraire).transferFrom(msg.sender, address(this), transferAmount);
+            TestERC20(numeraire).approve(address(swapRouter), transferAmount);
+        }
+
+        BalanceDelta delta = swapRouter.swap{value: isUsingEth ? transferAmount : 0}(
             key,
             IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
