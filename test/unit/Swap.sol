@@ -17,7 +17,7 @@ import {
     InvalidSwapAfterMaturitySufficientProceeds
 } from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
-import "forge-std/console.sol";
+
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;
     using ProtocolFeeLibrary for *;

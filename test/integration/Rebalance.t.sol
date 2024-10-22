@@ -1000,9 +1000,6 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
 
-        console.log("lowerSlug.tickUpper", lowerSlug.tickUpper);
-        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
-        console.log("currentTick", currentTick);
         if (isToken0) {
             // Lower slug must not be above current tick
             assertLe(lowerSlug.tickUpper, currentTick, "third swap: lowerSlug.tickUpper > currentTick");
@@ -1171,9 +1168,6 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
-        console.log("currentTick", currentTick);
-        console.log("tickLower", tickLower);
-        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
         assertEq(
             tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
             lowerSlug.tickLower,
