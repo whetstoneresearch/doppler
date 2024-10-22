@@ -68,16 +68,35 @@ contract RebalanceTest is BaseTest {
         //       doesn't seem to due to rounding. Consider whether this is a problem or whether we
         //       even need that case at all
 
-        // Validate that lower slug is not above the current tick
-        assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()));
+        // TODO: Double check this condition
+
+        if (isToken0) {
+            // Validate that lower slug is not above the current tick
+            assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()), "lowerSlug.tickUpper > currentTick");
+        } else {
+            // Validate that lower slug is not below the current tick
+            assertGe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()), "lowerSlug.tickUpper < currentTick");
+        }
 
         // Validate that upper slug and all price discovery slugs are placed continuously
-        assertEq(upperSlug.tickUpper, priceDiscoverySlugs[0].tickLower);
+        assertEq(
+            upperSlug.tickUpper,
+            priceDiscoverySlugs[0].tickLower,
+            "upperSlug.tickUpper != priceDiscoverySlugs[0].tickLower"
+        );
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             if (i == 0) {
-                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+                assertEq(
+                    upperSlug.tickUpper,
+                    priceDiscoverySlugs[i].tickLower,
+                    "upperSlug.tickUpper != priceDiscoverySlugs[i].tickLower"
+                );
             } else {
-                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+                assertEq(
+                    priceDiscoverySlugs[i - 1].tickUpper,
+                    priceDiscoverySlugs[i].tickLower,
+                    "priceDiscoverySlugs[i - 1].tickUpper != priceDiscoverySlugs[i].tickLower"
+                );
             }
 
             if (i == priceDiscoverySlugs.length - 1) {
@@ -85,19 +104,20 @@ contract RebalanceTest is BaseTest {
                 assertApproxEqAbs(
                     priceDiscoverySlugs[i].tickUpper,
                     tickUpper,
-                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)),
+                    "priceDiscoverySlugs[i].tickUpper != tickUpper"
                 );
             }
 
             // Validate that each price discovery slug has liquidity
-            assertGt(priceDiscoverySlugs[i].liquidity, 0);
+            assertGt(priceDiscoverySlugs[i].liquidity, 0, "priceDiscoverySlugs[i].liquidity is 0");
         }
 
         // Validate that the lower slug has liquidity
-        assertGt(lowerSlug.liquidity, 1e18);
+        assertGt(lowerSlug.liquidity, 1e18, "lowerSlug no liquidity");
 
         // Validate that the upper slug has very little liquidity (dust)
-        assertLt(upperSlug.liquidity, 1e18);
+        assertLt(upperSlug.liquidity, 1e18, "upperSlug has liquidity");
 
         // Validate that we can swap all tokens back into the curve
         sell(-int256(totalTokensSold));
