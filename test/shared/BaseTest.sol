@@ -4,8 +4,10 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
+import {MAX_SWAP_FEE} from "src/Doppler.sol";
 import {TestERC20} from "v4-core/src/test/TestERC20.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {PoolManager, IPoolManager} from "v4-core/src/PoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
@@ -17,13 +19,18 @@ import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.
 import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
 import {CustomRouter} from "test/shared/CustomRouter.sol";
+import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
+import "forge-std/console.sol";
 
 using PoolIdLibrary for PoolKey;
-using BalanceDeltaLibrary for BalanceDelta;
+using StateLibrary for IPoolManager;
 
 contract BaseTest is Test, Deployers {
+    using ProtocolFeeLibrary for *;
+
     // TODO: Maybe add the start and end ticks to the config?
     struct DopplerConfig {
         uint256 numTokensToSell;
@@ -349,5 +356,23 @@ contract BaseTest is Test, Deployers {
         uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
 
         return isToken0 ? (delta0, delta1) : (delta1, delta0);
+    }
+
+    function computeFees(uint256 amount0, uint256 amount1) public view returns (uint256, uint256) {
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
+
+        uint256 amount0ExpectedFee;
+        uint256 amount1ExpectedFee;
+        if (protocolFee > 0) {
+            uint24 amount0SwapFee = protocolFee.getZeroForOneFee().calculateSwapFee(lpFee);
+            uint24 amount1SwapFee = protocolFee.getOneForZeroFee().calculateSwapFee(lpFee);
+            amount0ExpectedFee = FullMath.mulDiv(amount0, amount0SwapFee, MAX_SWAP_FEE);
+            amount1ExpectedFee = FullMath.mulDiv(amount1, amount1SwapFee, MAX_SWAP_FEE);
+        } else {
+            amount0ExpectedFee = FullMath.mulDiv(amount0, lpFee, MAX_SWAP_FEE);
+            amount1ExpectedFee = FullMath.mulDiv(amount1, lpFee, MAX_SWAP_FEE);
+        }
+
+        return (amount0ExpectedFee, amount1ExpectedFee);
     }
 }

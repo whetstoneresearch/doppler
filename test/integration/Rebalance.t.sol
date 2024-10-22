@@ -780,7 +780,6 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-        buy(-int256(amount1ToSwap));
 
         uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
             TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
@@ -788,7 +787,8 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-        sell(-int256(amount0ToSwap));
+        isToken0 ? buy(-int256(amount1ToSwap)) : buy(-int256(amount0ToSwap));
+        isToken0 ? sell(-int256(amount0ToSwap)) : sell(-int256(amount1ToSwap));
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength());
 
@@ -811,11 +811,6 @@ contract RebalanceTest is BaseTest {
             amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE);
             amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE);
         }
-
-        console.log("amount0ExpectedFee", amount0ExpectedFee);
-        console.log("amount1ExpectedFee", amount1ExpectedFee);
-        console.log("feesAccrued.amount0()", feesAccrued.amount0());
-        console.log("feesAccrued.amount1()", feesAccrued.amount1());
 
         assertApproxEqAbs(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0(), 1);
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
@@ -1005,6 +1000,9 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
 
+        console.log("lowerSlug.tickUpper", lowerSlug.tickUpper);
+        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
+        console.log("currentTick", currentTick);
         if (isToken0) {
             // Lower slug must not be above current tick
             assertLe(lowerSlug.tickUpper, currentTick, "third swap: lowerSlug.tickUpper > currentTick");
@@ -1173,18 +1171,14 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
-        if (
-            stdMath.delta(currentTick, tickLower) <= 1 || currentTick == TickMath.MIN_TICK
-                || currentTick == TickMath.MAX_TICK - 1
-        ) {
-            assertEq(
-                tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
-                lowerSlug.tickLower,
-                "sixth swap: lowerSlug.tickLower != global tickLower"
-            );
-        } else {
-            assertEq(tickLower, lowerSlug.tickLower, "sixth swap: lowerSlug.tickUpper != global tickLower");
-        }
+        console.log("currentTick", currentTick);
+        console.log("tickLower", tickLower);
+        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
+        assertEq(
+            tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
+            lowerSlug.tickLower,
+            "sixth swap: lowerSlug.tickLower != global tickLower"
+        );
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "sixth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
         // We don't set a priceDiscoverySlug because it's the last epoch
