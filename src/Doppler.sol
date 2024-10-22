@@ -175,11 +175,8 @@ contract Doppler is BaseHook {
         }
 
         // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
-        console.log("minimumProceeds", minimumProceeds);
-        console.log("state.totalProceeds", state.totalProceeds);
         if (block.timestamp > endingTime && !insufficientProceeds) {
             if (state.totalProceeds < minimumProceeds) {
-                console.log("triggering insufficient proceeds");
                 insufficientProceeds = true;
 
                 PoolId poolId = key.toId();

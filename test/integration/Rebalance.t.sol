@@ -22,12 +22,15 @@ import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/Protoco
 import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
+import {stdMath} from "forge-std/StdMath.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
     using ProtocolFeeLibrary for *;
+    using stdMath for *;
 
     function test_rebalance_ExtremeOversoldCase() public {
         // Go to starting time
@@ -159,8 +162,8 @@ contract RebalanceTest is BaseTest {
         (int24 tickLower,) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Validate that the lower slug is spanning the full range
-        if (hook.getCurrentTick(poolKey.toId()) == tickLower) {
-            assertEq(tickLower - poolKey.tickSpacing, lowerSlug.tickLower, "lowerSlug.tickLower != global tickLower");
+        if (stdMath.delta(hook.getCurrentTick(poolKey.toId()), tickLower) <= 1) {
+            assertEq(tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing), lowerSlug.tickLower, "lowerSlug.tickLower != global tickLower");
         } else {
             assertEq(tickLower, lowerSlug.tickLower, "lowerSlug.tickUpper != global tickLower");
         }
