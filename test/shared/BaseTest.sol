@@ -15,10 +15,12 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
 
 import {DopplerImplementation} from "./DopplerImplementation.sol";
 
 using PoolIdLibrary for PoolKey;
+using BalanceDeltaLibrary for BalanceDelta;
 
 contract BaseTest is Test, Deployers {
     // TODO: Maybe add the start and end ticks to the config?
@@ -282,7 +284,9 @@ contract BaseTest is Test, Deployers {
     /// @dev Buys a given amount of asset tokens.
     /// @param amount A negative value specificies the amount of numeraire tokens to spend,
     /// a positive value specifies the amount of asset tokens to buy.
-    function buy(int256 amount) public {
+    /// @return Amount of asset tokens bought.
+    /// @return Amount of numeraire tokens used.
+    function buy(int256 amount) public returns (uint256, uint256) {
         // Negative means exactIn, positive means exactOut.
         uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
 
@@ -293,26 +297,38 @@ contract BaseTest is Test, Deployers {
             TestERC20(numeraire).approve(address(swapRouter), uint256(mintAmount));
         }
 
-        swapRouter.swap{value: usingEth ? mintAmount : 0}(
+        BalanceDelta delta = swapRouter.swap{value: usingEth ? mintAmount : 0}(
             key,
             IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
             ""
         );
+
+        uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
+        uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
+
+        return isToken0 ? (delta0, delta1) : (delta1, delta0);
     }
 
     /// @dev Sells a given amount of asset tokens.
     /// @param amount A negative value specificies the amount of asset tokens to sell, a positive value
     /// specifies the amount of numeraire tokens to receive.
-    function sell(int256 amount) public {
+    /// @return Amount of asset tokens sold.
+    /// @return Amount of numeraire tokens received.
+    function sell(int256 amount) public returns (uint256, uint256) {
         uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
         TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
 
-        swapRouter.swap(
+        BalanceDelta delta = swapRouter.swap(
             key,
             IPoolManager.SwapParams(isToken0, amount, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
             ""
         );
+
+        uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
+        uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
+
+        return isToken0 ? (delta0, delta1) : (delta1, delta0);
     }
 }
