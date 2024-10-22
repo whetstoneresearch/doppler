@@ -23,6 +23,7 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 import {stdMath} from "forge-std/StdMath.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -787,7 +788,7 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-        buy(-int256(amount0ToSwap));
+        sell(-int256(amount0ToSwap));
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength());
 
@@ -810,6 +811,11 @@ contract RebalanceTest is BaseTest {
             amount0ExpectedFee = FullMath.mulDiv(amount0ToSwap, lpFee, MAX_SWAP_FEE);
             amount1ExpectedFee = FullMath.mulDiv(amount1ToSwap, lpFee, MAX_SWAP_FEE);
         }
+
+        console.log("amount0ExpectedFee", amount0ExpectedFee);
+        console.log("amount1ExpectedFee", amount1ExpectedFee);
+        console.log("feesAccrued.amount0()", feesAccrued.amount0());
+        console.log("feesAccrued.amount1()", feesAccrued.amount1());
 
         assertApproxEqAbs(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0(), 1);
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
