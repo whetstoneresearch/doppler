@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -174,8 +175,11 @@ contract Doppler is BaseHook {
         }
 
         // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
+        console.log("minimumProceeds", minimumProceeds);
+        console.log("state.totalProceeds", state.totalProceeds);
         if (block.timestamp > endingTime && !insufficientProceeds) {
             if (state.totalProceeds < minimumProceeds) {
+                console.log("triggering insufficient proceeds");
                 insufficientProceeds = true;
 
                 PoolId poolId = key.toId();
@@ -218,9 +222,11 @@ contract Doppler is BaseHook {
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
                 }
-            } else {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
             }
+        }
+
+        if (block.timestamp > endingTime && !insufficientProceeds) {
+            revert InvalidSwapAfterMaturitySufficientProceeds();
         }
 
         if (!insufficientProceeds) {
@@ -232,7 +238,7 @@ contract Doppler is BaseHook {
             }
         } else {
             if (swapParams.zeroForOne == true) {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
             }
         }
 
@@ -429,7 +435,8 @@ contract Doppler is BaseHook {
 
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
+        (SlugData memory upperSlug, uint256 assetRemaining) =
+            _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 

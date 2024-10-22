@@ -23,7 +23,6 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
-
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -484,8 +483,7 @@ contract RebalanceTest is BaseTest {
 
         buy(1 ether);
 
-        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
-            hook.state();
+        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
         assertEq(lastEpoch, 1);
         // We sold 1e18 tokens just now
@@ -652,7 +650,8 @@ contract RebalanceTest is BaseTest {
         }
 
         // Lower slug upper tick should be at the currentTick
-        assertEq(lowerSlug.tickUpper, currentTick, "lowerSlug.tickUpper not at currentTick");
+        // use abs because if !istoken0 the tick will be currentTick - 1 because swappingn 1 wei causes us to round down
+        assertApproxEqAbs(lowerSlug.tickUpper, currentTick, 1, "lowerSlug.tickUpper not at currentTick");
 
         // All slugs must be set
         assertNotEq(lowerSlug.liquidity, 0, "lowerSlug.liquidity is 0");
