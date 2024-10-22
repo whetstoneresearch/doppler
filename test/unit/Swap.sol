@@ -248,7 +248,6 @@ contract SwapTest is BaseTest {
 
         // Swap to trigger lower slug being created
         // Unsell half of sold tokens
-
         sell(-0.5 ether);
 
         vm.expectRevert(
@@ -256,7 +255,15 @@ contract SwapTest is BaseTest {
                 Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector)
             )
         );
+
         // Unsell beyond remaining tokens, moving price below lower slug
-        sell(-0.6 ether);
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(isToken0, -0.6 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
     }
 }
