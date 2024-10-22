@@ -163,7 +163,11 @@ contract RebalanceTest is BaseTest {
 
         // Validate that the lower slug is spanning the full range
         if (stdMath.delta(hook.getCurrentTick(poolKey.toId()), tickLower) <= 1) {
-            assertEq(tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing), lowerSlug.tickLower, "lowerSlug.tickLower != global tickLower");
+            assertEq(
+                tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
+                lowerSlug.tickLower,
+                "lowerSlug.tickLower != global tickLower"
+            );
         } else {
             assertEq(tickLower, lowerSlug.tickLower, "lowerSlug.tickUpper != global tickLower");
         }
@@ -209,7 +213,9 @@ contract RebalanceTest is BaseTest {
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
 
         // Validate that lower slug is not above the current tick
-        assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()));
+        isToken0
+            ? assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()))
+            : assertGe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()));
         if (isToken0) {
             assertEq(lowerSlug.tickUpper - lowerSlug.tickLower, poolKey.tickSpacing);
         } else {
@@ -240,16 +246,22 @@ contract RebalanceTest is BaseTest {
             assertGt(priceDiscoverySlugs[i].liquidity, 0);
         }
 
-        uint256 amount0Delta = LiquidityAmounts.getAmount0ForLiquidity(
-            TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
-            TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
-            lowerSlug.liquidity
-        );
+        uint256 amountDelta = isToken0
+            ? LiquidityAmounts.getAmount0ForLiquidity(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity
+            )
+            : LiquidityAmounts.getAmount1ForLiquidity(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity
+            );
 
         // assert that the lowerSlug can support the purchase of 99.9% of the tokens sold
-        assertApproxEqAbs(amount0Delta, totalTokensSold, totalTokensSold * 1 / 1000);
+        assertApproxEqAbs(amountDelta, totalTokensSold, totalTokensSold * 1 / 1000);
         // TODO: Figure out how this can possibly fail even though the following trade succeeds
-        assertGt(amount0Delta, totalTokensSold);
+        assertGt(amountDelta, totalTokensSold);
 
         // Validate that we can swap all tokens back into the curve
         sell(-int256(totalTokensSold));
@@ -1157,9 +1169,8 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
         if (
-            stdMath.delta(currentTick, tickLower) <= 1 ||
-            currentTick == TickMath.MIN_TICK ||
-            currentTick == TickMath.MAX_TICK - 1
+            stdMath.delta(currentTick, tickLower) <= 1 || currentTick == TickMath.MIN_TICK
+                || currentTick == TickMath.MAX_TICK - 1
         ) {
             assertEq(
                 tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
