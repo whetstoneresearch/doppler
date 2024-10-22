@@ -11,7 +11,8 @@ import {
     InvalidEpochLength,
     InvalidTimeRange,
     InvalidTickSpacing,
-    InvalidNumPDSlugs
+    InvalidNumPDSlugs,
+    InvalidProceedLimits
 } from "src/Doppler.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
@@ -60,6 +61,8 @@ contract ConstructorTest is BaseTest {
                 manager,
                 key,
                 config.numTokensToSell,
+                config.minimumProceeds,
+                config.maximumProceeds,
                 config.startingTime,
                 config.endingTime,
                 _startTick,
@@ -188,6 +191,14 @@ contract ConstructorTest is BaseTest {
         config.numPDSlugs = MAX_PRICE_DISCOVERY_SLUGS + 1;
 
         deployDoppler(InvalidNumPDSlugs.selector, config, 0, -172_800, true);
+    }
+
+    function testConstructor_RevertsInvalidProceedLimits_WhenMinimumProceedsGreaterThanMaximumProceeds() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.minimumProceeds = 100;
+        config.maximumProceeds = 0;
+
+        deployDoppler(InvalidProceedLimits.selector, config, 0, -172_800, true);
     }
 
     function testConstructor_Succeeds_WithValidParameters() public {

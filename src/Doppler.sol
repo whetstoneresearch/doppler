@@ -61,10 +61,14 @@ contract Doppler is BaseHook {
 
     // TODO: consider if we can use smaller uints
     // TODO: consider whether these need to be public
+    bool public insufficientProceeds; // triggers if the pool matures and minimumProceeds is not met
+    bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
+    uint256 immutable minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 immutable maximumProceeds; // proceeds amount that will trigger early exit condition
     uint256 immutable startingTime; // sale start time
     uint256 immutable endingTime; // sale end time
     int24 immutable startingTick; // dutch auction starting tick
@@ -80,6 +84,8 @@ contract Doppler is BaseHook {
         IPoolManager _poolManager,
         PoolKey memory _poolKey,
         uint256 _numTokensToSell,
+        uint256 _minimumProceeds,
+        uint256 _maximumProceeds,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -123,7 +129,12 @@ contract Doppler is BaseHook {
         if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
         if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
 
+        // These can both be zero
+        if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
+
         numTokensToSell = _numTokensToSell;
+        minimumProceeds = _minimumProceeds;
+        maximumProceeds = _maximumProceeds;
         startingTime = _startingTime;
         endingTime = _endingTime;
         startingTick = _startingTick;
@@ -145,21 +156,83 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
+    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata)
         external
         override
         onlyPoolManager
         returns (bytes4, BeforeSwapDelta, uint24)
     {
-        if (block.timestamp < startingTime || block.timestamp > endingTime) revert InvalidTime();
+        if (earlyExit) revert MaximumProceedsReached();
+
+        if (block.timestamp < startingTime) revert InvalidTime();
+
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
-            // TODO: Should there be a fee?
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        _rebalance(key);
+        // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
+        if (block.timestamp > endingTime && !insufficientProceeds) {
+            if (state.totalProceeds < minimumProceeds) {
+                insufficientProceeds = true;
 
-        // TODO: Should there be a fee?
+                PoolId poolId = key.toId();
+                (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+
+                Position[] memory prevPositions = new Position[](2 + numPDSlugs);
+                prevPositions[0] = positions[LOWER_SLUG_SALT];
+                prevPositions[1] = positions[UPPER_SLUG_SALT];
+                for (uint256 i; i < numPDSlugs; ++i) {
+                    prevPositions[2 + i] = positions[bytes32(uint256(3 + i))];
+                }
+
+                // TODO: Consider what to do if numeraireAvailable is 0
+                uint256 numeraireAvailable = isToken0
+                    ? uint256(uint128(_clearPositions(prevPositions, key).amount1()))
+                    : uint256(uint128(_clearPositions(prevPositions, key).amount0()));
+                SlugData memory lowerSlug =
+                    _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold);
+                Position[] memory newPositions = new Position[](1);
+
+                newPositions[0] = Position({
+                    tickLower: lowerSlug.tickLower,
+                    tickUpper: lowerSlug.tickUpper,
+                    liquidity: lowerSlug.liquidity,
+                    salt: uint8(uint256(LOWER_SLUG_SALT))
+                });
+
+                // add or subtract tickSpacing so that the we're above/below the lowerSlug.tickUpper
+                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
+                    _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
+                        + (isToken0 ? key.tickSpacing : -key.tickSpacing)
+                );
+
+                uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
+                _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
+                positions[LOWER_SLUG_SALT] = newPositions[0];
+
+                // add 1 to numPDSlugs because we don't need to clear the lower slug
+                // but we do need to clear the upper/pd slugs
+                for (uint256 i; i < numPDSlugs + 1; ++i) {
+                    delete positions[bytes32(uint256(2 + i))];
+                }
+            } else {
+                revert InvalidSwapAfterMaturitySufficientProceeds();
+            }
+        }
+
+        if (!insufficientProceeds) {
+            _rebalance(key);
+        } else if (isToken0) {
+            // if we have insufficient proceeds, only allow swaps from asset -> numeraire
+            if (swapParams.zeroForOne == false) {
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
+            }
+        } else {
+            if (swapParams.zeroForOne == true) {
+                revert InvalidSwapAfterMaturitySufficientProceeds();
+            }
+        }
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
@@ -184,15 +257,17 @@ contract Doppler is BaseHook {
             if (amount0 >= 0) {
                 state.totalTokensSold += uint256(uint128(amount0));
             } else {
-                uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 tokensSoldLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalTokensSold -= tokensSoldLessFee;
             }
-                
+
             int128 amount1 = swapDelta.amount1();
             if (amount1 >= 0) {
                 state.totalProceeds -= uint256(uint128(amount1));
             } else {
-                uint256 proceedsLessFee = FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 proceedsLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
@@ -202,7 +277,8 @@ contract Doppler is BaseHook {
             if (amount1 >= 0) {
                 state.totalTokensSold += uint256(uint128(amount1));
             } else {
-                uint256 tokensSoldLessFee = FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 tokensSoldLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalTokensSold -= tokensSoldLessFee;
             }
 
@@ -210,11 +286,16 @@ contract Doppler is BaseHook {
             if (amount0 >= 0) {
                 state.totalProceeds -= uint256(uint128(amount0));
             } else {
-                uint256 proceedsLessFee = FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 proceedsLessFee =
+                    FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
         }
 
+        // if we reach or exceed the maximumProceeds, we trigger the early exit condition
+        if (state.totalProceeds >= maximumProceeds) {
+            earlyExit = true;
+        }
 
         return (BaseHook.afterSwap.selector, 0);
     }
@@ -505,28 +586,7 @@ contract Doppler is BaseHook {
         // If we do not have enough proceeds to the full lower slug,
         // we switch to a single tick range at the target price
         if (requiredProceeds > totalProceeds_) {
-            uint160 targetPriceX96;
-            if (isToken0) {
-                // Q96 Target price (not sqrtPrice)
-                targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
-            } else {
-                targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
-            }
-            // TODO: Consider whether the target price should actually be tickUpper
-            // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-            // This should probably be + tickSpacing in the case of !isToken0
-            slug.tickLower = _alignComputedTickWithTickSpacing(
-                // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
-                TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
-                key.tickSpacing
-            ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
-            slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
-            slug.liquidity = _computeLiquidity(
-                !isToken0,
-                TickMath.getSqrtPriceAtTick(slug.tickLower),
-                TickMath.getSqrtPriceAtTick(slug.tickUpper),
-                totalProceeds_
-            );
+            slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_);
         } else {
             slug.tickLower = tickLower;
             slug.tickUpper = currentTick;
@@ -822,6 +882,35 @@ contract Doppler is BaseHook {
         return new bytes(0);
     }
 
+    function _computeLowerSlugInsufficientProceeds(PoolKey memory key, uint256 totalProceeds_, uint256 totalTokensSold_)
+        internal
+        view
+        returns (SlugData memory slug)
+    {
+        uint160 targetPriceX96;
+        if (isToken0) {
+            // Q96 Target price (not sqrtPrice)
+            targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
+        } else {
+            targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
+        }
+        // TODO: Consider whether the target price should actually be tickUpper
+        // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
+        // This should probably be + tickSpacing in the case of !isToken0
+        slug.tickLower = _alignComputedTickWithTickSpacing(
+            // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
+            TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
+            key.tickSpacing
+        ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
+        slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
+        slug.liquidity = _computeLiquidity(
+            !isToken0,
+            TickMath.getSqrtPriceAtTick(slug.tickLower),
+            TickMath.getSqrtPriceAtTick(slug.tickUpper),
+            totalProceeds_
+        );
+    }
+
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false,
@@ -852,4 +941,9 @@ error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
 error InvalidTickDelta();
+error InvalidSwap();
+error InvalidProceedLimits();
 error InvalidNumPDSlugs();
+error InvalidSwapAfterMaturitySufficientProceeds();
+error InvalidSwapAfterMaturityInsufficientProceeds();
+error MaximumProceedsReached();

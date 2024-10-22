@@ -774,7 +774,7 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-        buy(-int256(amount1ToSwap));
+        sell(-int256(amount1ToSwap));
 
         uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
             TickMath.getSqrtPriceAtTick(upperSlug.tickLower),

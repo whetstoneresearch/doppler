@@ -17,6 +17,8 @@ contract DopplerImplementation is Doppler {
         address _poolManager,
         PoolKey memory _poolKey,
         uint256 _numTokensToSell,
+        uint256 _minimumProceeds,
+        uint256 _maximumProceeds,
         uint256 _startingTime,
         uint256 _endingTime,
         int24 _startingTick,
@@ -31,6 +33,8 @@ contract DopplerImplementation is Doppler {
             IPoolManager(_poolManager),
             _poolKey,
             _numTokensToSell,
+            _minimumProceeds,
+            _maximumProceeds,
             _startingTime,
             _endingTime,
             _startingTick,
@@ -65,6 +69,14 @@ contract DopplerImplementation is Doppler {
 
     function getNumTokensToSell() public view returns (uint256) {
         return numTokensToSell;
+    }
+
+    function getMinimumProceeds() public view returns (uint256) {
+        return minimumProceeds;
+    }
+
+    function getMaximumProceeds() public view returns (uint256) {
+        return maximumProceeds;
     }
 
     function getStartingTick() public view returns (int24) {
