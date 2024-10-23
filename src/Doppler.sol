@@ -37,15 +37,11 @@ struct Position {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
-    // TODO: Consider whether we need larger salt in case of multiple discovery slugs
     uint8 salt;
 }
 
-// TODO: consider what a good tick spacing cieling is
-int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_SWAP_FEE = 1e6;
-
-// TODO: consider what a good max would be
+int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 
 /// @title Doppler
@@ -61,10 +57,9 @@ contract Doppler is BaseHook {
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
     bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
-    // TODO: consider if we can use smaller uints
-    // TODO: consider whether these need to be public
     bool public insufficientProceeds; // triggers if the pool matures and minimumProceeds is not met
     bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
+
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
@@ -148,13 +143,16 @@ contract Doppler is BaseHook {
         numPDSlugs = _numPDSlugs;
     }
 
+    /// @notice Called by poolManager following initialization, used to place initial liquidity slugs
+    /// @param sender The address that called poolManager.initialize
+    /// @param key The pool key
+    /// @param tick The initial tick of the pool
     function afterInitialize(address sender, PoolKey calldata key, uint160, int24 tick, bytes calldata)
         external
         override
         onlyPoolManager
         returns (bytes4)
     {
-        // TODO: Consider if we should use a struct or not, I like it because we can avoid passing the wrong data
         poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
         return BaseHook.afterInitialize.selector;
     }
