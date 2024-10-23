@@ -108,4 +108,28 @@ contract DopplerHandler is Test {
             ghost_reserve0 += amount;
         }
     }
+
+    function buyExactAmountOut(uint256 amount) public createActor countCall(this.buyExactAmountOut.selector) {
+        amount = 1 ether;
+        uint256 amountInRequired = router.computeBuyExactOut(amount);
+
+        if (isUsingEth) {
+            deal(currentActor, amountInRequired);
+        } else {
+            numeraire.mint(currentActor, amountInRequired);
+            numeraire.approve(address(router), amountInRequired);
+        }
+
+        uint256 spent = router.buyExactOut{value: isUsingEth ? amountInRequired : 0}(amount);
+        assetBalanceOf[currentActor] += amount;
+        totalTokensSold += amount;
+
+        if (isToken0) {
+            ghost_reserve0 -= amount;
+            ghost_reserve1 += spent;
+        } else {
+            ghost_reserve1 -= amount;
+            ghost_reserve0 += spent;
+        }
+    }
 }
