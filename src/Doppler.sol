@@ -807,6 +807,11 @@ contract Doppler is BaseHook {
         }
     }
 
+    /// @notice Updates the positions in the pool, accounts for accrued fees, and swaps to new price if necessary
+    /// @param newPositions The new positions to add
+    /// @param currentPrice The current price of the pool
+    /// @param swapPrice The target price to swap to
+    /// @param key The pool key
     function _update(Position[] memory newPositions, uint160 currentPrice, uint160 swapPrice, PoolKey memory key)
         internal
     {
@@ -827,7 +832,6 @@ contract Doppler is BaseHook {
         for (uint256 i; i < newPositions.length; ++i) {
             if (newPositions[i].liquidity != 0) {
                 // Add liquidity to new position
-                // TODO: Consider whether fees are relevant
                 poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
