@@ -361,8 +361,11 @@ contract BaseTest is Test, Deployers {
 
     function sellExpectRevert(int256 amount, bytes4 selector) public {
         // Negative means exactIn, positive means exactOut.
-        uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
-        TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
+        if (amount > 0) {
+            revert UnexpectedPositiveAmount();
+        }
+        uint256 approveAmount = uint256(-amount);
+        TestERC20(asset).approve(address(swapRouter), approveAmount);
         vm.expectRevert(abi.encodeWithSelector(
                 Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector)
             )
@@ -378,7 +381,10 @@ contract BaseTest is Test, Deployers {
 
     function buyExpectRevert(int256 amount, bytes4 selector) public {
         // Negative means exactIn, positive means exactOut.
-        uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
+        if (amount > 0) {
+            revert UnexpectedPositiveAmount();
+        }
+        uint256 mintAmount = uint256(-amount);
 
         if (usingEth) {
             deal(address(this), uint256(mintAmount));
@@ -419,3 +425,4 @@ contract BaseTest is Test, Deployers {
 }
 
 error UnexpectedRevertBytes(bytes revertData);
+error UnexpectedPositiveAmount();
