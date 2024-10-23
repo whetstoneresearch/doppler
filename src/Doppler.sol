@@ -218,9 +218,11 @@ contract Doppler is BaseHook {
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
                 }
-            } else {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
             }
+        }
+
+        if (block.timestamp > endingTime && !insufficientProceeds) {
+            revert InvalidSwapAfterMaturitySufficientProceeds();
         }
 
         if (!insufficientProceeds) {
@@ -232,7 +234,7 @@ contract Doppler is BaseHook {
             }
         } else {
             if (swapParams.zeroForOne == true) {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
             }
         }
 
@@ -429,7 +431,8 @@ contract Doppler is BaseHook {
 
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
+        (SlugData memory upperSlug, uint256 assetRemaining) =
+            _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 

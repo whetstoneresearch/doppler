@@ -203,10 +203,9 @@ contract ConstructorTest is BaseTest {
     }
 
     function testConstructor_Succeeds_WithValidParameters() public {
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         bool _isToken0 = true;
 
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-
-        deployDoppler(0, config, 0, 0, _isToken0);
+        deployDoppler(0, config, 0, 0, asset < numeraire);
     }
 }
