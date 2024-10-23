@@ -753,6 +753,10 @@ contract Doppler is BaseHook {
         return slugs;
     }
 
+    /// @notice Compute the target price given a numerator and denominator
+    ///         Converts to Q96
+    /// @param num The numerator
+    /// @param denom The denominator
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
         return uint160(FullMath.mulDiv(num, FixedPoint96.Q96, denom));
     }
