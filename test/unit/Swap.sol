@@ -1,9 +1,13 @@
 pragma solidity 0.8.26;
 
+import {Test} from "forge-std/Test.sol";
+
 import {MAX_SWAP_FEE} from "src/Doppler.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
@@ -14,8 +18,10 @@ import {
     InvalidSwapAfterMaturitySufficientProceeds
 } from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
+import {Position} from "../../src/Doppler.sol";
 
 contract SwapTest is BaseTest {
+    using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using ProtocolFeeLibrary for *;
 
@@ -144,12 +150,26 @@ contract SwapTest is BaseTest {
     function test_swap_DoesNotRebalanceTwiceInSameEpoch() public {
         vm.warp(hook.getStartingTime());
 
-        buy(1 ether);
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
             hook.state();
 
-        buy(1 ether);
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) =
             hook.state();
@@ -166,7 +186,14 @@ contract SwapTest is BaseTest {
     function test_swap_UpdatesLastEpoch() public {
         vm.warp(hook.getStartingTime());
 
-        buy(1 ether);
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (uint40 lastEpoch,,,,,) = hook.state();
 
@@ -174,7 +201,14 @@ contract SwapTest is BaseTest {
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
-        buy(1 ether);
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (lastEpoch,,,,,) = hook.state();
 
@@ -184,11 +218,25 @@ contract SwapTest is BaseTest {
     function test_swap_UpdatesTotalTokensSoldLastEpoch() public {
         vm.warp(hook.getStartingTime());
 
-        buy(1 ether);
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
-        buy(1 ether);
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
@@ -205,7 +253,12 @@ contract SwapTest is BaseTest {
 
         uint256 amountInLessFee = FullMath.mulDiv(uint256(amountIn), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
 
-        buy(-amountIn);
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(!isToken0, -amountIn, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
 
@@ -213,7 +266,12 @@ contract SwapTest is BaseTest {
 
         amountInLessFee = FullMath.mulDiv(uint256(totalTokensSold), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
 
-        sell(-int256(totalTokensSold));
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(isToken0, -int256(totalTokensSold), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         (,, uint256 totalTokensSold2,,,) = hook.state();
 
@@ -242,20 +300,34 @@ contract SwapTest is BaseTest {
     function test_swap_CannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
         vm.warp(hook.getStartingTime());
 
-        buy(1 ether);
+        // Sell some tokens
+        swapRouter.swap(
+            // Swap numeraire to asset
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(!isToken0, 1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
         // Swap to trigger lower slug being created
         // Unsell half of sold tokens
-        sell(-0.5 ether);
+        swapRouter.swap(
+            // Swap asset to numeraire
+            // If zeroForOne, we use max price limit (else vice versa)
+            key,
+            IPoolManager.SwapParams(isToken0, -0.5 ether, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(SwapBelowRange.selector)
             )
         );
-
         // Unsell beyond remaining tokens, moving price below lower slug
         swapRouter.swap(
             // Swap asset to numeraire

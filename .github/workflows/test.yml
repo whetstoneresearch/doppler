@@ -56,3 +56,4 @@ jobs:
           export PROTOCOL_FEE=50
           forge test -vvv --via-ir
         id: test2
+
