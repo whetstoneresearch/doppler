@@ -95,6 +95,8 @@ contract Doppler is BaseHook {
         bool _isToken0,
         uint256 _numPDSlugs
     ) BaseHook(_poolManager) {
+        // Check that the current time is before the starting time
+        if (block.timestamp > _startingTime) revert InvalidTime();
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
@@ -812,66 +814,37 @@ contract Doppler is BaseHook {
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
+        int256 accumulatorDelta = _getMaxTickDeltaPerEpoch() * 1;
+        state.tickAccumulator = state.tickAccumulator + accumulatorDelta;
+        state.lastEpoch = 1;
 
-        (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
+        int24 currentTick = _alignComputedTickWithTickSpacing(tick + int24(accumulatorDelta / 1e18), key.tickSpacing);
+        (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(state.tickAccumulator, key.tickSpacing);
+        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
+        uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
 
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
+        SlugData memory lowerSlug = SlugData({
+            tickLower: tickLower,
+            tickUpper: currentTick,
+            liquidity: 0
+        });
+        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, currentTick, numTokensToSell);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
-        BalanceDelta finalDelta;
-
-        if (upperSlug.liquidity != 0) {
-            (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
-                key,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: isToken0 ? upperSlug.tickLower : upperSlug.tickUpper,
-                    tickUpper: isToken0 ? upperSlug.tickUpper : upperSlug.tickLower,
-                    liquidityDelta: int128(upperSlug.liquidity),
-                    salt: UPPER_SLUG_SALT
-                }),
-                ""
-            );
-            finalDelta = add(finalDelta, callerDelta);
-        }
-
-        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            if (priceDiscoverySlugs[i].liquidity != 0) {
-                (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
-                    key,
-                    IPoolManager.ModifyLiquidityParams({
-                        tickLower: isToken0 ? priceDiscoverySlugs[i].tickLower : priceDiscoverySlugs[i].tickUpper,
-                        tickUpper: isToken0 ? priceDiscoverySlugs[i].tickUpper : priceDiscoverySlugs[i].tickLower,
-                        liquidityDelta: int128(priceDiscoverySlugs[i].liquidity),
-                        salt: bytes32(uint256(3 + i))
-                    }),
-                    ""
-                );
-                finalDelta = add(finalDelta, callerDelta);
-            }
-        }
-
-        if (isToken0) {
-            poolManager.sync(key.currency0);
-            key.currency0.transfer(address(poolManager), uint256(int256(-finalDelta.amount0())));
-        } else {
-            poolManager.sync(key.currency1);
-            key.currency1.transfer(address(poolManager), uint256(int256(-finalDelta.amount1())));
-        }
-
         Position[] memory newPositions = new Position[](2 + numPDSlugs);
-        newPositions[0] =
-            Position({tickLower: tick, tickUpper: tick, liquidity: 0, salt: uint8(uint256(LOWER_SLUG_SALT))});
+        newPositions[0] = Position({
+            tickLower: lowerSlug.tickLower,
+            tickUpper: lowerSlug.tickUpper,
+            liquidity: lowerSlug.liquidity,
+            salt: uint8(uint256(LOWER_SLUG_SALT))
+        });
         newPositions[1] = Position({
             tickLower: upperSlug.tickLower,
             tickUpper: upperSlug.tickUpper,
             liquidity: upperSlug.liquidity,
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
-
-        positions[LOWER_SLUG_SALT] = newPositions[0];
-        positions[UPPER_SLUG_SALT] = newPositions[1];
-
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             newPositions[2 + i] = Position({
                 tickLower: priceDiscoverySlugs[i].tickLower,
@@ -879,11 +852,9 @@ contract Doppler is BaseHook {
                 liquidity: priceDiscoverySlugs[i].liquidity,
                 salt: uint8(3 + i)
             });
-
-            positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
         }
 
-        poolManager.settle();
+        _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
 
         return new bytes(0);
     }

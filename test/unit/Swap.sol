@@ -17,7 +17,7 @@ import {
     InvalidSwapAfterMaturitySufficientProceeds
 } from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
-
+import "forge-std/console.sol";
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;
     using ProtocolFeeLibrary for *;
@@ -177,5 +177,20 @@ contract SwapTest is BaseTest {
         sell(-0.5 ether);
 
         sellExpectRevert(-0.6 ether, SwapBelowRange.selector);
+    }
+
+    function test_swap_DoesNotRebalanceInTheFirstEpoch() public {
+        (, int256 tickAccumulator,,,,) = hook.state();
+
+        console.log("tickAccumulator", tickAccumulator);
+
+        vm.warp(hook.getStartingTime());
+
+        buy(1 ether);
+        (, int256 tickAccumulator2,,,,) = hook.state();
+
+        console.log("tickAccumulator2", tickAccumulator2);
+
+        assertEq(tickAccumulator, tickAccumulator2);
     }
 }
