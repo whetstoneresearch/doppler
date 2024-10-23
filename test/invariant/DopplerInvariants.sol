@@ -5,6 +5,8 @@ import {console} from "forge-std/console.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {DopplerHandler} from "test/invariant/DopplerHandler.sol";
 import {State} from "src/Doppler.sol";
+import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;
@@ -42,6 +44,30 @@ contract DopplerInvariantsTest is BaseTest {
 
     /// forge-config: default.invariant.fail-on-revert = true
     function invariant_CantSellMoreThanNumTokensToSell() public view {
-        assertLe(handler.ghost_totalTokensSold(), hook.getNumTokensToSell());
+        uint256 numTokensToSell = hook.getNumTokensToSell();
+        assertLe(handler.ghost_totalTokensSold(), numTokensToSell);
+    }
+
+    /// forge-config: default.invariant.fail-on-revert = true
+    function invariant_AlwaysProvidesAllAvailableTokens() public view {
+        uint256 numTokensToSell = hook.getNumTokensToSell();
+        uint256 totalTokensProvided;
+        uint256 slugs = hook.getNumPDSlugs();
+
+        int24 currentTick = hook.getCurrentTick(poolId);
+
+        for (uint256 i = 1; i < 4 + slugs; i++) {
+            (int24 tickLower, int24 tickUpper, uint128 liquidity,) = hook.positions(bytes32(uint256(i)));
+            (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
+                TickMath.getSqrtPriceAtTick(currentTick),
+                TickMath.getSqrtPriceAtTick(tickLower),
+                TickMath.getSqrtPriceAtTick(tickUpper),
+                liquidity
+            );
+            totalTokensProvided += isToken0 ? amount0 : amount1;
+        }
+
+        (,, uint256 totalTokensSold,,,) = hook.state();
+        assertEq(totalTokensProvided, numTokensToSell - totalTokensSold);
     }
 }
