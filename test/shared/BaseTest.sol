@@ -245,6 +245,7 @@ contract BaseTest is Test, Deployers {
 
         // Deploy swapRouter
         swapRouter = new PoolSwapTest(manager);
+        vm.label(address(swapRouter), "SwapRouter");
 
         // Deploy modifyLiquidityRouter
         // Note: Only used to validate that liquidity can't be manually modified
@@ -259,8 +260,10 @@ contract BaseTest is Test, Deployers {
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
         quoter = new Quoter(manager);
+        vm.label(address(quoter), "Quoter");
 
         router = new CustomRouter(swapRouter, quoter, key, isToken0, usingEth);
+        vm.label(address(router), "Router");
     }
 
     function computeBuyExactOut(uint256 amountOut) public returns (uint256) {
