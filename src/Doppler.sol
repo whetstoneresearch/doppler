@@ -761,14 +761,16 @@ contract Doppler is BaseHook {
         return uint160(FullMath.mulDiv(num, FixedPoint96.Q96, denom));
     }
 
+    /// @notice Computes the single sided liquidity amount for a given price range and amount of tokens
+    /// @param forToken0 Whether the liquidity is for token0
+    /// @param lowerPrice The lower sqrt price of the range
+    /// @param upperPrice The upper sqrt price of the range
+    /// @param amount The amount of tokens to place as liquidity
     function _computeLiquidity(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
         internal
         pure
         returns (uint128)
     {
-        // TODO: This is probably not necessary anymore since we're bounding liquidity by
-        //       the amount of tokens available to provide. Should still carefully consider
-        //       whether this is necessary
         // We decrement the amount by 1 to avoid rounding errors
         amount = amount != 0 ? amount - 1 : amount;
 
