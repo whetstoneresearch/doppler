@@ -101,11 +101,6 @@ contract Doppler is BaseHook {
         if (_startingTick != _endingTick) {
             if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
             if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
-
-            int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
-            int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
-            // DA worst case is starting tick - ending tick
-            if (_gamma * totalEpochs != totalTickDelta) revert InvalidGamma();
         }
         // Enforce maximum tick spacing
         if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
