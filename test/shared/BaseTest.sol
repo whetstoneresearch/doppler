@@ -424,5 +424,4 @@ contract BaseTest is Test, Deployers {
     }
 }
 
-error UnexpectedRevertBytes(bytes revertData);
 error UnexpectedPositiveAmount();
