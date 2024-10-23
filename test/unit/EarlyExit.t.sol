@@ -16,6 +16,8 @@ import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {MaximumProceedsReached} from "src/Doppler.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
+import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
+import {CustomRouter} from "test/shared/CustomRouter.sol";
 import "forge-std/console.sol";
 
 using PoolIdLibrary for PoolKey;
@@ -71,11 +73,17 @@ contract EarlyExitTest is BaseTest {
         // Note: Only used to validate that liquidity can't be manually modified
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
-        // Approve the router to spend tokens on behalf of the test contract
-        TestERC20(token0).approve(address(swapRouter), type(uint256).max);
+        if (token0 != address(0)) {
+            // Approve the router to spend tokens on behalf of the test contract
+            TestERC20(token0).approve(address(swapRouter), type(uint256).max);
+            TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        }
         TestERC20(token1).approve(address(swapRouter), type(uint256).max);
-        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        quoter = new Quoter(manager);
+
+        router = new CustomRouter(swapRouter, quoter, key, isToken0, usingEth);
     }
 
     function test_swap_RevertsIfMaximumProceedsReached() public {
@@ -91,17 +99,6 @@ contract EarlyExitTest is BaseTest {
         buy(-maximumProceeds);
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(MaximumProceedsReached.selector)
-            )
-        );
-        swapRouter.swap(
-            key,
-            IPoolManager.SwapParams(isToken0, -1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        sellExpectRevert(-1 ether, MaximumProceedsReached.selector);
     }
 }
