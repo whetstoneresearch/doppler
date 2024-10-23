@@ -689,10 +689,18 @@ contract Doppler is BaseHook {
         } else {
             slug.liquidity = 0;
         }
-        
+
         assetRemaining = assetAvailable - tokensToLp;
     }
 
+    /// @notice Computes the price discovery slugs ticks and liquidity
+    ///         Places equidistant slugs up to the global tickUpper
+    ///         Places one epoch worth of tokens to sell in each slug, bounded by the amount available
+    ///         Stops placing slugs if we run out of future epochs to place for
+    /// @param key The pool key
+    /// @param upperSlug The computed upper slug data
+    /// @param tickUpper The global tickUpper of the bonding curve
+    /// @param assetAvailable The amount of asset tokens available to provide liquidity
     function _computePriceDiscoverySlugsData(
         PoolKey memory key,
         SlugData memory upperSlug,
@@ -701,8 +709,10 @@ contract Doppler is BaseHook {
     ) internal view returns (SlugData[] memory) {
         SlugData[] memory slugs = new SlugData[](numPDSlugs);
 
-        uint256 epochEndTime = _getEpochEndWithOffset(0); // compute end time of current epoch
-        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); // compute end time of next epoch
+        // Compute end time of current epoch
+        uint256 epochEndTime = _getEpochEndWithOffset(0); 
+        // Compute end time of next epoch
+        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); 
 
         // Return early if we're on the final epoch
         if (nextEpochEndTime == epochEndTime) {
@@ -728,10 +738,8 @@ contract Doppler is BaseHook {
             } else {
                 slugs[i].tickLower = slugs[i - 1].tickUpper;
             }
-            // TODO: Bound by the type(int24).max/min
             slugs[i].tickUpper = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
 
-            // TODO: Ensure we don't compute liquidity for a 0 tick range
             slugs[i].liquidity = _computeLiquidity(
                 isToken0,
                 TickMath.getSqrtPriceAtTick(slugs[i].tickLower),
