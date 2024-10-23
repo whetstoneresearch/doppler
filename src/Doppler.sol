@@ -485,6 +485,9 @@ contract Doppler is BaseHook {
         }
     }
 
+    /// @notice If offset == 0, retrieves the end time of the current epoch
+    ///         If offset == n, retrieves the end time of the nth epoch from the current
+    /// @param offset The offset from the current epoch
     function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
         uint256 epochEnd = (_getCurrentEpoch() + offset) * epochLength + startingTime;
         if (epochEnd > endingTime) {
