@@ -3,7 +3,6 @@ pragma solidity 0.8.26;
 import {Test} from "forge-std/Test.sol";
 
 import {BaseTest} from "test/shared/BaseTest.sol";
-import {TestERC20} from "v4-core/src/test/TestERC20.sol";
 import {DopplerImplementation} from "test/shared/DopplerImplementation.sol";
 import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
@@ -28,7 +27,7 @@ contract EarlyExitTest is BaseTest {
 
     function deployDoppler(DopplerConfig memory config) internal {
         (token0, token1) = isToken0 ? (asset, numeraire) : (numeraire, asset);
-        TestERC20(isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
+        (isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
 
@@ -72,10 +71,10 @@ contract EarlyExitTest is BaseTest {
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
         // Approve the router to spend tokens on behalf of the test contract
-        TestERC20(token0).approve(address(swapRouter), type(uint256).max);
-        TestERC20(token1).approve(address(swapRouter), type(uint256).max);
-        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
-        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        token0.approve(address(swapRouter), type(uint256).max);
+        token1.approve(address(swapRouter), type(uint256).max);
+        token0.approve(address(modifyLiquidityRouter), type(uint256).max);
+        token1.approve(address(modifyLiquidityRouter), type(uint256).max);
     }
 
     function test_swap_RevertsIfMaximumProceedsReached() public {
@@ -88,7 +87,12 @@ contract EarlyExitTest is BaseTest {
 
         int256 maximumProceeds = int256(hook.getMaximumProceeds());
 
-        buy(-maximumProceeds);
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(!isToken0, -maximumProceeds, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 

@@ -2,7 +2,6 @@ pragma solidity 0.8.26;
 
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {DopplerImplementation} from "test/shared/DopplerImplementation.sol";
-import {TestERC20} from "test/shared/BaseTest.sol";
 import {
     MAX_TICK_SPACING,
     MAX_PRICE_DISCOVERY_SLUGS,
@@ -41,7 +40,7 @@ contract ConstructorTest is BaseTest {
         isToken0 = _isToken0;
 
         (token0, token1) = isToken0 ? (asset, numeraire) : (numeraire, asset);
-        TestERC20(isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
+        (isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
 
