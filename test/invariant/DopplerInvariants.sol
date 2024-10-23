@@ -13,9 +13,10 @@ contract DopplerInvariantsTest is BaseTest {
         super.setUp();
         handler = new DopplerHandler(key, hook, router, isToken0, usingEth);
 
-        bytes4[] memory selectors = new bytes4[](2);
+        bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = handler.buyExactAmountIn.selector;
         selectors[1] = handler.buyExactAmountOut.selector;
+        selectors[2] = handler.sellExactIn.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
@@ -27,6 +28,7 @@ contract DopplerInvariantsTest is BaseTest {
         console.log("Calls: ", handler.totalCalls());
         console.log("buyExactAmountIn: ", handler.calls(handler.buyExactAmountIn.selector));
         console.log("buyExactAmountOut: ", handler.calls(handler.buyExactAmountOut.selector));
+        console.log("sellExactIn: ", handler.calls(handler.sellExactIn.selector));
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
