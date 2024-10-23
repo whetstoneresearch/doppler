@@ -48,6 +48,8 @@ uint256 constant MAX_SWAP_FEE = 1e6;
 // TODO: consider what a good max would be
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 
+/// @title Doppler
+/// @author TODO
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
