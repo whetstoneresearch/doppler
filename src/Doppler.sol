@@ -496,6 +496,7 @@ contract Doppler is BaseHook {
         return epochEnd;
     }
 
+    /// @notice Retrieves the current epoch
     function _getCurrentEpoch() internal view returns (uint256) {
         if (block.timestamp < startingTime) return 1;
         return (block.timestamp - startingTime) / epochLength + 1;
