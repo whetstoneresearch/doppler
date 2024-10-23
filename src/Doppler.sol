@@ -532,7 +532,10 @@ contract Doppler is BaseHook {
         return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
     }
 
-    // TODO: Consider bounding to int24.max/min
+    /// @notice Aligns a given tick with the tickSpacing of the pool
+    ///         Rounds down according to the asset token denominated price
+    /// @param tick The tick to align
+    /// @param tickSpacing The tick spacing of the pool
     function _alignComputedTickWithTickSpacing(int24 tick, int24 tickSpacing) internal view returns (int24) {
         if (isToken0) {
             // Round down if isToken0
