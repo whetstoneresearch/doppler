@@ -156,4 +156,33 @@ contract DopplerHandler is Test {
             ghost_reserve0 -= received;
         }
     }
+
+    function sellExactOut(uint256 seed)
+        public
+        useActor(uint256(uint160(msg.sender)))
+        countCall(this.sellExactOut.selector)
+    {
+        // If the currentActor is address(0), it means no one has bought any assets yet.
+        if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
+
+        // We compute the maximum amount we can receive from our current balance.
+        uint256 maxAmountToReceive = router.computeSellExactOut(assetBalanceOf[currentActor]);
+
+        // Then we compute a random amount from that maximum.
+        uint256 amountToReceive = seed % maxAmountToReceive + 1;
+
+        TestERC20(asset).approve(address(router), router.computeSellExactOut(amountToReceive));
+        uint256 sold = router.sellExactOut(amountToReceive);
+
+        assetBalanceOf[currentActor] -= sold;
+        totalTokensSold -= sold;
+
+        if (isToken0) {
+            ghost_reserve0 += sold;
+            ghost_reserve1 -= amountToReceive;
+        } else {
+            ghost_reserve0 -= amountToReceive;
+            ghost_reserve1 += sold;
+        }
+    }
 }
