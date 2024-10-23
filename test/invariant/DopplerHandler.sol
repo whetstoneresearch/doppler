@@ -71,11 +71,11 @@ contract DopplerHandler is Test {
         token1 = TestERC20(Currency.unwrap(poolKey.currency1));
 
         if (isToken0) {
-            numeraire = token0;
-            asset = token1;
-        } else {
-            numeraire = token1;
             asset = token0;
+            numeraire = token1;
+        } else {
+            asset = token1;
+            numeraire = token0;
         }
 
         ghost_reserve0 = token0.balanceOf(address(hook));
@@ -84,6 +84,8 @@ contract DopplerHandler is Test {
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
     function buyExactAmountIn(uint256 amount) public createActor countCall(this.buyExactAmountIn.selector) {
+        amount = 1 ether;
+
         if (isUsingEth) {
             deal(currentActor, amount);
         } else {
