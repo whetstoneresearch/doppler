@@ -24,8 +24,11 @@ contract DopplerHandler is Test {
     bool public isToken0;
     bool public isUsingEth;
 
+    // Ghost variables are used to mimic the state of the hook contract.
     uint256 public ghost_reserve0;
     uint256 public ghost_reserve1;
+    uint256 public ghost_totalTokensSold;
+    uint256 public ghost_totalProceeds;
 
     mapping(bytes4 => uint256) public calls;
     uint256 public totalCalls;
@@ -34,7 +37,6 @@ contract DopplerHandler is Test {
     address internal currentActor;
 
     mapping(address actor => uint256 balance) public assetBalanceOf;
-    uint256 public totalTokensSold;
 
     modifier createActor() {
         currentActor = msg.sender;
@@ -98,7 +100,8 @@ contract DopplerHandler is Test {
 
         uint256 bought = router.buyExactIn{value: isUsingEth ? amountToSpend : 0}(amountToSpend);
         assetBalanceOf[currentActor] += bought;
-        totalTokensSold += bought;
+        ghost_totalTokensSold += bought;
+        ghost_totalProceeds += amountToSpend;
 
         if (isToken0) {
             ghost_reserve0 -= bought;
@@ -122,7 +125,8 @@ contract DopplerHandler is Test {
 
         uint256 spent = router.buyExactOut{value: isUsingEth ? amountInRequired : 0}(assetsToBuy);
         assetBalanceOf[currentActor] += assetsToBuy;
-        totalTokensSold += assetsToBuy;
+        ghost_totalTokensSold += assetsToBuy;
+        ghost_totalProceeds += spent;
 
         if (isToken0) {
             ghost_reserve0 -= assetsToBuy;
@@ -146,7 +150,8 @@ contract DopplerHandler is Test {
         uint256 received = router.sellExactIn(assetsToSell);
 
         assetBalanceOf[currentActor] -= assetsToSell;
-        totalTokensSold -= assetsToSell;
+        ghost_totalTokensSold -= assetsToSell;
+        ghost_totalProceeds -= received;
 
         if (isToken0) {
             ghost_reserve0 += assetsToSell;
@@ -175,7 +180,8 @@ contract DopplerHandler is Test {
         uint256 sold = router.sellExactOut(amountToReceive);
 
         assetBalanceOf[currentActor] -= sold;
-        totalTokensSold -= sold;
+        ghost_totalTokensSold -= sold;
+        ghost_totalProceeds -= amountToReceive;
 
         if (isToken0) {
             ghost_reserve0 += sold;
