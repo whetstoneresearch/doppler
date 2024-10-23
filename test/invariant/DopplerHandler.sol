@@ -33,6 +33,8 @@ contract DopplerHandler is Test {
     AddressSet internal actors;
     address internal currentActor;
 
+    mapping(address actor => uint256 balance) public assetBalanceOf;
+
     modifier createActor() {
         currentActor = msg.sender;
         actors.add(msg.sender);
@@ -94,5 +96,14 @@ contract DopplerHandler is Test {
         }
 
         uint256 bought = router.buyExactIn{value: isUsingEth ? amount : 0}(amount);
+        assetBalanceOf[currentActor] += bought;
+
+        if (isToken0) {
+            ghost_reserve0 += bought;
+            ghost_reserve1 -= amount;
+        } else {
+            ghost_reserve1 += bought;
+            ghost_reserve0 -= amount;
+        }
     }
 }
