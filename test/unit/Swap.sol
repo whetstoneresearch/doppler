@@ -73,16 +73,7 @@ contract SwapTest is BaseTest {
 
         int256 minimumProceeds = int256(hook.getMinimumProceeds());
 
-        swapRouter.swap(
-            // Swap numeraire to asset
-            // If zeroForOne, we use max price limit (else vice versa)
-            key,
-            IPoolManager.SwapParams(
-                !isToken0, -minimumProceeds * 11 / 10, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            ),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        buy(-minimumProceeds * 11 / 10);
 
         vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
 

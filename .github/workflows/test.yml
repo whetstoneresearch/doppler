@@ -56,3 +56,11 @@ jobs:
           export PROTOCOL_FEE=50
           forge test -vvv --via-ir
         id: test2
+
+      - name: Run forge tests with usingEth (true)
+        run: |
+          export USING_ETH=TRUE
+          export FEE=0
+          export PROTOCOL_FEE=0
+          forge test -vvv --via-ir
+        id: test3
