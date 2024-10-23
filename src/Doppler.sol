@@ -578,10 +578,12 @@ contract Doppler is BaseHook {
         }
     }
 
-    // TODO: Consider whether overflow is reasonably possible
-    //       I think some validation logic will be necessary
-    //       Maybe we just need to bound to int24.max/min
-    // Returns a multiple of tickSpacing
+    /// @notice Computes the global lower and upper ticks based on the accumulator and tickSpacing
+    ///         These ticks represent the global range of the bonding curve, across all liquidity slugs
+    /// @param accumulator The tickAccumulator value
+    /// @param tickSpacing The tick spacing of the pool
+    /// @return lower The computed global lower tick
+    /// @return upper The computed global upper tick
     function _getTicksBasedOnState(int256 accumulator, int24 tickSpacing)
         internal
         view
@@ -591,6 +593,7 @@ contract Doppler is BaseHook {
         int24 adjustedTick = startingTick + accumulatorDelta;
         lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
 
+        // We don't need to align the upper tick since gamma is a multiple of tickSpacing
         if (isToken0) {
             upper = lower + gamma;
         } else {
