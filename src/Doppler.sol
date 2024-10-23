@@ -502,6 +502,8 @@ contract Doppler is BaseHook {
         return (block.timestamp - startingTime) / epochLength + 1;
     }
 
+    /// @notice Gets the elapsed time since the start of the sale, normalized to 1e18
+    /// @param timestamp The timestamp to retrieve for
     function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
         return FullMath.mulDiv(timestamp - startingTime, 1e18, endingTime - startingTime);
     }
