@@ -502,12 +502,13 @@ contract Doppler is BaseHook {
         return (block.timestamp - startingTime) / epochLength + 1;
     }
 
-    /// @notice Gets the elapsed time since the start of the sale, normalized to 1e18
+    /// @notice Retrieves the elapsed time since the start of the sale, normalized to 1e18
     /// @param timestamp The timestamp to retrieve for
     function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
         return FullMath.mulDiv(timestamp - startingTime, 1e18, endingTime - startingTime);
     }
 
+    /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
     function _getGammaShare() internal view returns (int256) {
         return int256(FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)));
     }
