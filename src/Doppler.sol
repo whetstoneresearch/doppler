@@ -990,7 +990,7 @@ contract Doppler is BaseHook {
             key.tickSpacing
         ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
         slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
-        
+
         slug.liquidity = _computeLiquidity(
             !isToken0,
             TickMath.getSqrtPriceAtTick(slug.tickLower),
@@ -999,6 +999,7 @@ contract Doppler is BaseHook {
         );
     }
 
+    /// @notice Returns a struct of permissions to signal which hook functions are to be implemented
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: false,
