@@ -317,13 +317,16 @@ contract Doppler is BaseHook {
         return (BaseHook.afterSwap.selector, 0);
     }
 
+    /// @notice Called by the poolManager immediately before liquidity is added
+    ///         We revert if the caller is not this contract
+    /// @param caller The address that called poolManager.modifyLiquidity
     function beforeAddLiquidity(
-        address _caller,
+        address caller,
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
     ) external view override onlyPoolManager returns (bytes4) {
-        if (_caller != address(this)) revert Unauthorized();
+        if (caller != address(this)) revert Unauthorized();
 
         return BaseHook.beforeAddLiquidity.selector;
     }
