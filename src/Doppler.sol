@@ -558,6 +558,11 @@ contract Doppler is BaseHook {
         }
     }
 
+    /// @notice Given the tick range for the lower slug, computes the amount of proceeds required to allow 
+    ///         for all purchased asset tokens to be sold back into the curve
+    /// @param sqrtPriceLower The sqrt price of the lower tick
+    /// @param sqrtPriceUpper The sqrt price of the upper tick
+    /// @param amount The amount of asset tokens which the liquidity needs to support the sale of
     function _computeRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 amount)
         internal
         view
@@ -565,16 +570,10 @@ contract Doppler is BaseHook {
     {
         uint128 liquidity;
         if (isToken0) {
-            // TODO: Check max liquidity per tick
-            //       Should we spread liquidity across multiple ticks if necessary?
             liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, amount);
-            // TODO: Should we be rounding up here?
             requiredProceeds = SqrtPriceMath.getAmount1Delta(sqrtPriceLower, sqrtPriceUpper, liquidity, true);
         } else {
-            // TODO: Check max liquidity per tick
-            //       Should we spread liquidity across multiple ticks if necessary?
             liquidity = LiquidityAmounts.getLiquidityForAmount1(sqrtPriceLower, sqrtPriceUpper, amount);
-            // TODO: Should we be rounding up here?
             requiredProceeds = SqrtPriceMath.getAmount0Delta(sqrtPriceLower, sqrtPriceUpper, liquidity, true);
         }
     }
