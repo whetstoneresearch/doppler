@@ -879,19 +879,22 @@ contract Doppler is BaseHook {
         int24 tick;
     }
 
-    // @dev This callback is only used to add the initial liquidity when the pool is created
+    /// @notice Callback to add liquidity to the pool in afterInitialize
+    /// @param data The callback data (key, sender, tick)
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
 
         (, int24 tickUpper) = _getTicksBasedOnState(int24(0), key.tickSpacing);
 
+        // Compute slugs to place
         (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
         BalanceDelta finalDelta;
 
+        // Place upper slug
         if (upperSlug.liquidity != 0) {
             (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                 key,
@@ -906,6 +909,7 @@ contract Doppler is BaseHook {
             finalDelta = add(finalDelta, callerDelta);
         }
 
+        // Place price discovery slug(s)
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             if (priceDiscoverySlugs[i].liquidity != 0) {
                 (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
@@ -922,6 +926,7 @@ contract Doppler is BaseHook {
             }
         }
 
+        // Provide tokens to the pool
         if (isToken0) {
             poolManager.sync(key.currency0);
             key.currency0.transfer(address(poolManager), uint256(int256(-finalDelta.amount0())));
@@ -930,6 +935,7 @@ contract Doppler is BaseHook {
             key.currency1.transfer(address(poolManager), uint256(int256(-finalDelta.amount1())));
         }
 
+        // Update position storage
         Position[] memory newPositions = new Position[](2 + numPDSlugs);
         newPositions[0] =
             Position({tickLower: tick, tickUpper: tick, liquidity: 0, salt: uint8(uint256(LOWER_SLUG_SALT))});
