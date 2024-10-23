@@ -24,9 +24,10 @@ contract SwapTest is BaseTest {
     // NOTE: when testing conditions where we expect a revert using buy/sellExpectRevert,
     // we need to pass in a negative amount to specify an exactIn swap.
     // otherwise, the quoter will attempt to calculate an exactOut amount, which will fail.
+
     function test_swap_RevertsBeforeStartTime() public {
         vm.warp(hook.getStartingTime() - 1); // 1 second before the start time
-        
+
         buyExpectRevert(-1 ether, InvalidTime.selector);
     }
 

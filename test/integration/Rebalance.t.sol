@@ -780,7 +780,6 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-
         uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
             TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
             TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),

@@ -823,12 +823,9 @@ contract Doppler is BaseHook {
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
 
-        SlugData memory lowerSlug = SlugData({
-            tickLower: tickLower,
-            tickUpper: currentTick,
-            liquidity: 0
-        });
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, currentTick, numTokensToSell);
+        SlugData memory lowerSlug = SlugData({tickLower: tickLower, tickUpper: currentTick, liquidity: 0});
+        (SlugData memory upperSlug, uint256 assetRemaining) =
+            _computeUpperSlugData(key, 0, currentTick, numTokensToSell);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
