@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {console} from "forge-std/console.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {DopplerHandler} from "test/invariant/DopplerHandler.sol";
+import {State} from "src/Doppler.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;
@@ -12,8 +13,9 @@ contract DopplerInvariantsTest is BaseTest {
         super.setUp();
         handler = new DopplerHandler(key, hook, router, isToken0, usingEth);
 
-        bytes4[] memory selectors = new bytes4[](1);
+        bytes4[] memory selectors = new bytes4[](2);
         selectors[0] = handler.buyExactAmountIn.selector;
+        selectors[1] = handler.buyExactAmountOut.selector;
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
@@ -22,13 +24,15 @@ contract DopplerInvariantsTest is BaseTest {
     }
 
     function afterInvariant() public view {
-        console.log("Handler address", address(handler));
         console.log("Calls: ", handler.totalCalls());
         console.log("buyExactAmountIn: ", handler.calls(handler.buyExactAmountIn.selector));
+        console.log("buyExactAmountOut: ", handler.calls(handler.buyExactAmountOut.selector));
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_works() public {
-        assertTrue(true);
+    function invariant_totalTokensSold() public view {
+        (,, uint256 totalTokensSold,,,) = hook.state();
+
+        assertEq(totalTokensSold, handler.totalTokensSold());
     }
 }
