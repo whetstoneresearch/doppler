@@ -642,15 +642,28 @@ contract Doppler is BaseHook {
         }
     }
 
+    /// @notice Computes the upper slug ticks and liquidity
+    ///         Places a slug with the range according to the per epoch gamma, starting at the current tick
+    ///         Provides the amount of tokens required to reach the expected amount sold by next epoch
+    ///         If we have already sold more tokens than expected by next epoch, we don't place a slug
+    /// @param key The pool key
+    /// @param totalTokensSold_ The total amount of tokens sold
+    /// @param currentTick The current tick of the pool
+    /// @param assetAvailable The amount of asset tokens available to provide liquidity
+    /// @return slug The computed upper slug data
+    /// @return assetRemaining The amount of asset tokens remaining after providing liquidity
     function _computeUpperSlugData(
         PoolKey memory key,
         uint256 totalTokensSold_,
         int24 currentTick,
         uint256 assetAvailable
     ) internal view returns (SlugData memory slug, uint256 assetRemaining) {
-        int256 tokensSoldDelta = int256(_getExpectedAmountSoldWithEpochOffset(1)) - int256(totalTokensSold_); // compute if we've sold more or less tokens than expected by next epoch
+        // Compute the delta between the amount of tokens sold relative to the expected amount sold by next epoch
+        int256 tokensSoldDelta = int256(_getExpectedAmountSoldWithEpochOffset(1)) - int256(totalTokensSold_);
 
         uint256 tokensToLp;
+        // If we have sold less tokens than expected, we place a slug with the amount of tokens to sell to reach
+        // the expected amount sold by next epoch
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
             int24 computedDelta =
@@ -665,6 +678,7 @@ contract Doppler is BaseHook {
             slug.tickUpper = currentTick;
         }
 
+        // We compute the amount of liquidity to place only if the tick range is non-zero
         if (slug.tickLower != slug.tickUpper) {
             slug.liquidity = _computeLiquidity(
                 isToken0,
@@ -675,6 +689,7 @@ contract Doppler is BaseHook {
         } else {
             slug.liquidity = 0;
         }
+        
         assetRemaining = assetAvailable - tokensToLp;
     }
 
