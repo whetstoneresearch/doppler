@@ -157,6 +157,10 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
+    /// @notice Called by the poolManager immediately before a swap is executed
+    ///         Triggers rebalancing logic in new epochs and handles early exit/insufficient proceeds outcomes
+    /// @param key The pool key
+    /// @param swapParams The parameters for swapping
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata)
         external
         override
@@ -167,12 +171,15 @@ contract Doppler is BaseHook {
 
         if (block.timestamp < startingTime) revert InvalidTime();
 
+        // We can skip rebalancing if we're in an epoch that already had a rebalance
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        // only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
+        // Only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp > endingTime && !insufficientProceeds) {
+            // If we haven't raised the minimum proceeds, we allow for all asset tokens to be sold back into
+            // the curve at the average clearing price
             if (state.totalProceeds < minimumProceeds) {
                 insufficientProceeds = true;
 
@@ -186,7 +193,7 @@ contract Doppler is BaseHook {
                     prevPositions[2 + i] = positions[bytes32(uint256(3 + i))];
                 }
 
-                // TODO: Consider what to do if numeraireAvailable is 0
+                // Place all available numeraire in the lower slug at the average clearing price
                 uint256 numeraireAvailable = isToken0
                     ? uint256(uint128(_clearPositions(prevPositions, key).amount1()))
                     : uint256(uint128(_clearPositions(prevPositions, key).amount0()));
@@ -201,7 +208,7 @@ contract Doppler is BaseHook {
                     salt: uint8(uint256(LOWER_SLUG_SALT))
                 });
 
-                // add or subtract tickSpacing so that the we're above/below the lowerSlug.tickUpper
+                // Include tickSpacing so we're at least at a higher price than the lower slug upper tick
                 uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
                     _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
                         + (isToken0 ? key.tickSpacing : -key.tickSpacing)
@@ -211,7 +218,7 @@ contract Doppler is BaseHook {
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
                 positions[LOWER_SLUG_SALT] = newPositions[0];
 
-                // add 1 to numPDSlugs because we don't need to clear the lower slug
+                // Add 1 to numPDSlugs because we don't need to clear the lower slug
                 // but we do need to clear the upper/pd slugs
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
@@ -221,16 +228,19 @@ contract Doppler is BaseHook {
             }
         }
 
+        // If startTime < block.timestamp < endTime and !earlyExit and !insufficientProceeds, we rebalance
         if (!insufficientProceeds) {
             _rebalance(key);
-        } else if (isToken0) {
-            // if we have insufficient proceeds, only allow swaps from asset -> numeraire
-            if (swapParams.zeroForOne == false) {
-                revert InvalidSwapAfterMaturityInsufficientProceeds();
-            }
         } else {
-            if (swapParams.zeroForOne == true) {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
+            // If we have insufficient proceeds, only allow swaps from asset -> numeraire
+            if (isToken0) {
+                if (swapParams.zeroForOne == false) {
+                    revert InvalidSwapAfterMaturityInsufficientProceeds();
+                }
+            } else {
+                if (swapParams.zeroForOne == true) {
+                    revert InvalidSwapAfterMaturitySufficientProceeds();
+                }
             }
         }
 
