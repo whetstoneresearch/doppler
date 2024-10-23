@@ -247,6 +247,12 @@ contract Doppler is BaseHook {
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
+    /// @notice Called by the poolManager immediately after a swap is executed
+    ///         Used to update totalTokensSold and totalProceeds with swap amounts, excluding fees
+    ///         If we've exceeded the maximumProceeds, we trigger the early exit condition
+    ///         We revert if the swap is below the range of the lower slug to prevent manipulation
+    /// @param key The pool key
+    /// @param swapDelta The balance delta of the address swapping
     function afterSwap(
         address,
         PoolKey calldata key,
@@ -303,7 +309,7 @@ contract Doppler is BaseHook {
             }
         }
 
-        // if we reach or exceed the maximumProceeds, we trigger the early exit condition
+        // If we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
             earlyExit = true;
         }
