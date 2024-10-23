@@ -781,13 +781,16 @@ contract Doppler is BaseHook {
         }
     }
 
+    /// @notice Clears the positions in the pool, accounts for accrued fees, and returns the balance deltas
+    /// @param lastEpochPositions The positions to clear
+    /// @param key The pool key
+    /// @return deltas The balance deltas from removing liquidity
     function _clearPositions(Position[] memory lastEpochPositions, PoolKey memory key)
         internal
         returns (BalanceDelta deltas)
     {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
-                // TODO: consider what to do with feeDeltas (second return variable)
                 (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
