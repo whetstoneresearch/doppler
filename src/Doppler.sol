@@ -513,9 +513,10 @@ contract Doppler is BaseHook {
         return int256(FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)));
     }
 
-    // 0 == end of last epoch
-    // 1 == end of current epoch
-    // n == end of nth epoch from current
+    /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
+    ///         If offset == 1, retrieves the expected amount sold by the end of the current epoch
+    ///         If offset == n, retrieves the expected amount sold by the end of the nth epoch from the current
+    /// @param offset The epoch offset to retrieve for
     function _getExpectedAmountSoldWithEpochOffset(uint256 offset) internal view returns (uint256) {
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime),
