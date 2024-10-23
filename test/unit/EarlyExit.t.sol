@@ -91,17 +91,6 @@ contract EarlyExitTest is BaseTest {
         buy(-maximumProceeds);
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(MaximumProceedsReached.selector)
-            )
-        );
-        swapRouter.swap(
-            key,
-            IPoolManager.SwapParams(isToken0, -1 ether, !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
-            PoolSwapTest.TestSettings(true, false),
-            ""
-        );
+        sellExpectRevert(-1 ether, MaximumProceedsReached.selector);
     }
 }

@@ -342,6 +342,7 @@ contract BaseTest is Test, Deployers {
     /// @return Amount of asset tokens sold.
     /// @return Amount of numeraire tokens received.
     function sell(int256 amount) public returns (uint256, uint256) {
+        // Negative means exactIn, positive means exactOut.
         uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
         TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
 
@@ -356,6 +357,46 @@ contract BaseTest is Test, Deployers {
         uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
 
         return isToken0 ? (delta0, delta1) : (delta1, delta0);
+    }
+
+    function sellExpectRevert(int256 amount, bytes4 selector) public {
+        // Negative means exactIn, positive means exactOut.
+        uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
+        TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
+        vm.expectRevert(abi.encodeWithSelector(
+                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector)
+            )
+        );
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(isToken0, amount, isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
+
+    }
+
+    function buyExpectRevert(int256 amount, bytes4 selector) public {
+        // Negative means exactIn, positive means exactOut.
+        uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
+
+        if (usingEth) {
+            deal(address(this), uint256(mintAmount));
+        } else {
+            TestERC20(numeraire).mint(address(this), uint256(mintAmount));
+            TestERC20(numeraire).approve(address(swapRouter), uint256(mintAmount));
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(
+                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector)
+            )
+        );
+        swapRouter.swap{value: usingEth ? mintAmount : 0}(
+            key,
+            IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(true, false),
+            ""
+        );
     }
 
     function computeFees(uint256 amount0, uint256 amount1) public view returns (uint256, uint256) {
@@ -376,3 +417,5 @@ contract BaseTest is Test, Deployers {
         return (amount0ExpectedFee, amount1ExpectedFee);
     }
 }
+
+error UnexpectedRevertBytes(bytes revertData);
