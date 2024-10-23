@@ -601,6 +601,17 @@ contract Doppler is BaseHook {
         }
     }
 
+    /// @notice Computes the lower slug ticks and liquidity
+    ///         If there are insufficient proceeds, we switch to a single tick range at the target price
+    ///         If there are sufficient proceeds, we use the range from the global tickLower to the current tick
+    /// @param key The pool key
+    /// @param requiredProceeds The amount of proceeds required to support the sale of all asset tokens
+    /// @param totalProceeds_ The total amount of proceeds earned from selling tokens
+    ///                       Bound to the amount of numeraire tokens available, which may be slightly less
+    /// @param totalTokensSold_ The total amount of tokens sold
+    /// @param tickLower The global tickLower of the bonding curve
+    /// @param currentTick The current tick of the pool
+    /// @return slug The computed lower slug data
     function _computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
@@ -609,7 +620,7 @@ contract Doppler is BaseHook {
         int24 tickLower,
         int24 currentTick
     ) internal view returns (SlugData memory slug) {
-        // If we do not have enough proceeds to the full lower slug,
+        // If we do not have enough proceeds to place the full lower slug,
         // we switch to a single tick range at the target price
         if (requiredProceeds > totalProceeds_) {
             slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_);
@@ -624,7 +635,7 @@ contract Doppler is BaseHook {
             );
         }
 
-        // We make sure that the lower tick and upper tick are equal if no liquidity
+        // We make sure that the lower tick and upper tick are equal if no liquidity,
         // else we don't properly enforce that swaps can't be made below the lower slug
         if (slug.liquidity == 0) {
             slug.tickLower = slug.tickUpper;
