@@ -525,8 +525,8 @@ contract Doppler is BaseHook {
         );
     }
 
-    // Returns 18 decimal fixed point value
-    // TODO: consider whether it's safe to always round down
+    /// @notice Computes the max tick delta, i.e. max dutch auction amount, per epoch
+    ///         Returns an 18 decimal fixed point value
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
         // Safe from overflow since max value is (2**24-1) * 1e18
         return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
