@@ -23,7 +23,6 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 
-
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -565,8 +564,7 @@ contract RebalanceTest is BaseTest {
             ""
         );
 
-        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
-            hook.state();
+        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
         assertEq(lastEpoch, 1);
         // We sold 1e18 tokens just now

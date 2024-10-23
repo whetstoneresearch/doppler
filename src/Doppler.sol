@@ -396,7 +396,8 @@ contract Doppler is BaseHook {
             state.tickAccumulator = newAccumulator;
         }
 
-        currentTick = _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta / 1e18), key.tickSpacing);
+        currentTick =
+            _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta / 1e18), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -442,7 +443,8 @@ contract Doppler is BaseHook {
         // Compute new positions
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
+        (SlugData memory upperSlug, uint256 assetRemaining) =
+            _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
@@ -558,7 +560,7 @@ contract Doppler is BaseHook {
         }
     }
 
-    /// @notice Given the tick range for the lower slug, computes the amount of proceeds required to allow 
+    /// @notice Given the tick range for the lower slug, computes the amount of proceeds required to allow
     ///         for all purchased asset tokens to be sold back into the curve
     /// @param sqrtPriceLower The sqrt price of the lower tick
     /// @param sqrtPriceUpper The sqrt price of the upper tick
@@ -710,9 +712,9 @@ contract Doppler is BaseHook {
         SlugData[] memory slugs = new SlugData[](numPDSlugs);
 
         // Compute end time of current epoch
-        uint256 epochEndTime = _getEpochEndWithOffset(0); 
+        uint256 epochEndTime = _getEpochEndWithOffset(0);
         // Compute end time of next epoch
-        uint256 nextEpochEndTime = _getEpochEndWithOffset(1); 
+        uint256 nextEpochEndTime = _getEpochEndWithOffset(1);
 
         // Return early if we're on the final epoch
         if (nextEpochEndTime == epochEndTime) {
@@ -983,7 +985,7 @@ contract Doppler is BaseHook {
             // Q96 Target price (not sqrtPrice)
             targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
         }
-        
+
         slug.tickLower = _alignComputedTickWithTickSpacing(
             // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
             TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
