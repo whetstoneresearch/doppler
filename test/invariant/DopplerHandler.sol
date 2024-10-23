@@ -86,32 +86,32 @@ contract DopplerHandler is Test {
     }
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
-    function buyExactAmountIn(uint256 amount) public createActor countCall(this.buyExactAmountIn.selector) {
-        amount = 1 ether;
+    function buyExactAmountIn(uint256 amountToSpend) public createActor countCall(this.buyExactAmountIn.selector) {
+        amountToSpend = 1 ether;
 
         if (isUsingEth) {
-            deal(currentActor, amount);
+            deal(currentActor, amountToSpend);
         } else {
-            numeraire.mint(currentActor, amount);
-            numeraire.approve(address(router), amount);
+            numeraire.mint(currentActor, amountToSpend);
+            numeraire.approve(address(router), amountToSpend);
         }
 
-        uint256 bought = router.buyExactIn{value: isUsingEth ? amount : 0}(amount);
+        uint256 bought = router.buyExactIn{value: isUsingEth ? amountToSpend : 0}(amountToSpend);
         assetBalanceOf[currentActor] += bought;
         totalTokensSold += bought;
 
         if (isToken0) {
             ghost_reserve0 -= bought;
-            ghost_reserve1 += amount;
+            ghost_reserve1 += amountToSpend;
         } else {
             ghost_reserve1 -= bought;
-            ghost_reserve0 += amount;
+            ghost_reserve0 += amountToSpend;
         }
     }
 
-    function buyExactAmountOut(uint256 amount) public createActor countCall(this.buyExactAmountOut.selector) {
-        amount = 1 ether;
-        uint256 amountInRequired = router.computeBuyExactOut(amount);
+    function buyExactAmountOut(uint256 assetsToBuy) public createActor countCall(this.buyExactAmountOut.selector) {
+        assetsToBuy = 1 ether;
+        uint256 amountInRequired = router.computeBuyExactOut(assetsToBuy);
 
         if (isUsingEth) {
             deal(currentActor, amountInRequired);
@@ -120,15 +120,15 @@ contract DopplerHandler is Test {
             numeraire.approve(address(router), amountInRequired);
         }
 
-        uint256 spent = router.buyExactOut{value: isUsingEth ? amountInRequired : 0}(amount);
-        assetBalanceOf[currentActor] += amount;
-        totalTokensSold += amount;
+        uint256 spent = router.buyExactOut{value: isUsingEth ? amountInRequired : 0}(assetsToBuy);
+        assetBalanceOf[currentActor] += assetsToBuy;
+        totalTokensSold += assetsToBuy;
 
         if (isToken0) {
-            ghost_reserve0 -= amount;
+            ghost_reserve0 -= assetsToBuy;
             ghost_reserve1 += spent;
         } else {
-            ghost_reserve1 -= amount;
+            ghost_reserve1 -= assetsToBuy;
             ghost_reserve0 += spent;
         }
     }
