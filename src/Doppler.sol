@@ -965,6 +965,11 @@ contract Doppler is BaseHook {
         return new bytes(0);
     }
 
+    /// @notice Computes the lower slug ticks and liquidity when there are insufficient proceeds
+    ///         Places a single tickSpacing range at the average clearing price
+    /// @param key The pool key
+    /// @param totalProceeds_ The total amount of proceeds earned from selling tokens
+    /// @param totalTokensSold_ The total amount of tokens sold
     function _computeLowerSlugInsufficientProceeds(PoolKey memory key, uint256 totalProceeds_, uint256 totalTokensSold_)
         internal
         view
@@ -975,17 +980,17 @@ contract Doppler is BaseHook {
             // Q96 Target price (not sqrtPrice)
             targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
         } else {
+            // Q96 Target price (not sqrtPrice)
             targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
         }
-        // TODO: Consider whether the target price should actually be tickUpper
-        // We multiply the tick of the regular price by 2 to get the tick of the sqrtPrice
-        // This should probably be + tickSpacing in the case of !isToken0
+        
         slug.tickLower = _alignComputedTickWithTickSpacing(
             // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
             TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
             key.tickSpacing
         ) + (isToken0 ? -key.tickSpacing : key.tickSpacing);
         slug.tickUpper = isToken0 ? slug.tickLower + key.tickSpacing : slug.tickLower - key.tickSpacing;
+        
         slug.liquidity = _computeLiquidity(
             !isToken0,
             TickMath.getSqrtPriceAtTick(slug.tickLower),
