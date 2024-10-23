@@ -331,6 +331,9 @@ contract Doppler is BaseHook {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
+    /// @notice Executed before swaps in new epochs to rebalance the bonding curve
+    ///         We adjust the bonding curve according to the amount tokens sold relative to the expected amount
+    /// @param key The pool key
     function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
@@ -341,14 +344,12 @@ contract Doppler is BaseHook {
         // Cache state var to avoid multiple SLOADs
         uint256 totalTokensSold_ = state.totalTokensSold;
 
-        // TODO: consider if this should be the expected amount sold at the start of the current epoch or at the current time
-        // i think logically it makes sense to use the current time to get the most accurate rebalance
+        // Get the expected amount sold and the net sold in the last epoch
         uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
         int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        // get current state
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
@@ -370,8 +371,8 @@ contract Doppler is BaseHook {
             int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
-            // The expectedTick is where the upperSlug.tickUpper is/would be placed
-            // The upperTick is not always placed so we have to compute it's placement in case it's not
+            // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
+            // The upperTick is not always placed so we have to compute its placement in case it's not
             // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
             int24 expectedTick = _alignComputedTickWithTickSpacing(
                 isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
@@ -395,13 +396,7 @@ contract Doppler is BaseHook {
             state.tickAccumulator = newAccumulator;
         }
 
-        // TODO: Do we need to accumulate this difference over time to ensure it gets applied later?
-        //       e.g. if accumulatorDelta is 4e18 for two epochs in a row, should we bump up by a tickSpacing
-        //       after the second epoch, or only adjust on significant epochs?
-        //       Maybe this is only necessary for the oversold case anyway?
-        accumulatorDelta /= 1e18;
-
-        currentTick = _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta), key.tickSpacing);
+        currentTick = _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta / 1e18), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -409,7 +404,6 @@ contract Doppler is BaseHook {
         // If we try to add liquidity in this range though, we revert with a divide by zero
         // Thus we have to create a gap between the two
         if (currentTick == tickLower) {
-            // TODO: May be worth bounding to a maximum int24.max/min to prevent over/underflow
             if (isToken0) {
                 tickLower -= key.tickSpacing;
             } else {
@@ -432,6 +426,7 @@ contract Doppler is BaseHook {
             prevPositions[2 + i] = positions[bytes32(uint256(3 + i))];
         }
 
+        // Remove existing positions, track removed tokens
         BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
 
         uint256 numeraireAvailable;
@@ -444,14 +439,12 @@ contract Doppler is BaseHook {
             assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
         }
 
+        // Compute new positions
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
         (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
-
-        // TODO: If we're not actually modifying liquidity, skip below logic
-        // TODO: Consider whether we need slippage protection
 
         // Get new positions
         Position[] memory newPositions = new Position[](2 + numPDSlugs);
