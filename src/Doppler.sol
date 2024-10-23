@@ -45,7 +45,7 @@ int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 
 /// @title Doppler
-/// @author TODO
+/// @author kadenzipfel, kinrezC, clemlak, aadams, and Alexangelj
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
