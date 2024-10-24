@@ -720,8 +720,6 @@ contract Doppler is BaseHook {
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
-        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
-        tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
 
         int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
         if (isToken0) {
@@ -730,13 +728,16 @@ contract Doppler is BaseHook {
             slugRangeDelta = slugRangeDelta < -key.tickSpacing ? slugRangeDelta : -key.tickSpacing;
         }
 
-        uint256 tokensToLpDenominator = numPDSlugs;
+        uint256 pdSlugsToLp = numPDSlugs;
         for (uint256 i; i < numPDSlugs; ++i) {
             if (_getEpochEndWithOffset(i) == _getEpochEndWithOffset(i + 1)) {
-                --tokensToLpDenominator;
+                --pdSlugsToLp;
             }
         }
 
+        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
+        bool surplusAssets = tokensToLp * pdSlugsToLp < assetAvailable;
+        tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
         for (uint256 i; i < numPDSlugs; ++i) {
             // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
             // and don't need to provide any more slugs
@@ -757,7 +758,7 @@ contract Doppler is BaseHook {
                 TickMath.getSqrtPriceAtTick(slugs[i].tickUpper),
                 // We reuse tokensToLp since it should be the same for all epochs
                 // This is dependent on the invariant that (endingTime - startingTime) % epochLength == 0
-                tokensToLp / tokensToLpDenominator
+                tokensToLp 
             );
         }
 
