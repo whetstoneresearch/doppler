@@ -75,6 +75,8 @@ contract Doppler is BaseHook {
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 immutable numPDSlugs; // number of price discovery slugs
 
+    receive() external payable {}
+
     constructor(
         IPoolManager _poolManager,
         PoolKey memory _poolKey,
@@ -96,11 +98,6 @@ contract Doppler is BaseHook {
         if (_startingTick != _endingTick) {
             if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
             if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
-
-            int24 totalTickDelta = _isToken0 ? _startingTick - _endingTick : _endingTick - _startingTick;
-            int256 totalEpochs = int256((_endingTime - _startingTime) / _epochLength);
-            // DA worst case is starting tick - ending tick
-            if (_gamma * totalEpochs != totalTickDelta) revert InvalidGamma();
         }
         // Enforce maximum tick spacing
         if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
@@ -223,8 +220,6 @@ contract Doppler is BaseHook {
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
                 }
-            } else {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
             }
         }
 
@@ -796,8 +791,8 @@ contract Doppler is BaseHook {
                 (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: lastEpochPositions[i].tickLower,
-                        tickUpper: lastEpochPositions[i].tickUpper,
+                        tickLower: isToken0 ? lastEpochPositions[i].tickLower : lastEpochPositions[i].tickUpper,
+                        tickUpper: isToken0 ? lastEpochPositions[i].tickUpper : lastEpochPositions[i].tickLower,
                         liquidityDelta: -int128(lastEpochPositions[i].liquidity),
                         salt: bytes32(uint256(lastEpochPositions[i].salt))
                     }),
@@ -837,12 +832,8 @@ contract Doppler is BaseHook {
                 poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: newPositions[i].tickLower < newPositions[i].tickUpper
-                            ? newPositions[i].tickLower
-                            : newPositions[i].tickUpper,
-                        tickUpper: newPositions[i].tickUpper > newPositions[i].tickLower
-                            ? newPositions[i].tickUpper
-                            : newPositions[i].tickLower,
+                        tickLower: isToken0 ? newPositions[i].tickLower : newPositions[i].tickUpper,
+                        tickUpper: isToken0 ? newPositions[i].tickUpper : newPositions[i].tickLower,
                         liquidityDelta: int128(newPositions[i].liquidity),
                         salt: bytes32(uint256(newPositions[i].salt))
                     }),
@@ -901,8 +892,8 @@ contract Doppler is BaseHook {
             (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                 key,
                 IPoolManager.ModifyLiquidityParams({
-                    tickLower: upperSlug.tickLower,
-                    tickUpper: upperSlug.tickUpper,
+                    tickLower: isToken0 ? upperSlug.tickLower : upperSlug.tickUpper,
+                    tickUpper: isToken0 ? upperSlug.tickUpper : upperSlug.tickLower,
                     liquidityDelta: int128(upperSlug.liquidity),
                     salt: UPPER_SLUG_SALT
                 }),
@@ -917,8 +908,8 @@ contract Doppler is BaseHook {
                 (BalanceDelta callerDelta,) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
-                        tickLower: priceDiscoverySlugs[i].tickLower,
-                        tickUpper: priceDiscoverySlugs[i].tickUpper,
+                        tickLower: isToken0 ? priceDiscoverySlugs[i].tickLower : priceDiscoverySlugs[i].tickUpper,
+                        tickUpper: isToken0 ? priceDiscoverySlugs[i].tickUpper : priceDiscoverySlugs[i].tickLower,
                         liquidityDelta: int128(priceDiscoverySlugs[i].liquidity),
                         salt: bytes32(uint256(3 + i))
                     }),
