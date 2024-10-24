@@ -730,6 +730,13 @@ contract Doppler is BaseHook {
             slugRangeDelta = slugRangeDelta < -key.tickSpacing ? slugRangeDelta : -key.tickSpacing;
         }
 
+        uint256 tokensToLpDenominator = numPDSlugs;
+        for (uint256 i; i < numPDSlugs; ++i) {
+            if (_getEpochEndWithOffset(i) == _getEpochEndWithOffset(i + 1)) {
+                --tokensToLpDenominator;
+            }
+        }
+
         for (uint256 i; i < numPDSlugs; ++i) {
             // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
             // and don't need to provide any more slugs
@@ -750,7 +757,7 @@ contract Doppler is BaseHook {
                 TickMath.getSqrtPriceAtTick(slugs[i].tickUpper),
                 // We reuse tokensToLp since it should be the same for all epochs
                 // This is dependent on the invariant that (endingTime - startingTime) % epochLength == 0
-                tokensToLp
+                tokensToLp / tokensToLpDenominator
             );
         }
 
