@@ -431,10 +431,10 @@ contract Doppler is BaseHook {
         uint256 assetAvailable;
         if (isToken0) {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf();
+            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf() - uint128(state.feesAccrued.amount0());
         } else {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
+            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf() - uint128(state.feesAccrued.amount1());
         }
 
         // Compute new positions
