@@ -189,4 +189,8 @@ contract DopplerHandler is Test {
             ghost_reserve1 += sold;
         }
     }
+
+    function goNextEpoch() public countCall(this.goNextEpoch.selector) {
+        vm.warp(block.timestamp + hook.getEpochLength());
+    }
 }
