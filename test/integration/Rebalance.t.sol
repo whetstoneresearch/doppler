@@ -780,7 +780,6 @@ contract RebalanceTest is BaseTest {
             upperSlug.liquidity
         ) * 9 / 10;
 
-
         uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
             TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
             TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
@@ -841,7 +840,7 @@ contract RebalanceTest is BaseTest {
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
         // Assert that we've done three epochs worth of max dutch auctioning
-        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 4, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 4");
+        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 4");
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -1145,7 +1144,7 @@ contract RebalanceTest is BaseTest {
         // Go to very end time
         vm.warp(
             hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength())
+                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength()) - 1
         );
 
         uint256 numTokensToSell = hook.getNumTokensToSell();
