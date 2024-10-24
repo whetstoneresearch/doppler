@@ -75,6 +75,8 @@ contract Doppler is BaseHook {
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 immutable numPDSlugs; // number of price discovery slugs
 
+    uint256 immutable totalEpochs; // total number of epochs
+
     receive() external payable {}
 
     constructor(
@@ -128,6 +130,8 @@ contract Doppler is BaseHook {
 
         // These can both be zero
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
+
+        totalEpochs = (_endingTime - _startingTime) / _epochLength;
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -375,14 +379,21 @@ contract Doppler is BaseHook {
             int24 expectedTick = _alignComputedTickWithTickSpacing(
                 isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
             );
+            
+            uint256 epochsRemaining = totalEpochs - currentEpoch;
+            int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
+            // instead of starting at the first pd slug salt, we start at the upper slug salt because in the last epoch there are no pd slugs
+            liquidityBound = epochsRemaining < numPDSlugs 
+                ? positions[bytes32(uint256(2 + epochsRemaining))].tickUpper
+                : liquidityBound;
 
             // We bound the currentTick by the top of the curve (tauTick + gamma)
             // This is necessary because there is no liquidity above the curve and we need to
             // ensure that the accumulatorDelta is just based on meaningful (in range) ticks
             if (isToken0) {
-                currentTick = currentTick > (tauTick + gamma) ? (tauTick + gamma) : currentTick;
+                currentTick = currentTick > liquidityBound ? liquidityBound : currentTick;
             } else {
-                currentTick = currentTick < (tauTick - gamma) ? (tauTick - gamma) : currentTick;
+                currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
             }
 
             accumulatorDelta = int256(currentTick - expectedTick) * 1e18;

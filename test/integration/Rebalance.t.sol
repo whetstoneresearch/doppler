@@ -881,6 +881,22 @@ contract RebalanceTest is BaseTest {
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
     }
 
+    function test_rebalance_SecondToLastEpochAccumulatorDelta() public {
+        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - 4));
+        uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
+
+        buy(int256(expectedProceeds * 15 / 10));
+
+        SlugVis.visualizeSlugs(hook, key.toId(), "fourthToLastEpoch", block.timestamp);
+
+
+        vm.warp(block.timestamp + hook.getEpochLength());
+
+        buy(1);
+
+        SlugVis.visualizeSlugs(hook, key.toId(), "thirdToLastEpoch", block.timestamp);
+    }
+
     function test_rebalance_FullFlow() public {
         PoolKey memory poolKey = key;
 
