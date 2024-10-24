@@ -722,6 +722,11 @@ contract Doppler is BaseHook {
         tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
 
         int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
+        if (isToken0) {
+            slugRangeDelta = slugRangeDelta < key.tickSpacing ? key.tickSpacing : slugRangeDelta;
+        } else {
+            slugRangeDelta = slugRangeDelta < -key.tickSpacing ? slugRangeDelta : -key.tickSpacing;
+        }
 
         for (uint256 i; i < numPDSlugs; ++i) {
             // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
