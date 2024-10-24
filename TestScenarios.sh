@@ -68,17 +68,31 @@ IS_TOKEN_0="false"
 FEE=30
 run_test || failed_configs+=("Case 5: IS_TOKEN_0=false, FEE=30")
 
-# Test Case 6: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50
-echo "🔍 Test Case 6: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50"
+# Test Case 6: USING_ETH=true, IS_TOKEN_0=false and FEE=30
+echo "🔍 Test Case 6: USING_ETH=true, IS_TOKEN_0=false and FEE=30"
+USING_ETH="true"
+IS_TOKEN_0="false"
+FEE=30
+run_test || failed_configs+=("Case 6: USING_ETH=true, IS_TOKEN_0=false and FEE=30")
+
+# Test Case 7: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50
+echo "🔍 Test Case 7: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50"
+USING_ETH="false"
 IS_TOKEN_0="true"
 FEE=30
 PROTOCOL_FEE=50
-run_test || failed_configs+=("Case 6: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50")
+run_test || failed_configs+=("Case 7: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50")
 
-# Test Case 7: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50
-echo "🔍 Test Case 7: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50"
+# Test Case 8: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50
+echo "🔍 Test Case 8: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50"
 IS_TOKEN_0="false"
-run_test || failed_configs+=("Case 7: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50")
+run_test || failed_configs+=("Case 8: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50")
+
+# Test Case 9: USING_ETH=true, IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50
+echo "🔍 Test Case 9: USING_ETH=true, IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50"
+USING_ETH="true"
+IS_TOKEN_0="false"
+run_test || failed_configs+=("Case 9: USING_ETH=true, IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50")
 
 # Print summary
 echo "================ Test Summary ================"
