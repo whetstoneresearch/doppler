@@ -176,7 +176,7 @@ contract Doppler is BaseHook {
         }
 
         // Only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
-        if (block.timestamp > endingTime && !insufficientProceeds) {
+        if (block.timestamp >= endingTime && !insufficientProceeds) {
             // If we haven't raised the minimum proceeds, we allow for all asset tokens to be sold back into
             // the curve at the average clearing price
             if (state.totalProceeds < minimumProceeds) {
@@ -888,6 +888,7 @@ contract Doppler is BaseHook {
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
 
+        // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
         SlugData memory lowerSlug = SlugData({tickLower: currentTick, tickUpper: currentTick, liquidity: 0});
         (SlugData memory upperSlug, uint256 assetRemaining) =
             _computeUpperSlugData(key, 0, currentTick, numTokensToSell);
