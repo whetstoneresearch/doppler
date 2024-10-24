@@ -220,9 +220,10 @@ contract Doppler is BaseHook {
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(2 + i))];
                 }
+            } else {
+                revert InvalidSwapAfterMaturitySufficientProceeds();
             }
-        }
-
+        } 
         // If startTime < block.timestamp < endTime and !earlyExit and !insufficientProceeds, we rebalance
         if (!insufficientProceeds) {
             _rebalance(key);
@@ -234,7 +235,7 @@ contract Doppler is BaseHook {
                 }
             } else {
                 if (swapParams.zeroForOne == true) {
-                    revert InvalidSwapAfterMaturitySufficientProceeds();
+                    revert InvalidSwapAfterMaturityInsufficientProceeds();
                 }
             }
         }
