@@ -879,8 +879,7 @@ contract Doppler is BaseHook {
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
-        int256 accumulatorDelta = _getMaxTickDeltaPerEpoch() * 1;
-        state.tickAccumulator = state.tickAccumulator + accumulatorDelta;
+        int256 accumulatorDelta = _getMaxTickDeltaPerEpoch();
         state.lastEpoch = 1;
 
         int24 currentTick = _alignComputedTickWithTickSpacing(tick + int24(accumulatorDelta / 1e18), key.tickSpacing);
