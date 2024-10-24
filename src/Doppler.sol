@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -879,18 +880,16 @@ contract Doppler is BaseHook {
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
-        int256 accumulatorDelta = _getMaxTickDeltaPerEpoch();
         state.lastEpoch = 1;
 
-        int24 currentTick = _alignComputedTickWithTickSpacing(tick + int24(accumulatorDelta / 1e18), key.tickSpacing);
-        (, int24 tickUpper) = _getTicksBasedOnState(state.tickAccumulator, key.tickSpacing);
-        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
+        (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
+        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
         uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
 
         // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
-        SlugData memory lowerSlug = SlugData({tickLower: currentTick, tickUpper: currentTick, liquidity: 0});
+        SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
         (SlugData memory upperSlug, uint256 assetRemaining) =
-            _computeUpperSlugData(key, 0, currentTick, numTokensToSell);
+            _computeUpperSlugData(key, 0, tick, numTokensToSell);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
