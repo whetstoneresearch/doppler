@@ -23,7 +23,6 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 import {stdMath} from "forge-std/StdMath.sol";
-import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -882,10 +881,10 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_SecondToLastEpochAccumulatorDelta() public {
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - 4));
+        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - 3));
         uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
 
-        buy(int256(expectedProceeds * 15 / 10));
+        buy(int256(expectedProceeds) * 1005 / 1000);
 
         SlugVis.visualizeSlugs(hook, key.toId(), "fourthToLastEpoch", block.timestamp);
 

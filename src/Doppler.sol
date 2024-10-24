@@ -17,7 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-
+import "forge-std/console.sol";
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -383,8 +383,8 @@ contract Doppler is BaseHook {
             uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
             // instead of starting at the first pd slug salt, we start at the upper slug salt because in the last epoch there are no pd slugs
-            liquidityBound = epochsRemaining < numPDSlugs 
-                ? positions[bytes32(uint256(2 + epochsRemaining))].tickUpper
+            liquidityBound = epochsRemaining < numPDSlugs && epochsRemaining > 0
+                ? positions[bytes32(uint256(3 + epochsRemaining))].tickUpper
                 : liquidityBound;
 
             // We bound the currentTick by the top of the curve (tauTick + gamma)
@@ -747,7 +747,7 @@ contract Doppler is BaseHook {
         }
 
         uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
-        bool surplusAssets = tokensToLp * pdSlugsToLp < assetAvailable;
+        bool surplusAssets = tokensToLp * pdSlugsToLp <= assetAvailable;
         tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
         for (uint256 i; i < numPDSlugs; ++i) {
             // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
