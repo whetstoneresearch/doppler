@@ -17,7 +17,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -226,7 +225,7 @@ contract Doppler is BaseHook {
             } else {
                 revert InvalidSwapAfterMaturitySufficientProceeds();
             }
-        } 
+        }
         // If startTime < block.timestamp < endTime and !earlyExit and !insufficientProceeds, we rebalance
         if (!insufficientProceeds) {
             _rebalance(key);
@@ -888,8 +887,7 @@ contract Doppler is BaseHook {
 
         // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
         SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
-        (SlugData memory upperSlug, uint256 assetRemaining) =
-            _computeUpperSlugData(key, 0, tick, numTokensToSell);
+        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
