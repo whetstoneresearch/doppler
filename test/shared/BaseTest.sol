@@ -366,9 +366,8 @@ contract BaseTest is Test, Deployers {
         }
         uint256 approveAmount = uint256(-amount);
         TestERC20(asset).approve(address(swapRouter), approveAmount);
-        vm.expectRevert(abi.encodeWithSelector(
-                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector)
-            )
+        vm.expectRevert(
+            abi.encodeWithSelector(Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector))
         );
         swapRouter.swap(
             key,
@@ -376,7 +375,6 @@ contract BaseTest is Test, Deployers {
             PoolSwapTest.TestSettings(true, false),
             ""
         );
-
     }
 
     function buyExpectRevert(int256 amount, bytes4 selector) public {
@@ -393,9 +391,8 @@ contract BaseTest is Test, Deployers {
             TestERC20(numeraire).approve(address(swapRouter), uint256(mintAmount));
         }
 
-        vm.expectRevert(abi.encodeWithSelector(
-                Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector)
-            )
+        vm.expectRevert(
+            abi.encodeWithSelector(Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector))
         );
         swapRouter.swap{value: usingEth ? mintAmount : 0}(
             key,
