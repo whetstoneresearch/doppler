@@ -1144,7 +1144,7 @@ contract RebalanceTest is BaseTest {
         // Go to very end time
         vm.warp(
             hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength())
+                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength()) - 1
         );
 
         uint256 numTokensToSell = hook.getNumTokensToSell();
