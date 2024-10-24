@@ -102,6 +102,17 @@ contract DopplerInvariantsTest is BaseTest {
         }
     }
 
+    function invariant_CannotTradeUnderLowerSlug() public view {
+        (int24 tickLower,,,) = hook.positions(bytes32(uint256(1)));
+        int24 currentTick = hook.getCurrentTick(poolId);
+
+        if (isToken0) {
+            assertTrue(currentTick >= tickLower);
+        } else {
+            assertTrue(currentTick <= tickLower);
+        }
+    }
+
     /// forge-config: default.invariant.fail-on-revert = true
     function invariant_PositionsDifferentTicks() public view {
         uint256 slugs = hook.getNumPDSlugs();
