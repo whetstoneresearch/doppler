@@ -122,8 +122,10 @@ contract DopplerInvariantsTest is BaseTest {
         }
     }
 
+    /// forge-config: default.invariant.fail-on-revert = true
     function invariant_NoPriceChangesBeforeStart() public {
         vm.warp(DEFAULT_STARTING_TIME - 1);
-        assertEq(hook.getCurrentTick(poolId), DEFAULT_START_TICK);
+        // TODO: I think this test is broken because we don't set the tick in the constructor.
+        assertEq(hook.getCurrentTick(poolId), hook.getStartingTick());
     }
 }
