@@ -65,8 +65,8 @@ contract AfterInitializeTest is BaseTest {
 
         // Assert that lower slug has both ticks as the startingTick offset by one max DA
         int24 maxTickDelta = int24(hook.getMaxTickDeltaPerEpoch() / 1e18);
-        assertEq(lowerSlug.tickLower, hook.getStartingTick() - maxTickDelta);
-        assertEq(lowerSlug.tickUpper, hook.getStartingTick() - maxTickDelta);
+        assertEq(lowerSlug.tickLower, hook.getStartingTick() + maxTickDelta);
+        assertEq(lowerSlug.tickUpper, hook.getStartingTick() + maxTickDelta);
 
         // Assert that lower slug has no liquidity
         assertEq(lowerSlug.liquidity, 0);
