@@ -50,8 +50,8 @@ contract DopplerInvariantsTest is BaseTest {
         console.log("+-------------------+-----------------------+");
         console.log("| Function Name     | Calls                 |", handler.totalCalls());
         console.log("+-------------------+-----------------------+");
-        console.log("| buyExactAmountIn  |", handler.calls(handler.buyExactAmountIn.selector), "                    |");
-        console.log("| buyExactAmountOut |", handler.calls(handler.buyExactAmountOut.selector), "                    |");
+        console.log("| buyExactAmountIn  |", handler.calls(handler.buyExactAmountIn.selector), "                  |");
+        console.log("| buyExactAmountOut |", handler.calls(handler.buyExactAmountOut.selector), "                  |");
         console.log("| sellExactIn       |", handler.calls(handler.sellExactIn.selector), "                    |");
         console.log("| sellExactOut      |", handler.calls(handler.sellExactOut.selector), "                    |");
         console.log("+-------------------+-----------------------+");
@@ -120,5 +120,10 @@ contract DopplerInvariantsTest is BaseTest {
             (int24 tickLower, int24 tickUpper, uint128 liquidity,) = hook.positions(bytes32(uint256(i)));
             if (liquidity > 0) assertTrue(tickLower != tickUpper);
         }
+    }
+
+    function invariant_NoPriceChangesBeforeStart() public {
+        vm.warp(DEFAULT_STARTING_TIME - 1);
+        assertEq(hook.getCurrentTick(poolId), DEFAULT_START_TICK);
     }
 }
