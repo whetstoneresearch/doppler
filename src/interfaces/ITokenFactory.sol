@@ -5,7 +5,7 @@ interface ITokenFactory {
     function create(
         string memory name,
         string memory symbol,
-        uint256 totalSupply,
+        uint256 initialSupply,
         address recipient,
         address owner,
         bytes memory tokenData
