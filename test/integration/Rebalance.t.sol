@@ -385,8 +385,74 @@ contract RebalanceTest is BaseTest {
         }
     }
 
-    // TODO: test_rebalance_UpperSlug_Oversold
-    //       This case may not actually be possible, but if it is, we need a test case
+    // @dev This test only works with a sufficiently high ratio of numPDSlugs / gamma
+    //      Not all configurations will trigger this case
+    function test_rebalance_UpperSlug_Oversold() public {
+        // Go to starting time
+        vm.warp(hook.getStartingTime());
+
+        PoolKey memory poolKey = key;
+        bool isToken0 = hook.getIsToken0();
+
+        // Compute the amount of tokens available in the upper slug
+        uint256 amountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
+
+        // Compute the amount of tokens available in the price discovery slugs
+        uint256 epochT1toT2Delta = hook.getNormalizedTimeElapsed(hook.getStartingTime() + hook.getEpochLength())
+            - hook.getNormalizedTimeElapsed(hook.getStartingTime());
+        uint256 tokensInPDSlug = FullMath.mulDiv(epochT1toT2Delta, hook.getNumTokensToSell(), 1e18);
+        amountSold += tokensInPDSlug * hook.getNumPDSlugs();
+
+        // We sell all tokens available to trigger the oversold case
+        buy(int256(amountSold));
+
+        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+
+        // We swap again just to trigger the rebalancing logic in the new epoch
+        buy(1 ether);
+
+        (, int256 tickAccumulator,,,,) = hook.state();
+
+        // Get the slugs
+        Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
+        Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
+        Position[] memory priceDiscoverySlugs = new Position[](hook.getNumPDSlugs());
+        for (uint256 i; i < hook.getNumPDSlugs(); i++) {
+            priceDiscoverySlugs[i] = hook.getPositions(bytes32(uint256(3 + i)));
+        }
+
+        // Get global upper tick
+        (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator, poolKey.tickSpacing);
+
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            if (i == 0) {
+                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+            } else {
+                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+            }
+
+            if (i == priceDiscoverySlugs.length - 1) {
+                // We allow some room for rounding down to the nearest tickSpacing for each slug
+                assertApproxEqAbs(
+                    priceDiscoverySlugs[i].tickUpper,
+                    tickUpper,
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                );
+            }
+
+            // Validate that each price discovery slug has liquidity
+            assertGt(priceDiscoverySlugs[i].liquidity, 0);
+        }
+
+        // Validate that the lower slug has liquidity
+        assertGt(lowerSlug.liquidity, 0, "lowerSlug.liquidity is 0");
+
+        // Validate that the upper slug doesn't have liquidity
+        assertEq(upperSlug.liquidity, 0, "upperSlug.liquidity is non-zero");
+
+        // Validate that the upper slug has a zero range
+        assertEq(upperSlug.tickLower, upperSlug.tickUpper, "upperSlug.tickLower != upperSlug.tickUpper");
+    }
 
     function test_rebalance_PriceDiscoverySlug_RemainingEpoch() public {
         // Go to second last epoch
