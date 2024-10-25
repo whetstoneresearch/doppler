@@ -881,13 +881,21 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_SecondToLastEpochAccumulatorDelta() public {
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - 3));
+        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs()));
         uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // buy much more than expected proceeds so that we can exceed the max pd slug range
         buy(int256(expectedProceeds) * 2);
+        // There must be numPdSlugs - 1 epochs remaining so that we have only placed numPdSlugs - 1 pd slugs
+        uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, 2, "epochsRemaining != 2");
+
+        // SlugVis.visualizeSlugs(hook, key.toId(), "thirdToLastEpoch", block.timestamp);
 
         vm.warp(block.timestamp + hook.getEpochLength());
+        epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, 1, "epochsRemaining != 1");
+
         (, int256 tickAccumulator,,,,) = hook.state();
 
         Position memory upSlug = hook.getPositions(bytes32(uint256(2)));
@@ -915,20 +923,37 @@ contract RebalanceTest is BaseTest {
         }
 
         assertEq(currentTick, maxBounds, "currentTick != maxBounds");
-
         int256 accDelta = int256(currentTick - expectedTick) * 1e18;
         int256 expectedNewAccumulatorIncorrectBounds = tickAccumulator + accDelta;
 
-        sell(-1 ether);
+        // sell back all the tokens sold
+        (,, uint256 totalTokensSold,,,) = hook.state();
+        sell(-int256(totalTokensSold));
 
         (, int256 tickAccumulator2,,,,) = hook.state();
-
         if (isToken0) {
-            assertLe(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds");
+            assertLt(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds");
         } else {
-            assertGe(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds");
+            assertGt(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds");
         }
+        uint256 expectedProceeds2 = hook.getExpectedAmountSoldWithEpochOffset(1);
+        buy(int256(expectedProceeds2) * 2);
 
+
+        vm.warp(block.timestamp + hook.getEpochLength());
+        epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, 0, "epochsRemaining != 0");
+
+        sell(-1);
+        // SlugVis.visualizeSlugs(hook, key.toId(), "lastEpoch", block.timestamp);
+        Position memory upSlug2 = hook.getPositions(bytes32(uint256(2)));
+        assertGt(upSlug2.liquidity, 0, "upSlug2.liquidity == 0");
+    }
+
+    function test_rebalance_totalEpochs() public {
+        vm.warp(hook.getEndingTime() - 1);
+        uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, 0, "epochsRemaining != 0");
     }
 
     function test_rebalance_FullFlow() public {

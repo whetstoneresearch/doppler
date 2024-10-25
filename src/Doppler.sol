@@ -17,7 +17,6 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -383,7 +382,7 @@ contract Doppler is BaseHook {
             
             uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-            liquidityBound = epochsRemaining < numPDSlugs && epochsRemaining > 0
+            liquidityBound = epochsRemaining < numPDSlugs 
                 ? positions[bytes32(uint256(3 + epochsRemaining))].tickUpper
                 : liquidityBound;
 
