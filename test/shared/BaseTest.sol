@@ -87,8 +87,8 @@ contract BaseTest is Test, Deployers {
         payable(
             address(
                 uint160(
-                    Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-                        | Hooks.AFTER_INITIALIZE_FLAG
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
                 ) ^ (0x4444 << 144)
             )
         )
@@ -207,7 +207,6 @@ contract BaseTest is Test, Deployers {
             "DopplerImplementation.sol:DopplerImplementation",
             abi.encode(
                 manager,
-                key,
                 config.numTokensToSell,
                 config.minimumProceeds,
                 config.maximumProceeds,

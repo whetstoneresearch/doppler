@@ -79,7 +79,6 @@ contract Doppler is BaseHook {
 
     constructor(
         IPoolManager _poolManager,
-        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _minimumProceeds,
         uint256 _maximumProceeds,
@@ -101,8 +100,6 @@ contract Doppler is BaseHook {
             if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
             if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
         }
-        // Enforce maximum tick spacing
-        if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
 
         /* Time checks */
         uint256 timeDelta = _endingTime - _startingTime;
@@ -116,11 +113,6 @@ contract Doppler is BaseHook {
         }
         // _endingTime - startingTime must be divisible by epochLength
         if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
-
-        /* Gamma checks */
-        // Enforce that the total tick delta is divisible by the total number of epochs
-        // Enforce that gamma is divisible by tick spacing
-        if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
 
         /* Num price discovery slug checks */
         if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
@@ -140,6 +132,23 @@ contract Doppler is BaseHook {
         gamma = _gamma;
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
+    }
+
+    function beforeInitialize(address, PoolKey calldata key, uint160, bytes calldata)
+        external
+        view
+        override
+        returns (bytes4)
+    {
+        // Enforce maximum tick spacing
+        if (key.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
+
+        /* Gamma checks */
+        // Enforce that the total tick delta is divisible by the total number of epochs
+        // Enforce that gamma is divisible by tick spacing
+        if (gamma % key.tickSpacing != 0) revert InvalidGamma();
+
+        return BaseHook.beforeInitialize.selector;
     }
 
     /// @notice Called by poolManager following initialization, used to place initial liquidity slugs
