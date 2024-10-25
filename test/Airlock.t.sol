@@ -8,7 +8,7 @@ import {Airlock, FactoryState} from "src/Airlock.sol";
 import {TokenFactory} from "src/TokenFactory.sol";
 import {DopplerFactory} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {Doppler} from "src/Doppler.sol";
 import {HookMiner} from "src/HookMiner.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";

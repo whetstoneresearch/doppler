@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Governance, IVotes} from "src/Governance.sol";
-import {TimelockController} from "openzeppelin/governance/TimelockController.sol";
+import {TimelockController} from "@openzeppelin/governance/TimelockController.sol";
 import {IGovernanceFactory} from "src/interfaces/IGovernanceFactory.sol";
 
 contract GovernanceFactory is IGovernanceFactory {
