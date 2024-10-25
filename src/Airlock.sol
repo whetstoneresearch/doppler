@@ -48,7 +48,7 @@ contract Airlock is Ownable {
     function create(
         string memory name,
         string memory symbol,
-        uint256 totalSupply,
+        uint256 initialSupply,
         uint256 startingTime,
         uint256 endingTime,
         address numeraire,
@@ -74,14 +74,14 @@ contract Airlock is Ownable {
 
         // FIXME: For now we're transferring the whole supply into this contract + receiving the ownership
         address token =
-            ITokenFactory(tokenFactory).create(name, symbol, totalSupply, address(this), address(this), tokenData);
+            ITokenFactory(tokenFactory).create(name, symbol, initialSupply, address(this), address(this), tokenData);
 
         bool isToken0 = token < numeraire ? true : false;
 
         // FIXME: We might want to double compare the minted / predicted addresses?
         (address predictedHook, bytes32 salt) = IHookFactory(hookFactory).predict(
             poolManager,
-            totalSupply / 2,
+            initialSupply,
             startingTime,
             endingTime,
             isToken0 ? minTick : maxTick,
@@ -93,7 +93,7 @@ contract Airlock is Ownable {
         );
         address hook = IHookFactory(hookFactory).create(
             poolManager,
-            totalSupply / 2,
+            initialSupply,
             startingTime,
             endingTime,
             isToken0 ? minTick : maxTick,
@@ -104,7 +104,7 @@ contract Airlock is Ownable {
             hookData,
             salt
         );
-        ERC20(token).transfer(hook, totalSupply / 2);
+        ERC20(token).transfer(hook, initialSupply);
 
         (address governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
         // FIXME: I think the Timelock should be the owner of the token contract?
