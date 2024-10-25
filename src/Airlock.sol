@@ -49,8 +49,14 @@ contract Airlock is Ownable {
         string memory name,
         string memory symbol,
         uint256 initialSupply,
+        uint256 minimumProceeds,
+        uint256 maximumProceeds,
         uint256 startingTime,
         uint256 endingTime,
+        int24 minTick,
+        int24 maxTick,
+        uint256 epochLength,
+        int24 gamma,
         address numeraire,
         address owner,
         address tokenFactory,
@@ -62,17 +68,10 @@ contract Airlock is Ownable {
         address[] memory recipients,
         uint256[] memory amounts
     ) external returns (address, address, address) {
-        // The following parameters are hardcoded for now, let's decide if we want to let the user set them:
-        int24 minTick = -100_000;
-        int24 maxTick = 200_000;
-        uint256 epochLength = 50;
-        uint256 gamma = 1_000;
-
         require(getFactoryState[tokenFactory] == FactoryState.TokenFactory, WrongFactoryState());
         require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
         require(getFactoryState[hookFactory] == FactoryState.HookFactory, WrongFactoryState());
 
-        // FIXME: For now we're transferring the whole supply into this contract + receiving the ownership
         address token =
             ITokenFactory(tokenFactory).create(name, symbol, initialSupply, address(this), address(this), tokenData);
 
@@ -82,6 +81,8 @@ contract Airlock is Ownable {
         (address predictedHook, bytes32 salt) = IHookFactory(hookFactory).predict(
             poolManager,
             initialSupply,
+            minimumProceeds,
+            maximumProceeds,
             startingTime,
             endingTime,
             isToken0 ? minTick : maxTick,
@@ -94,6 +95,8 @@ contract Airlock is Ownable {
         address hook = IHookFactory(hookFactory).create(
             poolManager,
             initialSupply,
+            minimumProceeds,
+            maximumProceeds,
             startingTime,
             endingTime,
             isToken0 ? minTick : maxTick,
