@@ -17,9 +17,8 @@ enum FactoryState {
 
 error WrongFactoryState();
 
-struct Token {
+struct TokenData {
     address governance;
-    bool hasMigrated;
     address hook;
     address[] recipients;
     uint256[] amounts;
@@ -31,7 +30,7 @@ contract Airlock is Ownable {
     IPoolManager public immutable poolManager;
 
     mapping(address => FactoryState) public getFactoryState;
-    mapping(address => Token) public getToken;
+    mapping(address token => TokenData) public getTokenData;
 
     constructor(IPoolManager poolManager_) Ownable(msg.sender) {
         poolManager = poolManager_;
@@ -109,12 +108,12 @@ contract Airlock is Ownable {
         );
         ERC20(token).transfer(hook, initialSupply);
 
-        (address governance,) = IGovernanceFactory(governanceFactory).create(name, token, governanceData);
+        (address governance, address timeLock) =
+            IGovernanceFactory(governanceFactory).create(name, token, governanceData);
         // FIXME: I think the Timelock should be the owner of the token contract?
-        Ownable(token).transferOwnership(governance);
+        Ownable(token).transferOwnership(timeLock);
 
-        getToken[token] =
-            Token({governance: governance, hasMigrated: false, hook: hook, recipients: recipients, amounts: amounts});
+        getTokenData[token] = TokenData({governance: governance, hook: hook, recipients: recipients, amounts: amounts});
 
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(isToken0 ? token : numeraire),
