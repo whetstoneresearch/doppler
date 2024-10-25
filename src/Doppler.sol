@@ -379,10 +379,10 @@ contract Doppler is BaseHook {
             int24 expectedTick = _alignComputedTickWithTickSpacing(
                 isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
             );
-            
+
             uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-            liquidityBound = epochsRemaining < numPDSlugs 
+            liquidityBound = epochsRemaining < numPDSlugs
                 ? positions[bytes32(uint256(3 + epochsRemaining))].tickUpper
                 : liquidityBound;
 
@@ -441,10 +441,12 @@ contract Doppler is BaseHook {
         uint256 assetAvailable;
         if (isToken0) {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf() - uint128(state.feesAccrued.amount0());
+            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf()
+                - uint128(state.feesAccrued.amount0());
         } else {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf() - uint128(state.feesAccrued.amount1());
+            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf()
+                - uint128(state.feesAccrued.amount1());
         }
 
         // Compute new positions
@@ -730,7 +732,6 @@ contract Doppler is BaseHook {
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
-
         int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
         if (isToken0) {
             slugRangeDelta = slugRangeDelta < key.tickSpacing ? key.tickSpacing : slugRangeDelta;
@@ -769,7 +770,7 @@ contract Doppler is BaseHook {
                 TickMath.getSqrtPriceAtTick(slugs[i].tickUpper),
                 // We reuse tokensToLp since it should be the same for all epochs
                 // This is dependent on the invariant that (endingTime - startingTime) % epochLength == 0
-                tokensToLp 
+                tokensToLp
             );
         }
 

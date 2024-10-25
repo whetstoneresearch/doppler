@@ -106,7 +106,7 @@ contract DopplerImplementation is Doppler {
     function getCurrentEpoch() public view returns (uint256) {
         return _getCurrentEpoch();
     }
-    
+
     function getTotalEpochs() public view returns (uint256) {
         return totalEpochs;
     }

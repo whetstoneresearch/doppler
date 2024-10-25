@@ -934,13 +934,20 @@ contract RebalanceTest is BaseTest {
 
         (, int256 tickAccumulator2,,,,) = hook.state();
         if (isToken0) {
-            assertLt(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds");
+            assertLt(
+                tickAccumulator2,
+                expectedNewAccumulatorIncorrectBounds,
+                "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds"
+            );
         } else {
-            assertGt(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds");
+            assertGt(
+                tickAccumulator2,
+                expectedNewAccumulatorIncorrectBounds,
+                "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds"
+            );
         }
         uint256 expectedProceeds2 = hook.getExpectedAmountSoldWithEpochOffset(1);
         buy(int256(expectedProceeds2) * 2);
-
 
         vm.warp(block.timestamp + hook.getEpochLength());
         epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
