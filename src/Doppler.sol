@@ -18,6 +18,7 @@ import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/Tran
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import "forge-std/console.sol";
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -382,7 +383,6 @@ contract Doppler is BaseHook {
             
             uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-            // instead of starting at the first pd slug salt, we start at the upper slug salt because in the last epoch there are no pd slugs
             liquidityBound = epochsRemaining < numPDSlugs && epochsRemaining > 0
                 ? positions[bytes32(uint256(3 + epochsRemaining))].tickUpper
                 : liquidityBound;
@@ -740,10 +740,11 @@ contract Doppler is BaseHook {
         }
 
         uint256 pdSlugsToLp = numPDSlugs;
-        for (uint256 i; i < numPDSlugs; ++i) {
-            if (_getEpochEndWithOffset(i) == _getEpochEndWithOffset(i + 1)) {
-                --pdSlugsToLp;
+        for (uint256 i = numPDSlugs; i > 0; --i) {
+            if (_getEpochEndWithOffset(i - 1) != _getEpochEndWithOffset(i)) {
+                break;
             }
+            --pdSlugsToLp;
         }
 
         uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);

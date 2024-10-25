@@ -884,16 +884,51 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - 3));
         uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
 
-        buy(int256(expectedProceeds) * 1005 / 1000);
-
-        SlugVis.visualizeSlugs(hook, key.toId(), "fourthToLastEpoch", block.timestamp);
-
+        // buy much more than expected proceeds so that we can exceed the max pd slug range
+        buy(int256(expectedProceeds) * 2);
 
         vm.warp(block.timestamp + hook.getEpochLength());
+        (, int256 tickAccumulator,,,,) = hook.state();
 
-        buy(1);
+        Position memory upSlug = hook.getPositions(bytes32(uint256(2)));
+        int24 currentTick = hook.getCurrentTick(key.toId());
 
-        SlugVis.visualizeSlugs(hook, key.toId(), "thirdToLastEpoch", block.timestamp);
+        if (isToken0) {
+            assertEq(currentTick, TickMath.MAX_TICK - 1, "currentTick != TickMath.MAX_TICK - 1");
+        } else {
+            assertEq(currentTick, TickMath.MIN_TICK, "currentTick != TickMath.MIN_TICK");
+        }
+
+        int24 tauTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
+        int24 computedRange = int24(hook.getGammaShare() * hook.getGamma() / 1e18);
+        int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+
+        int24 expectedTick = hook.alignComputedTickWithTickSpacing(
+            isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
+        );
+
+        int24 maxBounds = isToken0 ? tauTick + hook.getGamma() : tauTick - hook.getGamma();
+        if (isToken0) {
+            currentTick = currentTick > maxBounds ? maxBounds : currentTick;
+        } else {
+            currentTick = currentTick < maxBounds ? maxBounds : currentTick;
+        }
+
+        assertEq(currentTick, maxBounds, "currentTick != maxBounds");
+
+        int256 accDelta = int256(currentTick - expectedTick) * 1e18;
+        int256 expectedNewAccumulatorIncorrectBounds = tickAccumulator + accDelta;
+
+        sell(-1 ether);
+
+        (, int256 tickAccumulator2,,,,) = hook.state();
+
+        if (isToken0) {
+            assertLe(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds");
+        } else {
+            assertGe(tickAccumulator2, expectedNewAccumulatorIncorrectBounds, "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds");
+        }
+
     }
 
     function test_rebalance_FullFlow() public {
