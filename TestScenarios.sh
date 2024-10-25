@@ -16,7 +16,7 @@ run_test() {
     export PROTOCOL_FEE
     
     # Run forge test and capture exit code
-    forge test
+    forge test --fuzz-runs 65536
     local test_result=$?
     
     echo "----------------------------------------"
