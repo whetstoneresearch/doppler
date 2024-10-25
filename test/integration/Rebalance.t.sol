@@ -882,7 +882,7 @@ contract RebalanceTest is BaseTest {
 
     // note: uncommenting the slug vis calls and piping the output to ./vis/plot_slugs.py is very helpful for
     // reasoning through this scenario
-    function test_rebalance_SecondToLastEpochAccumulatorDelta() public {
+    function test_rebalance_NumPdSlugsMinusOneToLastEpochAccumulatorDelta() public {
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs()));
         uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
 
@@ -890,13 +890,13 @@ contract RebalanceTest is BaseTest {
         buy(int256(expectedProceeds) * 2);
         // There must be numPdSlugs - 1 epochs remaining so that we have only placed numPdSlugs - 1 pd slugs
         uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
-        assertEq(epochsRemaining, 2, "epochsRemaining != 2");
+        assertEq(epochsRemaining, hook.getNumPDSlugs() - 1, "epochsRemaining != hook.getNumPDSlugs() - 1");
 
         // SlugVis.visualizeSlugs(hook, key.toId(), "thirdToLastEpoch", block.timestamp);
 
         vm.warp(block.timestamp + hook.getEpochLength());
         epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
-        assertEq(epochsRemaining, 1, "epochsRemaining != 1");
+        assertEq(epochsRemaining, hook.getNumPDSlugs() - 2, "epochsRemaining != hook.getNumPDSlugs() - 2");
 
         (, int256 tickAccumulator,,,,) = hook.state();
 
@@ -949,14 +949,16 @@ contract RebalanceTest is BaseTest {
         uint256 expectedProceeds2 = hook.getExpectedAmountSoldWithEpochOffset(1);
         buy(int256(expectedProceeds2) * 2);
 
-        vm.warp(block.timestamp + hook.getEpochLength());
+        vm.warp(hook.getEndingTime() - 1);
         epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
         assertEq(epochsRemaining, 0, "epochsRemaining != 0");
 
         sell(-1);
         // SlugVis.visualizeSlugs(hook, key.toId(), "lastEpoch", block.timestamp);
         Position memory upSlug2 = hook.getPositions(bytes32(uint256(2)));
+        Position memory lowestPdSlug = hook.getPositions(bytes32(uint256(3)));
         assertGt(upSlug2.liquidity, 0, "upSlug2.liquidity == 0");
+        assertEq(lowestPdSlug.liquidity, 0, "lowestPdSlug.liquidity != 0");
     }
 
     function test_rebalance_totalEpochs() public {
