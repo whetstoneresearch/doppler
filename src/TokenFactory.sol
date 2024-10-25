@@ -8,16 +8,11 @@ contract TokenFactory is ITokenFactory {
     function create(
         string memory name,
         string memory symbol,
-        uint256 totalSupply,
+        uint256 initialSupply,
         address recipient,
         address owner,
-        bytes memory tokenData
+        bytes memory
     ) external returns (address) {
-        (uint256 feeOnTransfer, address[] memory exemptFromFees, address feeCollector) =
-            abi.decode(tokenData, (uint256, address[], address));
-
-        return address(
-            new DERC20(name, symbol, totalSupply, recipient, feeOnTransfer, exemptFromFees, feeCollector, owner)
-        );
+        return address(new DERC20(name, symbol, initialSupply, recipient, owner));
     }
 }
