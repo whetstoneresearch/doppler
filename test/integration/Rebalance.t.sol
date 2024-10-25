@@ -880,6 +880,8 @@ contract RebalanceTest is BaseTest {
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
     }
 
+    // note: uncommenting the slug vis calls and piping the output to ./vis/plot_slugs.py is very helpful for
+    // reasoning through this scenario
     function test_rebalance_SecondToLastEpochAccumulatorDelta() public {
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs()));
         uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
