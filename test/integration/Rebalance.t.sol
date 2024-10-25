@@ -23,7 +23,6 @@ import {InvalidTime, SwapBelowRange} from "src/Doppler.sol";
 import {BaseTest} from "test/shared/BaseTest.sol";
 import {Position} from "../../src/Doppler.sol";
 import {stdMath} from "forge-std/StdMath.sol";
-import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -879,6 +878,93 @@ contract RebalanceTest is BaseTest {
 
         assertApproxEqAbs(int128(uint128(amount0ExpectedFee)), feesAccrued.amount0(), 1);
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
+    }
+
+    // note: uncommenting the slug vis calls and piping the output to ./vis/plot_slugs.py is very helpful for
+    // reasoning through this scenario
+    function test_rebalance_NumPdSlugsMinusOneToLastEpochAccumulatorDelta() public {
+        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs()));
+        uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
+
+        // buy much more than expected proceeds so that we can exceed the max pd slug range
+        buy(int256(expectedProceeds) * 2);
+        // There must be numPdSlugs - 1 epochs remaining so that we have only placed numPdSlugs - 1 pd slugs
+        uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, hook.getNumPDSlugs() - 1, "epochsRemaining != hook.getNumPDSlugs() - 1");
+
+        // SlugVis.visualizeSlugs(hook, key.toId(), "thirdToLastEpoch", block.timestamp);
+
+        vm.warp(block.timestamp + hook.getEpochLength());
+        epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, hook.getNumPDSlugs() - 2, "epochsRemaining != hook.getNumPDSlugs() - 2");
+
+        (, int256 tickAccumulator,,,,) = hook.state();
+
+        Position memory upSlug = hook.getPositions(bytes32(uint256(2)));
+        int24 currentTick = hook.getCurrentTick(key.toId());
+
+        if (isToken0) {
+            assertEq(currentTick, TickMath.MAX_TICK - 1, "currentTick != TickMath.MAX_TICK - 1");
+        } else {
+            assertEq(currentTick, TickMath.MIN_TICK, "currentTick != TickMath.MIN_TICK");
+        }
+
+        int24 tauTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
+        int24 computedRange = int24(hook.getGammaShare() * hook.getGamma() / 1e18);
+        int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+
+        int24 expectedTick = hook.alignComputedTickWithTickSpacing(
+            isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
+        );
+
+        int24 maxBounds = isToken0 ? tauTick + hook.getGamma() : tauTick - hook.getGamma();
+        if (isToken0) {
+            currentTick = currentTick > maxBounds ? maxBounds : currentTick;
+        } else {
+            currentTick = currentTick < maxBounds ? maxBounds : currentTick;
+        }
+
+        assertEq(currentTick, maxBounds, "currentTick != maxBounds");
+        int256 accDelta = int256(currentTick - expectedTick) * 1e18;
+        int256 expectedNewAccumulatorIncorrectBounds = tickAccumulator + accDelta;
+
+        // sell back all the tokens sold
+        (,, uint256 totalTokensSold,,,) = hook.state();
+        sell(-int256(totalTokensSold));
+
+        (, int256 tickAccumulator2,,,,) = hook.state();
+        if (isToken0) {
+            assertLt(
+                tickAccumulator2,
+                expectedNewAccumulatorIncorrectBounds,
+                "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds"
+            );
+        } else {
+            assertGt(
+                tickAccumulator2,
+                expectedNewAccumulatorIncorrectBounds,
+                "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds"
+            );
+        }
+        uint256 expectedProceeds2 = hook.getExpectedAmountSoldWithEpochOffset(1);
+        buy(int256(expectedProceeds2) * 2);
+
+        vm.warp(hook.getEndingTime() - 1);
+        epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, 0, "epochsRemaining != 0");
+
+        sell(-1);
+        // SlugVis.visualizeSlugs(hook, key.toId(), "lastEpoch", block.timestamp);
+        Position memory upSlug2 = hook.getPositions(bytes32(uint256(2)));
+        Position memory lowestPdSlug = hook.getPositions(bytes32(uint256(3)));
+        assertGt(upSlug2.liquidity, 0, "upSlug2.liquidity == 0");
+        assertEq(lowestPdSlug.liquidity, 0, "lowestPdSlug.liquidity != 0");
+    }
+
+    function test_rebalance_totalEpochs() public {
+        vm.warp(hook.getEndingTime() - 1);
+        uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
+        assertEq(epochsRemaining, 0, "epochsRemaining != 0");
     }
 
     function test_rebalance_FullFlow() public {

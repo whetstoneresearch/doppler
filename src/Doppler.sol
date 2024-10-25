@@ -75,6 +75,8 @@ contract Doppler is BaseHook {
     bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 immutable numPDSlugs; // number of price discovery slugs
 
+    uint256 immutable totalEpochs; // total number of epochs
+
     receive() external payable {}
 
     constructor(
@@ -128,6 +130,8 @@ contract Doppler is BaseHook {
 
         // These can both be zero
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
+
+        totalEpochs = (_endingTime - _startingTime) / _epochLength;
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -376,13 +380,19 @@ contract Doppler is BaseHook {
                 isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
             );
 
+            uint256 epochsRemaining = totalEpochs - currentEpoch;
+            int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
+            liquidityBound = epochsRemaining < numPDSlugs
+                ? positions[bytes32(uint256(3 + epochsRemaining))].tickUpper
+                : liquidityBound;
+
             // We bound the currentTick by the top of the curve (tauTick + gamma)
             // This is necessary because there is no liquidity above the curve and we need to
             // ensure that the accumulatorDelta is just based on meaningful (in range) ticks
             if (isToken0) {
-                currentTick = currentTick > (tauTick + gamma) ? (tauTick + gamma) : currentTick;
+                currentTick = currentTick > liquidityBound ? liquidityBound : currentTick;
             } else {
-                currentTick = currentTick < (tauTick - gamma) ? (tauTick - gamma) : currentTick;
+                currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
             }
 
             accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
@@ -431,10 +441,12 @@ contract Doppler is BaseHook {
         uint256 assetAvailable;
         if (isToken0) {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf();
+            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf()
+                - uint128(state.feesAccrued.amount0());
         } else {
             numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf();
+            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf()
+                - uint128(state.feesAccrued.amount1());
         }
 
         // Compute new positions
@@ -720,9 +732,6 @@ contract Doppler is BaseHook {
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
-        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
-        tokensToLp = tokensToLp > assetAvailable ? assetAvailable : tokensToLp;
-
         int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
         if (isToken0) {
             slugRangeDelta = slugRangeDelta < key.tickSpacing ? key.tickSpacing : slugRangeDelta;
@@ -730,6 +739,17 @@ contract Doppler is BaseHook {
             slugRangeDelta = slugRangeDelta < -key.tickSpacing ? slugRangeDelta : -key.tickSpacing;
         }
 
+        uint256 pdSlugsToLp = numPDSlugs;
+        for (uint256 i = numPDSlugs; i > 0; --i) {
+            if (_getEpochEndWithOffset(i - 1) != _getEpochEndWithOffset(i)) {
+                break;
+            }
+            --pdSlugsToLp;
+        }
+
+        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
+        bool surplusAssets = tokensToLp * pdSlugsToLp <= assetAvailable;
+        tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
         for (uint256 i; i < numPDSlugs; ++i) {
             // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
             // and don't need to provide any more slugs
