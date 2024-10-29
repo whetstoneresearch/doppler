@@ -25,7 +25,7 @@ struct TokenData {
     address hook;
     address[] recipients;
     uint256[] amounts;
-    address migrator;
+    IMigrator migrator;
     address numeraire;
 }
 
@@ -70,28 +70,27 @@ contract Airlock is Ownable {
         int24 gamma,
         address numeraire,
         address owner,
-        address tokenFactory,
+        ITokenFactory tokenFactory,
         bytes memory tokenData,
-        address governanceFactory,
+        IGovernanceFactory governanceFactory,
         bytes memory governanceData,
-        address hookFactory,
+        IHookFactory hookFactory,
         bytes memory hookData,
         address[] memory recipients,
         uint256[] memory amounts,
-        address migrator
+        IMigrator migrator
     ) external returns (address, address, address) {
-        require(getModuleState[tokenFactory] == ModuleState.TokenFactory, WrongModuleState());
-        require(getModuleState[governanceFactory] == ModuleState.GovernanceFactory, WrongModuleState());
-        require(getModuleState[hookFactory] == ModuleState.HookFactory, WrongModuleState());
-        require(getModuleState[migrator] == ModuleState.Migrator, WrongModuleState());
+        require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
+        require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
+        require(getModuleState[address(hookFactory)] == ModuleState.HookFactory, WrongModuleState());
+        require(getModuleState[address(migrator)] == ModuleState.Migrator, WrongModuleState());
 
         uint256 totalToMint = initialSupply;
         for (uint256 i; i < amounts.length; i++) {
             totalToMint += amounts[i];
         }
 
-        address token =
-            ITokenFactory(tokenFactory).create(name, symbol, totalToMint, address(this), address(this), tokenData);
+        address token = tokenFactory.create(name, symbol, totalToMint, address(this), address(this), tokenData);
 
         bool isToken0 = token < numeraire ? true : false;
 
@@ -110,7 +109,7 @@ contract Airlock is Ownable {
             isToken0,
             hookData
         );
-        address hook = IHookFactory(hookFactory).create(
+        address hook = hookFactory.create(
             poolManager,
             initialSupply,
             minimumProceeds,
@@ -127,8 +126,7 @@ contract Airlock is Ownable {
         );
         ERC20(token).transfer(hook, initialSupply);
 
-        (address governance, address timelock) =
-            IGovernanceFactory(governanceFactory).create(name, token, governanceData);
+        (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
         Ownable(token).transferOwnership(timelock);
 
         getTokenData[token] = TokenData({
@@ -163,9 +161,9 @@ contract Airlock is Ownable {
         }
 
         (uint256 assetBalance, uint256 numeraireBalance) = IHook(tokenData.hook).migrate();
-        (address pool,) = IMigrator(tokenData.migrator).migrate{
-            value: asset < tokenData.numeraire ? 0 : numeraireBalance
-        }(asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, tokenData.timelock, new bytes(0));
+        (address pool,) = tokenData.migrator.migrate{value: asset < tokenData.numeraire ? 0 : numeraireBalance}(
+            asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, tokenData.timelock, new bytes(0)
+        );
         emit Migrate(asset, pool);
     }
 
