@@ -68,6 +68,7 @@ contract UniswapV2Migrator is IMigrator {
             (,, liquidity) = router.addLiquidity(tokenA, tokenB, 0, 0, 0, 0, msg.sender, block.timestamp);
         }
 
+        // TODO: Also transfer the dust tokens to the `recipient` address?
         ERC20(pool).transfer(recipient, liquidity);
     }
 }
