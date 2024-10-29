@@ -992,6 +992,13 @@ contract Doppler is BaseHook {
             afterRemoveLiquidityReturnDelta: false
         });
     }
+
+    function migrate() external {
+        // Only the Airlock can call this function
+        // Either
+        // Maxproceeds <= totalproceeds, in this case it would simply be invoked in the afterswap
+        // endTime is elapsed and totalProceeds > minproceeds, in this case it would be manually invoked somehow
+    }
 }
 
 error InvalidGamma();
