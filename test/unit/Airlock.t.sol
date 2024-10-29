@@ -1,14 +1,27 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Test} from "forge-std/Test.sol";
-import {Airlock, ModuleState, SetModuleState} from "src/Airlock.sol";
+
+import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+
+import {Airlock, ModuleState, SetModuleState} from "src/Airlock.sol";
 import {TokenFactory} from "src/TokenFactory.sol";
 import {DopplerFactory} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
 import {UniswapV2Migrator} from "src/UniswapV2Migrator.sol";
+
+string constant DEFAULT_TOKEN_NAME = "Test";
+string constant DEFAULT_TOKEN_SYMBOL = "TST";
+uint256 constant DEFAULT_INITIAL_SUPPLY = 1e27;
+uint256 constant DEFAULT_MIN_PROCEEDS = 1 ether;
+uint256 constant DEFAULT_MAX_PROCEEDS = 10 ether;
+uint256 constant DEFAULT_STARTING_TIME = 1 days;
+uint256 constant DEFAULT_ENDING_TIME = 3 days;
+int24 constant DEFAULT_GAMMA = 800;
+uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 
 contract AirlockTest is Test, Deployers {
     Airlock airlock;
