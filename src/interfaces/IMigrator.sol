@@ -2,9 +2,11 @@
 pragma solidity ^0.8.13;
 
 /**
- * @notice Generic interface to move liquidity from Uniswap v4 to v2
+ * @notice Generic interface to migrate current liquidity to a new pool
  */
 interface IMigrator {
-    // TODO: Maybe make this function payable so we can send ETH along?
-    function migrate(address router) external returns (address pool);
+    function migrate(address asset, address numeraire, uint256 amountAsset, uint256 amountNumeraire, bytes memory data)
+        external
+        payable
+        returns (address pool);
 }
