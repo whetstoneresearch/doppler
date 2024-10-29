@@ -163,9 +163,9 @@ contract Airlock is Ownable {
         }
 
         (uint256 assetBalance, uint256 numeraireBalance) = IHook(tokenData.hook).migrate();
-        address pool = IMigrator(tokenData.migrator).migrate{value: asset < tokenData.numeraire ? 0 : numeraireBalance}(
-            asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, new bytes(0)
-        );
+        (address pool,) = IMigrator(tokenData.migrator).migrate{
+            value: asset < tokenData.numeraire ? 0 : numeraireBalance
+        }(asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, tokenData.timelock, new bytes(0));
         emit Migrate(asset, pool);
     }
 
