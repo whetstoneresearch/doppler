@@ -9,14 +9,15 @@ import {IGovernanceFactory} from "src/interfaces/IGovernanceFactory.sol";
 import {IHookFactory, IHook} from "src/interfaces/IHookFactory.sol";
 import {IMigrator} from "src/interfaces/IMigrator.sol";
 
-enum FactoryState {
+enum ModuleState {
     NotWhitelisted,
     TokenFactory,
     GovernanceFactory,
-    HookFactory
+    HookFactory,
+    Migrator
 }
 
-error WrongFactoryState();
+error WrongModuleState();
 
 struct TokenData {
     address timelock;
@@ -32,10 +33,12 @@ event Create(address asset, address indexed numeraire, address governance, addre
 
 event Migrate(address asset, address pool);
 
+event SetModuleState(address module, ModuleState state);
+
 contract Airlock is Ownable {
     IPoolManager public immutable poolManager;
 
-    mapping(address => FactoryState) public getFactoryState;
+    mapping(address => ModuleState) public getModuleState;
     mapping(address token => TokenData) public getTokenData;
 
     receive() external payable {}
@@ -77,9 +80,10 @@ contract Airlock is Ownable {
         uint256[] memory amounts,
         address migrator
     ) external returns (address, address, address) {
-        require(getFactoryState[tokenFactory] == FactoryState.TokenFactory, WrongFactoryState());
-        require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
-        require(getFactoryState[hookFactory] == FactoryState.HookFactory, WrongFactoryState());
+        require(getModuleState[tokenFactory] == ModuleState.TokenFactory, WrongModuleState());
+        require(getModuleState[governanceFactory] == ModuleState.GovernanceFactory, WrongModuleState());
+        require(getModuleState[hookFactory] == ModuleState.HookFactory, WrongModuleState());
+        require(getModuleState[migrator] == ModuleState.Migrator, WrongModuleState());
 
         address token =
             ITokenFactory(tokenFactory).create(name, symbol, initialSupply, address(this), address(this), tokenData);
@@ -154,7 +158,9 @@ contract Airlock is Ownable {
         emit Migrate(asset, pool);
     }
 
-    function setFactoryState(address factory, FactoryState state) external onlyOwner {
-        getFactoryState[factory] = state;
+    // TODO: Maybe we should accept arrays here to batch update states?
+    function setModuleState(address module, ModuleState state) external onlyOwner {
+        getModuleState[module] = state;
+        emit SetModuleState(module, state);
     }
 }
