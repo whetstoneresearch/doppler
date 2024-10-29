@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
+import {IMigrator} from "src/interfaces/IMigrator.sol";
 
 interface IUniswapV2Router02 {
     function addLiquidity(
@@ -30,7 +31,7 @@ interface IUniswapV2Factory {
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
-contract UniswapV2Migrator {
+contract UniswapV2Migrator is IMigrator {
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
 
@@ -39,10 +40,14 @@ contract UniswapV2Migrator {
         router = router_;
     }
 
-    function migrate(address asset, address numeraire, uint256 amountAsset, uint256 amountNumeraire)
-        external
-        returns (address pool)
-    {
+    function migrate(
+        address asset,
+        address numeraire,
+        uint256 amountAsset,
+        uint256 amountNumeraire,
+        address recipient,
+        bytes memory
+    ) external payable returns (address pool, uint256 liquidity) {
         (address tokenA, address tokenB) = asset > numeraire ? (numeraire, asset) : (asset, numeraire);
 
         ERC20(asset).transferFrom(msg.sender, address(this), amountAsset);
@@ -56,6 +61,13 @@ contract UniswapV2Migrator {
 
         pool = factory.createPair(asset, numeraire);
 
-        router.addLiquidity(tokenA, tokenB, 0, 0, 0, 0, msg.sender, block.timestamp);
+        if (numeraire == address(0)) {
+            (,, liquidity) =
+                router.addLiquidityETH{value: amountNumeraire}(asset, amountAsset, 0, 0, recipient, block.timestamp);
+        } else {
+            (,, liquidity) = router.addLiquidity(tokenA, tokenB, 0, 0, 0, 0, msg.sender, block.timestamp);
+        }
+
+        ERC20(pool).transfer(recipient, liquidity);
     }
 }
