@@ -35,3 +35,7 @@ interface IHookFactory {
         bytes memory
     ) external view returns (address hookAddress, bytes32 salt);
 }
+
+interface IHook {
+    function migrate() external returns (uint256 amountAsset, uint256 amountNumeraire);
+}
