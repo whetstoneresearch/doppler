@@ -1,6 +1,8 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
+
 interface IUniswapV2Router02 {
     function addLiquidity(
         address tokenA,
@@ -25,6 +27,7 @@ interface IUniswapV2Router02 {
 
 interface IUniswapV2Factory {
     function createPair(address tokenA, address tokenB) external returns (address pair);
+    function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
 contract UniswapV2Migrator {
@@ -36,11 +39,23 @@ contract UniswapV2Migrator {
         router = router_;
     }
 
-    function migrate(address asset, address numeraire) external returns (address pool) {
-        // TODO: Move the liquidity into this contract
+    function migrate(address asset, address numeraire, uint256 amountAsset, uint256 amountNumeraire)
+        external
+        returns (address pool)
+    {
         (address tokenA, address tokenB) = asset > numeraire ? (numeraire, asset) : (asset, numeraire);
+
+        ERC20(asset).transferFrom(msg.sender, address(this), amountAsset);
+        ERC20(numeraire).transferFrom(msg.sender, address(this), amountNumeraire);
+
+        pool = factory.getPair(tokenA, tokenB);
+
+        if (pool == address(0)) {
+            pool = factory.createPair(tokenA, tokenB);
+        }
+
         pool = factory.createPair(asset, numeraire);
-        // TODO: Put the liquidity into the pool
+
         router.addLiquidity(tokenA, tokenB, 0, 0, 0, 0, msg.sender, block.timestamp);
     }
 }
