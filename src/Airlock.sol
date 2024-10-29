@@ -85,8 +85,13 @@ contract Airlock is Ownable {
         require(getModuleState[hookFactory] == ModuleState.HookFactory, WrongModuleState());
         require(getModuleState[migrator] == ModuleState.Migrator, WrongModuleState());
 
+        uint256 totalToMint = initialSupply;
+        for (uint256 i; i < amounts.length; i++) {
+            totalToMint += amounts[i];
+        }
+
         address token =
-            ITokenFactory(tokenFactory).create(name, symbol, initialSupply, address(this), address(this), tokenData);
+            ITokenFactory(tokenFactory).create(name, symbol, totalToMint, address(this), address(this), tokenData);
 
         bool isToken0 = token < numeraire ? true : false;
 
@@ -151,6 +156,12 @@ contract Airlock is Ownable {
 
     function migrate(address asset) external {
         TokenData memory tokenData = getTokenData[asset];
+
+        uint256 length = tokenData.recipients.length;
+        for (uint256 i; i < length; i++) {
+            ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
+        }
+
         (uint256 assetBalance, uint256 numeraireBalance) = IHook(tokenData.hook).migrate();
         address pool = IMigrator(tokenData.migrator).migrate{value: asset < tokenData.numeraire ? 0 : numeraireBalance}(
             asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, new bytes(0)
