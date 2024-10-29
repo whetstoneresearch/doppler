@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Test} from "forge-std/Test.sol";
-import {Airlock, ModuleState} from "src/Airlock.sol";
+import {Airlock, ModuleState, SetModuleState} from "src/Airlock.sol";
 import {TokenFactory} from "src/TokenFactory.sol";
 import {DopplerFactory} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
@@ -32,5 +32,11 @@ contract AirlockTest is Test, Deployers {
     function test_setModuleState_SetsState() public {
         airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
         assertEq(uint8(airlock.getModuleState(address(0xbeef))), uint8(ModuleState.TokenFactory));
+    }
+
+    function test_setModuleState_EmitsEvent() public {
+        vm.expectEmit();
+        emit SetModuleState(address(0xbeef), ModuleState.TokenFactory);
+        airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
     }
 }
