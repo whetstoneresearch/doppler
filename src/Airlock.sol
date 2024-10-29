@@ -6,7 +6,8 @@ import {Ownable} from "@openzeppelin/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {ITokenFactory} from "src/interfaces/ITokenFactory.sol";
 import {IGovernanceFactory} from "src/interfaces/IGovernanceFactory.sol";
-import {IHookFactory} from "src/interfaces/IHookFactory.sol";
+import {IHookFactory, IHook} from "src/interfaces/IHookFactory.sol";
+import {IMigrator} from "src/interfaces/IMigrator.sol";
 
 enum FactoryState {
     NotWhitelisted,
@@ -18,19 +19,26 @@ enum FactoryState {
 error WrongFactoryState();
 
 struct TokenData {
+    address timelock;
     address governance;
     address hook;
     address[] recipients;
     uint256[] amounts;
+    address migrator;
+    address numeraire;
 }
 
 event Create(address asset, address indexed numeraire, address governance, address hook);
+
+event Migrate(address asset, address pool);
 
 contract Airlock is Ownable {
     IPoolManager public immutable poolManager;
 
     mapping(address => FactoryState) public getFactoryState;
     mapping(address token => TokenData) public getTokenData;
+
+    receive() external payable {}
 
     constructor(IPoolManager poolManager_) Ownable(msg.sender) {
         poolManager = poolManager_;
@@ -48,6 +56,7 @@ contract Airlock is Ownable {
         string memory name,
         string memory symbol,
         uint256 initialSupply,
+        // TODO: Maybe move all the parameters into the tokenData param?
         uint256 minimumProceeds,
         uint256 maximumProceeds,
         uint256 startingTime,
@@ -65,7 +74,8 @@ contract Airlock is Ownable {
         address hookFactory,
         bytes memory hookData,
         address[] memory recipients,
-        uint256[] memory amounts
+        uint256[] memory amounts,
+        address migrator
     ) external returns (address, address, address) {
         require(getFactoryState[tokenFactory] == FactoryState.TokenFactory, WrongFactoryState());
         require(getFactoryState[governanceFactory] == FactoryState.GovernanceFactory, WrongFactoryState());
@@ -108,12 +118,19 @@ contract Airlock is Ownable {
         );
         ERC20(token).transfer(hook, initialSupply);
 
-        (address governance, address timeLock) =
+        (address governance, address timelock) =
             IGovernanceFactory(governanceFactory).create(name, token, governanceData);
-        // FIXME: I think the Timelock should be the owner of the token contract?
-        Ownable(token).transferOwnership(timeLock);
+        Ownable(token).transferOwnership(timelock);
 
-        getTokenData[token] = TokenData({governance: governance, hook: hook, recipients: recipients, amounts: amounts});
+        getTokenData[token] = TokenData({
+            governance: governance,
+            hook: hook,
+            recipients: recipients,
+            amounts: amounts,
+            migrator: migrator,
+            timelock: timelock,
+            numeraire: numeraire
+        });
 
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(isToken0 ? token : numeraire),
@@ -128,13 +145,14 @@ contract Airlock is Ownable {
         return (token, governance, hook);
     }
 
-    /**
-     * TODO: This function will be callable later by the hook contract itself, in order to move the liquidity
-     * from the Uniswap v4 pool to a v2 pool. The flow would be something like:
-     * 1) Enough tokens were sold to trigger the migration
-     * 2) Hook contract will remove its positions
-     */
-    function migrate() external {}
+    function migrate(address asset) external {
+        TokenData memory tokenData = getTokenData[asset];
+        (uint256 assetBalance, uint256 numeraireBalance) = IHook(tokenData.hook).migrate();
+        address pool = IMigrator(tokenData.migrator).migrate{value: asset < tokenData.numeraire ? 0 : numeraireBalance}(
+            asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, new bytes(0)
+        );
+        emit Migrate(asset, pool);
+    }
 
     function setFactoryState(address factory, FactoryState state) external onlyOwner {
         getFactoryState[factory] = state;
