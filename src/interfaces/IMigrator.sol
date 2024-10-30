@@ -6,10 +6,10 @@ pragma solidity ^0.8.13;
  */
 interface IMigrator {
     function migrate(
-        address asset,
-        address numeraire,
-        uint256 amountAsset,
-        uint256 amountNumeraire,
+        address token0,
+        address token1,
+        uint256 amount0,
+        uint256 amount1,
         address recipient,
         bytes memory data
     ) external payable returns (address pool, uint256 liquidity);
