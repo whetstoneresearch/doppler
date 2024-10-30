@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IPoolManager, PoolKey, Currency, IHooks, TickMath} from "v4-core/src/PoolManager.sol";
+import {IPoolManager, PoolKey, Currency, TickMath} from "v4-core/src/PoolManager.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {ITokenFactory} from "src/interfaces/ITokenFactory.sol";
