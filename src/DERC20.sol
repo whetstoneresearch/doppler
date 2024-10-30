@@ -17,12 +17,12 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     uint256 public immutable mintStartDate;
     uint256 public immutable yearlyMintCap;
 
-    constructor(string memory name_, string memory symbol_, uint256 iniitialSupply, address recipient, address owner_)
+    constructor(string memory name_, string memory symbol_, uint256 initialSupply, address recipient, address owner_)
         ERC20(name_, symbol_)
         ERC20Permit(name_)
         Ownable(owner_)
     {
-        _mint(recipient, iniitialSupply);
+        _mint(recipient, initialSupply);
         mintStartDate = block.timestamp + 365 days;
     }
 
