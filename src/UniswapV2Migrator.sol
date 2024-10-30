@@ -40,32 +40,24 @@ contract UniswapV2Migrator is IMigrator {
         router = router_;
     }
 
-    function migrate(
-        address asset,
-        address numeraire,
-        uint256 amountAsset,
-        uint256 amountNumeraire,
-        address recipient,
-        bytes memory
-    ) external payable returns (address pool, uint256 liquidity) {
-        (address tokenA, address tokenB) = asset > numeraire ? (numeraire, asset) : (asset, numeraire);
-
-        ERC20(asset).transferFrom(msg.sender, address(this), amountAsset);
-        ERC20(numeraire).transferFrom(msg.sender, address(this), amountNumeraire);
-
-        pool = factory.getPair(tokenA, tokenB);
+    function migrate(address token0, address token1, uint256 amount0, uint256 amount1, address recipient, bytes memory)
+        external
+        payable
+        returns (address pool, uint256 liquidity)
+    {
+        pool = factory.getPair(token0, token1);
 
         if (pool == address(0)) {
-            pool = factory.createPair(tokenA, tokenB);
+            pool = factory.createPair(token0, token1);
         }
 
-        pool = factory.createPair(asset, numeraire);
+        ERC20(token1).approve(address(router), amount1);
 
-        if (numeraire == address(0)) {
-            (,, liquidity) =
-                router.addLiquidityETH{value: amountNumeraire}(asset, amountAsset, 0, 0, recipient, block.timestamp);
+        if (token0 == address(0)) {
+            (,, liquidity) = router.addLiquidityETH{value: amount0}(token0, amount0, 0, 0, recipient, block.timestamp);
         } else {
-            (,, liquidity) = router.addLiquidity(tokenA, tokenB, 0, 0, 0, 0, msg.sender, block.timestamp);
+            ERC20(token0).approve(address(router), amount0);
+            (,, liquidity) = router.addLiquidity(token0, token1, 0, 0, 0, 0, msg.sender, block.timestamp);
         }
 
         // TODO: Also transfer the dust tokens to the `recipient` address?
