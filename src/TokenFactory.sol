@@ -11,8 +11,9 @@ contract TokenFactory is ITokenFactory {
         uint256 initialSupply,
         address recipient,
         address owner,
-        bytes memory
+        bytes memory,
+        bytes32 salt
     ) external returns (address) {
-        return address(new DERC20(name, symbol, initialSupply, recipient, owner));
+        return address(new DERC20{salt: salt}(name, symbol, initialSupply, recipient, owner));
     }
 }
