@@ -20,13 +20,12 @@ enum ModuleState {
 error WrongModuleState();
 
 struct TokenData {
+    PoolKey poolKey;
     address timelock;
     address governance;
-    address hook;
+    IMigrator migrator;
     address[] recipients;
     uint256[] amounts;
-    IMigrator migrator;
-    address numeraire;
 }
 
 event Create(address asset, address indexed numeraire, address governance, address hook);
@@ -58,96 +57,50 @@ contract Airlock is Ownable {
     function create(
         string memory name,
         string memory symbol,
-        uint256 initialSupply,
-        // TODO: Maybe move all the parameters into the tokenData param?
-        uint256 minimumProceeds,
-        uint256 maximumProceeds,
-        uint256 startingTime,
-        uint256 endingTime,
-        int24 minTick,
-        int24 maxTick,
-        uint256 epochLength,
-        int24 gamma,
-        address numeraire,
+        uint256 numTokensToSell,
+        PoolKey memory poolKey,
         address owner,
+        address[] memory recipients,
+        uint256[] memory amounts,
         ITokenFactory tokenFactory,
         bytes memory tokenData,
         IGovernanceFactory governanceFactory,
         bytes memory governanceData,
         IHookFactory hookFactory,
         bytes memory hookData,
-        address[] memory recipients,
-        uint256[] memory amounts,
-        IMigrator migrator
+        IMigrator migrator,
+        bytes32 salt
     ) external returns (address, address, address) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
         require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
         require(getModuleState[address(hookFactory)] == ModuleState.HookFactory, WrongModuleState());
         require(getModuleState[address(migrator)] == ModuleState.Migrator, WrongModuleState());
 
-        uint256 totalToMint = initialSupply;
+        uint256 totalToMint = numTokensToSell;
         for (uint256 i; i < amounts.length; i++) {
             totalToMint += amounts[i];
         }
 
-        address token = tokenFactory.create(name, symbol, totalToMint, address(this), address(this), tokenData);
+        address token = tokenFactory.create(name, symbol, totalToMint, address(this), address(this), tokenData, salt);
 
-        bool isToken0 = token < numeraire ? true : false;
+        address hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
+        ERC20(token).transfer(hook, numTokensToSell);
 
-        // FIXME: We might want to double compare the minted / predicted addresses?
-        (address predictedHook, bytes32 salt) = IHookFactory(hookFactory).predict(
-            poolManager,
-            initialSupply,
-            minimumProceeds,
-            maximumProceeds,
-            startingTime,
-            endingTime,
-            isToken0 ? minTick : maxTick,
-            isToken0 ? maxTick : minTick,
-            epochLength,
-            gamma,
-            isToken0,
-            hookData
-        );
-        address hook = hookFactory.create(
-            poolManager,
-            initialSupply,
-            minimumProceeds,
-            maximumProceeds,
-            startingTime,
-            endingTime,
-            isToken0 ? minTick : maxTick,
-            isToken0 ? maxTick : minTick,
-            epochLength,
-            gamma,
-            isToken0,
-            hookData,
-            salt
-        );
-        ERC20(token).transfer(hook, initialSupply);
-
+        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway.
         (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
         Ownable(token).transferOwnership(timelock);
 
         getTokenData[token] = TokenData({
             governance: governance,
-            hook: hook,
             recipients: recipients,
             amounts: amounts,
             migrator: migrator,
             timelock: timelock,
-            numeraire: numeraire
+            poolKey: poolKey
         });
 
-        PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(isToken0 ? token : numeraire),
-            currency1: Currency.wrap(isToken0 ? numeraire : token),
-            fee: 0, // TODO: Do we want users to have the ability to set the fee?
-            tickSpacing: 60, // TODO: Do we want users to have the ability to set the tickSpacing?
-            hooks: IHooks(hook)
-        });
-
-        poolManager.initialize(key, TickMath.getSqrtPriceAtTick(isToken0 ? minTick : maxTick), new bytes(0));
+        // TODO: Do we really have to initialize the pool at the right price?
+        poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(0), new bytes(0));
 
         return (token, governance, hook);
     }
@@ -160,10 +113,18 @@ contract Airlock is Ownable {
             ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
         }
 
-        (uint256 assetBalance, uint256 numeraireBalance) = IHook(tokenData.hook).migrate();
-        (address pool,) = tokenData.migrator.migrate{value: asset < tokenData.numeraire ? 0 : numeraireBalance}(
-            asset, getTokenData[asset].numeraire, assetBalance, numeraireBalance, tokenData.timelock, new bytes(0)
+        (uint256 amount0, uint256 amount1) = IHook(address(tokenData.poolKey.hooks)).migrate();
+
+        address currency0 = Currency.unwrap(tokenData.poolKey.currency0);
+        address currency1 = Currency.unwrap(tokenData.poolKey.currency1);
+
+        ERC20(currency0).transfer(address(tokenData.migrator), amount0);
+        ERC20(currency1).transfer(address(tokenData.migrator), amount1);
+
+        (address pool,) = tokenData.migrator.migrate{value: currency0 == address(0) ? amount0 : 0}(
+            currency0, currency1, amount0, amount1, tokenData.timelock, new bytes(0)
         );
+
         emit Migrate(asset, pool);
     }
 
