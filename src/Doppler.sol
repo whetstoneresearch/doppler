@@ -1,4 +1,4 @@
-// TODO: Add license
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.26;
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
