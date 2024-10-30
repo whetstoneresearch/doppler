@@ -7,33 +7,12 @@ interface IHookFactory {
     function create(
         IPoolManager poolManager,
         uint256 numTokensToSell,
-        uint256 minimumProceeds,
-        uint256 maximumProceeds,
-        uint256 startingTime,
-        uint256 endingTime,
+        bool isToken0,
         int24 startingTick,
         int24 endingTick,
-        uint256 epochLength,
-        int24 gamma,
-        bool isToken0,
-        bytes memory,
+        bytes memory data,
         bytes32 salt
     ) external returns (address);
-
-    function predict(
-        IPoolManager poolManager,
-        uint256 numTokensToSell,
-        uint256 minimumProceeds,
-        uint256 maximumProceeds,
-        uint256 startingTime,
-        uint256 endingTime,
-        int24 startingTick,
-        int24 endingTick,
-        uint256 epochLength,
-        int24 gamma,
-        bool isToken0,
-        bytes memory
-    ) external view returns (address hookAddress, bytes32 salt);
 }
 
 interface IHook {
