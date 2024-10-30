@@ -63,6 +63,10 @@ contract Doppler is BaseHook {
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
+    /// @notice True if the hook was already initialized. This is used to prevent another pool from
+    /// reusing the hook and messing with its state.
+    bool public isInitialized;
+
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
     uint256 immutable minimumProceeds; // minimum proceeds required to avoid refund phase
     uint256 immutable maximumProceeds; // proceeds amount that will trigger early exit condition
@@ -140,6 +144,8 @@ contract Doppler is BaseHook {
         override
         returns (bytes4)
     {
+        if (isInitialized) revert AlreadyInitialized();
+
         // Enforce maximum tick spacing
         if (key.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
 
@@ -1001,6 +1007,7 @@ contract Doppler is BaseHook {
     }
 }
 
+error AlreadyInitialized();
 error InvalidGamma();
 error InvalidTimeRange();
 error Unauthorized();
