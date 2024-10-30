@@ -976,7 +976,7 @@ contract Doppler is BaseHook {
     /// @notice Returns a struct of permissions to signal which hook functions are to be implemented
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize: false,
+            beforeInitialize: true,
             afterInitialize: true,
             beforeAddLiquidity: true,
             beforeRemoveLiquidity: false,
