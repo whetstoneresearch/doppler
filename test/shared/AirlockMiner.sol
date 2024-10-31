@@ -18,7 +18,7 @@ uint160 constant flags = uint160(
         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
 );
 
-struct Params {
+struct MineParams {
     address poolManager;
     uint256 numTokensToSell;
     int24 minTick;
@@ -36,9 +36,10 @@ struct Params {
     uint256 maximumProceeds;
     uint256 epochLength;
     int24 gamma;
+    uint256 numPDSlugs;
 }
 
-function mine(Params memory params) view returns (bytes32, address, address) {
+function mine(address deployer, MineParams memory params) view returns (bytes32, address, address) {
     bool isToken0 = params.numeraire != address(0);
 
     bytes32 hookInitHash = keccak256(
@@ -55,7 +56,8 @@ function mine(Params memory params) view returns (bytes32, address, address) {
                 params.maxTick,
                 params.epochLength,
                 params.gamma,
-                isToken0
+                isToken0,
+                params.numPDSlugs
             )
         )
     );
@@ -68,8 +70,8 @@ function mine(Params memory params) view returns (bytes32, address, address) {
     );
 
     for (uint256 salt; salt < 1000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), hookInitHash, params.airlock);
-        address token = computeCreate2Address(bytes32(salt), tokenInitHash, params.airlock);
+        address hook = computeCreate2Address(bytes32(salt), hookInitHash, deployer);
+        address token = computeCreate2Address(bytes32(salt), tokenInitHash, deployer);
 
         if (
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
@@ -91,7 +93,8 @@ contract AirlockMinerTest is Test {
         address numeraire = address(type(uint160).max / 2);
 
         (bytes32 salt, address hook, address token) = mine(
-            Params(
+            address(this),
+            MineParams(
                 address(0xbeef),
                 1e27,
                 int24(-1600),
@@ -108,7 +111,8 @@ contract AirlockMinerTest is Test {
                 1 ether,
                 10 ether,
                 400 seconds,
-                int24(800)
+                int24(800),
+                3
             )
         );
 
