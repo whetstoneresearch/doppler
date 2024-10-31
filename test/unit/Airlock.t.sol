@@ -76,6 +76,7 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_Deploys() public {
         (bytes32 salt, address hook, address token) = mine(
+            address(tokenFactory),
             address(dopplerFactory),
             MineParams({
                 poolManager: address(manager),
@@ -86,8 +87,6 @@ contract AirlockTest is Test, Deployers {
                 name: DEFAULT_TOKEN_NAME,
                 symbol: DEFAULT_TOKEN_SYMBOL,
                 initialSupply: DEFAULT_INITIAL_SUPPLY,
-                recipient: address(this),
-                owner: address(this),
                 numeraire: address(0),
                 startingTime: DEFAULT_STARTING_TIME,
                 endingTime: DEFAULT_ENDING_TIME,
