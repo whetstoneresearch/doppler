@@ -10,5 +10,5 @@ interface IHookFactory {
 }
 
 interface IHook {
-    function migrate() external returns (uint256 amountAsset, uint256 amountNumeraire);
+    function migrate() external returns (uint256 amount0, uint256 amount1);
 }
