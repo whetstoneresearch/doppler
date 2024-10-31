@@ -148,4 +148,10 @@ contract AirlockTest is Test, Deployers {
         vm.expectRevert(WrongModuleState.selector);
         _create();
     }
+
+    function test_create_RevertsIfWrongGovernanceFactory() public {
+        airlock.setModuleState(address(governanceFactory), ModuleState.NotWhitelisted);
+        vm.expectRevert(WrongModuleState.selector);
+        _create();
+    }
 }
