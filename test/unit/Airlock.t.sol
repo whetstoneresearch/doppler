@@ -2,16 +2,14 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 
-import {Airlock, ModuleState, SetModuleState} from "src/Airlock.sol";
+import {Airlock, ModuleState, WrongModuleState, SetModuleState} from "src/Airlock.sol";
 import {TokenFactory} from "src/TokenFactory.sol";
 import {DopplerFactory} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
@@ -36,6 +34,8 @@ int24 constant DEFAULT_END_TICK = 171_200;
 
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;
+
+uint256 constant DEFAULT_PD_SLUGS = 3;
 
 contract AirlockTest is Test, Deployers {
     Airlock airlock;
@@ -74,7 +74,7 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
     }
 
-    function test_create_Deploys() public {
+    function _create() internal {
         (bytes32 salt, address hook, address token) = mine(
             address(tokenFactory),
             address(dopplerFactory),
@@ -94,12 +94,9 @@ contract AirlockTest is Test, Deployers {
                 maximumProceeds: DEFAULT_MAX_PROCEEDS,
                 epochLength: DEFAULT_EPOCH_LENGTH,
                 gamma: DEFAULT_GAMMA,
-                numPDSlugs: 3
+                numPDSlugs: DEFAULT_PD_SLUGS
             })
         );
-
-        console.log("hook: %s", hook);
-        console.log("token: %s", token);
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -119,12 +116,13 @@ contract AirlockTest is Test, Deployers {
             DEFAULT_EPOCH_LENGTH,
             DEFAULT_GAMMA,
             false,
-            3
+            DEFAULT_PD_SLUGS
         );
 
         airlock.create(
             DEFAULT_TOKEN_NAME,
             DEFAULT_TOKEN_SYMBOL,
+            DEFAULT_INITIAL_SUPPLY,
             DEFAULT_INITIAL_SUPPLY,
             poolKey,
             DEFAULT_OWNER,
@@ -139,5 +137,9 @@ contract AirlockTest is Test, Deployers {
             migrator,
             salt
         );
+    }
+
+    function test_create_Deploys() public {
+        _create();
     }
 }
