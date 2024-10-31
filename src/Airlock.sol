@@ -21,6 +21,8 @@ error WrongModuleState();
 
 error WrongInitialSupply();
 
+error ArrayLengthsMismatch();
+
 struct TokenData {
     PoolKey poolKey;
     address timelock;
@@ -78,6 +80,8 @@ contract Airlock is Ownable {
         require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
         require(getModuleState[address(hookFactory)] == ModuleState.HookFactory, WrongModuleState());
         require(getModuleState[address(migrator)] == ModuleState.Migrator, WrongModuleState());
+
+        require(recipients.length == amounts.length, ArrayLengthsMismatch());
 
         uint256 totalToMint = numTokensToSell;
         for (uint256 i; i < amounts.length; i++) {
