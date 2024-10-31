@@ -66,7 +66,7 @@ function mine(address tokenFactory, address hookFactory, MineParams memory param
     bytes32 tokenInitHash = keccak256(
         abi.encodePacked(
             type(DERC20).creationCode,
-            abi.encode(params.name, params.symbol, params.numTokensToSell, params.airlock, params.airlock)
+            abi.encode(params.name, params.symbol, params.initialSupply, params.airlock, params.airlock)
         )
     );
 
