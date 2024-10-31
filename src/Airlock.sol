@@ -19,6 +19,8 @@ enum ModuleState {
 
 error WrongModuleState();
 
+error WrongInitialSupply();
+
 struct TokenData {
     PoolKey poolKey;
     address timelock;
@@ -57,6 +59,7 @@ contract Airlock is Ownable {
     function create(
         string memory name,
         string memory symbol,
+        uint256 initialSupply,
         uint256 numTokensToSell,
         PoolKey memory poolKey,
         address owner,
@@ -80,10 +83,11 @@ contract Airlock is Ownable {
         for (uint256 i; i < amounts.length; i++) {
             totalToMint += amounts[i];
         }
+        require(totalToMint == initialSupply, WrongInitialSupply());
 
-        address token = tokenFactory.create(name, symbol, totalToMint, address(this), address(this), tokenData, salt);
-
+        address token = tokenFactory.create(name, symbol, initialSupply, address(this), address(this), tokenData, salt);
         address hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
+
         ERC20(token).transfer(hook, numTokensToSell);
 
         // TODO: I don't think we need to pass the salt here, create2 is not needed anyway.
