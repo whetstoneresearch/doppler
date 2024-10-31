@@ -27,8 +27,6 @@ struct MineParams {
     string name;
     string symbol;
     uint256 initialSupply;
-    address recipient;
-    address owner;
     address numeraire;
     uint256 startingTime;
     uint256 endingTime;
@@ -39,7 +37,10 @@ struct MineParams {
     uint256 numPDSlugs;
 }
 
-function mine(address deployer, MineParams memory params) view returns (bytes32, address, address) {
+function mine(address tokenFactory, address hookFactory, MineParams memory params)
+    view
+    returns (bytes32, address, address)
+{
     bool isToken0 = params.numeraire != address(0);
 
     bytes32 hookInitHash = keccak256(
@@ -63,15 +64,15 @@ function mine(address deployer, MineParams memory params) view returns (bytes32,
     );
 
     bytes32 tokenInitHash = keccak256(
-        abi.encode(
+        abi.encodePacked(
             type(DERC20).creationCode,
-            abi.encode(params.name, params.symbol, params.initialSupply, params.recipient, params.owner)
+            abi.encode(params.name, params.symbol, params.numTokensToSell, params.airlock, params.airlock)
         )
     );
 
     for (uint256 salt; salt < 1000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), hookInitHash, deployer);
-        address token = computeCreate2Address(bytes32(salt), tokenInitHash, deployer);
+        address hook = computeCreate2Address(bytes32(salt), hookInitHash, hookFactory);
+        address token = computeCreate2Address(bytes32(salt), tokenInitHash, tokenFactory);
 
         if (
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
@@ -90,10 +91,13 @@ function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deplo
 
 contract AirlockMinerTest is Test {
     function test_mine_works() public view {
+        address tokenFactory = address(0xb0b);
+        address hookFactory = address(0xbeef);
         address numeraire = address(type(uint160).max / 2);
 
         (bytes32 salt, address hook, address token) = mine(
-            address(this),
+            tokenFactory,
+            hookFactory,
             MineParams(
                 address(0xbeef),
                 1e27,
@@ -103,8 +107,6 @@ contract AirlockMinerTest is Test {
                 "Test",
                 "TST",
                 1e27,
-                address(0xb0b),
-                address(0xa71ce),
                 numeraire,
                 1 days,
                 7 days,
