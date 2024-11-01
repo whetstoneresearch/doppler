@@ -48,13 +48,15 @@ contract UniswapV2Migrator is IMigrator {
         pool = factory.getPair(token0, token1);
 
         if (pool == address(0)) {
-            pool = factory.createPair(token0, token1);
+            pool =
+                factory.createPair(token0 == address(0) ? 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 : token0, token1);
         }
 
+        if (token0 != address(0)) ERC20(token0).approve(address(router), amount0);
         ERC20(token1).approve(address(router), amount1);
 
         if (token0 == address(0)) {
-            (,, liquidity) = router.addLiquidityETH{value: amount0}(token0, amount0, 0, 0, recipient, block.timestamp);
+            (,, liquidity) = router.addLiquidityETH{value: amount0}(token1, amount0, 0, 0, recipient, block.timestamp);
         } else {
             ERC20(token0).approve(address(router), amount0);
             (,, liquidity) = router.addLiquidity(token0, token1, 0, 0, 0, 0, msg.sender, block.timestamp);
