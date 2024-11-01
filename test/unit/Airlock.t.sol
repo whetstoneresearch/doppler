@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {console} from "forge-std/console.sol";
+
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
@@ -14,7 +16,7 @@ import {Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupp
 import {TokenFactory} from "src/TokenFactory.sol";
 import {DopplerFactory} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
-import {UniswapV2Migrator} from "src/UniswapV2Migrator.sol";
+import {UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory} from "src/UniswapV2Migrator.sol";
 
 import {mine, MineParams} from "test/shared/AirlockMiner.sol";
 
@@ -38,6 +40,9 @@ int24 constant DEFAULT_TICK_SPACING = 8;
 
 uint256 constant DEFAULT_PD_SLUGS = 3;
 
+address constant uniRouterV2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+
 contract AirlockTest is Test, Deployers {
     Airlock airlock;
     TokenFactory tokenFactory;
@@ -46,6 +51,8 @@ contract AirlockTest is Test, Deployers {
     UniswapV2Migrator migrator;
 
     function setUp() public {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21093509);
+        vm.warp(DEFAULT_STARTING_TIME);
         deployFreshManager();
         airlock = new Airlock(manager);
         tokenFactory = new TokenFactory();
@@ -55,6 +62,8 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(address(tokenFactory), ModuleState.TokenFactory);
         airlock.setModuleState(address(dopplerFactory), ModuleState.HookFactory);
         airlock.setModuleState(address(governanceFactory), ModuleState.GovernanceFactory);
+
+        migrator = new UniswapV2Migrator(IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
         airlock.setModuleState(address(migrator), ModuleState.Migrator);
     }
 
@@ -155,6 +164,12 @@ contract AirlockTest is Test, Deployers {
         (address hook, address token) = _create();
         assertEq(ERC20(token).totalSupply(), DEFAULT_INITIAL_SUPPLY);
         assertEq(ERC20(token).balanceOf(hook), DEFAULT_INITIAL_SUPPLY);
+    }
+
+    function test_migrate() public {
+        (, address token) = _create();
+
+        airlock.migrate(token);
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
