@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
@@ -57,6 +58,28 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(address(migrator), ModuleState.Migrator);
     }
 
+    function _getDefaultMineParams() public view returns (MineParams memory) {
+        // We're using a function here because some values are set by the `setUp` function.
+        return MineParams({
+            poolManager: address(manager),
+            numTokensToSell: DEFAULT_INITIAL_SUPPLY,
+            minTick: DEFAULT_START_TICK,
+            maxTick: DEFAULT_END_TICK,
+            airlock: address(airlock),
+            name: DEFAULT_TOKEN_NAME,
+            symbol: DEFAULT_TOKEN_SYMBOL,
+            initialSupply: DEFAULT_INITIAL_SUPPLY,
+            numeraire: address(0), // Using ETH
+            startingTime: DEFAULT_STARTING_TIME,
+            endingTime: DEFAULT_ENDING_TIME,
+            minimumProceeds: DEFAULT_MIN_PROCEEDS,
+            maximumProceeds: DEFAULT_MAX_PROCEEDS,
+            epochLength: DEFAULT_EPOCH_LENGTH,
+            gamma: DEFAULT_GAMMA,
+            numPDSlugs: DEFAULT_PD_SLUGS
+        });
+    }
+
     function test_setModuleState_SetsState() public {
         airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
         assertEq(uint8(airlock.getModuleState(address(0xbeef))), uint8(ModuleState.TokenFactory));
@@ -74,29 +97,12 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
     }
 
-    function _create() internal {
-        (bytes32 salt, address hook, address token) = mine(
-            address(tokenFactory),
-            address(dopplerFactory),
-            MineParams({
-                poolManager: address(manager),
-                numTokensToSell: DEFAULT_INITIAL_SUPPLY,
-                minTick: DEFAULT_START_TICK,
-                maxTick: DEFAULT_END_TICK,
-                airlock: address(airlock),
-                name: DEFAULT_TOKEN_NAME,
-                symbol: DEFAULT_TOKEN_SYMBOL,
-                initialSupply: DEFAULT_INITIAL_SUPPLY,
-                numeraire: address(0),
-                startingTime: DEFAULT_STARTING_TIME,
-                endingTime: DEFAULT_ENDING_TIME,
-                minimumProceeds: DEFAULT_MIN_PROCEEDS,
-                maximumProceeds: DEFAULT_MAX_PROCEEDS,
-                epochLength: DEFAULT_EPOCH_LENGTH,
-                gamma: DEFAULT_GAMMA,
-                numPDSlugs: DEFAULT_PD_SLUGS
-            })
-        );
+    function _create() internal returns (address, address) {
+        return _create(_getDefaultMineParams());
+    }
+
+    function _create(MineParams memory params) internal returns (address, address) {
+        (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(dopplerFactory), params);
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -107,23 +113,23 @@ contract AirlockTest is Test, Deployers {
         });
 
         bytes memory hookFactoryData = abi.encode(
-            DEFAULT_MIN_PROCEEDS,
-            DEFAULT_MAX_PROCEEDS,
-            DEFAULT_STARTING_TIME,
-            DEFAULT_ENDING_TIME,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_EPOCH_LENGTH,
-            DEFAULT_GAMMA,
+            params.minimumProceeds,
+            params.maximumProceeds,
+            params.startingTime,
+            params.endingTime,
+            params.minTick,
+            params.maxTick,
+            params.epochLength,
+            params.gamma,
             false,
-            DEFAULT_PD_SLUGS
+            params.numPDSlugs
         );
 
         airlock.create(
-            DEFAULT_TOKEN_NAME,
-            DEFAULT_TOKEN_SYMBOL,
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
+            params.name,
+            params.symbol,
+            params.initialSupply,
+            params.numTokensToSell,
             poolKey,
             DEFAULT_OWNER,
             new address[](0),
@@ -137,10 +143,18 @@ contract AirlockTest is Test, Deployers {
             migrator,
             salt
         );
+
+        return (hook, token);
     }
 
     function test_create_Deploys() public {
         _create();
+    }
+
+    function test_create_MintsTokens() public {
+        (address hook, address token) = _create();
+        assertEq(ERC20(token).totalSupply(), DEFAULT_INITIAL_SUPPLY);
+        assertEq(ERC20(token).balanceOf(hook), DEFAULT_INITIAL_SUPPLY);
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
@@ -167,34 +181,14 @@ contract AirlockTest is Test, Deployers {
         _create();
     }
 
+    // TODO: These tests are pretty heavy, let's see if we can make a function to simplify them.
     function test_create_RevertsIfWrongInitialSupply() public {
         {
+            MineParams memory params = _getDefaultMineParams();
             // Trying to mint more tokens than the amount to sell.
-            uint256 initialSupply = DEFAULT_INITIAL_SUPPLY + 1;
-            uint256 numToSell = DEFAULT_INITIAL_SUPPLY;
+            params.initialSupply = DEFAULT_INITIAL_SUPPLY + 1;
 
-            (bytes32 salt, address hook, address token) = mine(
-                address(tokenFactory),
-                address(dopplerFactory),
-                MineParams({
-                    poolManager: address(manager),
-                    numTokensToSell: numToSell,
-                    minTick: DEFAULT_START_TICK,
-                    maxTick: DEFAULT_END_TICK,
-                    airlock: address(airlock),
-                    name: DEFAULT_TOKEN_NAME,
-                    symbol: DEFAULT_TOKEN_SYMBOL,
-                    initialSupply: initialSupply,
-                    numeraire: address(0),
-                    startingTime: DEFAULT_STARTING_TIME,
-                    endingTime: DEFAULT_ENDING_TIME,
-                    minimumProceeds: DEFAULT_MIN_PROCEEDS,
-                    maximumProceeds: DEFAULT_MAX_PROCEEDS,
-                    epochLength: DEFAULT_EPOCH_LENGTH,
-                    gamma: DEFAULT_GAMMA,
-                    numPDSlugs: DEFAULT_PD_SLUGS
-                })
-            );
+            (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(dopplerFactory), params);
 
             PoolKey memory poolKey = PoolKey({
                 currency0: Currency.wrap(address(0)),
@@ -219,10 +213,10 @@ contract AirlockTest is Test, Deployers {
 
             vm.expectRevert(WrongInitialSupply.selector);
             airlock.create(
-                DEFAULT_TOKEN_NAME,
-                DEFAULT_TOKEN_SYMBOL,
-                initialSupply,
-                numToSell,
+                params.name,
+                params.symbol,
+                params.initialSupply,
+                params.numTokensToSell,
                 poolKey,
                 DEFAULT_OWNER,
                 new address[](0),
@@ -240,9 +234,6 @@ contract AirlockTest is Test, Deployers {
 
         {
             // Trying to allocate too many tokens to the team.
-            uint256 initialSupply = DEFAULT_INITIAL_SUPPLY;
-            uint256 numToSell = DEFAULT_INITIAL_SUPPLY;
-
             uint256[] memory amounts = new uint256[](4);
             address[] memory recipients = new address[](4);
 
@@ -250,28 +241,8 @@ contract AirlockTest is Test, Deployers {
                 amounts[i] = 10_000 ether;
             }
 
-            (bytes32 salt, address hook, address token) = mine(
-                address(tokenFactory),
-                address(dopplerFactory),
-                MineParams({
-                    poolManager: address(manager),
-                    numTokensToSell: numToSell,
-                    minTick: DEFAULT_START_TICK,
-                    maxTick: DEFAULT_END_TICK,
-                    airlock: address(airlock),
-                    name: DEFAULT_TOKEN_NAME,
-                    symbol: DEFAULT_TOKEN_SYMBOL,
-                    initialSupply: initialSupply,
-                    numeraire: address(0),
-                    startingTime: DEFAULT_STARTING_TIME,
-                    endingTime: DEFAULT_ENDING_TIME,
-                    minimumProceeds: DEFAULT_MIN_PROCEEDS,
-                    maximumProceeds: DEFAULT_MAX_PROCEEDS,
-                    epochLength: DEFAULT_EPOCH_LENGTH,
-                    gamma: DEFAULT_GAMMA,
-                    numPDSlugs: DEFAULT_PD_SLUGS
-                })
-            );
+            (bytes32 salt, address hook, address token) =
+                mine(address(tokenFactory), address(dopplerFactory), _getDefaultMineParams());
 
             PoolKey memory poolKey = PoolKey({
                 currency0: Currency.wrap(address(0)),
@@ -298,8 +269,8 @@ contract AirlockTest is Test, Deployers {
             airlock.create(
                 DEFAULT_TOKEN_NAME,
                 DEFAULT_TOKEN_SYMBOL,
-                initialSupply,
-                numToSell,
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
                 poolKey,
                 DEFAULT_OWNER,
                 recipients,
