@@ -67,6 +67,9 @@ contract Doppler is BaseHook {
     /// reusing the hook and messing with its state.
     bool public isInitialized;
 
+    PoolKey public poolKey;
+    address public immutable migrator;
+
     uint256 immutable numTokensToSell; // total amount of tokens to be sold
     uint256 immutable minimumProceeds; // minimum proceeds required to avoid refund phase
     uint256 immutable maximumProceeds; // proceeds amount that will trigger early exit condition
@@ -140,11 +143,11 @@ contract Doppler is BaseHook {
 
     function beforeInitialize(address, PoolKey calldata key, uint160, bytes calldata)
         external
-        view
         override
         returns (bytes4)
     {
         if (isInitialized) revert AlreadyInitialized();
+        poolKey = key;
 
         // Enforce maximum tick spacing
         if (key.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
@@ -167,7 +170,7 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4)
     {
-        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
+        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick, isMigration: false})));
         return BaseHook.afterInitialize.selector;
     }
 
@@ -892,54 +895,89 @@ contract Doppler is BaseHook {
         PoolKey key;
         address sender;
         int24 tick;
+        bool isMigration;
     }
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
     /// @param data The callback data (key, sender, tick)
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
-        (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
-        state.lastEpoch = 1;
+        (PoolKey memory key, address sender, int24 tick, bool isMigration) =
+            (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
-        (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
-        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
-        uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
+        if (isMigration) {
+            for (uint256 i; i < 3 + numPDSlugs; ++i) {
+                Position memory position = positions[bytes32(uint256(i))];
 
-        // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
-        SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
-        SlugData[] memory priceDiscoverySlugs =
-            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
+                if (position.liquidity != 0) {
+                    poolManager.modifyLiquidity(
+                        key,
+                        IPoolManager.ModifyLiquidityParams({
+                            tickLower: isToken0 ? position.tickLower : position.tickUpper,
+                            tickUpper: isToken0 ? position.tickUpper : position.tickLower,
+                            liquidityDelta: -int128(position.liquidity),
+                            salt: bytes32(uint256(position.salt))
+                        }),
+                        ""
+                    );
+                }
+            }
 
-        Position[] memory newPositions = new Position[](2 + numPDSlugs);
+            int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
+            int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
 
-        newPositions[0] = Position({
-            tickLower: lowerSlug.tickLower,
-            tickUpper: lowerSlug.tickUpper,
-            liquidity: lowerSlug.liquidity,
-            salt: uint8(uint256(LOWER_SLUG_SALT))
-        });
-        newPositions[1] = Position({
-            tickLower: upperSlug.tickLower,
-            tickUpper: upperSlug.tickUpper,
-            liquidity: upperSlug.liquidity,
-            salt: uint8(uint256(UPPER_SLUG_SALT))
-        });
-        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            newPositions[2 + i] = Position({
-                tickLower: priceDiscoverySlugs[i].tickLower,
-                tickUpper: priceDiscoverySlugs[i].tickUpper,
-                liquidity: priceDiscoverySlugs[i].liquidity,
-                salt: uint8(3 + i)
+            if (currency0Delta > 0) {
+                poolManager.take(key.currency0, sender, uint256(currency0Delta));
+            }
+
+            if (currency1Delta > 0) {
+                poolManager.take(key.currency1, sender, uint256(currency1Delta));
+            }
+
+            poolManager.settle();
+        } else {
+            state.lastEpoch = 1;
+
+            (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
+            uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
+            uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
+
+            // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
+            SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
+            (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
+            SlugData[] memory priceDiscoverySlugs =
+                _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
+
+            Position[] memory newPositions = new Position[](2 + numPDSlugs);
+
+            newPositions[0] = Position({
+                tickLower: lowerSlug.tickLower,
+                tickUpper: lowerSlug.tickUpper,
+                liquidity: lowerSlug.liquidity,
+                salt: uint8(uint256(LOWER_SLUG_SALT))
             });
-        }
+            newPositions[1] = Position({
+                tickLower: upperSlug.tickLower,
+                tickUpper: upperSlug.tickUpper,
+                liquidity: upperSlug.liquidity,
+                salt: uint8(uint256(UPPER_SLUG_SALT))
+            });
+            for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+                newPositions[2 + i] = Position({
+                    tickLower: priceDiscoverySlugs[i].tickLower,
+                    tickUpper: priceDiscoverySlugs[i].tickUpper,
+                    liquidity: priceDiscoverySlugs[i].liquidity,
+                    salt: uint8(3 + i)
+                });
+            }
 
-        _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
+            _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
 
-        positions[LOWER_SLUG_SALT] = newPositions[0];
-        positions[UPPER_SLUG_SALT] = newPositions[1];
-        for (uint256 i; i < numPDSlugs; ++i) {
-            positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
+            positions[LOWER_SLUG_SALT] = newPositions[0];
+            positions[UPPER_SLUG_SALT] = newPositions[1];
+            for (uint256 i; i < numPDSlugs; ++i) {
+                positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
+            }
         }
 
         return new bytes(0);
@@ -999,14 +1037,30 @@ contract Doppler is BaseHook {
         });
     }
 
-    function migrate() external {
-        // Only the Airlock can call this function
-        // Either
-        // Maxproceeds <= totalproceeds, in this case it would simply be invoked in the afterswap
-        // endTime is elapsed and totalProceeds > minproceeds, in this case it would be manually invoked somehow
+    function migrate() external returns (uint256 amount0, uint256 amount1) {
+        if (
+            msg.sender != migrator || !earlyExit
+                || !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)
+        ) {
+            revert CannotMigrate();
+        }
+
+        // We didn't exit early so we have to remove our liquidity.
+        if (!earlyExit) {
+            poolManager.unlock(abi.encode(CallbackData({key: poolKey, sender: msg.sender, tick: 0, isMigration: true})));
+        }
+
+        if (isToken0) {
+            amount0 = state.totalProceeds;
+            amount1 = state.totalTokensSold;
+        } else {
+            amount0 = state.totalTokensSold;
+            amount1 = state.totalProceeds;
+        }
     }
 }
 
+error CannotMigrate();
 error AlreadyInitialized();
 error InvalidGamma();
 error InvalidTimeRange();
