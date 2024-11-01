@@ -126,7 +126,7 @@ contract Airlock is Ownable {
         address currency0 = Currency.unwrap(tokenData.poolKey.currency0);
         address currency1 = Currency.unwrap(tokenData.poolKey.currency1);
 
-        ERC20(currency0).transfer(address(tokenData.migrator), amount0);
+        if (currency0 != address(0)) ERC20(currency0).transfer(address(tokenData.migrator), amount0);
         ERC20(currency1).transfer(address(tokenData.migrator), amount1);
 
         (address pool,) = tokenData.migrator.migrate{value: currency0 == address(0) ? amount0 : 0}(
