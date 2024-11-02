@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -52,6 +53,7 @@ contract Doppler is BaseHook {
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
     using ProtocolFeeLibrary for *;
+    using SafeCastLib for uint128;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -861,7 +863,7 @@ contract Doppler is BaseHook {
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: isToken0 ? newPositions[i].tickLower : newPositions[i].tickUpper,
                         tickUpper: isToken0 ? newPositions[i].tickUpper : newPositions[i].tickLower,
-                        liquidityDelta: int128(newPositions[i].liquidity),
+                        liquidityDelta: newPositions[i].liquidity.toInt128(),
                         salt: bytes32(uint256(newPositions[i].salt))
                     }),
                     ""
