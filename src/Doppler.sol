@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -52,6 +53,8 @@ contract Doppler is BaseHook {
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
     using ProtocolFeeLibrary for *;
+    using SafeCastLib for int256;
+    using SafeCastLib for uint256;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -521,7 +524,7 @@ contract Doppler is BaseHook {
 
     /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
     function _getGammaShare() internal view returns (int256) {
-        return int256(FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)));
+        return FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)).toInt256();
     }
 
     /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
