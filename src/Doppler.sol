@@ -50,7 +50,6 @@ error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
 error InvalidTickDelta();
-error InvalidSwap();
 error InvalidProceedLimits();
 error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
