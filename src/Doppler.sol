@@ -131,7 +131,7 @@ contract Doppler is BaseHook {
         // These can both be zero
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
-        totalEpochs = (_endingTime - _startingTime) / _epochLength;
+        totalEpochs = timeDelta / _epochLength;
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
