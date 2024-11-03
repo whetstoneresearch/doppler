@@ -555,13 +555,13 @@ contract Doppler is BaseHook {
                 return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
             } else {
                 // Else if positive, we simply round down
-                return (tick / tickSpacing) * tickSpacing;
+                return tick / tickSpacing * tickSpacing;
             }
         } else {
             // Round up if isToken1
             if (tick < 0) {
                 // If the tick is negative, we round down the negative result to round up
-                return (tick / tickSpacing) * tickSpacing;
+                return tick / tickSpacing * tickSpacing;
             } else {
                 // Else if positive, we simply round up
                 return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
