@@ -408,7 +408,7 @@ contract Doppler is BaseHook {
         }
 
         currentTick =
-            _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta / 1e18), key.tickSpacing);
+            _alignComputedTickWithTickSpacing(upSlug.tickLower + (accumulatorDelta / 1e18).toInt24(), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
