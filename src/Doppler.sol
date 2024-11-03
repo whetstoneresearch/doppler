@@ -857,13 +857,12 @@ contract Doppler is BaseHook {
         internal
     {
         if (swapPrice != currentPrice) {
-            // We swap to the target price
-            // Since there's no liquidity, we swap 0 amounts
+            // Since there's no liquidity in the pool, swapping a non-zero amount allows us to reset its price.
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
                     zeroForOne: swapPrice < currentPrice,
-                    amountSpecified: 1, // We need a non-zero amount to pass checks
+                    amountSpecified: 1,
                     sqrtPriceLimitX96: swapPrice
                 }),
                 ""
