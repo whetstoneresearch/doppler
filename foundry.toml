@@ -8,6 +8,7 @@ out = "out"
 libs = ["lib"]
 evm_version = "cancun"
 via_ir = true
+solc = '0.8.26'
 
 [fuzz]
 max_test_rejects = 10000000
