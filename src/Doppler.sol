@@ -63,6 +63,10 @@ int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 uint256 constant NUM_DEFAULT_SLUGS = 3;
 
+bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
+bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
+
 /// @title Doppler
 /// @author kadenzipfel, kinrezC, clemlak, aadams, and Alexangelj
 contract Doppler is BaseHook {
@@ -75,29 +79,25 @@ contract Doppler is BaseHook {
     using SafeCastLib for int256;
     using SafeCastLib for uint256;
 
-    bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
-    bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
-    bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
-
     bool public insufficientProceeds; // triggers if the pool matures and minimumProceeds is not met
     bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
 
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
-    uint256 immutable numTokensToSell; // total amount of tokens to be sold
-    uint256 immutable minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 immutable maximumProceeds; // proceeds amount that will trigger early exit condition
-    uint256 immutable startingTime; // sale start time
-    uint256 immutable endingTime; // sale end time
-    int24 immutable startingTick; // dutch auction starting tick
-    int24 immutable endingTick; // dutch auction ending tick
-    uint256 immutable epochLength; // length of each epoch (seconds)
-    int24 immutable gamma; // 1.0001 ** (gamma) = max single epoch change
-    bool immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
-    uint256 immutable numPDSlugs; // number of price discovery slugs
+    uint256 internal immutable numTokensToSell; // total amount of tokens to be sold
+    uint256 internal immutable minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 internal immutable maximumProceeds; // proceeds amount that will trigger early exit condition
+    uint256 internal immutable startingTime; // sale start time
+    uint256 internal immutable endingTime; // sale end time
+    int24 internal immutable startingTick; // dutch auction starting tick
+    int24 internal immutable endingTick; // dutch auction ending tick
+    uint256 internal immutable epochLength; // length of each epoch (seconds)
+    int24 internal immutable gamma; // 1.0001 ** (gamma) = max single epoch change
+    bool internal immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    uint256 internal immutable numPDSlugs; // number of price discovery slugs
 
-    uint256 immutable totalEpochs; // total number of epochs
+    uint256 internal immutable totalEpochs; // total number of epochs
 
     receive() external payable {}
 
