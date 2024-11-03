@@ -70,6 +70,7 @@ contract Doppler is BaseHook {
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
     using ProtocolFeeLibrary for *;
+    using SafeCastLib for uint128;
     using SafeCastLib for int256;
     using SafeCastLib for uint256;
 
@@ -878,7 +879,7 @@ contract Doppler is BaseHook {
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: isToken0 ? newPositions[i].tickLower : newPositions[i].tickUpper,
                         tickUpper: isToken0 ? newPositions[i].tickUpper : newPositions[i].tickLower,
-                        liquidityDelta: int128(newPositions[i].liquidity),
+                        liquidityDelta: newPositions[i].liquidity.toInt128(),
                         salt: bytes32(uint256(newPositions[i].salt))
                     }),
                     ""
