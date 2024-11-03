@@ -785,7 +785,7 @@ contract Doppler is BaseHook {
     /// @param num The numerator
     /// @param denom The denominator
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
-        return uint160(FullMath.mulDiv(num, FixedPoint96.Q96, denom));
+        return FullMath.mulDiv(num, FixedPoint96.Q96, denom).toUint160();
     }
 
     /// @notice Computes the single sided liquidity amount for a given price range and amount of tokens
