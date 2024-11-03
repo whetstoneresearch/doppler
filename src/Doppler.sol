@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -52,6 +53,8 @@ contract Doppler is BaseHook {
     using TransientStateLibrary for IPoolManager;
     using BalanceDeltaLibrary for BalanceDelta;
     using ProtocolFeeLibrary for *;
+    using SafeCastLib for int256;
+    using SafeCastLib for uint256;
 
     bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
     bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
@@ -372,7 +375,7 @@ contract Doppler is BaseHook {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
 
             // Safe from overflow since the result is <= gamma which is an int24 already
-            int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
+            int24 computedRange = (_getGammaShare() * gamma / 1e18).toInt24();
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
@@ -407,7 +410,7 @@ contract Doppler is BaseHook {
         }
 
         currentTick =
-            _alignComputedTickWithTickSpacing(upSlug.tickLower + int24(accumulatorDelta / 1e18), key.tickSpacing);
+            _alignComputedTickWithTickSpacing(upSlug.tickLower + (accumulatorDelta / 1e18).toInt24(), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -523,7 +526,7 @@ contract Doppler is BaseHook {
 
     /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
     function _getGammaShare() internal view returns (int256) {
-        return int256(FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)));
+        return FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)).toInt256();
     }
 
     /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
@@ -602,7 +605,7 @@ contract Doppler is BaseHook {
         view
         returns (int24 lower, int24 upper)
     {
-        int24 accumulatorDelta = int24(accumulator / 1e18);
+        int24 accumulatorDelta = (accumulator / 1e18).toInt24();
         int24 adjustedTick = startingTick + accumulatorDelta;
         lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
 
@@ -784,7 +787,7 @@ contract Doppler is BaseHook {
     /// @param num The numerator
     /// @param denom The denominator
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
-        return uint160(FullMath.mulDiv(num, FixedPoint96.Q96, denom));
+        return FullMath.mulDiv(num, FixedPoint96.Q96, denom).toUint160();
     }
 
     /// @notice Computes the single sided liquidity amount for a given price range and amount of tokens
