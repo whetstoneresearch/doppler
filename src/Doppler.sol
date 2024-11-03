@@ -295,19 +295,17 @@ contract Doppler is BaseHook {
 
             int128 amount0 = swapDelta.amount0();
             if (amount0 >= 0) {
-                state.totalTokensSold += uint256(uint128(amount0));
+                state.totalTokensSold += uint128(amount0);
             } else {
-                uint256 tokensSoldLessFee =
-                    FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 tokensSoldLessFee = FullMath.mulDiv(uint128(-amount0), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalTokensSold -= tokensSoldLessFee;
             }
 
             int128 amount1 = swapDelta.amount1();
             if (amount1 >= 0) {
-                state.totalProceeds -= uint256(uint128(amount1));
+                state.totalProceeds -= uint128(amount1);
             } else {
-                uint256 proceedsLessFee =
-                    FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount1), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
@@ -315,19 +313,17 @@ contract Doppler is BaseHook {
 
             int128 amount1 = swapDelta.amount1();
             if (amount1 >= 0) {
-                state.totalTokensSold += uint256(uint128(amount1));
+                state.totalTokensSold += uint128(amount1);
             } else {
-                uint256 tokensSoldLessFee =
-                    FullMath.mulDiv(uint256(uint128(-amount1)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 tokensSoldLessFee = FullMath.mulDiv(uint128(-amount1), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalTokensSold -= tokensSoldLessFee;
             }
 
             int128 amount0 = swapDelta.amount0();
             if (amount0 >= 0) {
-                state.totalProceeds -= uint256(uint128(amount0));
+                state.totalProceeds -= uint128(amount0);
             } else {
-                uint256 proceedsLessFee =
-                    FullMath.mulDiv(uint256(uint128(-amount0)), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount0), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
                 state.totalProceeds += proceedsLessFee;
             }
         }
