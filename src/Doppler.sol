@@ -41,6 +41,22 @@ struct Position {
     uint8 salt;
 }
 
+error InvalidGamma();
+error InvalidTimeRange();
+error Unauthorized();
+error BeforeStartTime();
+error SwapBelowRange();
+error InvalidTime();
+error InvalidTickRange();
+error InvalidTickSpacing();
+error InvalidEpochLength();
+error InvalidTickDelta();
+error InvalidProceedLimits();
+error InvalidNumPDSlugs();
+error InvalidSwapAfterMaturitySufficientProceeds();
+error InvalidSwapAfterMaturityInsufficientProceeds();
+error MaximumProceedsReached();
+
 uint256 constant MAX_SWAP_FEE = 1e6;
 int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
@@ -1009,20 +1025,3 @@ contract Doppler is BaseHook {
         });
     }
 }
-
-error InvalidGamma();
-error InvalidTimeRange();
-error Unauthorized();
-error BeforeStartTime();
-error SwapBelowRange();
-error InvalidTime();
-error InvalidTickRange();
-error InvalidTickSpacing();
-error InvalidEpochLength();
-error InvalidTickDelta();
-error InvalidSwap();
-error InvalidProceedLimits();
-error InvalidNumPDSlugs();
-error InvalidSwapAfterMaturitySufficientProceeds();
-error InvalidSwapAfterMaturityInsufficientProceeds();
-error MaximumProceedsReached();
