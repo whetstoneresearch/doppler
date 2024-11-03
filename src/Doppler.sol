@@ -603,7 +603,7 @@ contract Doppler is BaseHook {
         view
         returns (int24 lower, int24 upper)
     {
-        int24 accumulatorDelta = int24(accumulator / 1e18);
+        int24 accumulatorDelta = (accumulator / 1e18).toInt24();
         int24 adjustedTick = startingTick + accumulatorDelta;
         lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
 
