@@ -521,7 +521,7 @@ contract Doppler is BaseHook {
 
     /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
     function _getGammaShare() internal view returns (int256) {
-        return int256(FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)));
+        return int256(FullMath.mulDiv(epochLength, 1e18, endingTime - startingTime));
     }
 
     /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
