@@ -110,9 +110,9 @@ contract Doppler is BaseHook {
         if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
 
         /* Time checks */
-        uint256 timeDelta = _endingTime - _startingTime;
         // Starting time must be less than ending time
         if (_startingTime >= _endingTime) revert InvalidTimeRange();
+        uint256 timeDelta = _endingTime - _startingTime;
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
         // TODO: Consider whether this should check if the left side is less than tickSpacing
         if (
