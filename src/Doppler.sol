@@ -60,6 +60,7 @@ error MaximumProceedsReached();
 uint256 constant MAX_SWAP_FEE = 1e6;
 int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
+uint256 constant NUM_DEFAULT_SLUGS = 3;
 
 /// @title Doppler
 /// @author kadenzipfel, kinrezC, clemlak, aadams, and Alexangelj
@@ -210,11 +211,11 @@ contract Doppler is BaseHook {
                 PoolId poolId = key.toId();
                 (, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
-                Position[] memory prevPositions = new Position[](2 + numPDSlugs);
+                Position[] memory prevPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
                 prevPositions[0] = positions[LOWER_SLUG_SALT];
                 prevPositions[1] = positions[UPPER_SLUG_SALT];
                 for (uint256 i; i < numPDSlugs; ++i) {
-                    prevPositions[2 + i] = positions[bytes32(uint256(3 + i))];
+                    prevPositions[NUM_DEFAULT_SLUGS - 1 + i] = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
@@ -245,7 +246,7 @@ contract Doppler is BaseHook {
                 // Add 1 to numPDSlugs because we don't need to clear the lower slug
                 // but we do need to clear the upper/pd slugs
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
-                    delete positions[bytes32(uint256(2 + i))];
+                    delete positions[bytes32(uint256(NUM_DEFAULT_SLUGS - 1 + i))];
                 }
             } else {
                 revert InvalidSwapAfterMaturitySufficientProceeds();
@@ -400,7 +401,7 @@ contract Doppler is BaseHook {
             uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
             liquidityBound = epochsRemaining < numPDSlugs
-                ? positions[bytes32(uint256(3 + epochsRemaining))].tickUpper
+                ? positions[bytes32(uint256(NUM_DEFAULT_SLUGS + epochsRemaining))].tickUpper
                 : liquidityBound;
 
             // We bound the currentTick by the top of the curve (tauTick + gamma)
@@ -444,11 +445,11 @@ contract Doppler is BaseHook {
             totalTokensSold_ != 0 ? _computeRequiredProceeds(sqrtPriceLower, sqrtPriceNext, totalTokensSold_) : 0;
 
         // Get existing positions
-        Position[] memory prevPositions = new Position[](2 + numPDSlugs);
+        Position[] memory prevPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
         prevPositions[0] = positions[LOWER_SLUG_SALT];
         prevPositions[1] = positions[UPPER_SLUG_SALT];
         for (uint256 i; i < numPDSlugs; ++i) {
-            prevPositions[2 + i] = positions[bytes32(uint256(3 + i))];
+            prevPositions[NUM_DEFAULT_SLUGS - 1 + i] = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
         }
 
         // Remove existing positions, track removed tokens
@@ -475,7 +476,7 @@ contract Doppler is BaseHook {
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
         // Get new positions
-        Position[] memory newPositions = new Position[](2 + numPDSlugs);
+        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
         newPositions[0] = Position({
             tickLower: lowerSlug.tickLower,
             tickUpper: lowerSlug.tickUpper,
@@ -489,11 +490,11 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            newPositions[2 + i] = Position({
+            newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
                 tickLower: priceDiscoverySlugs[i].tickLower,
                 tickUpper: priceDiscoverySlugs[i].tickUpper,
                 liquidity: priceDiscoverySlugs[i].liquidity,
-                salt: uint8(3 + i)
+                salt: uint8(NUM_DEFAULT_SLUGS + i)
             });
         }
 
@@ -506,9 +507,9 @@ contract Doppler is BaseHook {
         for (uint256 i; i < numPDSlugs; ++i) {
             if (i >= priceDiscoverySlugs.length) {
                 // Clear the position from storage if it's not being placed
-                delete positions[bytes32(uint256(3 + i))];
+                delete positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
             } else {
-                positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
+                positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
     }
@@ -932,7 +933,7 @@ contract Doppler is BaseHook {
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
-        Position[] memory newPositions = new Position[](2 + numPDSlugs);
+        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
 
         newPositions[0] = Position({
             tickLower: lowerSlug.tickLower,
@@ -947,11 +948,11 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            newPositions[2 + i] = Position({
+            newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
                 tickLower: priceDiscoverySlugs[i].tickLower,
                 tickUpper: priceDiscoverySlugs[i].tickUpper,
                 liquidity: priceDiscoverySlugs[i].liquidity,
-                salt: uint8(3 + i)
+                salt: uint8(NUM_DEFAULT_SLUGS + i)
             });
         }
 
@@ -960,7 +961,7 @@ contract Doppler is BaseHook {
         positions[LOWER_SLUG_SALT] = newPositions[0];
         positions[UPPER_SLUG_SALT] = newPositions[1];
         for (uint256 i; i < numPDSlugs; ++i) {
-            positions[bytes32(uint256(3 + i))] = newPositions[2 + i];
+            positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
         }
 
         return new bytes(0);
