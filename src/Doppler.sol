@@ -541,7 +541,7 @@ contract Doppler is BaseHook {
 
     /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
     function _getGammaShare() internal view returns (int256) {
-        return FullMath.mulDiv(epochLength, 1e18, (endingTime - startingTime)).toInt256();
+        return FullMath.mulDiv(epochLength, 1e18, endingTime - startingTime).toInt256();
     }
 
     /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
@@ -575,13 +575,13 @@ contract Doppler is BaseHook {
                 return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
             } else {
                 // Else if positive, we simply round down
-                return (tick / tickSpacing) * tickSpacing;
+                return tick / tickSpacing * tickSpacing;
             }
         } else {
             // Round up if isToken1
             if (tick < 0) {
                 // If the tick is negative, we round down the negative result to round up
-                return (tick / tickSpacing) * tickSpacing;
+                return tick / tickSpacing * tickSpacing;
             } else {
                 // Else if positive, we simply round up
                 return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
