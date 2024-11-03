@@ -17,6 +17,7 @@ import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.
 import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import {SwapMath} from "v4-core/src/libraries/SwapMath.sol";
 import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
 
 struct SlugData {
@@ -57,7 +58,7 @@ error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
 error MaximumProceedsReached();
 
-uint256 constant MAX_SWAP_FEE = 1e6;
+uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 uint256 constant NUM_DEFAULT_SLUGS = 3;
