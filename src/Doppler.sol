@@ -190,11 +190,11 @@ contract Doppler is BaseHook {
                 PoolId poolId = key.toId();
                 (, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
-                Position[] memory prevPositions = new Position[](2 + numPDSlugs);
+                Position[] memory prevPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
                 prevPositions[0] = positions[LOWER_SLUG_SALT];
                 prevPositions[1] = positions[UPPER_SLUG_SALT];
                 for (uint256 i; i < numPDSlugs; ++i) {
-                    prevPositions[2 + i] = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
+                    prevPositions[NUM_DEFAULT_SLUGS - 1 + i] = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
@@ -225,7 +225,7 @@ contract Doppler is BaseHook {
                 // Add 1 to numPDSlugs because we don't need to clear the lower slug
                 // but we do need to clear the upper/pd slugs
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
-                    delete positions[bytes32(uint256(2 + i))];
+                    delete positions[bytes32(uint256(NUM_DEFAULT_SLUGS - 1 + i))];
                 }
             } else {
                 revert InvalidSwapAfterMaturitySufficientProceeds();
@@ -428,11 +428,11 @@ contract Doppler is BaseHook {
             totalTokensSold_ != 0 ? _computeRequiredProceeds(sqrtPriceLower, sqrtPriceNext, totalTokensSold_) : 0;
 
         // Get existing positions
-        Position[] memory prevPositions = new Position[](2 + numPDSlugs);
+        Position[] memory prevPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
         prevPositions[0] = positions[LOWER_SLUG_SALT];
         prevPositions[1] = positions[UPPER_SLUG_SALT];
         for (uint256 i; i < numPDSlugs; ++i) {
-            prevPositions[2 + i] = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
+            prevPositions[NUM_DEFAULT_SLUGS - 1 + i] = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
         }
 
         // Remove existing positions, track removed tokens
@@ -459,7 +459,7 @@ contract Doppler is BaseHook {
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
         // Get new positions
-        Position[] memory newPositions = new Position[](2 + numPDSlugs);
+        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
         newPositions[0] = Position({
             tickLower: lowerSlug.tickLower,
             tickUpper: lowerSlug.tickUpper,
@@ -473,7 +473,7 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            newPositions[2 + i] = Position({
+            newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
                 tickLower: priceDiscoverySlugs[i].tickLower,
                 tickUpper: priceDiscoverySlugs[i].tickUpper,
                 liquidity: priceDiscoverySlugs[i].liquidity,
@@ -492,7 +492,7 @@ contract Doppler is BaseHook {
                 // Clear the position from storage if it's not being placed
                 delete positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))];
             } else {
-                positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[2 + i];
+                positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
     }
@@ -917,7 +917,7 @@ contract Doppler is BaseHook {
         SlugData[] memory priceDiscoverySlugs =
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
-        Position[] memory newPositions = new Position[](2 + numPDSlugs);
+        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
 
         newPositions[0] = Position({
             tickLower: lowerSlug.tickLower,
@@ -932,7 +932,7 @@ contract Doppler is BaseHook {
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            newPositions[2 + i] = Position({
+            newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
                 tickLower: priceDiscoverySlugs[i].tickLower,
                 tickUpper: priceDiscoverySlugs[i].tickUpper,
                 liquidity: priceDiscoverySlugs[i].liquidity,
@@ -945,7 +945,7 @@ contract Doppler is BaseHook {
         positions[LOWER_SLUG_SALT] = newPositions[0];
         positions[UPPER_SLUG_SALT] = newPositions[1];
         for (uint256 i; i < numPDSlugs; ++i) {
-            positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[2 + i];
+            positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
         }
 
         return new bytes(0);
