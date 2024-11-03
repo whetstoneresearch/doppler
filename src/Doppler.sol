@@ -373,7 +373,7 @@ contract Doppler is BaseHook {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
 
             // Safe from overflow since the result is <= gamma which is an int24 already
-            int24 computedRange = int24(_getGammaShare() * gamma / 1e18);
+            int24 computedRange = (_getGammaShare() * gamma / 1e18).toInt24();
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
