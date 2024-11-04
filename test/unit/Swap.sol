@@ -70,7 +70,7 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_RevertsAfterEndTimeSufficientProceeds() public {
-        vm.warp(hook.getStartingTime()); // 1 second after the end time
+        vm.warp(hook.getStartingTime());
 
         int256 minimumProceeds = int256(hook.getMinimumProceeds());
 

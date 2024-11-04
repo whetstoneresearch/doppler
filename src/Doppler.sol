@@ -278,6 +278,8 @@ contract Doppler is BaseHook {
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(NUM_DEFAULT_SLUGS - 1 + i))];
                 }
+            } else {
+                revert InvalidSwapAfterMaturitySufficientProceeds();
             }
         }
 
