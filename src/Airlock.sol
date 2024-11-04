@@ -32,7 +32,7 @@ struct TokenData {
     uint256[] amounts;
 }
 
-event Create(address asset, address indexed numeraire, address governance, address hook);
+event Create(address asset, PoolKey poolKey, address hook);
 
 event Migrate(address asset, address pool);
 
@@ -109,6 +109,8 @@ contract Airlock is Ownable {
 
         // TODO: Do we really have to initialize the pool at the right price?
         poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(0), new bytes(0));
+
+        emit Create(token, poolKey, hook);
 
         return (token, governance, hook);
     }
