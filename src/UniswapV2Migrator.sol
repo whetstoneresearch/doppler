@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {IMigrator} from "src/interfaces/IMigrator.sol";
+import {SafeTransferLib, ERC20} from "solmate/src/utils/SafeTransferLib.sol";
 
 interface IUniswapV2Router02 {
     function addLiquidity(
@@ -57,11 +57,13 @@ contract UniswapV2Migrator is IMigrator {
 
         if (token0 == address(0)) {
             (,, liquidity) = router.addLiquidityETH{value: amount0}(token1, amount0, 0, 0, recipient, block.timestamp);
+            SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         } else {
             ERC20(token0).approve(address(router), amount0);
             (,, liquidity) = router.addLiquidity(token0, token1, 0, 0, 0, 0, msg.sender, block.timestamp);
+            SafeTransferLib.safeTransfer(ERC20(token0), recipient, ERC20(token0).balanceOf(address(this)));
         }
 
-        // TODO: Also transfer the dust tokens to the `recipient` address?
+        SafeTransferLib.safeTransfer(ERC20(token1), recipient, ERC20(token1).balanceOf(address(this)));
     }
 }
