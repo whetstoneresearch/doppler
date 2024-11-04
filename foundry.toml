@@ -15,7 +15,7 @@ max_test_rejects = 10000000
 # use the --ir-minimum flag to get coverage to run. there's no foundry config for this yet.
 
 [fmt]
-bracket_spacing = false
+bracket_spacing = true
 int_types = 'long'
 line_length = 120
 multiline_func_header = 'params_first'
