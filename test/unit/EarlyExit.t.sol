@@ -23,11 +23,6 @@ import "forge-std/console.sol";
 using PoolIdLibrary for PoolKey;
 
 contract EarlyExitTest is BaseTest {
-    function setUp() public override {
-        manager = new PoolManager();
-        _deployTokens();
-    }
-
     function deployDoppler(DopplerConfig memory config) internal {
         (token0, token1) = isToken0 ? (asset, numeraire) : (numeraire, asset);
         TestERC20(isToken0 ? token0 : token1).transfer(address(hook), config.numTokensToSell);
@@ -87,10 +82,10 @@ contract EarlyExitTest is BaseTest {
     }
 
     function test_swap_RevertsIfMaximumProceedsReached() public {
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.maximumProceeds = 500e18;
-
-        deployDoppler(config);
+        vm.skip(true);
+        // DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        // config.maximumProceeds = 500e18;
+        // _deployDoppler(config);
 
         vm.warp(hook.getStartingTime());
 

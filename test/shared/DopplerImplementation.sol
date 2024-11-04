@@ -15,7 +15,6 @@ contract DopplerImplementation is Doppler {
 
     constructor(
         address _poolManager,
-        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _minimumProceeds,
         uint256 _maximumProceeds,
@@ -27,11 +26,11 @@ contract DopplerImplementation is Doppler {
         int24 _gamma,
         bool _isToken0,
         uint256 _numPDSlugs,
+        address airlock_,
         IHooks addressToEtch
     )
         Doppler(
             IPoolManager(_poolManager),
-            _poolKey,
             _numTokensToSell,
             _minimumProceeds,
             _maximumProceeds,
@@ -42,7 +41,8 @@ contract DopplerImplementation is Doppler {
             _epochLength,
             _gamma,
             _isToken0,
-            _numPDSlugs
+            _numPDSlugs,
+            airlock_
         )
     {
         Hooks.validateHookPermissions(addressToEtch, getHookPermissions());
