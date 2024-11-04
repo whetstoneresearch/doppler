@@ -57,6 +57,7 @@ error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
 error MaximumProceedsReached();
+error SenderNotPoolManager();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 int24 constant MAX_TICK_SPACING = 30;
@@ -99,7 +100,9 @@ contract Doppler is BaseHook {
 
     uint256 internal immutable totalEpochs; // total number of epochs
 
-    receive() external payable {}
+    receive() external payable {
+        if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
+    }
 
     constructor(
         IPoolManager _poolManager,
