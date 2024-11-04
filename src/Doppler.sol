@@ -58,6 +58,9 @@ error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
 error MaximumProceedsReached();
 error SenderNotPoolManager();
+error CannotMigrate();
+error AlreadyInitialized();
+error SenderNotAirlock();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 int24 constant MAX_TICK_SPACING = 30;
@@ -86,6 +89,13 @@ contract Doppler is BaseHook {
     State public state;
     mapping(bytes32 salt => Position) public positions;
 
+    /// @notice True if the hook was already initialized. This is used to prevent another pool from
+    /// reusing the hook and messing with its state.
+    bool public isInitialized;
+
+    PoolKey public poolKey;
+    address public immutable airlock;
+
     uint256 internal immutable numTokensToSell; // total amount of tokens to be sold
     uint256 internal immutable minimumProceeds; // minimum proceeds required to avoid refund phase
     uint256 internal immutable maximumProceeds; // proceeds amount that will trigger early exit condition
@@ -106,7 +116,6 @@ contract Doppler is BaseHook {
 
     constructor(
         IPoolManager _poolManager,
-        PoolKey memory _poolKey,
         uint256 _numTokensToSell,
         uint256 _minimumProceeds,
         uint256 _maximumProceeds,
@@ -117,7 +126,8 @@ contract Doppler is BaseHook {
         uint256 _epochLength,
         int24 _gamma,
         bool _isToken0,
-        uint256 _numPDSlugs
+        uint256 _numPDSlugs,
+        address airlock_
     ) BaseHook(_poolManager) {
         // Check that the current time is before the starting time
         if (block.timestamp > _startingTime) revert InvalidTime();
@@ -128,8 +138,6 @@ contract Doppler is BaseHook {
             if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
             if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
         }
-        // Enforce maximum tick spacing
-        if (_poolKey.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
 
         /* Time checks */
         // Starting time must be less than ending time
@@ -145,11 +153,6 @@ contract Doppler is BaseHook {
         }
         // _endingTime - startingTime must be divisible by epochLength
         if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
-
-        /* Gamma checks */
-        // Enforce that the total tick delta is divisible by the total number of epochs
-        // Enforce that gamma is divisible by tick spacing
-        if (_gamma % _poolKey.tickSpacing != 0) revert InvalidGamma();
 
         /* Num price discovery slug checks */
         if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
@@ -171,6 +174,26 @@ contract Doppler is BaseHook {
         gamma = _gamma;
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
+        airlock = airlock_;
+    }
+
+    function beforeInitialize(address, PoolKey calldata key, uint160, bytes calldata)
+        external
+        override
+        returns (bytes4)
+    {
+        if (isInitialized) revert AlreadyInitialized();
+        poolKey = key;
+
+        // Enforce maximum tick spacing
+        if (key.tickSpacing > MAX_TICK_SPACING) revert InvalidTickSpacing();
+
+        /* Gamma checks */
+        // Enforce that the total tick delta is divisible by the total number of epochs
+        // Enforce that gamma is divisible by tick spacing
+        if (gamma % key.tickSpacing != 0) revert InvalidGamma();
+
+        return BaseHook.beforeInitialize.selector;
     }
 
     /// @notice Called by poolManager following initialization, used to place initial liquidity slugs
@@ -183,7 +206,7 @@ contract Doppler is BaseHook {
         onlyPoolManager
         returns (bytes4)
     {
-        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick})));
+        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick, isMigration: false})));
         return BaseHook.afterInitialize.selector;
     }
 
@@ -919,54 +942,89 @@ contract Doppler is BaseHook {
         PoolKey key;
         address sender;
         int24 tick;
+        bool isMigration;
     }
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
     /// @param data The callback data (key, sender, tick)
     function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
-        (PoolKey memory key,, int24 tick) = (callbackData.key, callbackData.sender, callbackData.tick);
-        state.lastEpoch = 1;
+        (PoolKey memory key, address sender, int24 tick, bool isMigration) =
+            (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
-        (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
-        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
-        uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
+        if (isMigration) {
+            for (uint256 i; i < 3 + numPDSlugs; ++i) {
+                Position memory position = positions[bytes32(uint256(i))];
 
-        // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
-        SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
-        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
-        SlugData[] memory priceDiscoverySlugs =
-            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
+                if (position.liquidity != 0) {
+                    poolManager.modifyLiquidity(
+                        key,
+                        IPoolManager.ModifyLiquidityParams({
+                            tickLower: isToken0 ? position.tickLower : position.tickUpper,
+                            tickUpper: isToken0 ? position.tickUpper : position.tickLower,
+                            liquidityDelta: -int128(position.liquidity),
+                            salt: bytes32(uint256(position.salt))
+                        }),
+                        ""
+                    );
+                }
+            }
 
-        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
+            int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
+            int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
 
-        newPositions[0] = Position({
-            tickLower: lowerSlug.tickLower,
-            tickUpper: lowerSlug.tickUpper,
-            liquidity: lowerSlug.liquidity,
-            salt: uint8(uint256(LOWER_SLUG_SALT))
-        });
-        newPositions[1] = Position({
-            tickLower: upperSlug.tickLower,
-            tickUpper: upperSlug.tickUpper,
-            liquidity: upperSlug.liquidity,
-            salt: uint8(uint256(UPPER_SLUG_SALT))
-        });
-        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-            newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
-                tickLower: priceDiscoverySlugs[i].tickLower,
-                tickUpper: priceDiscoverySlugs[i].tickUpper,
-                liquidity: priceDiscoverySlugs[i].liquidity,
-                salt: uint8(NUM_DEFAULT_SLUGS + i)
+            if (currency0Delta > 0) {
+                poolManager.take(key.currency0, sender, uint256(currency0Delta));
+            }
+
+            if (currency1Delta > 0) {
+                poolManager.take(key.currency1, sender, uint256(currency1Delta));
+            }
+
+            poolManager.settle();
+        } else {
+            state.lastEpoch = 1;
+
+            (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
+            uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
+            uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
+
+            // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
+            SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
+            (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
+            SlugData[] memory priceDiscoverySlugs =
+                _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
+
+            Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
+
+            newPositions[0] = Position({
+                tickLower: lowerSlug.tickLower,
+                tickUpper: lowerSlug.tickUpper,
+                liquidity: lowerSlug.liquidity,
+                salt: uint8(uint256(LOWER_SLUG_SALT))
             });
-        }
+            newPositions[1] = Position({
+                tickLower: upperSlug.tickLower,
+                tickUpper: upperSlug.tickUpper,
+                liquidity: upperSlug.liquidity,
+                salt: uint8(uint256(UPPER_SLUG_SALT))
+            });
+            for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+                newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
+                    tickLower: priceDiscoverySlugs[i].tickLower,
+                    tickUpper: priceDiscoverySlugs[i].tickUpper,
+                    liquidity: priceDiscoverySlugs[i].liquidity,
+                    salt: uint8(NUM_DEFAULT_SLUGS + i)
+                });
+            }
 
-        _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
+            _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
 
-        positions[LOWER_SLUG_SALT] = newPositions[0];
-        positions[UPPER_SLUG_SALT] = newPositions[1];
-        for (uint256 i; i < numPDSlugs; ++i) {
-            positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
+            positions[LOWER_SLUG_SALT] = newPositions[0];
+            positions[UPPER_SLUG_SALT] = newPositions[1];
+            for (uint256 i; i < numPDSlugs; ++i) {
+                positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
+            }
         }
 
         return new bytes(0);
@@ -1009,7 +1067,7 @@ contract Doppler is BaseHook {
     /// @notice Returns a struct of permissions to signal which hook functions are to be implemented
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize: false,
+            beforeInitialize: true,
             afterInitialize: true,
             beforeAddLiquidity: true,
             beforeRemoveLiquidity: false,
@@ -1024,5 +1082,26 @@ contract Doppler is BaseHook {
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
+    }
+
+    function migrate() external returns (uint256 amount0, uint256 amount1) {
+        if (msg.sender != airlock) revert SenderNotAirlock();
+
+        if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
+            revert CannotMigrate();
+        }
+
+        // We didn't exit early so we have to remove our liquidity.
+        if (!earlyExit) {
+            poolManager.unlock(abi.encode(CallbackData({key: poolKey, sender: msg.sender, tick: 0, isMigration: true})));
+        }
+
+        if (isToken0) {
+            amount0 = state.totalProceeds;
+            amount1 = state.totalTokensSold;
+        } else {
+            amount0 = state.totalTokensSold;
+            amount1 = state.totalProceeds;
+        }
     }
 }
