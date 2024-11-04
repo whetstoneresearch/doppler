@@ -57,6 +57,8 @@ error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
 error MaximumProceedsReached();
+error CannotMigrate();
+error AlreadyInitialized();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 int24 constant MAX_TICK_SPACING = 30;
@@ -84,7 +86,7 @@ contract Doppler is BaseHook {
 
     State public state;
     mapping(bytes32 salt => Position) public positions;
-    
+
     /// @notice True if the hook was already initialized. This is used to prevent another pool from
     /// reusing the hook and messing with its state.
     bool public isInitialized;
@@ -1007,16 +1009,17 @@ contract Doppler is BaseHook {
                     tickUpper: priceDiscoverySlugs[i].tickUpper,
                     liquidity: priceDiscoverySlugs[i].liquidity,
                     salt: uint8(NUM_DEFAULT_SLUGS + i)
+                });
+            }
 
-                _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
+            _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
 
-
-                positions[LOWER_SLUG_SALT] = newPositions[0];
-                positions[UPPER_SLUG_SALT] = newPositions[1];
-                for (uint256 i; i < numPDSlugs; ++i) {
-                  positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
-              }
-         }
+            positions[LOWER_SLUG_SALT] = newPositions[0];
+            positions[UPPER_SLUG_SALT] = newPositions[1];
+            for (uint256 i; i < numPDSlugs; ++i) {
+                positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
+            }
+        }
 
         return new bytes(0);
     }
