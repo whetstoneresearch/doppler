@@ -58,7 +58,8 @@ function mine(address tokenFactory, address hookFactory, MineParams memory param
                 params.epochLength,
                 params.gamma,
                 isToken0,
-                params.numPDSlugs
+                params.numPDSlugs,
+                params.airlock
             )
         )
     );

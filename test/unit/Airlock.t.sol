@@ -11,13 +11,16 @@ import {Ownable} from "@openzeppelin/access/Ownable.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
+import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
+import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 
 import {Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply} from "src/Airlock.sol";
 import {TokenFactory} from "src/TokenFactory.sol";
-import {DopplerFactory} from "src/DopplerFactory.sol";
+import {DopplerFactory, Doppler} from "src/DopplerFactory.sol";
 import {GovernanceFactory} from "src/GovernanceFactory.sol";
 import {UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory} from "src/UniswapV2Migrator.sol";
 
+import {CustomRouter} from "test/shared/CustomRouter.sol";
 import {mine, MineParams} from "test/shared/AirlockMiner.sol";
 
 // TODO: Reuse these constants from the BaseTest
@@ -131,7 +134,8 @@ contract AirlockTest is Test, Deployers {
             params.epochLength,
             params.gamma,
             false,
-            params.numPDSlugs
+            params.numPDSlugs,
+            params.airlock
         );
 
         airlock.create(
@@ -167,8 +171,25 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_migrate() public {
-        (, address token) = _create();
+        (address hook, address token) = _create();
 
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(token),
+            fee: DEFAULT_FEE,
+            tickSpacing: DEFAULT_TICK_SPACING,
+            hooks: IHooks(hook)
+        });
+
+        // Deploy swapRouter
+        swapRouter = new PoolSwapTest(manager);
+        Quoter quoter = new Quoter(manager);
+        CustomRouter router = new CustomRouter(swapRouter, quoter, poolKey, false, true);
+        uint256 amountIn = router.computeBuyExactOut(DEFAULT_MIN_PROCEEDS);
+
+        deal(address(this), amountIn);
+        router.buyExactOut{value: amountIn}(DEFAULT_MIN_PROCEEDS);
+        vm.warp(DEFAULT_ENDING_TIME);
         airlock.migrate(token);
     }
 
@@ -223,7 +244,8 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_EPOCH_LENGTH,
                 DEFAULT_GAMMA,
                 false,
-                DEFAULT_PD_SLUGS
+                DEFAULT_PD_SLUGS,
+                address(airlock)
             );
 
             vm.expectRevert(WrongInitialSupply.selector);
@@ -277,7 +299,8 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_EPOCH_LENGTH,
                 DEFAULT_GAMMA,
                 false,
-                DEFAULT_PD_SLUGS
+                DEFAULT_PD_SLUGS,
+                address(airlock)
             );
 
             vm.expectRevert(WrongInitialSupply.selector);

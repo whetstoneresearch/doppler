@@ -73,7 +73,8 @@ contract ConstructorTest is BaseTest {
                 config.gamma,
                 isToken0,
                 config.numPDSlugs,
-                hook
+                hook,
+                address(0xbeef) // airlock
             ),
             address(hook)
         );

@@ -218,6 +218,7 @@ contract BaseTest is Test, Deployers {
                 config.gamma,
                 isToken0,
                 config.numPDSlugs,
+                address(0xbeef),
                 hook
             ),
             address(hook)

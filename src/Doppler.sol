@@ -59,6 +59,7 @@ error InvalidSwapAfterMaturityInsufficientProceeds();
 error MaximumProceedsReached();
 error CannotMigrate();
 error AlreadyInitialized();
+error SenderNotAirlock();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 int24 constant MAX_TICK_SPACING = 30;
@@ -92,7 +93,7 @@ contract Doppler is BaseHook {
     bool public isInitialized;
 
     PoolKey public poolKey;
-    address public immutable migrator;
+    address public immutable airlock;
 
     uint256 internal immutable numTokensToSell; // total amount of tokens to be sold
     uint256 internal immutable minimumProceeds; // minimum proceeds required to avoid refund phase
@@ -122,7 +123,8 @@ contract Doppler is BaseHook {
         uint256 _epochLength,
         int24 _gamma,
         bool _isToken0,
-        uint256 _numPDSlugs
+        uint256 _numPDSlugs,
+        address airlock_
     ) BaseHook(_poolManager) {
         // Check that the current time is before the starting time
         if (block.timestamp > _startingTime) revert InvalidTime();
@@ -169,6 +171,7 @@ contract Doppler is BaseHook {
         gamma = _gamma;
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
+        airlock = airlock_;
     }
 
     function beforeInitialize(address, PoolKey calldata key, uint160, bytes calldata)
@@ -1079,10 +1082,9 @@ contract Doppler is BaseHook {
     }
 
     function migrate() external returns (uint256 amount0, uint256 amount1) {
-        if (
-            msg.sender != migrator || !earlyExit
-                || !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)
-        ) {
+        if (msg.sender != airlock) revert SenderNotAirlock();
+
+        if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
             revert CannotMigrate();
         }
 
