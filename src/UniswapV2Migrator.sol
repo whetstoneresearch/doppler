@@ -31,15 +31,33 @@ interface IUniswapV2Factory {
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
+/**
+ * @author Whetstone Research
+ * @notice Takes care of migrating liquidity into a Uniswap V2 pool
+ */
 contract UniswapV2Migrator is IMigrator {
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
 
+    /**
+     * @param factory_ Address of the Uniswap V2 factory
+     * @param router_  Address of the Uniswap V2 router
+     */
     constructor(IUniswapV2Factory factory_, IUniswapV2Router02 router_) {
         factory = factory_;
         router = router_;
     }
 
+    /**
+     * @notice Migrates the liquidity into a Uniswap V2 pool
+     * @param token0 Smaller address of the two tokens
+     * @param token1 Larger address of the two tokens
+     * @param amount0 Amount of token0 to be migrated
+     * @param amount1 Amount of token1 to be migrated
+     * @param recipient Address receiving the liquidity pool tokens
+     * @return pool Address of the Uniswap V2 pool
+     * @return liquidity Amount of liquidity tokens minted
+     */
     function migrate(
         address token0,
         address token1,
