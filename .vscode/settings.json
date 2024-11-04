@@ -3,5 +3,10 @@
         "activityBar.background": "#352D06",
         "titleBar.activeBackground": "#4A3F08",
         "titleBar.activeForeground": "#FDFBEE"
+    },
+    "editor.formatOnSave": true,
+    "solidity.formatter": "forge",
+    "[solidity]": {
+      "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
     }
 }
