@@ -105,6 +105,10 @@ contract DopplerImplementation is Doppler {
         return _getCurrentEpoch();
     }
 
+    function getTotalEpochs() public view returns (uint256) {
+        return totalEpochs;
+    }
+
     function getNormalizedTimeElapsed(uint256 timestamp) public view returns (uint256) {
         return _getNormalizedTimeElapsed(timestamp);
     }
