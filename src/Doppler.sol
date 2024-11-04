@@ -114,8 +114,6 @@ contract Doppler is BaseHook {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
     }
 
-    receive() external payable {}
-
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
