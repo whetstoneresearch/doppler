@@ -57,6 +57,7 @@ error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
 error InvalidSwapAfterMaturityInsufficientProceeds();
 error MaximumProceedsReached();
+error SenderNotPoolManager();
 error CannotMigrate();
 error AlreadyInitialized();
 error SenderNotAirlock();
@@ -109,7 +110,9 @@ contract Doppler is BaseHook {
 
     uint256 internal immutable totalEpochs; // total number of epochs
 
-    receive() external payable {}
+    receive() external payable {
+        if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
+    }
 
     constructor(
         IPoolManager _poolManager,
