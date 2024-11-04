@@ -165,6 +165,7 @@ contract CustomRouter is Test {
     /// @return Amount of numeraire tokens received.
     function sell(int256 amount) public returns (uint256, uint256) {
         uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
+        TestERC20(asset).transferFrom(msg.sender, address(this), uint256(approveAmount));
         TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
 
         BalanceDelta delta = swapRouter.swap(

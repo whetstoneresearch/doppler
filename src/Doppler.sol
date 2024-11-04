@@ -114,6 +114,8 @@ contract Doppler is BaseHook {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
     }
 
+    receive() external payable {}
+
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -276,10 +278,9 @@ contract Doppler is BaseHook {
                 for (uint256 i; i < numPDSlugs + 1; ++i) {
                     delete positions[bytes32(uint256(NUM_DEFAULT_SLUGS - 1 + i))];
                 }
-            } else {
-                revert InvalidSwapAfterMaturitySufficientProceeds();
             }
         }
+
         // If startTime < block.timestamp < endTime and !earlyExit and !insufficientProceeds, we rebalance
         if (!insufficientProceeds) {
             _rebalance(key);
