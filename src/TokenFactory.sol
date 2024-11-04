@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {ITokenFactory} from "src/interfaces/ITokenFactory.sol";
-import {DERC20} from "src/DERC20.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { DERC20 } from "src/DERC20.sol";
 
 contract TokenFactory is ITokenFactory {
     function create(
@@ -14,6 +14,6 @@ contract TokenFactory is ITokenFactory {
         bytes memory,
         bytes32 salt
     ) external returns (address) {
-        return address(new DERC20{salt: salt}(name, symbol, initialSupply, recipient, owner));
+        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner));
     }
 }

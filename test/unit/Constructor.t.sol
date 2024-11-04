@@ -1,8 +1,8 @@
 pragma solidity 0.8.26;
 
-import {BaseTest} from "test/shared/BaseTest.sol";
-import {DopplerImplementation} from "test/shared/DopplerImplementation.sol";
-import {TestERC20} from "test/shared/BaseTest.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
+import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
+import { TestERC20 } from "test/shared/BaseTest.sol";
 import {
     MAX_TICK_SPACING,
     MAX_PRICE_DISCOVERY_SLUGS,
@@ -14,14 +14,14 @@ import {
     InvalidNumPDSlugs,
     InvalidProceedLimits
 } from "src/Doppler.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {PoolManager} from "v4-core/src/PoolManager.sol";
-import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
-import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
+import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
+import { Currency } from "v4-periphery/lib/v4-core/src/types/Currency.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { PoolManager } from "v4-core/src/PoolManager.sol";
+import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
+import { PoolModifyLiquidityTest } from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 
 using PoolIdLibrary for PoolKey;
 

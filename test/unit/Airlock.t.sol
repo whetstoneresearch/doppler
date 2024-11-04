@@ -1,27 +1,27 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {console} from "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
 
-import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
-import {Deployers} from "v4-core/test/utils/Deployers.sol";
-import {Ownable} from "@openzeppelin/access/Ownable.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
-import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
-import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { Deployers } from "v4-core/test/utils/Deployers.sol";
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { PoolKey } from "v4-core/src/types/PoolKey.sol";
+import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
+import { Currency } from "v4-core/src/types/Currency.sol";
+import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
-import {Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply} from "src/Airlock.sol";
-import {TokenFactory} from "src/TokenFactory.sol";
-import {DopplerFactory, Doppler} from "src/DopplerFactory.sol";
-import {GovernanceFactory} from "src/GovernanceFactory.sol";
-import {UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory} from "src/UniswapV2Migrator.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { DopplerFactory, Doppler } from "src/DopplerFactory.sol";
+import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 
-import {CustomRouter} from "test/shared/CustomRouter.sol";
-import {mine, MineParams} from "test/shared/AirlockMiner.sol";
+import { CustomRouter } from "test/shared/CustomRouter.sol";
+import { mine, MineParams } from "test/shared/AirlockMiner.sol";
 
 // TODO: Reuse these constants from the BaseTest
 string constant DEFAULT_TOKEN_NAME = "Test";
@@ -54,7 +54,7 @@ contract AirlockTest is Test, Deployers {
     UniswapV2Migrator migrator;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21093509);
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
         deployFreshManager();
         airlock = new Airlock(manager);
@@ -113,7 +113,9 @@ contract AirlockTest is Test, Deployers {
         return _create(_getDefaultMineParams());
     }
 
-    function _create(MineParams memory params) internal returns (address, address) {
+    function _create(
+        MineParams memory params
+    ) internal returns (address, address) {
         (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(dopplerFactory), params);
 
         PoolKey memory poolKey = PoolKey({
@@ -188,7 +190,7 @@ contract AirlockTest is Test, Deployers {
         uint256 amountIn = router.computeBuyExactOut(DEFAULT_MIN_PROCEEDS);
 
         deal(address(this), amountIn);
-        router.buyExactOut{value: amountIn}(DEFAULT_MIN_PROCEEDS);
+        router.buyExactOut{ value: amountIn }(DEFAULT_MIN_PROCEEDS);
         vm.warp(DEFAULT_ENDING_TIME);
         airlock.migrate(token);
     }

@@ -1,13 +1,13 @@
 pragma solidity 0.8.26;
 
-import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
-import {IHooks} from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
-import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {Doppler, SlugData, Position} from "../../src/Doppler.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
+import { Hooks } from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
+import { IHooks } from "v4-periphery/lib/v4-core/src/interfaces/IHooks.sol";
+import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
+import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import { Doppler, SlugData, Position } from "../../src/Doppler.sol";
+import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
 
 contract DopplerImplementation is Doppler {
     using PoolIdLibrary for PoolKey;
@@ -49,7 +49,9 @@ contract DopplerImplementation is Doppler {
     }
 
     // make this a no-op in testing
-    function validateHookAddress(BaseHook _this) internal pure override {}
+    function validateHookAddress(
+        BaseHook _this
+    ) internal pure override { }
 
     function getStartingTime() public view returns (uint256) {
         return startingTime;
@@ -91,7 +93,9 @@ contract DopplerImplementation is Doppler {
         return gamma;
     }
 
-    function getExpectedAmountSoldWithEpochOffset(uint256 offset) public view returns (uint256) {
+    function getExpectedAmountSoldWithEpochOffset(
+        uint256 offset
+    ) public view returns (uint256) {
         return _getExpectedAmountSoldWithEpochOffset(offset);
     }
 
@@ -111,7 +115,9 @@ contract DopplerImplementation is Doppler {
         return totalEpochs;
     }
 
-    function getNormalizedTimeElapsed(uint256 timestamp) public view returns (uint256) {
+    function getNormalizedTimeElapsed(
+        uint256 timestamp
+    ) public view returns (uint256) {
         return _getNormalizedTimeElapsed(timestamp);
     }
 
@@ -119,7 +125,9 @@ contract DopplerImplementation is Doppler {
         return _getGammaShare();
     }
 
-    function getEpochEndWithOffset(uint256 offset) public view returns (uint256) {
+    function getEpochEndWithOffset(
+        uint256 offset
+    ) public view returns (uint256) {
         return _getEpochEndWithOffset(offset);
     }
 
@@ -160,24 +168,30 @@ contract DopplerImplementation is Doppler {
         return _computePriceDiscoverySlugsData(poolKey, upperSlug, tickUpper, assetAvailable);
     }
 
-    function getPositions(bytes32 salt) public view returns (Position memory) {
+    function getPositions(
+        bytes32 salt
+    ) public view returns (Position memory) {
         return positions[salt];
     }
 
-    function unlock(bytes memory data) public returns (bytes memory) {
+    function unlock(
+        bytes memory data
+    ) public returns (bytes memory) {
         return poolManager.unlock(data);
     }
 
-    function getCurrentTick(PoolId poolId) public view returns (int24) {
+    function getCurrentTick(
+        PoolId poolId
+    ) public view returns (int24) {
         (, int24 currentTick,,) = poolManager.getSlot0(poolId);
         return currentTick;
     }
 
-    function getRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 totalTokensSold)
-        public
-        view
-        returns (uint256)
-    {
+    function getRequiredProceeds(
+        uint160 sqrtPriceLower,
+        uint160 sqrtPriceUpper,
+        uint256 totalTokensSold
+    ) public view returns (uint256) {
         return _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold);
     }
 }

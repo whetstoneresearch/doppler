@@ -1,15 +1,15 @@
 pragma solidity 0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {SafeCallback} from "v4-periphery/src/base/SafeCallback.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
+import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
-import {Unauthorized} from "src/Doppler.sol";
-import {BaseTest} from "test/shared/BaseTest.sol";
+import { Unauthorized } from "src/Doppler.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract BeforeAddLiquidityTest is BaseTest {
     // =========================================================================

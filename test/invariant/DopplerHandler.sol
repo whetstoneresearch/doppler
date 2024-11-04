@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-import {AddressSet, LibAddressSet} from "./AddressSet.sol";
-import {DopplerImplementation} from "test/shared/DopplerImplementation.sol";
-import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {TestERC20} from "v4-core/src/test/TestERC20.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {Currency} from "v4-core/src/types/Currency.sol";
-import {CustomRouter} from "test/shared/CustomRouter.sol";
+import { Test } from "forge-std/Test.sol";
+import { AddressSet, LibAddressSet } from "./AddressSet.sol";
+import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
+import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
+import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
+import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
+import { PoolKey } from "v4-core/src/types/PoolKey.sol";
+import { Currency } from "v4-core/src/types/Currency.sol";
+import { CustomRouter } from "test/shared/CustomRouter.sol";
 
 contract DopplerHandler is Test {
     using LibAddressSet for AddressSet;
@@ -46,14 +46,18 @@ contract DopplerHandler is Test {
         vm.stopPrank();
     }
 
-    modifier useActor(uint256 actorIndexSeed) {
+    modifier useActor(
+        uint256 actorIndexSeed
+    ) {
         currentActor = actors.rand(actorIndexSeed);
         vm.startPrank(currentActor);
         _;
         vm.stopPrank();
     }
 
-    modifier countCall(bytes4 key) {
+    modifier countCall(
+        bytes4 key
+    ) {
         calls[key]++;
         totalCalls++;
         _;
@@ -88,7 +92,9 @@ contract DopplerHandler is Test {
     }
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
-    function buyExactAmountIn(uint256 amountToSpend) public createActor countCall(this.buyExactAmountIn.selector) {
+    function buyExactAmountIn(
+        uint256 amountToSpend
+    ) public createActor countCall(this.buyExactAmountIn.selector) {
         amountToSpend = 1 ether;
 
         if (isUsingEth) {
@@ -98,7 +104,7 @@ contract DopplerHandler is Test {
             numeraire.approve(address(router), amountToSpend);
         }
 
-        uint256 bought = router.buyExactIn{value: isUsingEth ? amountToSpend : 0}(amountToSpend);
+        uint256 bought = router.buyExactIn{ value: isUsingEth ? amountToSpend : 0 }(amountToSpend);
         assetBalanceOf[currentActor] += bought;
         ghost_totalTokensSold += bought;
         ghost_totalProceeds += amountToSpend;
@@ -112,7 +118,9 @@ contract DopplerHandler is Test {
         }
     }
 
-    function buyExactAmountOut(uint256 assetsToBuy) public createActor countCall(this.buyExactAmountOut.selector) {
+    function buyExactAmountOut(
+        uint256 assetsToBuy
+    ) public createActor countCall(this.buyExactAmountOut.selector) {
         assetsToBuy = 1 ether;
         uint256 amountInRequired = router.computeBuyExactOut(assetsToBuy);
 
@@ -123,7 +131,7 @@ contract DopplerHandler is Test {
             numeraire.approve(address(router), amountInRequired);
         }
 
-        uint256 spent = router.buyExactOut{value: isUsingEth ? amountInRequired : 0}(assetsToBuy);
+        uint256 spent = router.buyExactOut{ value: isUsingEth ? amountInRequired : 0 }(assetsToBuy);
         assetBalanceOf[currentActor] += assetsToBuy;
         ghost_totalTokensSold += assetsToBuy;
         ghost_totalProceeds += spent;
@@ -137,11 +145,9 @@ contract DopplerHandler is Test {
         }
     }
 
-    function sellExactIn(uint256 seed)
-        public
-        useActor(uint256(uint160(msg.sender)))
-        countCall(this.sellExactIn.selector)
-    {
+    function sellExactIn(
+        uint256 seed
+    ) public useActor(uint256(uint160(msg.sender))) countCall(this.sellExactIn.selector) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
@@ -162,11 +168,9 @@ contract DopplerHandler is Test {
         }
     }
 
-    function sellExactOut(uint256 seed)
-        public
-        useActor(uint256(uint160(msg.sender)))
-        countCall(this.sellExactOut.selector)
-    {
+    function sellExactOut(
+        uint256 seed
+    ) public useActor(uint256(uint160(msg.sender))) countCall(this.sellExactOut.selector) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 

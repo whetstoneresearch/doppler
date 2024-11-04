@@ -1,16 +1,18 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
 
-import {IHookFactory} from "src/interfaces/IHookFactory.sol";
-import {Doppler} from "src/Doppler.sol";
+import { IHookFactory } from "src/interfaces/IHookFactory.sol";
+import { Doppler } from "src/Doppler.sol";
 
 contract DopplerFactory is IHookFactory {
-    function create(IPoolManager poolManager, uint256 numTokensToSell, bytes memory data, bytes32 salt)
-        external
-        returns (address)
-    {
+    function create(
+        IPoolManager poolManager,
+        uint256 numTokensToSell,
+        bytes memory data,
+        bytes32 salt
+    ) external returns (address) {
         (
             uint256 minimumProceeds,
             uint256 maximumProceeds,
@@ -26,7 +28,7 @@ contract DopplerFactory is IHookFactory {
         ) = abi.decode(data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, address));
 
         return address(
-            new Doppler{salt: salt}(
+            new Doppler{ salt: salt }(
                 poolManager,
                 numTokensToSell,
                 minimumProceeds,

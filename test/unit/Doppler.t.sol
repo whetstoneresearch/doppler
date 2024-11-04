@@ -1,11 +1,11 @@
 pragma solidity 0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
-import {BaseTest} from "test/shared/BaseTest.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract DopplerTest is BaseTest {
     // =========================================================================
@@ -33,7 +33,9 @@ contract DopplerTest is BaseTest {
 
     // TODO: int16 accumulator might over/underflow with certain hook configurations
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
-    function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
+    function testGetTicksBasedOnState_ReturnsExpectedAmountSold(
+        int16 accumulator
+    ) public view {
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(accumulator, key.tickSpacing);
         int24 gamma = hook.getGamma();
 
@@ -69,7 +71,9 @@ contract DopplerTest is BaseTest {
     //                  _getNormalizedTimeElapsed Unit Tests
     // =========================================================================
 
-    function testGetNormalizedTimeElapsed(uint16 bps) public view {
+    function testGetNormalizedTimeElapsed(
+        uint16 bps
+    ) public view {
         vm.assume(bps <= 10_000);
 
         uint256 endingTime = hook.getEndingTime();

@@ -1,11 +1,11 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {DERC20} from "src/DERC20.sol";
-import {Doppler} from "src/Doppler.sol";
+import { Test } from "forge-std/Test.sol";
+import { console } from "forge-std/console.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+import { DERC20 } from "src/DERC20.sol";
+import { Doppler } from "src/Doppler.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -37,10 +37,11 @@ struct MineParams {
     uint256 numPDSlugs;
 }
 
-function mine(address tokenFactory, address hookFactory, MineParams memory params)
-    view
-    returns (bytes32, address, address)
-{
+function mine(
+    address tokenFactory,
+    address hookFactory,
+    MineParams memory params
+) view returns (bytes32, address, address) {
     bool isToken0 = params.numeraire != address(0);
 
     bytes32 hookInitHash = keccak256(
@@ -71,7 +72,7 @@ function mine(address tokenFactory, address hookFactory, MineParams memory param
         )
     );
 
-    for (uint256 salt; salt < 1000_000; ++salt) {
+    for (uint256 salt; salt < 1_000_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), hookInitHash, hookFactory);
         address token = computeCreate2Address(bytes32(salt), tokenInitHash, tokenFactory);
 

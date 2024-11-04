@@ -1,28 +1,28 @@
 pragma solidity 0.8.26;
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 
-import {Deployers} from "v4-core/test/utils/Deployers.sol";
-import {MAX_SWAP_FEE} from "src/Doppler.sol";
-import {TestERC20} from "v4-core/src/test/TestERC20.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {PoolManager, IPoolManager} from "v4-core/src/PoolManager.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {Currency} from "v4-periphery/lib/v4-core/src/types/Currency.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
-import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import {Quoter, IQuoter} from "v4-periphery/src/lens/Quoter.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/src/types/BalanceDelta.sol";
-import {CustomRouter} from "test/shared/CustomRouter.sol";
-import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import { Deployers } from "v4-core/test/utils/Deployers.sol";
+import { MAX_SWAP_FEE } from "src/Doppler.sol";
+import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
+import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import { PoolManager, IPoolManager } from "v4-core/src/PoolManager.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
+import { Currency } from "v4-periphery/lib/v4-core/src/types/Currency.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
+import { PoolModifyLiquidityTest } from "v4-core/src/test/PoolModifyLiquidityTest.sol";
+import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/src/types/BalanceDelta.sol";
+import { CustomRouter } from "test/shared/CustomRouter.sol";
+import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 
-import {DopplerImplementation} from "./DopplerImplementation.sol";
+import { DopplerImplementation } from "./DopplerImplementation.sol";
 import "forge-std/console.sol";
 
 using PoolIdLibrary for PoolKey;
@@ -66,7 +66,7 @@ contract BaseTest is Test, Deployers {
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
 
-    uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
+    uint160 constant SQRT_RATIO_2_1 = 112_045_541_949_572_279_837_463_876_454;
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
         numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
@@ -134,7 +134,9 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens and the related Doppler hook with
     /// a given configuration.
-    function _deploy(DopplerConfig memory config) public {
+    function _deploy(
+        DopplerConfig memory config
+    ) public {
         _deployTokens();
         _deployDoppler(config);
     }
@@ -177,7 +179,9 @@ contract BaseTest is Test, Deployers {
     }
 
     /// @dev Deploys a new Doppler hook with a given configuration.
-    function _deployDoppler(DopplerConfig memory config) public {
+    function _deployDoppler(
+        DopplerConfig memory config
+    ) public {
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
@@ -266,7 +270,9 @@ contract BaseTest is Test, Deployers {
         vm.label(address(router), "Router");
     }
 
-    function computeBuyExactOut(uint256 amountOut) public returns (uint256) {
+    function computeBuyExactOut(
+        uint256 amountOut
+    ) public returns (uint256) {
         (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
             IQuoter.QuoteExactSingleParams({
                 poolKey: key,
@@ -280,7 +286,9 @@ contract BaseTest is Test, Deployers {
         return uint256(uint128(deltaAmounts[0]));
     }
 
-    function computeSellExactOut(uint256 amountOut) public returns (uint256) {
+    function computeSellExactOut(
+        uint256 amountOut
+    ) public returns (uint256) {
         (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
             IQuoter.QuoteExactSingleParams({
                 poolKey: key,
@@ -294,19 +302,27 @@ contract BaseTest is Test, Deployers {
         return uint256(uint128(deltaAmounts[0]));
     }
 
-    function buyExactIn(uint256 amount) public {
+    function buyExactIn(
+        uint256 amount
+    ) public {
         buy(-int256(amount));
     }
 
-    function buyExactOut(uint256 amount) public {
+    function buyExactOut(
+        uint256 amount
+    ) public {
         buy(int256(amount));
     }
 
-    function sellExactIn(uint256 amount) public {
+    function sellExactIn(
+        uint256 amount
+    ) public {
         sell(-int256(amount));
     }
 
-    function sellExactOut(uint256 amount) public {
+    function sellExactOut(
+        uint256 amount
+    ) public {
         sell(int256(amount));
     }
 
@@ -315,7 +331,9 @@ contract BaseTest is Test, Deployers {
     /// a positive value specifies the amount of asset tokens to buy.
     /// @return Amount of asset tokens bought.
     /// @return Amount of numeraire tokens used.
-    function buy(int256 amount) public returns (uint256, uint256) {
+    function buy(
+        int256 amount
+    ) public returns (uint256, uint256) {
         // Negative means exactIn, positive means exactOut.
         uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
 
@@ -326,7 +344,7 @@ contract BaseTest is Test, Deployers {
             TestERC20(numeraire).approve(address(swapRouter), uint256(mintAmount));
         }
 
-        BalanceDelta delta = swapRouter.swap{value: usingEth ? mintAmount : 0}(
+        BalanceDelta delta = swapRouter.swap{ value: usingEth ? mintAmount : 0 }(
             key,
             IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
@@ -344,7 +362,9 @@ contract BaseTest is Test, Deployers {
     /// specifies the amount of numeraire tokens to receive.
     /// @return Amount of asset tokens sold.
     /// @return Amount of numeraire tokens received.
-    function sell(int256 amount) public returns (uint256, uint256) {
+    function sell(
+        int256 amount
+    ) public returns (uint256, uint256) {
         // Negative means exactIn, positive means exactOut.
         uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
         TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
@@ -397,7 +417,7 @@ contract BaseTest is Test, Deployers {
         vm.expectRevert(
             abi.encodeWithSelector(Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector))
         );
-        swapRouter.swap{value: usingEth ? mintAmount : 0}(
+        swapRouter.swap{ value: usingEth ? mintAmount : 0 }(
             key,
             IPoolManager.SwapParams(!isToken0, amount, isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
             PoolSwapTest.TestSettings(true, false),

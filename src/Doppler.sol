@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
-import {IPoolManager} from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
-import {PoolKey} from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import {BalanceDelta, add, BalanceDeltaLibrary} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import {StateLibrary} from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
-import {LiquidityAmounts} from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
-import {SqrtPriceMath} from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
-import {FullMath} from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import {FixedPoint96} from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
-import {TransientStateLibrary} from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {ProtocolFeeLibrary} from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import {SwapMath} from "v4-core/src/libraries/SwapMath.sol";
-import {SafeCastLib} from "solady/utils/SafeCastLib.sol";
+import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
+import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
+import { Hooks } from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
+import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
+import { BalanceDelta, add, BalanceDeltaLibrary } from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
+import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import { TickMath } from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
+import { LiquidityAmounts } from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
+import { SqrtPriceMath } from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
+import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import { FixedPoint96 } from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
+import { TransientStateLibrary } from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
+import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -177,11 +177,12 @@ contract Doppler is BaseHook {
         airlock = airlock_;
     }
 
-    function beforeInitialize(address, PoolKey calldata key, uint160, bytes calldata)
-        external
-        override
-        returns (bytes4)
-    {
+    function beforeInitialize(
+        address,
+        PoolKey calldata key,
+        uint160,
+        bytes calldata
+    ) external override returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
         poolKey = key;
 
@@ -200,13 +201,14 @@ contract Doppler is BaseHook {
     /// @param sender The address that called poolManager.initialize
     /// @param key The pool key
     /// @param tick The initial tick of the pool
-    function afterInitialize(address sender, PoolKey calldata key, uint160, int24 tick, bytes calldata)
-        external
-        override
-        onlyPoolManager
-        returns (bytes4)
-    {
-        poolManager.unlock(abi.encode(CallbackData({key: key, sender: sender, tick: tick, isMigration: false})));
+    function afterInitialize(
+        address sender,
+        PoolKey calldata key,
+        uint160,
+        int24 tick,
+        bytes calldata
+    ) external override onlyPoolManager returns (bytes4) {
+        poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
     }
 
@@ -214,12 +216,12 @@ contract Doppler is BaseHook {
     ///         Triggers rebalancing logic in new epochs and handles early exit/insufficient proceeds outcomes
     /// @param key The pool key
     /// @param swapParams The parameters for swapping
-    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata swapParams, bytes calldata)
-        external
-        override
-        onlyPoolManager
-        returns (bytes4, BeforeSwapDelta, uint24)
-    {
+    function beforeSwap(
+        address,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata swapParams,
+        bytes calldata
+    ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
         if (earlyExit) revert MaximumProceedsReached();
 
         if (block.timestamp < startingTime) revert InvalidTime();
@@ -381,7 +383,9 @@ contract Doppler is BaseHook {
     /// @notice Executed before swaps in new epochs to rebalance the bonding curve
     ///         We adjust the bonding curve according to the amount tokens sold relative to the expected amount
     /// @param key The pool key
-    function _rebalance(PoolKey calldata key) internal {
+    function _rebalance(
+        PoolKey calldata key
+    ) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
@@ -544,7 +548,9 @@ contract Doppler is BaseHook {
     /// @notice If offset == 0, retrieves the end time of the current epoch
     ///         If offset == n, retrieves the end time of the nth epoch from the current
     /// @param offset The offset from the current epoch
-    function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
+    function _getEpochEndWithOffset(
+        uint256 offset
+    ) internal view returns (uint256) {
         uint256 epochEnd = (_getCurrentEpoch() + offset) * epochLength + startingTime;
         if (epochEnd > endingTime) {
             epochEnd = endingTime;
@@ -560,7 +566,9 @@ contract Doppler is BaseHook {
 
     /// @notice Retrieves the elapsed time since the start of the sale, normalized to 1e18
     /// @param timestamp The timestamp to retrieve for
-    function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
+    function _getNormalizedTimeElapsed(
+        uint256 timestamp
+    ) internal view returns (uint256) {
         return FullMath.mulDiv(timestamp - startingTime, 1e18, endingTime - startingTime);
     }
 
@@ -573,7 +581,9 @@ contract Doppler is BaseHook {
     ///         If offset == 1, retrieves the expected amount sold by the end of the current epoch
     ///         If offset == n, retrieves the expected amount sold by the end of the nth epoch from the current
     /// @param offset The epoch offset to retrieve for
-    function _getExpectedAmountSoldWithEpochOffset(uint256 offset) internal view returns (uint256) {
+    function _getExpectedAmountSoldWithEpochOffset(
+        uint256 offset
+    ) internal view returns (uint256) {
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime),
             numTokensToSell,
@@ -619,11 +629,11 @@ contract Doppler is BaseHook {
     /// @param sqrtPriceLower The sqrt price of the lower tick
     /// @param sqrtPriceUpper The sqrt price of the upper tick
     /// @param amount The amount of asset tokens which the liquidity needs to support the sale of
-    function _computeRequiredProceeds(uint160 sqrtPriceLower, uint160 sqrtPriceUpper, uint256 amount)
-        internal
-        view
-        returns (uint256 requiredProceeds)
-    {
+    function _computeRequiredProceeds(
+        uint160 sqrtPriceLower,
+        uint160 sqrtPriceUpper,
+        uint256 amount
+    ) internal view returns (uint256 requiredProceeds) {
         uint128 liquidity;
         if (isToken0) {
             liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceLower, sqrtPriceUpper, amount);
@@ -640,11 +650,10 @@ contract Doppler is BaseHook {
     /// @param tickSpacing The tick spacing of the pool
     /// @return lower The computed global lower tick
     /// @return upper The computed global upper tick
-    function _getTicksBasedOnState(int256 accumulator, int24 tickSpacing)
-        internal
-        view
-        returns (int24 lower, int24 upper)
-    {
+    function _getTicksBasedOnState(
+        int256 accumulator,
+        int24 tickSpacing
+    ) internal view returns (int24 lower, int24 upper) {
         int24 accumulatorDelta = (accumulator / 1e18).toInt24();
         int24 adjustedTick = startingTick + accumulatorDelta;
         lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
@@ -835,11 +844,12 @@ contract Doppler is BaseHook {
     /// @param lowerPrice The lower sqrt price of the range
     /// @param upperPrice The upper sqrt price of the range
     /// @param amount The amount of tokens to place as liquidity
-    function _computeLiquidity(bool forToken0, uint160 lowerPrice, uint160 upperPrice, uint256 amount)
-        internal
-        pure
-        returns (uint128)
-    {
+    function _computeLiquidity(
+        bool forToken0,
+        uint160 lowerPrice,
+        uint160 upperPrice,
+        uint256 amount
+    ) internal pure returns (uint128) {
         // We decrement the amount by 1 to avoid rounding errors
         amount = amount != 0 ? amount - 1 : amount;
 
@@ -854,10 +864,10 @@ contract Doppler is BaseHook {
     /// @param lastEpochPositions The positions to clear
     /// @param key The pool key
     /// @return deltas The balance deltas from removing liquidity
-    function _clearPositions(Position[] memory lastEpochPositions, PoolKey memory key)
-        internal
-        returns (BalanceDelta deltas)
-    {
+    function _clearPositions(
+        Position[] memory lastEpochPositions,
+        PoolKey memory key
+    ) internal returns (BalanceDelta deltas) {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
                 (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
@@ -881,9 +891,12 @@ contract Doppler is BaseHook {
     /// @param currentPrice The current price of the pool
     /// @param swapPrice The target price to swap to
     /// @param key The pool key
-    function _update(Position[] memory newPositions, uint160 currentPrice, uint160 swapPrice, PoolKey memory key)
-        internal
-    {
+    function _update(
+        Position[] memory newPositions,
+        uint160 currentPrice,
+        uint160 swapPrice,
+        PoolKey memory key
+    ) internal {
         if (swapPrice != currentPrice) {
             // Since there's no liquidity in the pool, swapping a non-zero amount allows us to reset its price.
             poolManager.swap(
@@ -946,7 +959,9 @@ contract Doppler is BaseHook {
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
     /// @param data The callback data (key, sender, tick)
-    function _unlockCallback(bytes calldata data) internal override returns (bytes memory) {
+    function _unlockCallback(
+        bytes calldata data
+    ) internal override returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key, address sender, int24 tick, bool isMigration) =
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
@@ -989,7 +1004,7 @@ contract Doppler is BaseHook {
             uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
 
             // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
-            SlugData memory lowerSlug = SlugData({tickLower: tick, tickUpper: tick, liquidity: 0});
+            SlugData memory lowerSlug = SlugData({ tickLower: tick, tickUpper: tick, liquidity: 0 });
             (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
             SlugData[] memory priceDiscoverySlugs =
                 _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
@@ -1034,11 +1049,11 @@ contract Doppler is BaseHook {
     /// @param key The pool key
     /// @param totalProceeds_ The total amount of proceeds earned from selling tokens
     /// @param totalTokensSold_ The total amount of tokens sold
-    function _computeLowerSlugInsufficientProceeds(PoolKey memory key, uint256 totalProceeds_, uint256 totalTokensSold_)
-        internal
-        view
-        returns (SlugData memory slug)
-    {
+    function _computeLowerSlugInsufficientProceeds(
+        PoolKey memory key,
+        uint256 totalProceeds_,
+        uint256 totalTokensSold_
+    ) internal view returns (SlugData memory slug) {
         uint160 targetPriceX96;
         if (isToken0) {
             // Q96 Target price (not sqrtPrice)
@@ -1092,7 +1107,9 @@ contract Doppler is BaseHook {
 
         // We didn't exit early so we have to remove our liquidity.
         if (!earlyExit) {
-            poolManager.unlock(abi.encode(CallbackData({key: poolKey, sender: msg.sender, tick: 0, isMigration: true})));
+            poolManager.unlock(
+                abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true }))
+            );
         }
 
         if (isToken0) {

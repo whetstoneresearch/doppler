@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Governor} from "@openzeppelin/governance/Governor.sol";
-import {GovernorSettings} from "@openzeppelin/governance/extensions/GovernorSettings.sol";
-import {GovernorCountingSimple} from "@openzeppelin/governance/extensions/GovernorCountingSimple.sol";
-import {GovernorVotes} from "@openzeppelin/governance/extensions/GovernorVotes.sol";
-import {GovernorVotesQuorumFraction} from "@openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
-import {GovernorTimelockControl} from "@openzeppelin/governance/extensions/GovernorTimelockControl.sol";
-import {TimelockController} from "@openzeppelin/governance/TimelockController.sol";
-import {IVotes} from "@openzeppelin/governance/utils/IVotes.sol";
+import { Governor } from "@openzeppelin/governance/Governor.sol";
+import { GovernorSettings } from "@openzeppelin/governance/extensions/GovernorSettings.sol";
+import { GovernorCountingSimple } from "@openzeppelin/governance/extensions/GovernorCountingSimple.sol";
+import { GovernorVotes } from "@openzeppelin/governance/extensions/GovernorVotes.sol";
+import { GovernorVotesQuorumFraction } from "@openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
+import { GovernorTimelockControl } from "@openzeppelin/governance/extensions/GovernorTimelockControl.sol";
+import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
+import { IVotes } from "@openzeppelin/governance/utils/IVotes.sol";
 
 contract Governance is
     Governor,
@@ -18,13 +18,17 @@ contract Governance is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl
 {
-    constructor(string memory name_, IVotes _token, TimelockController _timelock)
+    constructor(
+        string memory name_,
+        IVotes _token,
+        TimelockController _timelock
+    )
         Governor(name_)
-        GovernorSettings(7200, 50400, 0)
+        GovernorSettings(7200, 50_400, 0)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(4)
         GovernorTimelockControl(_timelock)
-    {}
+    { }
 
     // The following functions are overrides required by Solidity.
 
@@ -36,30 +40,21 @@ contract Governance is
         return super.votingPeriod();
     }
 
-    function quorum(uint256 blockNumber)
-        public
-        view
-        override(Governor, GovernorVotesQuorumFraction)
-        returns (uint256)
-    {
+    function quorum(
+        uint256 blockNumber
+    ) public view override(Governor, GovernorVotesQuorumFraction) returns (uint256) {
         return super.quorum(blockNumber);
     }
 
-    function state(uint256 proposalId)
-        public
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (ProposalState)
-    {
+    function state(
+        uint256 proposalId
+    ) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
         return super.state(proposalId);
     }
 
-    function proposalNeedsQueuing(uint256 proposalId)
-        public
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (bool)
-    {
+    function proposalNeedsQueuing(
+        uint256 proposalId
+    ) public view override(Governor, GovernorTimelockControl) returns (bool) {
         return super.proposalNeedsQueuing(proposalId);
     }
 

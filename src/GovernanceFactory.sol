@@ -1,9 +1,9 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Governance, IVotes} from "src/Governance.sol";
-import {TimelockController} from "@openzeppelin/governance/TimelockController.sol";
-import {IGovernanceFactory} from "src/interfaces/IGovernanceFactory.sol";
+import { Governance, IVotes } from "src/Governance.sol";
+import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
+import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 contract GovernanceFactory is IGovernanceFactory {
     function create(string memory name, address token, bytes memory) external returns (address, address) {

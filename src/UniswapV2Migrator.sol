@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IMigrator} from "src/interfaces/IMigrator.sol";
-import {SafeTransferLib, ERC20} from "solmate/src/utils/SafeTransferLib.sol";
+import { IMigrator } from "src/interfaces/IMigrator.sol";
+import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 
 interface IUniswapV2Router02 {
     function addLiquidity(
@@ -40,11 +40,14 @@ contract UniswapV2Migrator is IMigrator {
         router = router_;
     }
 
-    function migrate(address token0, address token1, uint256 amount0, uint256 amount1, address recipient, bytes memory)
-        external
-        payable
-        returns (address pool, uint256 liquidity)
-    {
+    function migrate(
+        address token0,
+        address token1,
+        uint256 amount0,
+        uint256 amount1,
+        address recipient,
+        bytes memory
+    ) external payable returns (address pool, uint256 liquidity) {
         pool = factory.getPair(token0, token1);
 
         if (pool == address(0)) {
@@ -56,7 +59,7 @@ contract UniswapV2Migrator is IMigrator {
         ERC20(token1).approve(address(router), amount1);
 
         if (token0 == address(0)) {
-            (,, liquidity) = router.addLiquidityETH{value: amount0}(token1, amount0, 0, 0, recipient, block.timestamp);
+            (,, liquidity) = router.addLiquidityETH{ value: amount0 }(token1, amount0, 0, 0, recipient, block.timestamp);
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         } else {
             ERC20(token0).approve(address(router), amount0);

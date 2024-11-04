@@ -1,9 +1,9 @@
 pragma solidity 0.8.26;
 
-import {console} from "forge-std/console.sol";
-import {SlugData, Position} from "../../src/Doppler.sol";
-import {DopplerImplementation} from "./DopplerImplementation.sol";
-import {PoolId} from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import { console } from "forge-std/console.sol";
+import { SlugData, Position } from "../../src/Doppler.sol";
+import { DopplerImplementation } from "./DopplerImplementation.sol";
+import { PoolId } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 
 struct SlugDataWithName {
     string name;
@@ -17,10 +17,12 @@ bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 library SlugVis {
-    function visualizeSlugs(DopplerImplementation hook, PoolId poolId, string memory id, uint256 timestamp)
-        public
-        view
-    {
+    function visualizeSlugs(
+        DopplerImplementation hook,
+        PoolId poolId,
+        string memory id,
+        uint256 timestamp
+    ) public view {
         string memory json;
         uint256 numPDSlugs = hook.getNumPDSlugs();
         int24 currentTick = hook.getCurrentTick(poolId);
@@ -75,11 +77,10 @@ library SlugVis {
         return namedSlugs;
     }
 
-    function getSlugDataFromPositions(uint256 numPDSlugs, function (bytes32) view external returns (Position memory) fx)
-        internal
-        view
-        returns (SlugData memory, SlugData memory, SlugData[] memory)
-    {
+    function getSlugDataFromPositions(
+        uint256 numPDSlugs,
+        function (bytes32) view external returns (Position memory) fx
+    ) internal view returns (SlugData memory, SlugData memory, SlugData[] memory) {
         Position memory lowerPosition = fx(LOWER_SLUG_SALT);
         Position memory upperPosition = fx(UPPER_SLUG_SALT);
         Position[] memory pdPositions = new Position[](numPDSlugs);
@@ -108,11 +109,12 @@ library SlugVis {
         return (lowerSlug, upperSlug, pdSlugs);
     }
 
-    function _constructJson(int24 currentTick, string memory id, uint256 timestamp, SlugDataWithName[] memory slugs)
-        internal
-        pure
-        returns (string memory)
-    {
+    function _constructJson(
+        int24 currentTick,
+        string memory id,
+        uint256 timestamp,
+        SlugDataWithName[] memory slugs
+    ) internal pure returns (string memory) {
         string memory json = "{ \"data\": [";
 
         for (uint256 i = 0; i < slugs.length; i++) {
@@ -153,7 +155,9 @@ library SlugVis {
         return json;
     }
 
-    function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
+    function uint2str(
+        uint256 _i
+    ) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
             return "0";
         }
@@ -173,7 +177,9 @@ library SlugVis {
         return string(bstr);
     }
 
-    function int2str(int256 _i) internal pure returns (string memory) {
+    function int2str(
+        int256 _i
+    ) internal pure returns (string memory) {
         if (_i == 0) {
             return "0";
         }

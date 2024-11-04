@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {console} from "forge-std/console.sol";
-import {BaseTest} from "test/shared/BaseTest.sol";
-import {DopplerHandler} from "test/invariant/DopplerHandler.sol";
-import {State} from "src/Doppler.sol";
-import {LiquidityAmounts} from "v4-core/test/utils/LiquidityAmounts.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import { console } from "forge-std/console.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
+import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
+import { State } from "src/Doppler.sol";
+import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 
 /*
 
@@ -40,7 +40,7 @@ contract DopplerInvariantsTest is BaseTest {
         selectors[2] = handler.sellExactIn.selector;
         // selectors[3] = handler.sellExactOut.selector;
 
-        targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
+        targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
 
         vm.warp(DEFAULT_STARTING_TIME);
