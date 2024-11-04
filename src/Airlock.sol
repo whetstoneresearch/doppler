@@ -142,9 +142,16 @@ contract Airlock is Ownable {
         emit Migrate(asset, pool);
     }
 
-    // TODO: Maybe we should accept arrays here to batch update states?
-    function setModuleState(address module, ModuleState state) external onlyOwner {
-        getModuleState[module] = state;
-        emit SetModuleState(module, state);
+    function setModuleState(address[] memory modules, ModuleState[] memory states) external onlyOwner {
+        uint256 length = modules.length;
+
+        if (length != states.length) {
+            revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i; i < length; i++) {
+            getModuleState[modules[i]] = states[i];
+            emit SetModuleState(modules[i], states[i]);
+        }
     }
 }
