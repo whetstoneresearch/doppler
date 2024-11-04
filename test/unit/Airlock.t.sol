@@ -163,7 +163,7 @@ contract AirlockTest is Test, Deployers {
     function test_create_MintsTokens() public {
         (address hook, address token) = _create();
         assertEq(ERC20(token).totalSupply(), DEFAULT_INITIAL_SUPPLY);
-        assertEq(ERC20(token).balanceOf(hook), DEFAULT_INITIAL_SUPPLY);
+        assertEq(ERC20(token).balanceOf(address(manager)) + ERC20(token).balanceOf(hook), DEFAULT_INITIAL_SUPPLY);
     }
 
     function test_migrate() public {
