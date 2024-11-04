@@ -11,7 +11,7 @@ import {
 } from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import {
-    InvalidTime,
+    BeforeStartTime,
     SwapBelowRange,
     InvalidSwapAfterMaturityInsufficientProceeds,
     InvalidSwapAfterMaturitySufficientProceeds
@@ -28,7 +28,7 @@ contract SwapTest is BaseTest {
     function test_swap_RevertsBeforeStartTime() public {
         vm.warp(hook.getStartingTime() - 1); // 1 second before the start time
 
-        buyExpectRevert(-1 ether, InvalidTime.selector);
+        buyExpectRevert(-1 ether, BeforeStartTime.selector);
     }
 
     function test_swap_RevertsAfterEndTimeInsufficientProceedsAssetBuy() public {
