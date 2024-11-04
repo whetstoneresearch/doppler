@@ -46,6 +46,7 @@ contract Airlock is Ownable {
 
     receive() external payable { }
 
+    /// @param poolManager_ Address of the Uniswap V4 pool manager
     constructor(
         IPoolManager poolManager_
     ) Ownable(msg.sender) {
@@ -56,9 +57,22 @@ contract Airlock is Ownable {
      * TODO:
      * - Creating a token should incur fees (platform and frontend fees)
      *
+     * @notice Deploys a new token with the associated governance, timelock and hook contracts
+     * @param name Name of the token
+     * @param symbol Symbol of the token
+     * @param initialSupply Total supply of the token (might be increased later on)
+     * @param numTokensToSell Amount of tokens to sell in the Doppler hook
+     * @param poolKey Pool key of the liquidity pool (precomputed)
+     * @param recipients Array of addresses to receive tokens after the migration
+     * @param amounts Array of amounts to receive after the migration
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
+     * @param tokenData Arbitrary data to pass to the token factory
      * @param governanceFactory Address of the factory contract deploying the governance
+     * @param governanceData Arbitrary data to pass to the governance factory
      * @param hookFactory Address of the factory contract deploying the Uniswap v4 hook
+     * @param hookData Arbitrary data to pass to the hook factory
+     * @param migrator Address of the migrator contract
+     * @param salt Salt to use for the create2 calls
      */
     function create(
         string memory name,
@@ -95,7 +109,7 @@ contract Airlock is Ownable {
 
         ERC20(token).transfer(hook, numTokensToSell);
 
-        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway.
+        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
         (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
         Ownable(token).transferOwnership(timelock);
 
@@ -117,7 +131,7 @@ contract Airlock is Ownable {
     }
 
     /**
-     * @notice Triggers the migration from the Doppler hook to another liquidity pool.
+     * @notice Triggers the migration from the Doppler hook to another liquidity pool
      * @param asset Address of the token to migrate
      */
     function migrate(
@@ -146,9 +160,9 @@ contract Airlock is Ownable {
     }
 
     /**
-     * @notice Sets the state of the givens modules.
-     * @param modules Array of module addresses.
-     * @param states Array of module states.
+     * @notice Sets the state of the givens modules
+     * @param modules Array of module addresses
+     * @param states Array of module states
      */
     function setModuleState(address[] memory modules, ModuleState[] memory states) external onlyOwner {
         uint256 length = modules.length;
