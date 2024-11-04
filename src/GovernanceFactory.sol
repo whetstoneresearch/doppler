@@ -6,9 +6,14 @@ import { TimelockController } from "@openzeppelin/governance/TimelockController.
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 contract GovernanceFactory is IGovernanceFactory {
+    TimelockFactory public timelockFactory;
+
+    constructor() {
+        timelockFactory = new TimelockFactory();
+    }
+
     function create(string memory name, address token, bytes memory) external returns (address, address) {
-        TimelockController timelockController =
-            new TimelockController(1 days, new address[](0), new address[](0), address(this));
+        TimelockController timelockController = timelockFactory.create();
         address governance = address(
             new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))
         );
@@ -19,5 +24,11 @@ contract GovernanceFactory is IGovernanceFactory {
         timelockController.renounceRole(bytes32(0x00), address(this));
 
         return (governance, address(timelockController));
+    }
+}
+
+contract TimelockFactory {
+    function create() external returns (TimelockController) {
+        return new TimelockController(1 days, new address[](0), new address[](0), msg.sender);
     }
 }
