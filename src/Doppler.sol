@@ -224,7 +224,7 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
         if (earlyExit) revert MaximumProceedsReached();
 
-        if (block.timestamp < startingTime) revert InvalidTime();
+        if (block.timestamp < startingTime) revert BeforeStartTime();
 
         // We can skip rebalancing if we're in an epoch that already had a rebalance
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
