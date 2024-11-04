@@ -3,20 +3,18 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 
-import { console } from "forge-std/console.sol";
-
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { Deployers } from "v4-core/test/utils/Deployers.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
 import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
-import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { Quoter } from "v4-periphery/src/lens/Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
-import { DopplerFactory, Doppler } from "src/DopplerFactory.sol";
+import { DopplerFactory } from "src/DopplerFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 
@@ -61,13 +59,21 @@ contract AirlockTest is Test, Deployers {
         tokenFactory = new TokenFactory();
         dopplerFactory = new DopplerFactory();
         governanceFactory = new GovernanceFactory();
-
-        airlock.setModuleState(address(tokenFactory), ModuleState.TokenFactory);
-        airlock.setModuleState(address(dopplerFactory), ModuleState.HookFactory);
-        airlock.setModuleState(address(governanceFactory), ModuleState.GovernanceFactory);
-
         migrator = new UniswapV2Migrator(IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
-        airlock.setModuleState(address(migrator), ModuleState.Migrator);
+
+        address[] memory modules = new address[](4);
+        modules[0] = address(tokenFactory);
+        modules[1] = address(dopplerFactory);
+        modules[2] = address(governanceFactory);
+        modules[3] = address(migrator);
+
+        ModuleState[] memory states = new ModuleState[](4);
+        states[0] = ModuleState.TokenFactory;
+        states[1] = ModuleState.HookFactory;
+        states[2] = ModuleState.GovernanceFactory;
+        states[3] = ModuleState.Migrator;
+
+        airlock.setModuleState(modules, states);
     }
 
     function _getDefaultMineParams() public view returns (MineParams memory) {
@@ -93,20 +99,35 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_setModuleState_SetsState() public {
-        airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
+        address[] memory modules = new address[](1);
+        modules[0] = address(0xbeef);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.TokenFactory;
+
+        airlock.setModuleState(modules, states);
         assertEq(uint8(airlock.getModuleState(address(0xbeef))), uint8(ModuleState.TokenFactory));
     }
 
     function test_setModuleState_EmitsEvent() public {
+        address[] memory modules = new address[](1);
+        modules[0] = address(0xbeef);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.TokenFactory;
+
         vm.expectEmit();
         emit SetModuleState(address(0xbeef), ModuleState.TokenFactory);
-        airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
+        airlock.setModuleState(modules, states);
     }
 
     function test_setModuleState_RevertsWhenSenderNotOwner() public {
+        address[] memory modules = new address[](1);
+        modules[0] = address(0xbeef);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.TokenFactory;
+
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xb0b)));
         vm.prank(address(0xb0b));
-        airlock.setModuleState(address(0xbeef), ModuleState.TokenFactory);
+        airlock.setModuleState(modules, states);
     }
 
     function _create() internal returns (address, address) {
@@ -146,7 +167,6 @@ contract AirlockTest is Test, Deployers {
             params.initialSupply,
             params.numTokensToSell,
             poolKey,
-            DEFAULT_OWNER,
             new address[](0),
             new uint256[](0),
             tokenFactory,
@@ -196,25 +216,45 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
-        airlock.setModuleState(address(tokenFactory), ModuleState.NotWhitelisted);
+        address[] memory modules = new address[](1);
+        modules[0] = address(tokenFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.NotWhitelisted;
+
+        airlock.setModuleState(modules, states);
         vm.expectRevert(WrongModuleState.selector);
         _create();
     }
 
     function test_create_RevertsIfWrongGovernanceFactory() public {
-        airlock.setModuleState(address(governanceFactory), ModuleState.NotWhitelisted);
+        address[] memory modules = new address[](1);
+        modules[0] = address(governanceFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.NotWhitelisted;
+        airlock.setModuleState(modules, states);
+
         vm.expectRevert(WrongModuleState.selector);
         _create();
     }
 
     function test_create_RevertsIfWrongHookFactory() public {
-        airlock.setModuleState(address(dopplerFactory), ModuleState.NotWhitelisted);
+        address[] memory modules = new address[](1);
+        modules[0] = address(dopplerFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.NotWhitelisted;
+        airlock.setModuleState(modules, states);
+
         vm.expectRevert(WrongModuleState.selector);
         _create();
     }
 
     function test_create_RevertsIfWrongMigrator() public {
-        airlock.setModuleState(address(migrator), ModuleState.NotWhitelisted);
+        address[] memory modules = new address[](1);
+        modules[0] = address(migrator);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.NotWhitelisted;
+        airlock.setModuleState(modules, states);
+
         vm.expectRevert(WrongModuleState.selector);
         _create();
     }
@@ -257,7 +297,6 @@ contract AirlockTest is Test, Deployers {
                 params.initialSupply,
                 params.numTokensToSell,
                 poolKey,
-                DEFAULT_OWNER,
                 new address[](0),
                 new uint256[](0),
                 tokenFactory,
@@ -312,7 +351,6 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_INITIAL_SUPPLY,
                 DEFAULT_INITIAL_SUPPLY,
                 poolKey,
-                DEFAULT_OWNER,
                 recipients,
                 amounts,
                 tokenFactory,
