@@ -117,6 +117,10 @@ contract Airlock is Ownable {
         return (token, governance, hook);
     }
 
+    /**
+     * @notice Triggers the migration from the Doppler hook to another liquidity pool.
+     * @param asset Address of the token to migrate
+     */
     function migrate(
         address asset
     ) external {
