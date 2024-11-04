@@ -63,7 +63,6 @@ contract AfterInitializeTest is BaseTest {
         // Assert that upper and price discovery slugs have liquidity
         assertNotEq(upperSlug.liquidity, 0);
 
-        // Assert that lower slug has both ticks as the startingTick
         assertEq(lowerSlug.tickLower, hook.getStartingTick());
         assertEq(lowerSlug.tickUpper, hook.getStartingTick());
 
