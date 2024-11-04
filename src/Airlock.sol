@@ -66,7 +66,6 @@ contract Airlock is Ownable {
         uint256 initialSupply,
         uint256 numTokensToSell,
         PoolKey memory poolKey,
-        address owner,
         address[] memory recipients,
         uint256[] memory amounts,
         ITokenFactory tokenFactory,
