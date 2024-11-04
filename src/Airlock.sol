@@ -142,6 +142,11 @@ contract Airlock is Ownable {
         emit Migrate(asset, pool);
     }
 
+    /**
+     * @notice Sets the state of the givens modules.
+     * @param modules Array of module addresses.
+     * @param states Array of module states.
+     */
     function setModuleState(address[] memory modules, ModuleState[] memory states) external onlyOwner {
         uint256 length = modules.length;
 
