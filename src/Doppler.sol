@@ -19,6 +19,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
+import { console } from "forge-std/console.sol";
 
 struct SlugData {
     int24 tickLower;
@@ -28,10 +29,10 @@ struct SlugData {
 
 struct State {
     uint40 lastEpoch; // last updated epoch (1-indexed)
-    int256 tickAccumulator; // accumulator to modify the bonding curve
-    uint256 totalTokensSold; // total tokens sold
-    uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
-    uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
+    int128 tickAccumulator; // accumulator to modify the bonding curve
+    uint128 totalTokensSold; // total tokens sold
+    uint128 totalProceeds; // total amount earned from selling tokens (numeraire)
+    uint128 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
     BalanceDelta feesAccrued; // fees accrued to the pool
 }
 
@@ -111,6 +112,7 @@ contract Doppler is BaseHook {
     uint256 internal immutable totalEpochs; // total number of epochs
     int256 internal immutable gammaShare; // gamma share per epoch
     int256 internal immutable maxTickDeltaPerEpoch; // max dutch auction amount per epoch
+    uint256 internal immutable epochDelta; // normalized time between epochs
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
@@ -167,6 +169,7 @@ contract Doppler is BaseHook {
         gammaShare = FullMath.mulDiv(_epochLength, 1e18, _endingTime - _startingTime).toInt256();
         maxTickDeltaPerEpoch =
             int256(_endingTick - _startingTick) * 1e18 / int256((_endingTime - _startingTime) / _epochLength);
+        epochDelta = _epochLength * 1e18 / (_endingTime - _startingTime);
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -335,7 +338,7 @@ contract Doppler is BaseHook {
                 state.totalTokensSold += uint128(amount0);
             } else {
                 uint256 tokensSoldLessFee = FullMath.mulDiv(uint128(-amount0), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                state.totalTokensSold -= tokensSoldLessFee;
+                state.totalTokensSold -= uint128(tokensSoldLessFee);
             }
 
             int128 amount1 = swapDelta.amount1();
@@ -343,7 +346,7 @@ contract Doppler is BaseHook {
                 state.totalProceeds -= uint128(amount1);
             } else {
                 uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount1), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                state.totalProceeds += proceedsLessFee;
+                state.totalProceeds += uint128(proceedsLessFee);
             }
         } else {
             if (currentTick > tickLower) revert SwapBelowRange();
@@ -353,7 +356,7 @@ contract Doppler is BaseHook {
                 state.totalTokensSold += uint128(amount1);
             } else {
                 uint256 tokensSoldLessFee = FullMath.mulDiv(uint128(-amount1), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                state.totalTokensSold -= tokensSoldLessFee;
+                state.totalTokensSold -= uint128(tokensSoldLessFee);
             }
 
             int128 amount0 = swapDelta.amount0();
@@ -361,7 +364,7 @@ contract Doppler is BaseHook {
                 state.totalProceeds -= uint128(amount0);
             } else {
                 uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount0), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                state.totalProceeds += proceedsLessFee;
+                state.totalProceeds += uint128(proceedsLessFee);
             }
         }
 
@@ -404,9 +407,9 @@ contract Doppler is BaseHook {
 
         // Get the expected amount sold and the net sold in the last epoch
         uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
-        int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
+        int256 netSold = int256(totalTokensSold_) - int256(uint256(state.totalTokensSoldLastEpoch));
 
-        state.totalTokensSoldLastEpoch = totalTokensSold_;
+        state.totalTokensSoldLastEpoch = uint128(totalTokensSold_);
 
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
@@ -457,7 +460,7 @@ contract Doppler is BaseHook {
         newAccumulator = state.tickAccumulator + accumulatorDelta;
         // Only sstore if there is a nonzero delta
         if (accumulatorDelta != 0) {
-            state.tickAccumulator = newAccumulator;
+            state.tickAccumulator = int128(newAccumulator);
         }
 
         currentTick =
@@ -779,6 +782,8 @@ contract Doppler is BaseHook {
         }
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
+        console.log("epochT1toT2Delta", epochT1toT2Delta);
+        console.log("epochDelta", epochDelta);
 
         int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
         if (isToken0) {
@@ -795,7 +800,7 @@ contract Doppler is BaseHook {
             --pdSlugsToLp;
         }
 
-        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
+        uint256 tokensToLp = FullMath.mulDiv(epochDelta, numTokensToSell, 1e18);
         bool surplusAssets = tokensToLp * pdSlugsToLp <= assetAvailable;
         tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
         for (uint256 i; i < numPDSlugs; ++i) {
