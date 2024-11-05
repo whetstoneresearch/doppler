@@ -109,7 +109,8 @@ contract Doppler is BaseHook {
     uint256 internal immutable numPDSlugs; // number of price discovery slugs
 
     uint256 internal immutable totalEpochs; // total number of epochs
-    int256 internal immutable gammaShare;
+    int256 internal immutable gammaShare; // gamma share per epoch
+    int256 internal immutable maxTickDeltaPerEpoch; // max dutch auction amount per epoch
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
@@ -162,6 +163,10 @@ contract Doppler is BaseHook {
         // These can both be zero
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
+        totalEpochs = timeDelta / _epochLength;
+        gammaShare = FullMath.mulDiv(_epochLength, 1e18, _endingTime - _startingTime).toInt256();
+        maxTickDeltaPerEpoch =
+            int256(endingTick - startingTick) * 1e18 / int256((_endingTime - _startingTime) / _epochLength);
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -176,8 +181,6 @@ contract Doppler is BaseHook {
         numPDSlugs = _numPDSlugs;
         airlock = airlock_;
 
-        totalEpochs = timeDelta / _epochLength;
-        gammaShare = FullMath.mulDiv(epochLength, 1e18, endingTime - startingTime).toInt256();
     }
 
     function beforeInitialize(
@@ -415,10 +418,10 @@ contract Doppler is BaseHook {
         int256 newAccumulator;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
+            accumulatorDelta = maxTickDeltaPerEpoch * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
-            accumulatorDelta = _getMaxTickDeltaPerEpoch()
+            accumulatorDelta = maxTickDeltaPerEpoch
                 * int256(1e18 - FullMath.mulDiv(totalTokensSold_, 1e18, expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
@@ -589,13 +592,6 @@ contract Doppler is BaseHook {
             numTokensToSell,
             1e18
         );
-    }
-
-    /// @notice Computes the max tick delta, i.e. max dutch auction amount, per epoch
-    ///         Returns an 18 decimal fixed point value
-    function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
-        // Safe from overflow since max value is (2**24-1) * 1e18
-        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
     }
 
     /// @notice Aligns a given tick with the tickSpacing of the pool
