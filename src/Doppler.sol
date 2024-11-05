@@ -182,7 +182,7 @@ contract Doppler is BaseHook {
         PoolKey calldata key,
         uint160,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external override onlyPoolManager returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
         poolKey = key;
 
