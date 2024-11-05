@@ -166,7 +166,7 @@ contract Doppler is BaseHook {
         totalEpochs = timeDelta / _epochLength;
         gammaShare = FullMath.mulDiv(_epochLength, 1e18, _endingTime - _startingTime).toInt256();
         maxTickDeltaPerEpoch =
-            int256(endingTick - startingTick) * 1e18 / int256((_endingTime - _startingTime) / _epochLength);
+            int256(_endingTick - _startingTick) * 1e18 / int256((_endingTime - _startingTime) / _epochLength);
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -180,7 +180,6 @@ contract Doppler is BaseHook {
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
         airlock = airlock_;
-
     }
 
     function beforeInitialize(
@@ -421,8 +420,8 @@ contract Doppler is BaseHook {
             accumulatorDelta = maxTickDeltaPerEpoch * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
-            accumulatorDelta = maxTickDeltaPerEpoch
-                * int256(1e18 - FullMath.mulDiv(totalTokensSold_, 1e18, expectedAmountSold)) / 1e18;
+            accumulatorDelta =
+                maxTickDeltaPerEpoch * int256(1e18 - FullMath.mulDiv(totalTokensSold_, 1e18, expectedAmountSold)) / 1e18;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
 

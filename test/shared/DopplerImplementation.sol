@@ -100,7 +100,7 @@ contract DopplerImplementation is Doppler {
     }
 
     function getMaxTickDeltaPerEpoch() public view returns (int256) {
-        return _getMaxTickDeltaPerEpoch();
+        return maxTickDeltaPerEpoch;
     }
 
     function getTicksBasedOnState(int256 accumulator, int24 tickSpacing) public view returns (int24, int24) {
