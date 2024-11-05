@@ -970,7 +970,7 @@ contract Doppler is BaseHook {
 
         if (isMigration) {
             for (uint256 i; i < 3 + numPDSlugs; ++i) {
-                Position memory position = positions[bytes32(uint256(i))];
+                Position memory position = positions[bytes32(uint256(i + 1))];
 
                 if (position.liquidity != 0) {
                     poolManager.modifyLiquidity(
@@ -1107,12 +1107,7 @@ contract Doppler is BaseHook {
             revert CannotMigrate();
         }
 
-        // We didn't exit early so we have to remove our liquidity.
-        if (!earlyExit) {
-            poolManager.unlock(
-                abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true }))
-            );
-        }
+        poolManager.unlock(abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true })));
 
         if (isToken0) {
             amount0 = state.totalProceeds;
