@@ -122,7 +122,7 @@ contract DopplerImplementation is Doppler {
     }
 
     function getGammaShare() public view returns (int256) {
-        return _getGammaShare();
+        return gammaShare;
     }
 
     function getEpochEndWithOffset(

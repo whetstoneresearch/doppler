@@ -109,6 +109,7 @@ contract Doppler is BaseHook {
     uint256 internal immutable numPDSlugs; // number of price discovery slugs
 
     uint256 internal immutable totalEpochs; // total number of epochs
+    int256 internal immutable gammaShare;
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
@@ -161,7 +162,6 @@ contract Doppler is BaseHook {
         // These can both be zero
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
-        totalEpochs = timeDelta / _epochLength;
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -175,6 +175,9 @@ contract Doppler is BaseHook {
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
         airlock = airlock_;
+
+        totalEpochs = timeDelta / _epochLength;
+        gammaShare = FullMath.mulDiv(epochLength, 1e18, endingTime - startingTime).toInt256();
     }
 
     function beforeInitialize(
@@ -421,7 +424,7 @@ contract Doppler is BaseHook {
             int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
 
             // Safe from overflow since the result is <= gamma which is an int24 already
-            int24 computedRange = (_getGammaShare() * gamma / 1e18).toInt24();
+            int24 computedRange = (gammaShare * gamma / 1e18).toInt24();
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
@@ -572,11 +575,6 @@ contract Doppler is BaseHook {
         uint256 timestamp
     ) internal view returns (uint256) {
         return FullMath.mulDiv(timestamp - startingTime, 1e18, endingTime - startingTime);
-    }
-
-    /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
-    function _getGammaShare() internal view returns (int256) {
-        return FullMath.mulDiv(epochLength, 1e18, endingTime - startingTime).toInt256();
     }
 
     /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
@@ -733,8 +731,7 @@ contract Doppler is BaseHook {
         // the expected amount sold by next epoch
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
-            int24 computedDelta =
-                int24(int256(FullMath.mulDiv(uint256(_getGammaShare()), uint256(int256(gamma)), 1e18)));
+            int24 computedDelta = int24(int256(FullMath.mulDiv(uint256(gammaShare), uint256(int256(gamma)), 1e18)));
             int24 accumulatorDelta = computedDelta > key.tickSpacing ? computedDelta : key.tickSpacing;
             slug.tickLower = currentTick;
             slug.tickUpper = _alignComputedTickWithTickSpacing(
