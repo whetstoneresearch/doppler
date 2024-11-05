@@ -94,6 +94,7 @@ bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 /// @title Doppler
 /// @author kadenzipfel, kinrezC, clemlak, aadams, and Alexangelj
+/// @custom:security-contact security@whetstone.cc
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
