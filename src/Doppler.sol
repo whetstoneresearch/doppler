@@ -184,6 +184,7 @@ contract Doppler is BaseHook {
         bytes calldata
     ) external override returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
+        isInitialized = true;
         poolKey = key;
 
         // Enforce maximum tick spacing
