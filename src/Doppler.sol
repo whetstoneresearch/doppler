@@ -1100,7 +1100,7 @@ contract Doppler is BaseHook {
         });
     }
 
-    function migrate() external returns (uint256 amount0, uint256 amount1) {
+    function migrate() external returns (uint256, uint256) {
         if (msg.sender != airlock) revert SenderNotAirlock();
 
         if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
@@ -1109,12 +1109,6 @@ contract Doppler is BaseHook {
 
         poolManager.unlock(abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true })));
 
-        if (isToken0) {
-            amount0 = state.totalProceeds;
-            amount1 = state.totalTokensSold;
-        } else {
-            amount0 = state.totalTokensSold;
-            amount1 = state.totalProceeds;
-        }
+        return (state.totalProceeds, numTokensToSell - state.totalTokensSold);
     }
 }
