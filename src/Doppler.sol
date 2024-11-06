@@ -1100,6 +1100,12 @@ contract Doppler is BaseHook {
         });
     }
 
+    /**
+     * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
+     * @dev This function can only be called by the Airlock contract under specific conditions
+     * @return Total proceeds earned by the hook
+     * @return Remaining unsold tokens
+     */
     function migrate() external returns (uint256, uint256) {
         if (msg.sender != airlock) revert SenderNotAirlock();
 
