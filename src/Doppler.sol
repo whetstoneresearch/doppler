@@ -1115,6 +1115,9 @@ contract Doppler is BaseHook {
 
         poolManager.unlock(abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true })));
 
+        poolKey.currency0.transfer(msg.sender, poolKey.currency0.balanceOfSelf());
+        poolKey.currency1.transfer(msg.sender, poolKey.currency1.balanceOfSelf());
+
         return (state.totalProceeds, numTokensToSell - state.totalTokensSold);
     }
 }
