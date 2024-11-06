@@ -5,6 +5,8 @@ libs = ["lib"]
 evm_version = "cancun"
 via_ir = true
 solc = '0.8.26'
+fs_permissions = [{ access = "read", path = "./"}]
+
 
 [fuzz]
 max_test_rejects = 10000000
