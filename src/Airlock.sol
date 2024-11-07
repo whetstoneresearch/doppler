@@ -147,6 +147,7 @@ contract Airlock is Ownable {
             ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
         }
 
+        // FIXME: The migrate function returns assetAmount and numeraireAmount, not 0 and 1
         (uint256 amount0, uint256 amount1) = IHook(address(tokenData.poolKey.hooks)).migrate();
 
         tokenData.poolKey.currency0.transfer(address(tokenData.migrator), amount0);
@@ -160,6 +161,10 @@ contract Airlock is Ownable {
             tokenData.timelock,
             new bytes(0)
         );
+
+        // We might end up with some dust tokens in the contract, so we transfer them to the timelock
+        tokenData.poolKey.currency0.transfer(address(tokenData.migrator), tokenData.poolKey.currency0.balanceOfSelf());
+        tokenData.poolKey.currency1.transfer(address(tokenData.migrator), tokenData.poolKey.currency1.balanceOfSelf());
 
         emit Migrate(asset, pool);
     }
