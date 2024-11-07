@@ -22,42 +22,42 @@ import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
+/// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param liquidity Amount of liquidity in the position
 struct SlugData {
-    /// @notice Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
     int24 tickLower;
-    /// @notice Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
     int24 tickUpper;
-    /// @notice Amount of liquidity in the position
     uint128 liquidity;
 }
 
 // @notice Current state of the Doppler pool
 /// @dev Packed struct containing epoch data, accumulators, and total amounts
+/// @param lastEpoch Last updated epoch (1-indexed)
+/// @param tickAccumulator Accumulator to track the net bonding curve delta
+/// @param totalTokensSold Total tokens sold by the hook
+/// @param totalProceeds Total amount earned from selling tokens (in numeraire token)
+/// @param totalTokensSoldLastEpoch Total tokens sold at the end of the last epoch
+/// @param feesAccrued Fees accrued to the pool since last collection
 struct State {
-    /// @notice Last updated epoch (1-indexed)
     uint40 lastEpoch;
-    /// @notice Accumulator to track the net bonding curve delta
     int256 tickAccumulator;
-    /// @notice Total tokens sold by the hook
     uint256 totalTokensSold;
-    /// @notice Total amount earned from selling tokens (in numeraire token)
     uint256 totalProceeds;
-    /// @notice Total tokens sold at the end of the last epoch
     uint256 totalTokensSoldLastEpoch;
-    /// @notice Fees accrued to the pool since last collection
     BalanceDelta feesAccrued;
 }
 
 /// @notice Position data for a liquidity slug
 /// @dev Used to track individual liquidity positions controlled by the hook
+/// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param liquidity Amount of liquidity in the position
+/// @param salt Salt value used to identify the position
 struct Position {
-    /// @notice Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
     int24 tickLower;
-    /// @notice Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
     int24 tickUpper;
-    /// @notice Amount of liquidity in the position
     uint128 liquidity;
-    /// @notice Salt value used to identify the position
     uint8 salt;
 }
 
@@ -990,6 +990,8 @@ contract Doppler is BaseHook {
         poolManager.settle();
     }
 
+    /// @dev Data passed through the `unlock` call to the PoolManager to the `_unlockCallback`
+    /// back in this contract. Using a struct here is usually to avoid using the wrong types.
     struct CallbackData {
         PoolKey key;
         address sender;
