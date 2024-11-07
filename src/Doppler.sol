@@ -20,21 +20,40 @@ import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/Proto
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 
+/// @notice Data for a liquidity slug, an intermediate representation of a `Position`
+/// @dev Output struct when computing slug data for a `Position`
+/// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param liquidity Amount of liquidity in the position
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
 }
 
+// @notice Current state of the Doppler pool
+/// @dev Packed struct containing epoch data, accumulators, and total amounts
+/// @param lastEpoch Last updated epoch (1-indexed)
+/// @param tickAccumulator Accumulator to track the net bonding curve delta
+/// @param totalTokensSold Total tokens sold by the hook
+/// @param totalProceeds Total amount earned from selling tokens (in numeraire token)
+/// @param totalTokensSoldLastEpoch Total tokens sold at the end of the last epoch
+/// @param feesAccrued Fees accrued to the pool since last collection
 struct State {
-    uint40 lastEpoch; // last updated epoch (1-indexed)
-    int256 tickAccumulator; // accumulator to modify the bonding curve
-    uint256 totalTokensSold; // total tokens sold
-    uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
-    uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
-    BalanceDelta feesAccrued; // fees accrued to the pool
+    uint40 lastEpoch;
+    int256 tickAccumulator;
+    uint256 totalTokensSold;
+    uint256 totalProceeds;
+    uint256 totalTokensSoldLastEpoch;
+    BalanceDelta feesAccrued;
 }
 
+/// @notice Position data for a liquidity slug
+/// @dev Used to track individual liquidity positions controlled by the hook
+/// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param liquidity Amount of liquidity in the position
+/// @param salt Salt value used to identify the position
 struct Position {
     int24 tickLower;
     int24 tickUpper;
@@ -69,12 +88,15 @@ int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 uint256 constant NUM_DEFAULT_SLUGS = 3;
 
+/// @dev Used to differentiate between the lower, upper, and price discovery slugs
 bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
 bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+/// @dev Demarcates the id of the LOWEST (price-wise) price discovery slug
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 /// @title Doppler
 /// @author kadenzipfel, kinrezC, clemlak, aadams, and Alexangelj
+/// @custom:security-contact security@whetstone.cc
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -117,6 +139,21 @@ contract Doppler is BaseHook {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
     }
 
+    /// @notice Creates a new Doppler pool instance
+    /// @dev Validates input parameters and sets up the initial pool state
+    /// @param _poolManager The Uniswap v4 pool manager contract
+    /// @param _numTokensToSell Total number of tokens available to be sold by the hook
+    /// @param _minimumProceeds Proceeds required to avoid refund phase
+    /// @param _maximumProceeds Proceeds amount that trigger early exit
+    /// @param _startingTime Unix timestamp when the sale starts
+    /// @param _endingTime Unix timestamp when the sale ends
+    /// @param _startingTick Initial tick for the bonding curve
+    /// @param _endingTick Final tick for the bonding curve
+    /// @param _epochLength Duration of each epoch in seconds
+    /// @param _gamma Maximum tick movement per epoch (1.0001^gamma)
+    /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
+    /// @param _numPDSlugs Number of price discovery slugs to use
+    /// @param airlock_ Address of the airlock contract
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -388,6 +425,7 @@ contract Doppler is BaseHook {
 
     /// @notice Executed before swaps in new epochs to rebalance the bonding curve
     ///         We adjust the bonding curve according to the amount tokens sold relative to the expected amount
+    /// @dev Called during beforeSwap when entering a new epoch
     /// @param key The pool key
     function _rebalance(
         PoolKey calldata key
@@ -947,6 +985,12 @@ contract Doppler is BaseHook {
         poolManager.settle();
     }
 
+    /// @dev Data passed through the `unlock` call to the PoolManager to the `_unlockCallback`
+    /// back in this contract. Using a struct here is usually to avoid using the wrong types.
+    /// @param key Pool key associated with this hook
+    /// @param sender Address calling the PoolManager, for example the Airlock in a migration
+    /// @param tick Current tick of the pool
+    /// @param isMigration Whether or not we reached the migration stage
     struct CallbackData {
         PoolKey key;
         address sender;
