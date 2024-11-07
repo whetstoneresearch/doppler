@@ -5,6 +5,8 @@ import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 
 interface IUniswapV2Router02 {
+    function WETH() external pure returns (address);
+
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -69,8 +71,7 @@ contract UniswapV2Migrator is IMigrator {
         pool = factory.getPair(token0, token1);
 
         if (pool == address(0)) {
-            pool =
-                factory.createPair(token0 == address(0) ? 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 : token0, token1);
+            pool = factory.createPair(token0 == address(0) ? router.WETH() : token0, token1);
         }
 
         if (token0 != address(0)) ERC20(token0).approve(address(router), amount0);
