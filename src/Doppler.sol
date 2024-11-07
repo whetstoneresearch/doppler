@@ -992,6 +992,10 @@ contract Doppler is BaseHook {
 
     /// @dev Data passed through the `unlock` call to the PoolManager to the `_unlockCallback`
     /// back in this contract. Using a struct here is usually to avoid using the wrong types.
+    /// @param key Pool key associated with this hook
+    /// @param sender Address calling the PoolManager, for example the Airlock in a migration
+    /// @param tick Current tick of the pool
+    /// @param isMigration Whether or not we reached the migration stage
     struct CallbackData {
         PoolKey key;
         address sender;
