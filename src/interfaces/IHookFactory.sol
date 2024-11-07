@@ -4,6 +4,13 @@ pragma solidity ^0.8.13;
 import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
 
 interface IHookFactory {
+    /**
+     * @notice Deploys a new hook contract
+     * @param poolManager Address of the Uniswap V4 pool manager
+     * @param numTokensToSell Amount of asset tokens to sell
+     * @param data Arbitrary data to pass
+     * @param salt Salt for the create2 deployment
+     */
     function create(
         IPoolManager poolManager,
         uint256 numTokensToSell,
@@ -13,5 +20,10 @@ interface IHookFactory {
 }
 
 interface IHook {
-    function migrate() external returns (uint256 amount0, uint256 amount1);
+    /**
+     * @notice Triggers the migration stage of the hook contract
+     * @return Amount of numeraire tokens
+     * @return Amount of asset tokens
+     */
+    function migrate() external returns (uint256, uint256);
 }
