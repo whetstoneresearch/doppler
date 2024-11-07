@@ -8,6 +8,7 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IHookFactory, IHook } from "src/interfaces/IHookFactory.sol";
 import { IMigrator } from "src/interfaces/IMigrator.sol";
+import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -39,6 +40,8 @@ event Migrate(address asset, address pool);
 event SetModuleState(address module, ModuleState state);
 
 contract Airlock is Ownable {
+    using CurrencyLibrary for Currency;
+
     IPoolManager public immutable poolManager;
 
     mapping(address => ModuleState) public getModuleState;
@@ -146,14 +149,16 @@ contract Airlock is Ownable {
 
         (uint256 amount0, uint256 amount1) = IHook(address(tokenData.poolKey.hooks)).migrate();
 
-        address currency0 = Currency.unwrap(tokenData.poolKey.currency0);
-        address currency1 = Currency.unwrap(tokenData.poolKey.currency1);
+        tokenData.poolKey.currency0.transfer(address(tokenData.migrator), amount0);
+        tokenData.poolKey.currency1.transfer(address(tokenData.migrator), amount1);
 
-        if (currency0 != address(0)) ERC20(currency0).transfer(address(tokenData.migrator), amount0);
-        ERC20(currency1).transfer(address(tokenData.migrator), amount1);
-
-        (address pool,) = tokenData.migrator.migrate{ value: currency0 == address(0) ? amount0 : 0 }(
-            currency0, currency1, amount0, amount1, tokenData.timelock, new bytes(0)
+        (address pool,) = tokenData.migrator.migrate{ value: tokenData.poolKey.currency0.isAddressZero() ? amount0 : 0 }(
+            Currency.unwrap(tokenData.poolKey.currency0),
+            Currency.unwrap(tokenData.poolKey.currency1),
+            amount0,
+            amount1,
+            tokenData.timelock,
+            new bytes(0)
         );
 
         emit Migrate(asset, pool);
