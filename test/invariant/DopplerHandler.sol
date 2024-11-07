@@ -76,8 +76,15 @@ contract DopplerHandler is Test {
         isToken0 = isToken0_;
         isUsingEth = isUsingEth_;
 
-        token0 = TestERC20(Currency.unwrap(poolKey.currency0));
+        if (Currency.unwrap(poolKey.currency0) != address(0)) {
+            token0 = TestERC20(Currency.unwrap(poolKey.currency0));
+            ghost_reserve0 = token0.balanceOf(address(hook));
+        } else {
+            ghost_reserve0 = address(hook).balance;
+        }
+
         token1 = TestERC20(Currency.unwrap(poolKey.currency1));
+        ghost_reserve1 = token1.balanceOf(address(hook));
 
         if (isToken0) {
             asset = token0;
@@ -86,9 +93,6 @@ contract DopplerHandler is Test {
             asset = token1;
             numeraire = token0;
         }
-
-        ghost_reserve0 = token0.balanceOf(address(hook));
-        ghost_reserve1 = token1.balanceOf(address(hook));
     }
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
