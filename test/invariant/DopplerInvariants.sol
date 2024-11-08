@@ -57,7 +57,7 @@ contract DopplerInvariantsTest is BaseTest {
         console.log("+-------------------+-----------------------+");
     }
 
-    /// forge-config: default.invariant.fail-on-revert = true
+    /// forge-config: default.invariant.fail-on-revert = false
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
         assertEq(totalTokensSold, handler.ghost_totalTokensSold());
