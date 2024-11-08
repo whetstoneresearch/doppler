@@ -6,6 +6,9 @@ evm_version = "cancun"
 via_ir = true
 solc = '0.8.26'
 
+[invariant]
+show_metrics = true
+
 [fuzz]
 max_test_rejects = 10000000
 
