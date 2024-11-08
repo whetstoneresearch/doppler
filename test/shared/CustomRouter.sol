@@ -27,6 +27,8 @@ contract CustomRouter is Test {
     address public numeraire;
     address public asset;
 
+    receive() external payable { }
+
     constructor(PoolSwapTest swapRouter_, Quoter quoter_, PoolKey memory key_, bool isToken0_, bool isUsingEth_) {
         swapRouter = swapRouter_;
         quoter = quoter_;
