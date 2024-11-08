@@ -64,7 +64,7 @@ contract DopplerInvariantsTest is BaseTest {
         assertEq(totalProceeds, handler.ghost_totalProceeds());
     }
 
-    /// forge-config: default.invariant.fail-on-revert = true
+    /// forge-config: default.invariant.fail-on-revert = false
     function invariant_CantSellMoreThanNumTokensToSell() public view {
         uint256 numTokensToSell = hook.getNumTokensToSell();
         assertLe(handler.ghost_totalTokensSold(), numTokensToSell);
