@@ -96,19 +96,19 @@ contract Doppler is BaseHook {
     PoolKey public poolKey;
     address public immutable airlock;
 
-    uint256 internal immutable numTokensToSell; // total amount of tokens to be sold
-    uint256 internal immutable minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 internal immutable maximumProceeds; // proceeds amount that will trigger early exit condition
-    uint256 internal immutable startingTime; // sale start time
-    uint256 internal immutable endingTime; // sale end time
-    int24 internal immutable startingTick; // dutch auction starting tick
-    int24 internal immutable endingTick; // dutch auction ending tick
-    uint256 internal immutable epochLength; // length of each epoch (seconds)
-    int24 internal immutable gamma; // 1.0001 ** (gamma) = max single epoch change
-    bool internal immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
-    uint256 internal immutable numPDSlugs; // number of price discovery slugs
+    uint256 public immutable numTokensToSell; // total amount of tokens to be sold
+    uint256 public immutable minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 public immutable maximumProceeds; // proceeds amount that will trigger early exit condition
+    uint256 public immutable startingTime; // sale start time
+    uint256 public immutable endingTime; // sale end time
+    int24 public immutable startingTick; // dutch auction starting tick
+    int24 public immutable endingTick; // dutch auction ending tick
+    uint256 public immutable epochLength; // length of each epoch (seconds)
+    int24 public immutable gamma; // 1.0001 ** (gamma) = max single epoch change
+    bool public immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    uint256 public immutable numPDSlugs; // number of price discovery slugs
 
-    uint256 internal immutable totalEpochs; // total number of epochs
+    uint256 public immutable totalEpochs; // total number of epochs
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
