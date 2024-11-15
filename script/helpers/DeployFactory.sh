@@ -35,5 +35,9 @@ update_env "DOPPLER_FACTORY" "DopplerFactory:"
 update_env "V2_FACTORY" "V2Factory:"
 update_env "V2_ROUTER" "V2Router:"
 update_env "STATE_VIEW" "StateView:"
+update_env "QUOTER" "Quoter"
+update_env "SWAP_ROUTER" "SwapRouter"
+update_env "CUSTOM_ROUTER" "Router"
+
 
 echo "Environment file has been updated successfully"
