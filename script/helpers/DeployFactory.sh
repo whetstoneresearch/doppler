@@ -34,5 +34,6 @@ update_env "MIGRATOR" "Migrator:"
 update_env "DOPPLER_FACTORY" "DopplerFactory:"
 update_env "V2_FACTORY" "V2Factory:"
 update_env "V2_ROUTER" "V2Router:"
+update_env "STATE_VIEW" "StateView:"
 
 echo "Environment file has been updated successfully"

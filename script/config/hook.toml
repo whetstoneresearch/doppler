@@ -1,8 +1,9 @@
 endTime = 3
-epochLength = 400
-gamma = 800
+epochLength = 1600 
+gamma = 432 
 maxProceeds = 600e18
 minProceeds = 100e18
 numPdSlugs = 5
 numTokensToSell = 1000e18
 startTime = 1
+

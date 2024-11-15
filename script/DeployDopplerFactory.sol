@@ -3,11 +3,12 @@ pragma solidity ^0.8.24;
 
 import { Script, console2 } from "forge-std/Script.sol";
 import { DopplerFactory } from "../src/DopplerFactory.sol";
-import { Deployers } from "v4-core/test/utils/Deployers.sol";
+import { Deployers, IPoolManager } from "v4-core/test/utils/Deployers.sol";
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
+import { StateView } from "v4-periphery/src/lens/StateView.sol";
 
 contract DeployDopplerFactory is Script, Deployers {
     Airlock airlock;
@@ -15,6 +16,7 @@ contract DeployDopplerFactory is Script, Deployers {
     DopplerFactory factory;
     GovernanceFactory governanceFactory;
     UniswapV2Migrator migrator;
+    StateView stateView;
 
     function setUp() public { }
 
@@ -29,6 +31,8 @@ contract DeployDopplerFactory is Script, Deployers {
         vm.addr(pk);
         deployFreshManager();
         console2.log("Manager: ", address(manager));
+        stateView = new StateView(IPoolManager(manager));
+        console2.log("StateView: ", address(stateView));
         airlock = new Airlock(manager);
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory();

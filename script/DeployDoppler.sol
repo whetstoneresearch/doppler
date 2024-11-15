@@ -13,6 +13,7 @@ import { Deployers, IPoolManager } from "v4-core/test/utils/Deployers.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
 import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
+import "forge-std/console.sol";
 
 struct Token {
     string name;
@@ -98,6 +99,10 @@ contract DeployDoppler is Script, Deployers {
             params.numPDSlugs,
             params.airlock
         );
+
+        console.logBytes(hookFactoryData);
+
+        console.logBytes32(salt);
 
         try airlock.create(
             params.name,
