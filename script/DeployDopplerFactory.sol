@@ -9,6 +9,9 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { StateView } from "v4-periphery/src/lens/StateView.sol";
+import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
+import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
 
 contract DeployDopplerFactory is Script, Deployers {
     Airlock airlock;
@@ -17,6 +20,9 @@ contract DeployDopplerFactory is Script, Deployers {
     GovernanceFactory governanceFactory;
     UniswapV2Migrator migrator;
     StateView stateView;
+    Quoter quoter;
+    PoolSwapTest swapRouter; 
+    CustomRouter2 router;
 
     function setUp() public { }
 
@@ -31,7 +37,13 @@ contract DeployDopplerFactory is Script, Deployers {
         vm.addr(pk);
         deployFreshManager();
         console2.log("Manager: ", address(manager));
-        stateView = new StateView(IPoolManager(manager));
+        swapRouter = new PoolSwapTest(manager);
+        console2.log("PoolSwapTest: ", address(swapRouter));
+        quoter = new Quoter(manager);
+        console2.log("Quoter: ", address(quoter));
+        router = new CustomRouter2(swapRouter, quoter);
+        console2.log("CustomRouter: ", address(router));
+        stateView = new StateView(manager);
         console2.log("StateView: ", address(stateView));
         airlock = new Airlock(manager);
         console2.log("Airlock: ", address(airlock));
