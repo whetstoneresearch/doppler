@@ -20,8 +20,8 @@ contract DeployDopplerFactory is Script, Deployers {
     GovernanceFactory governanceFactory;
     UniswapV2Migrator migrator;
     StateView stateView;
+    PoolSwapTest uniRouter;
     Quoter quoter;
-    PoolSwapTest swapRouter; 
     CustomRouter2 router;
 
     function setUp() public { }
@@ -37,10 +37,10 @@ contract DeployDopplerFactory is Script, Deployers {
         vm.addr(pk);
         deployFreshManager();
         console2.log("Manager: ", address(manager));
-        swapRouter = new PoolSwapTest(manager);
-        console2.log("PoolSwapTest: ", address(swapRouter));
         quoter = new Quoter(manager);
         console2.log("Quoter: ", address(quoter));
+        uniRouter = new PoolSwapTest(manager);
+        console2.log("UniRouter: ", address(uniRouter));
         router = new CustomRouter2(swapRouter, quoter);
         console2.log("CustomRouter: ", address(router));
         stateView = new StateView(manager);

@@ -28,6 +28,9 @@ update_env() {
 # Update each value in the .env file
 update_env "MANAGER" "Manager:"
 update_env "AIRLOCK" "Airlock:"
+update_env "UNI_ROUTER" "UniRouter:"
+update_env "QUOTER" "Quoter:"
+update_env "CUSTOM_ROUTER" "CustomRouter:"
 update_env "TOKEN_FACTORY" "TokenFactory:"
 update_env "GOVERNANCE_FACTORY" "GovernanceFactory:"
 update_env "MIGRATOR" "Migrator:"
@@ -35,9 +38,6 @@ update_env "DOPPLER_FACTORY" "DopplerFactory:"
 update_env "V2_FACTORY" "V2Factory:"
 update_env "V2_ROUTER" "V2Router:"
 update_env "STATE_VIEW" "StateView:"
-update_env "QUOTER" "Quoter"
-update_env "SWAP_ROUTER" "SwapRouter"
-update_env "CUSTOM_ROUTER" "Router"
 
 
 echo "Environment file has been updated successfully"
