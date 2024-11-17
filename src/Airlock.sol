@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { IPoolManager, PoolKey, Currency, TickMath } from "v4-core/src/PoolManager.sol";
+import { IPoolManager, PoolKey, TickMath } from "v4-core/src/PoolManager.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IHookFactory, IHook } from "src/interfaces/IHookFactory.sol";
 import { IMigrator } from "src/interfaces/IMigrator.sol";
+import { lessThan, Currency } from "v4-core/src/types/Currency.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -22,6 +23,8 @@ error WrongModuleState();
 error WrongInitialSupply();
 
 error ArrayLengthsMismatch();
+
+error InvalidPoolKey();
 
 struct TokenData {
     PoolKey poolKey;
@@ -97,6 +100,8 @@ contract Airlock is Ownable {
         require(getModuleState[address(migrator)] == ModuleState.Migrator, WrongModuleState());
 
         require(recipients.length == amounts.length, ArrayLengthsMismatch());
+
+        require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
 
         uint256 totalToMint = numTokensToSell;
         for (uint256 i; i < amounts.length; i++) {
