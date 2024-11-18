@@ -80,10 +80,12 @@ contract UniswapV2Migrator is IMigrator {
             (,, liquidity) = router.addLiquidityETH{ value: amount0 }(token1, amount0, 0, 0, recipient, block.timestamp);
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         } else {
-            ERC20(token0).approve(address(router), amount0);
             (,, liquidity) = router.addLiquidity(token0, token1, 0, 0, 0, 0, msg.sender, block.timestamp);
             SafeTransferLib.safeTransfer(ERC20(token0), recipient, ERC20(token0).balanceOf(address(this)));
+            ERC20(token0).approve(address(router), 0);
         }
+
+        ERC20(token1).approve(address(router), 0);
 
         SafeTransferLib.safeTransfer(ERC20(token1), recipient, ERC20(token1).balanceOf(address(this)));
     }
