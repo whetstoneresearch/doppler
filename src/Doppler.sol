@@ -1050,7 +1050,7 @@ contract Doppler is BaseHook {
             SlugData[] memory priceDiscoverySlugs =
                 _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
-            Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
+            Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + priceDiscoverySlugs.length);
 
             newPositions[0] = Position({
                 tickLower: lowerSlug.tickLower,
@@ -1077,7 +1077,7 @@ contract Doppler is BaseHook {
 
             positions[LOWER_SLUG_SALT] = newPositions[0];
             positions[UPPER_SLUG_SALT] = newPositions[1];
-            for (uint256 i; i < numPDSlugs; ++i) {
+            for (uint256 i; i < priceDiscoverySlugs; ++i) {
                 positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
