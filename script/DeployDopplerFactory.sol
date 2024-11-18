@@ -46,10 +46,6 @@ contract DeployDopplerFactory is Script, Deployers {
     }
 
     function run() public {
-        uint256 pk = vm.envUint(ENV_PRIVATE_KEY);
-        vm.startBroadcast(pk);
-
-        vm.addr(pk);
         deployFreshManager();
         console2.log("Manager: ", address(manager));
         quoter = new Quoter(manager);
@@ -86,7 +82,5 @@ contract DeployDopplerFactory is Script, Deployers {
         states[3] = ModuleState.Migrator;
 
         airlock.setModuleState(modules, states);
-
-        vm.stopBroadcast();
     }
 }
