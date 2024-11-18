@@ -30,6 +30,22 @@ contract DeployDopplerFactory is Script, Deployers {
     address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
     string public constant ENV_PRIVATE_KEY = "PRIVATE_KEY";
 
+    function getDeploymentAddresses() 
+      public view returns 
+      (address, address, address, address, address, address, address, address, address) {
+      return (
+        address(airlock), 
+        address(tokenFactory), 
+        address(factory), 
+        address(governanceFactory), 
+        address(migrator), 
+        address(stateView), 
+        address(uniRouter), 
+        address(quoter), 
+        address(router)
+      );
+    }
+
     function run() public {
         uint256 pk = vm.envUint(ENV_PRIVATE_KEY);
         vm.startBroadcast(pk);
