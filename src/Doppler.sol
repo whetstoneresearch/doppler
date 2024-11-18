@@ -1077,7 +1077,7 @@ contract Doppler is BaseHook {
 
             positions[LOWER_SLUG_SALT] = newPositions[0];
             positions[UPPER_SLUG_SALT] = newPositions[1];
-            for (uint256 i; i < priceDiscoverySlugs; ++i) {
+            for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
                 positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
