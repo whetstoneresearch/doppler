@@ -32,16 +32,15 @@ contract DeployDopplerFactory is Script, Deployers {
 
     function getDeploymentAddresses() 
       public view returns 
-      (address, address, address, address, address, address, address, address, address) {
+      (address, address, address, address, address, address, address, address) {
       return (
         address(airlock), 
         address(tokenFactory), 
         address(factory), 
         address(governanceFactory), 
         address(migrator), 
+        address(manager),
         address(stateView), 
-        address(uniRouter), 
-        address(quoter), 
         address(router)
       );
     }
