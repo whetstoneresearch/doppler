@@ -815,8 +815,6 @@ contract Doppler is BaseHook {
         int24 tickUpper,
         uint256 assetAvailable
     ) internal view returns (SlugData[] memory) {
-        SlugData[] memory slugs = new SlugData[](numPDSlugs);
-
         // Compute end time of current epoch
         uint256 epochEndTime = _getEpochEndWithOffset(0);
         // Compute end time of next epoch
@@ -824,7 +822,7 @@ contract Doppler is BaseHook {
 
         // Return early if we're on the final epoch
         if (nextEpochEndTime == epochEndTime) {
-            return slugs;
+            return new SlugData[](0);
         }
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
@@ -848,6 +846,8 @@ contract Doppler is BaseHook {
         bool surplusAssets = tokensToLp * pdSlugsToLp <= assetAvailable;
         tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
         int24 tick = upperSlug.tickUpper;
+
+        SlugData[] memory slugs = new SlugData[](pdSlugsToLp);
         for (uint256 i; i < pdSlugsToLp; ++i) {
             slugs[i].tickLower = tick;
             tick = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
