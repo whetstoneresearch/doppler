@@ -30,44 +30,34 @@ contract DeployDopplerFactory is Script, Deployers {
     address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
     string public constant ENV_PRIVATE_KEY = "PRIVATE_KEY";
 
-    function getDeploymentAddresses() 
-      public view returns 
-      (address, address, address, address, address, address, address, address) {
-      return (
-        address(airlock), 
-        address(tokenFactory), 
-        address(factory), 
-        address(governanceFactory), 
-        address(migrator), 
-        address(manager),
-        address(stateView), 
-        address(router)
-      );
+    function getDeploymentAddresses()
+        public
+        view
+        returns (address, address, address, address, address, address, address, address)
+    {
+        return (
+            address(airlock),
+            address(tokenFactory),
+            address(factory),
+            address(governanceFactory),
+            address(migrator),
+            address(manager),
+            address(stateView),
+            address(router)
+        );
     }
 
     function run() public {
         deployFreshManager();
-        console2.log("Manager: ", address(manager));
         quoter = new Quoter(manager);
-        console2.log("Quoter: ", address(quoter));
         uniRouter = new PoolSwapTest(manager);
-        console2.log("UniRouter: ", address(uniRouter));
-        router = new CustomRouter2(swapRouter, quoter);
-        console2.log("CustomRouter: ", address(router));
+        router = new CustomRouter2(uniRouter, quoter);
         stateView = new StateView(manager);
-        console2.log("StateView: ", address(stateView));
         airlock = new Airlock(manager);
-        console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory();
-        console2.log("TokenFactory: ", address(tokenFactory));
         governanceFactory = new GovernanceFactory();
-        console2.log("GovernanceFactory: ", address(governanceFactory));
         migrator = new UniswapV2Migrator(IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
-        console2.log("Migrator: ", address(migrator));
         factory = new DopplerFactory();
-        console2.log("DopplerFactory: ", address(factory));
-        console2.log("V2Factory: ", uniFactoryV2);
-        console2.log("V2Router: ", uniRouterV2);
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);

@@ -25,3 +25,5 @@ number_underscore = 'thousands'
 quote_style = 'double'
 tab_width = 4
 wrap_comments = false
+
+unknown_chain = { key = "", chain = 1, url = "https://virtual.mainnet.rpc.tenderly.co/78755f0a-d8c7-4b61-9832-fe86bacbd571" }
