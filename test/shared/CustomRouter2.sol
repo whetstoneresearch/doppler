@@ -30,6 +30,8 @@ contract CustomRouter2 {
         quoter = quoter_;
     }
 
+    receive() external payable { }
+
     function _getHookData(
         PoolKey calldata key
     ) internal view returns (bool isUsingEth, bool isToken0, address asset, address numeraire) {
