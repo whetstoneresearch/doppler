@@ -112,7 +112,7 @@ contract UniswapV2Migrator is IMigrator {
             if (address(this).balance > 0) SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         } else {
             ERC20(token0).approve(address(router), amount0);
-            (,, liquidity) = router.addLiquidity(token0, token1, amount0, amount1, 0, 0, msg.sender, block.timestamp);
+            (,, liquidity) = router.addLiquidity(token0, token1, amount0, amount1, 0, 0, recipient, block.timestamp);
             ERC20(token0).approve(address(router), 0);
             uint256 dust0 = ERC20(token0).balanceOf(address(this));
             if (dust0 > 0) SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
