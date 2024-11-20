@@ -68,7 +68,7 @@ contract CustomRouter2 {
             })
         );
 
-        return uint256(uint128(deltaAmounts[0]));
+        return uint256(uint128(deltaAmounts[1]));
     }
 
     /// @notice Buys asset tokens using an exact amount of numeraire tokens.
