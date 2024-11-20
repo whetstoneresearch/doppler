@@ -9,6 +9,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IHookFactory, IHook } from "src/interfaces/IHookFactory.sol";
 import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
+import { DERC20 } from "src/DERC20.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -114,7 +115,8 @@ contract Airlock is Ownable {
 
         // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
         (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
-        Ownable(token).transferOwnership(timelock);
+
+        migrator.createPool(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
 
         getTokenData[token] = TokenData({
             governance: governance,
@@ -147,24 +149,17 @@ contract Airlock is Ownable {
             ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
         }
 
-        // FIXME: The migrate function returns assetAmount and numeraireAmount, not 0 and 1
-        (uint256 amount0, uint256 amount1) = IHook(address(tokenData.poolKey.hooks)).migrate();
+        DERC20(asset).unlockPool();
+        uint256 price = IHook(address(tokenData.poolKey.hooks)).migrate(tokenData.timelock);
+        Ownable(asset).transferOwnership(tokenData.timelock);
 
-        tokenData.poolKey.currency0.transfer(address(tokenData.migrator), amount0);
-        tokenData.poolKey.currency1.transfer(address(tokenData.migrator), amount1);
-
-        (address pool,) = tokenData.migrator.migrate{ value: tokenData.poolKey.currency0.isAddressZero() ? amount0 : 0 }(
+        (address pool,) = tokenData.migrator.migrate(
             Currency.unwrap(tokenData.poolKey.currency0),
             Currency.unwrap(tokenData.poolKey.currency1),
-            amount0,
-            amount1,
+            price,
             tokenData.timelock,
             new bytes(0)
         );
-
-        // We might end up with some dust tokens in the contract, so we transfer them to the timelock
-        tokenData.poolKey.currency0.transfer(address(tokenData.migrator), tokenData.poolKey.currency0.balanceOfSelf());
-        tokenData.poolKey.currency1.transfer(address(tokenData.migrator), tokenData.poolKey.currency1.balanceOfSelf());
 
         emit Migrate(asset, pool);
     }
