@@ -22,8 +22,7 @@ interface IHookFactory {
 interface IHook {
     /**
      * @notice Triggers the migration stage of the hook contract
-     * @return Amount of numeraire tokens
-     * @return Amount of asset tokens
+     * @return Price of the pool
      */
-    function migrate() external returns (uint256, uint256);
+    function migrate() external returns (uint256);
 }
