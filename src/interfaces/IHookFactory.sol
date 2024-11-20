@@ -24,5 +24,7 @@ interface IHook {
      * @notice Triggers the migration stage of the hook contract
      * @return Price of the pool
      */
-    function migrate() external returns (uint256);
+    function migrate(
+        address recipient
+    ) external returns (uint256);
 }
