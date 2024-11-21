@@ -24,7 +24,7 @@ contract DopplerFactory is IHookFactory {
             int24 gamma,
             bool isToken0,
             uint256 numPDSlugs,
-            address migrator
+            address airlock
         ) = abi.decode(data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, address));
 
         return address(
@@ -41,7 +41,7 @@ contract DopplerFactory is IHookFactory {
                 gamma,
                 isToken0,
                 numPDSlugs,
-                migrator
+                airlock
             )
         );
     }
