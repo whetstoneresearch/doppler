@@ -1103,7 +1103,7 @@ contract Doppler is BaseHook {
     /**
      * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
      * @dev This function can only be called by the Airlock contract under specific conditions
-     * @return Price of the pool
+     * @return Price of the pool in the Q96 format
      */
     function migrate(
         address recipient
@@ -1122,6 +1122,6 @@ contract Doppler is BaseHook {
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
 
-        return sqrtPriceX96 * sqrtPriceX96 >> FixedPoint96.RESOLUTION;
+        return sqrtPriceX96 * sqrtPriceX96;
     }
 }
