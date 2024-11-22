@@ -93,6 +93,7 @@ contract Airlock is Ownable {
         IHookFactory hookFactory,
         bytes memory hookData,
         IMigrator migrator,
+        address pool,
         bytes32 salt
     ) external returns (address, address, address) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
@@ -108,7 +109,8 @@ contract Airlock is Ownable {
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
 
-        address token = tokenFactory.create(name, symbol, initialSupply, address(this), address(this), tokenData, salt);
+        address token =
+            tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
         address hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
 
         ERC20(token).transfer(hook, numTokensToSell);
