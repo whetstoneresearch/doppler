@@ -970,7 +970,7 @@ contract Doppler is BaseHook {
 
         if (isMigration) {
             for (uint256 i; i < 3 + numPDSlugs; ++i) {
-                Position memory position = positions[bytes32(uint256(i + 1))];
+                Position memory position = positions[bytes32(uint256(i))];
 
                 if (position.liquidity != 0) {
                     poolManager.modifyLiquidity(
