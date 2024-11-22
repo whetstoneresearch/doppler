@@ -5,6 +5,7 @@ import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
+import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
@@ -32,6 +33,9 @@ interface IUniswapV2Router02 {
 
 interface IUniswapV2Pair {
     function getReserves() external view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast);
+    function mint(
+        address to
+    ) external returns (uint256 liquidity);
 }
 
 interface IUniswapV2Factory {
@@ -94,7 +98,7 @@ contract UniswapV2Migrator is IMigrator {
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
         // Pool was created beforehand along the asset token deployment
-        pool = getPool[token0 == address(0) ? router.WETH() : token0][token1];
+        pool = getPool[token0][token1];
 
         uint256 amount0 = price.mulDiv(balance1, FixedPoint96.Q96);
         uint256 amount1 = balance0.mulDiv(FixedPoint96.Q96, price);
@@ -107,20 +111,24 @@ contract UniswapV2Migrator is IMigrator {
             amount0 = price.mulDiv(amount1, FixedPoint96.Q96);
         }
 
-        ERC20(token1).approve(address(router), amount1);
-
         if (token0 == address(0)) {
-            (,, liquidity) = router.addLiquidityETH{ value: amount0 }(token1, amount1, 0, 0, recipient, block.timestamp);
-            if (address(this).balance > 0) SafeTransferLib.safeTransferETH(recipient, address(this).balance);
+            IWETH weth = IWETH(payable(router.WETH()));
+            weth.deposit{ value: amount0 }();
+            token0 = address(weth);
         } else {
-            ERC20(token0).approve(address(router), amount0);
-            (,, liquidity) = router.addLiquidity(token0, token1, amount0, amount1, 0, 0, recipient, block.timestamp);
-            ERC20(token0).approve(address(router), 0);
-            uint256 dust0 = ERC20(token0).balanceOf(address(this));
-            if (dust0 > 0) SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
+            ERC20(token0).transfer(pool, amount0);
         }
 
-        ERC20(token1).approve(address(router), 0);
+        ERC20(token0).transfer(pool, amount0);
+        ERC20(token1).transfer(pool, amount1);
+
+        liquidity = IUniswapV2Pair(pool).mint(recipient);
+
+        if (address(this).balance > 0) SafeTransferLib.safeTransferETH(recipient, address(this).balance);
+
+        uint256 dust0 = ERC20(token0).balanceOf(address(this));
+        if (dust0 > 0) SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
+
         uint256 dust1 = ERC20(token1).balanceOf(address(this));
         if (dust1 > 0) SafeTransferLib.safeTransfer(ERC20(token1), recipient, dust1);
     }
