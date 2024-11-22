@@ -11,13 +11,13 @@ contract MigrateTest is BaseTest {
 
     function test_migrate_RevertsIfSenderNotAirlock() public {
         vm.expectRevert(SenderNotAirlock.selector);
-        hook.migrate();
+        hook.migrate(address(0));
     }
 
     function test_migrate_RevertsIfConditionsNotMet() public {
         vm.startPrank(hook.airlock());
         vm.expectRevert(CannotMigrate.selector);
-        hook.migrate();
+        hook.migrate(address(0));
     }
 
     function test_migrate_RemovesAllLiquidity() public {
@@ -28,7 +28,7 @@ contract MigrateTest is BaseTest {
 
         vm.warp(hook.getEndingTime());
         vm.prank(hook.airlock());
-        hook.migrate();
+        hook.migrate(address(0xbeef));
 
         for (uint256 i = 1; i < numPDSlugs + 3; i++) {
             (int24 tickLower, int24 tickUpper,,) = hook.positions(bytes32(i));
@@ -63,7 +63,7 @@ contract MigrateTest is BaseTest {
 
         vm.warp(hook.getEndingTime());
         vm.prank(hook.airlock());
-        hook.migrate();
+        hook.migrate(address(0xbeef));
 
         _debugPositions("After migration");
 
