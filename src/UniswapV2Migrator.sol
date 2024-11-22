@@ -91,6 +91,7 @@ contract UniswapV2Migrator is IMigrator {
         uint256 balance0 = token0 == address(0) ? address(this).balance : ERC20(token0).balanceOf(address(this));
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
+        // Pool was created beforehand along the asset token deployment
         pool = getPool[token0 == address(0) ? router.WETH() : token0][token1];
 
         uint256 amount0 = price.mulWadDown(balance1);
