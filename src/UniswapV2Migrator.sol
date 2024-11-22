@@ -3,7 +3,8 @@ pragma solidity ^0.8.13;
 
 import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
-import { FixedPointMathLib } from "solmate/src/utils/FixedPointMathLib.sol";
+import { FullMath } from "v4-core/src/libraries/FullMath.sol";
+import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
@@ -43,7 +44,7 @@ interface IUniswapV2Factory {
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
  */
 contract UniswapV2Migrator is IMigrator {
-    using FixedPointMathLib for uint256;
+    using FullMath for uint256;
 
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
@@ -77,6 +78,7 @@ contract UniswapV2Migrator is IMigrator {
      * @notice Migrates the liquidity into a Uniswap V2 pool
      * @param token0 Smaller address of the two tokens
      * @param token1 Larger address of the two tokens
+     * @param price Price of token0 in terms of token1 (Q96 format)
      * @param recipient Address receiving the liquidity pool tokens
      * @return pool Address of the Uniswap V2 pool
      * @return liquidity Amount of liquidity tokens minted
@@ -94,15 +96,15 @@ contract UniswapV2Migrator is IMigrator {
         // Pool was created beforehand along the asset token deployment
         pool = getPool[token0 == address(0) ? router.WETH() : token0][token1];
 
-        uint256 amount0 = price.mulWadDown(balance1);
-        uint256 amount1 = balance0.divWadDown(price);
+        uint256 amount0 = price.mulDiv(balance1, FixedPoint96.Q96);
+        uint256 amount1 = balance0.mulDiv(FixedPoint96.Q96, price);
 
         if (amount0 > balance0) {
             amount0 = balance0;
-            amount1 = amount0.divWadDown(price);
+            amount1 = amount0.mulDiv(FixedPoint96.Q96, price);
         } else if (amount1 > balance1) {
             amount1 = balance1;
-            amount0 = price.mulWadDown(amount1);
+            amount0 = price.mulDiv(amount1, FixedPoint96.Q96);
         }
 
         ERC20(token1).approve(address(router), amount1);
