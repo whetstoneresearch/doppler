@@ -45,6 +45,7 @@ contract UniswapV2Migrator is IMigrator {
 
     function createPool(address token0, address token1) external returns (address) {
         if (token0 == address(0)) token0 = router.WETH();
+        if (token0 > token1) (token0, token1) = (token1, token0);
 
         address pool = factory.getPair(token0, token1);
 
