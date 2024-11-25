@@ -13,7 +13,7 @@ import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
 
-contract DeployDopplerFactory is Script, Deployers {
+contract DeployFactories is Script, Deployers {
     Airlock airlock;
     TokenFactory tokenFactory;
     DopplerFactory factory;
