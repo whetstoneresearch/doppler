@@ -62,6 +62,19 @@ error CannotMigrate();
 error AlreadyInitialized();
 error SenderNotAirlock();
 
+event Swap(
+    uint40 lastEpoch,
+    int256 tickAccumulator,
+    uint256 totalTokensSold,
+    uint256 totalProceeds,
+    uint256 totalTokensSoldLastEpoch,
+    BalanceDelta feesAccrued,
+    uint256 currentEpoch,
+    int24 currentTick
+);
+
+event Rebalance();
+
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
@@ -365,6 +378,17 @@ contract Doppler is BaseHook {
             earlyExit = true;
         }
 
+        emit Swap(
+            state.lastEpoch,
+            state.tickAccumulator,
+            state.totalTokensSold,
+            state.totalProceeds,
+            state.totalTokensSoldLastEpoch,
+            state.feesAccrued,
+            _getCurrentEpoch(),
+            currentTick
+        );
+
         return (BaseHook.afterSwap.selector, 0);
     }
 
@@ -545,6 +569,8 @@ contract Doppler is BaseHook {
                 positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
+
+        emit Rebalance();
     }
 
     /// @notice If offset == 0, retrieves the end time of the current epoch
