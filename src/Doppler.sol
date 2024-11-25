@@ -62,7 +62,7 @@ error CannotMigrate();
 error AlreadyInitialized();
 error SenderNotAirlock();
 
-event Swap(
+event DopplerSwap(
     uint40 lastEpoch,
     int256 tickAccumulator,
     uint256 totalTokensSold,
@@ -378,7 +378,7 @@ contract Doppler is BaseHook {
             earlyExit = true;
         }
 
-        emit Swap(
+        emit DopplerSwap(
             state.lastEpoch,
             state.tickAccumulator,
             state.totalTokensSold,
