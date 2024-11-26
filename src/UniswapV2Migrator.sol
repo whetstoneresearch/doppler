@@ -110,14 +110,12 @@ contract UniswapV2Migrator is IMigrator {
 
         if (token0 == address(weth)) {
             weth.deposit{ value: amount0 }();
-            ERC20(token1).safeTransfer(pool, amount1);
         } else if (token1 == address(weth)) {
-            ERC20(token0).transfer(pool, amount0);
             weth.deposit{ value: amount1 }();
-        } else {
-            ERC20(token0).safeTransfer(pool, amount0);
-            ERC20(token1).safeTransfer(pool, amount1);
         }
+
+        ERC20(token0).safeTransfer(pool, amount0);
+        ERC20(token1).safeTransfer(pool, amount1);
 
         liquidity = IUniswapV2Pair(pool).mint(recipient);
 
