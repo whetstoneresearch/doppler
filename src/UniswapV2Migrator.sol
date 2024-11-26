@@ -28,9 +28,11 @@ interface IUniswapV2Factory {
  */
 contract UniswapV2Migrator is IMigrator {
     using FullMath for uint256;
+    using SafeTransferLib for ERC20;
 
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
+    IWETH public immutable weth;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
 
@@ -41,10 +43,11 @@ contract UniswapV2Migrator is IMigrator {
     constructor(IUniswapV2Factory factory_, IUniswapV2Router02 router_) {
         factory = factory_;
         router = router_;
+        weth = IWETH(payable(router.WETH()));
     }
 
     function createPool(address token0, address token1) external returns (address) {
-        if (token0 == address(0)) token0 = router.WETH();
+        if (token0 == address(0)) token0 = address(weth);
         if (token0 > token1) (token0, token1) = (token1, token0);
 
         address pool = factory.getPair(token0, token1);
@@ -74,8 +77,22 @@ contract UniswapV2Migrator is IMigrator {
         address recipient,
         bytes memory
     ) external payable returns (address pool, uint256 liquidity) {
-        uint256 balance0 = token0 == address(0) ? address(this).balance : ERC20(token0).balanceOf(address(this));
+        uint256 balance0;
+
+        if (token0 == address(0)) {
+            balance0 = address(this).balance;
+            token0 = address(weth);
+        } else {
+            balance0 = ERC20(token0).balanceOf(address(this));
+        }
+
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
+
+        if (token0 > token1) {
+            (token0, token1) = (token1, token0);
+            (balance0, balance1) = (balance1, balance0);
+            price = FixedPoint96.Q96 / price;
+        }
 
         // Pool was created beforehand along the asset token deployment
         pool = getPool[token0][token1];
@@ -91,16 +108,17 @@ contract UniswapV2Migrator is IMigrator {
             amount0 = price.mulDiv(amount1, FixedPoint96.Q96);
         }
 
-        if (token0 == address(0)) {
-            IWETH weth = IWETH(payable(router.WETH()));
+        if (token0 == address(weth)) {
             weth.deposit{ value: amount0 }();
-            token0 = address(weth);
-        } else {
+            ERC20(token1).safeTransfer(pool, amount1);
+        } else if (token1 == address(weth)) {
             ERC20(token0).transfer(pool, amount0);
+            ERC20(token1).safeTransfer(pool, amount0);
+            weth.deposit{ value: amount1 }();
+        } else {
+            ERC20(token0).safeTransfer(pool, amount0);
+            ERC20(token1).safeTransfer(pool, amount1);
         }
-
-        ERC20(token0).transfer(pool, amount0);
-        ERC20(token1).transfer(pool, amount1);
 
         liquidity = IUniswapV2Pair(pool).mint(recipient);
 
