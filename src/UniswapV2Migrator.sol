@@ -31,6 +31,8 @@ interface IUniswapV2Factory {
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
+error SenderNotRouter();
+
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
@@ -38,6 +40,10 @@ interface IUniswapV2Factory {
 contract UniswapV2Migrator is IMigrator {
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
+
+    receive() external payable {
+        if (msg.sender != address(router)) revert SenderNotRouter();
+    }
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
