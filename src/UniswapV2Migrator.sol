@@ -32,6 +32,7 @@ interface IUniswapV2Factory {
 }
 
 error NotAirlock();
+error SenderNotRouter();
 
 /**
  * @author Whetstone Research
@@ -41,6 +42,10 @@ contract UniswapV2Migrator is IMigrator {
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
     address public immutable airlock;
+
+    receive() external payable {
+        if (msg.sender != address(router)) revert SenderNotRouter();
+    }
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
@@ -89,7 +94,7 @@ contract UniswapV2Migrator is IMigrator {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         } else {
             ERC20(token0).approve(address(router), amount0);
-            (,, liquidity) = router.addLiquidity(token0, token1, 0, 0, 0, 0, msg.sender, block.timestamp);
+            (,, liquidity) = router.addLiquidity(token0, token1, 0, 0, 0, 0, recipient, block.timestamp);
             SafeTransferLib.safeTransfer(ERC20(token0), recipient, ERC20(token0).balanceOf(address(this)));
         }
 
