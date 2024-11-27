@@ -13,6 +13,7 @@ interface IHookFactory {
      */
     function create(
         IPoolManager poolManager,
+        address airlock,
         uint256 numTokensToSell,
         bytes memory data,
         bytes32 salt

@@ -19,6 +19,7 @@ contract DopplerFactory is IHookFactory {
 
     function create(
         IPoolManager poolManager,
+        address airlock,
         uint256 numTokensToSell,
         bytes memory data,
         bytes32 salt
@@ -37,9 +38,8 @@ contract DopplerFactory is IHookFactory {
             uint256 epochLength,
             int24 gamma,
             bool isToken0,
-            uint256 numPDSlugs,
-            address airlock
-        ) = abi.decode(data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, address));
+            uint256 numPDSlugs
+        ) = abi.decode(data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256));
 
         return address(
             new Doppler{ salt: salt }(
