@@ -176,6 +176,7 @@ contract AirlockTest is Test, Deployers {
             dopplerFactory,
             hookFactoryData,
             migrator,
+            address(0), // FIXME: Use the pool address
             salt
         );
 
@@ -306,6 +307,7 @@ contract AirlockTest is Test, Deployers {
                 dopplerFactory,
                 hookFactoryData,
                 migrator,
+                address(0), // FIXME: Use the pool address
                 salt
             );
         }
@@ -360,6 +362,7 @@ contract AirlockTest is Test, Deployers {
                 dopplerFactory,
                 hookFactoryData,
                 migrator,
+                address(0), // FIXME: Use the pool address
                 salt
             );
         }

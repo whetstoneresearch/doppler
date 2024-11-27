@@ -1150,26 +1150,28 @@ contract Doppler is BaseHook {
         });
     }
 
-    function migrate() external returns (uint256 amount0, uint256 amount1) {
+    /**
+     * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
+     * @dev This function can only be called by the Airlock contract under specific conditions
+     * @return Price of the pool in the Q96 format
+     */
+    function migrate(
+        address recipient
+    ) external returns (uint256) {
         if (msg.sender != airlock) revert SenderNotAirlock();
 
         if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
             revert CannotMigrate();
         }
 
-        // We didn't exit early so we have to remove our liquidity.
-        if (!earlyExit) {
-            poolManager.unlock(
-                abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true }))
-            );
-        }
+        poolManager.unlock(abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true })));
 
-        if (isToken0) {
-            amount0 = state.totalProceeds;
-            amount1 = state.totalTokensSold;
-        } else {
-            amount0 = state.totalTokensSold;
-            amount1 = state.totalProceeds;
-        }
+        // In case some dust tokens are still left in the contract
+        poolKey.currency0.transfer(recipient, poolKey.currency0.balanceOfSelf());
+        poolKey.currency1.transfer(recipient, poolKey.currency1.balanceOfSelf());
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+
+        return sqrtPriceX96 * sqrtPriceX96;
     }
 }
