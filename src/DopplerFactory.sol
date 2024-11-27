@@ -6,13 +6,27 @@ import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
 import { IHookFactory } from "src/interfaces/IHookFactory.sol";
 import { Doppler } from "src/Doppler.sol";
 
+error NotAirlock();
+
 contract DopplerFactory is IHookFactory {
+    address public immutable airlock;
+
+    constructor(
+        address airlock_
+    ) {
+        airlock = airlock_;
+    }
+
     function create(
         IPoolManager poolManager,
         uint256 numTokensToSell,
         bytes memory data,
         bytes32 salt
     ) external returns (address) {
+        if (msg.sender != airlock) {
+            revert NotAirlock();
+        }
+
         (
             uint256 minimumProceeds,
             uint256 maximumProceeds,
