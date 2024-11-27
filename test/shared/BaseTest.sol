@@ -2,6 +2,7 @@ pragma solidity 0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { console } from "forge-std/console.sol";
 
 import { Deployers } from "v4-core/test/utils/Deployers.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
@@ -21,9 +22,9 @@ import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/src/types/BalanceDelt
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import { LibString } from "solmate/src/utils/LibString.sol";
 
 import { DopplerImplementation } from "./DopplerImplementation.sol";
-import "forge-std/console.sol";
 
 using PoolIdLibrary for PoolKey;
 using StateLibrary for IPoolManager;
@@ -88,7 +89,7 @@ contract BaseTest is Test, Deployers {
             address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-                        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
                 ) ^ (0x4444 << 144)
             )
         )
@@ -441,6 +442,29 @@ contract BaseTest is Test, Deployers {
         }
 
         return (amount0ExpectedFee, amount1ExpectedFee);
+    }
+
+    function _debugPositions(
+        string memory desc
+    ) internal view {
+        uint256 numPDSlugs = hook.getNumPDSlugs();
+
+        console.log("\n", desc);
+        console.log("--------------------");
+
+        for (uint256 i = 1; i < numPDSlugs + 3; i++) {
+            (int24 tickLower, int24 tickUpper, uint128 storedLiquidity,) = hook.positions(bytes32(i));
+            (uint128 actualLiquidity,,) = manager.getPositionInfo(
+                poolId, address(hook), isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower, bytes32(i)
+            );
+
+            console.log("Position %i", i);
+            console.log("tickLower %i", tickLower);
+            console.log("tickUpper %i", tickUpper);
+            console.log("storedLiquidity %e", storedLiquidity);
+            console.log("actualLiquidity %e", actualLiquidity);
+            console.log("------");
+        }
     }
 }
 

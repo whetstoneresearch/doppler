@@ -5,14 +5,24 @@ import { Governance, IVotes } from "src/Governance.sol";
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
-contract GovernanceFactory is IGovernanceFactory {
-    TimelockFactory public timelockFactory;
+error NotAirlock();
 
-    constructor() {
+contract GovernanceFactory is IGovernanceFactory {
+    TimelockFactory public immutable timelockFactory;
+    address public immutable airlock;
+
+    constructor(
+        address airlock_
+    ) {
+        airlock = airlock_;
         timelockFactory = new TimelockFactory();
     }
 
     function create(string memory name, address token, bytes memory) external returns (address, address) {
+        if (msg.sender != airlock) {
+            revert NotAirlock();
+        }
+
         TimelockController timelockController = timelockFactory.create();
         address governance = address(
             new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))

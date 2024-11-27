@@ -9,6 +9,8 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IHookFactory, IHook } from "src/interfaces/IHookFactory.sol";
 import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { lessThan, Currency } from "v4-core/src/types/Currency.sol";
+import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
+import { DERC20 } from "src/DERC20.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -25,6 +27,8 @@ error WrongInitialSupply();
 error ArrayLengthsMismatch();
 
 error InvalidPoolKey();
+error TokenNotInPoolKey();
+error HookNotInPoolKey();
 
 struct TokenData {
     PoolKey poolKey;
@@ -42,6 +46,8 @@ event Migrate(address asset, address pool);
 event SetModuleState(address module, ModuleState state);
 
 contract Airlock is Ownable {
+    using CurrencyLibrary for Currency;
+
     IPoolManager public immutable poolManager;
 
     mapping(address => ModuleState) public getModuleState;
@@ -92,6 +98,7 @@ contract Airlock is Ownable {
         IHookFactory hookFactory,
         bytes memory hookData,
         IMigrator migrator,
+        address pool,
         bytes32 salt
     ) external returns (address, address, address) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
@@ -109,14 +116,22 @@ contract Airlock is Ownable {
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
 
-        address token = tokenFactory.create(name, symbol, initialSupply, address(this), address(this), tokenData, salt);
+        address token =
+            tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
         address hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
+
+        require(
+            token == Currency.unwrap(poolKey.currency0) || token == Currency.unwrap(poolKey.currency1),
+            TokenNotInPoolKey()
+        );
+        require(hook == address(poolKey.hooks), HookNotInPoolKey());
 
         ERC20(token).transfer(hook, numTokensToSell);
 
         // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
         (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
-        Ownable(token).transferOwnership(timelock);
+
+        migrator.createPool(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
 
         getTokenData[token] = TokenData({
             governance: governance,
@@ -149,16 +164,16 @@ contract Airlock is Ownable {
             ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
         }
 
-        (uint256 amount0, uint256 amount1) = IHook(address(tokenData.poolKey.hooks)).migrate();
+        DERC20(asset).unlockPool();
+        uint256 price = IHook(address(tokenData.poolKey.hooks)).migrate(tokenData.timelock);
+        Ownable(asset).transferOwnership(tokenData.timelock);
 
-        address currency0 = Currency.unwrap(tokenData.poolKey.currency0);
-        address currency1 = Currency.unwrap(tokenData.poolKey.currency1);
-
-        if (currency0 != address(0)) ERC20(currency0).transfer(address(tokenData.migrator), amount0);
-        ERC20(currency1).transfer(address(tokenData.migrator), amount1);
-
-        (address pool,) = tokenData.migrator.migrate{ value: currency0 == address(0) ? amount0 : 0 }(
-            currency0, currency1, amount0, amount1, tokenData.timelock, new bytes(0)
+        (address pool,) = tokenData.migrator.migrate(
+            Currency.unwrap(tokenData.poolKey.currency0),
+            Currency.unwrap(tokenData.poolKey.currency1),
+            price,
+            tokenData.timelock,
+            new bytes(0)
         );
 
         emit Migrate(asset, pool);

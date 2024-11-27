@@ -80,6 +80,7 @@ error SenderNotPoolManager();
 error CannotMigrate();
 error AlreadyInitialized();
 error SenderNotAirlock();
+error CannotDonate();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 uint256 constant WAD = 1e18;
@@ -251,6 +252,16 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4) {
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
+    }
+
+    function beforeDonate(
+        address,
+        PoolKey calldata,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external override returns (bytes4) {
+        revert CannotDonate();
     }
 
     /// @notice Called by the poolManager immediately before a swap is executed
@@ -815,8 +826,6 @@ contract Doppler is BaseHook {
         int24 tickUpper,
         uint256 assetAvailable
     ) internal view returns (SlugData[] memory) {
-        SlugData[] memory slugs = new SlugData[](numPDSlugs);
-
         // Compute end time of current epoch
         uint256 epochEndTime = _getEpochEndWithOffset(0);
         // Compute end time of next epoch
@@ -824,7 +833,7 @@ contract Doppler is BaseHook {
 
         // Return early if we're on the final epoch
         if (nextEpochEndTime == epochEndTime) {
-            return slugs;
+            return new SlugData[](0);
         }
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
@@ -848,6 +857,8 @@ contract Doppler is BaseHook {
         bool surplusAssets = tokensToLp * pdSlugsToLp <= assetAvailable;
         tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
         int24 tick = upperSlug.tickUpper;
+
+        SlugData[] memory slugs = new SlugData[](pdSlugsToLp);
         for (uint256 i; i < pdSlugsToLp; ++i) {
             slugs[i].tickLower = tick;
             tick = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
@@ -1008,7 +1019,7 @@ contract Doppler is BaseHook {
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
         if (isMigration) {
-            for (uint256 i; i < 3 + numPDSlugs; ++i) {
+            for (uint256 i = 1; i < NUM_DEFAULT_SLUGS + numPDSlugs; ++i) {
                 Position memory position = positions[bytes32(uint256(i))];
 
                 if (position.liquidity != 0) {
@@ -1050,7 +1061,7 @@ contract Doppler is BaseHook {
             SlugData[] memory priceDiscoverySlugs =
                 _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
-            Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
+            Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + priceDiscoverySlugs.length);
 
             newPositions[0] = Position({
                 tickLower: lowerSlug.tickLower,
@@ -1077,7 +1088,7 @@ contract Doppler is BaseHook {
 
             positions[LOWER_SLUG_SALT] = newPositions[0];
             positions[UPPER_SLUG_SALT] = newPositions[1];
-            for (uint256 i; i < numPDSlugs; ++i) {
+            for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
                 positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
@@ -1130,7 +1141,7 @@ contract Doppler is BaseHook {
             afterRemoveLiquidity: false,
             beforeSwap: true,
             afterSwap: true,
-            beforeDonate: false,
+            beforeDonate: true,
             afterDonate: false,
             beforeSwapReturnDelta: false,
             afterSwapReturnDelta: false,
@@ -1139,26 +1150,28 @@ contract Doppler is BaseHook {
         });
     }
 
-    function migrate() external returns (uint256 amount0, uint256 amount1) {
+    /**
+     * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
+     * @dev This function can only be called by the Airlock contract under specific conditions
+     * @return Price of the pool in the Q96 format
+     */
+    function migrate(
+        address recipient
+    ) external returns (uint256) {
         if (msg.sender != airlock) revert SenderNotAirlock();
 
         if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
             revert CannotMigrate();
         }
 
-        // We didn't exit early so we have to remove our liquidity.
-        if (!earlyExit) {
-            poolManager.unlock(
-                abi.encode(CallbackData({ key: poolKey, sender: msg.sender, tick: 0, isMigration: true }))
-            );
-        }
+        poolManager.unlock(abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true })));
 
-        if (isToken0) {
-            amount0 = state.totalProceeds;
-            amount1 = state.totalTokensSold;
-        } else {
-            amount0 = state.totalTokensSold;
-            amount1 = state.totalProceeds;
-        }
+        // In case some dust tokens are still left in the contract
+        poolKey.currency0.transfer(recipient, poolKey.currency0.balanceOfSelf());
+        poolKey.currency1.transfer(recipient, poolKey.currency1.balanceOfSelf());
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+
+        return sqrtPriceX96 * sqrtPriceX96;
     }
 }
