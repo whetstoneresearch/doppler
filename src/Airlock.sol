@@ -25,6 +25,10 @@ error WrongInitialSupply();
 
 error ArrayLengthsMismatch();
 
+error TokenNotInPoolKey();
+
+error HookNotInPoolKey();
+
 struct TokenData {
     PoolKey poolKey;
     address timelock;
@@ -112,6 +116,12 @@ contract Airlock is Ownable {
         address token =
             tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
         address hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
+
+        require(
+            token == Currency.unwrap(poolKey.currency0) || token == Currency.unwrap(poolKey.currency1),
+            TokenNotInPoolKey()
+        );
+        require(hook == address(poolKey.hooks), HookNotInPoolKey());
 
         ERC20(token).transfer(hook, numTokensToSell);
 

@@ -20,21 +20,40 @@ import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/Proto
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 
+/// @notice Data for a liquidity slug, an intermediate representation of a `Position`
+/// @dev Output struct when computing slug data for a `Position`
+/// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param liquidity Amount of liquidity in the position
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
 }
 
+// @notice Current state of the Doppler pool
+/// @dev Packed struct containing epoch data, accumulators, and total amounts
+/// @param lastEpoch Last updated epoch (1-indexed)
+/// @param tickAccumulator Accumulator to track the net bonding curve delta
+/// @param totalTokensSold Total tokens sold by the hook
+/// @param totalProceeds Total amount earned from selling tokens (in numeraire token)
+/// @param totalTokensSoldLastEpoch Total tokens sold at the end of the last epoch
+/// @param feesAccrued Fees accrued to the pool since last collection
 struct State {
-    uint40 lastEpoch; // last updated epoch (1-indexed)
-    int256 tickAccumulator; // accumulator to modify the bonding curve
-    uint256 totalTokensSold; // total tokens sold
-    uint256 totalProceeds; // total amount earned from selling tokens (numeraire)
-    uint256 totalTokensSoldLastEpoch; // total tokens sold at the time of the last epoch
-    BalanceDelta feesAccrued; // fees accrued to the pool
+    uint40 lastEpoch;
+    int256 tickAccumulator;
+    uint256 totalTokensSold;
+    uint256 totalProceeds;
+    uint256 totalTokensSoldLastEpoch;
+    BalanceDelta feesAccrued;
 }
 
+/// @notice Position data for a liquidity slug
+/// @dev Used to track individual liquidity positions controlled by the hook
+/// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
+/// @param liquidity Amount of liquidity in the position
+/// @param salt Salt value used to identify the position
 struct Position {
     int24 tickLower;
     int24 tickUpper;
@@ -61,18 +80,24 @@ error SenderNotPoolManager();
 error CannotMigrate();
 error AlreadyInitialized();
 error SenderNotAirlock();
+error CannotDonate();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
+uint256 constant WAD = 1e18;
+int256 constant I_WAD = 1e18;
 int24 constant MAX_TICK_SPACING = 30;
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
 uint256 constant NUM_DEFAULT_SLUGS = 3;
 
+/// @dev Used to differentiate between the lower, upper, and price discovery slugs
 bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
 bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+/// @dev Demarcates the id of the LOWEST (price-wise) price discovery slug
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 /// @title Doppler
 /// @author kadenzipfel, kinrezC, clemlak, aadams, and Alexangelj
+/// @custom:security-contact security@whetstone.cc
 contract Doppler is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -109,11 +134,27 @@ contract Doppler is BaseHook {
     uint256 internal immutable numPDSlugs; // number of price discovery slugs
 
     uint256 internal immutable totalEpochs; // total number of epochs
+    uint256 internal normalizedEpochDelta; // normalized delta between two epochs
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
     }
 
+    /// @notice Creates a new Doppler pool instance
+    /// @dev Validates input parameters and sets up the initial pool state
+    /// @param _poolManager The Uniswap v4 pool manager contract
+    /// @param _numTokensToSell Total number of tokens available to be sold by the hook
+    /// @param _minimumProceeds Proceeds required to avoid refund phase
+    /// @param _maximumProceeds Proceeds amount that trigger early exit
+    /// @param _startingTime Unix timestamp when the sale starts
+    /// @param _endingTime Unix timestamp when the sale ends
+    /// @param _startingTick Initial tick for the bonding curve
+    /// @param _endingTick Final tick for the bonding curve
+    /// @param _epochLength Duration of each epoch in seconds
+    /// @param _gamma Maximum tick movement per epoch (1.0001^gamma)
+    /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
+    /// @param _numPDSlugs Number of price discovery slugs to use
+    /// @param airlock_ Address of the airlock contract
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -135,8 +176,8 @@ contract Doppler is BaseHook {
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
         if (_startingTick != _endingTick) {
-            if (_isToken0 && _startingTick <= _endingTick) revert InvalidTickRange();
-            if (!_isToken0 && _startingTick >= _endingTick) revert InvalidTickRange();
+            if (_isToken0 && _startingTick < _endingTick) revert InvalidTickRange();
+            if (!_isToken0 && _startingTick > _endingTick) revert InvalidTickRange();
         }
 
         /* Time checks */
@@ -144,10 +185,9 @@ contract Doppler is BaseHook {
         if (_startingTime >= _endingTime) revert InvalidTimeRange();
         uint256 timeDelta = _endingTime - _startingTime;
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
-        // TODO: Consider whether this should check if the left side is less than tickSpacing
         if (
             _gamma <= 0
-                || FullMath.mulDiv(FullMath.mulDiv(_epochLength, 1e18, timeDelta), uint256(int256(_gamma)), 1e18) == 0
+                || FullMath.mulDiv(FullMath.mulDiv(_epochLength, WAD, timeDelta), uint256(int256(_gamma)), WAD) == 0
         ) {
             revert InvalidGamma();
         }
@@ -162,6 +202,7 @@ contract Doppler is BaseHook {
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
         totalEpochs = timeDelta / _epochLength;
+        normalizedEpochDelta = FullMath.mulDiv(_epochLength, WAD, timeDelta);
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -182,8 +223,9 @@ contract Doppler is BaseHook {
         PoolKey calldata key,
         uint160,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external override onlyPoolManager returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
+        isInitialized = true;
         poolKey = key;
 
         // Enforce maximum tick spacing
@@ -210,6 +252,16 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4) {
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
+    }
+
+    function beforeDonate(
+        address,
+        PoolKey calldata,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external override returns (bytes4) {
+        revert CannotDonate();
     }
 
     /// @notice Called by the poolManager immediately before a swap is executed
@@ -384,6 +436,7 @@ contract Doppler is BaseHook {
 
     /// @notice Executed before swaps in new epochs to rebalance the bonding curve
     ///         We adjust the bonding curve according to the amount tokens sold relative to the expected amount
+    /// @dev Called during beforeSwap when entering a new epoch
     /// @param key The pool key
     function _rebalance(
         PoolKey calldata key
@@ -416,12 +469,12 @@ contract Doppler is BaseHook {
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             accumulatorDelta = _getMaxTickDeltaPerEpoch()
-                * int256(1e18 - FullMath.mulDiv(totalTokensSold_, 1e18, expectedAmountSold)) / 1e18;
+                * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
         } else {
-            int24 tauTick = startingTick + int24(state.tickAccumulator / 1e18);
+            int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
             // Safe from overflow since the result is <= gamma which is an int24 already
-            int24 computedRange = (_getGammaShare() * gamma / 1e18).toInt24();
+            int24 computedRange = (_getGammaShare() * gamma / I_WAD).toInt24();
             int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
@@ -446,7 +499,7 @@ contract Doppler is BaseHook {
                 currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
             }
 
-            accumulatorDelta = int256(currentTick - expectedTick) * 1e18;
+            accumulatorDelta = int256(currentTick - expectedTick) * I_WAD;
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
@@ -456,7 +509,7 @@ contract Doppler is BaseHook {
         }
 
         currentTick =
-            _alignComputedTickWithTickSpacing(upSlug.tickLower + (accumulatorDelta / 1e18).toInt24(), key.tickSpacing);
+            _alignComputedTickWithTickSpacing(upSlug.tickLower + (accumulatorDelta / I_WAD).toInt24(), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
@@ -571,12 +624,12 @@ contract Doppler is BaseHook {
     function _getNormalizedTimeElapsed(
         uint256 timestamp
     ) internal view returns (uint256) {
-        return FullMath.mulDiv(timestamp - startingTime, 1e18, endingTime - startingTime);
+        return FullMath.mulDiv(timestamp - startingTime, WAD, endingTime - startingTime);
     }
 
     /// @notice Computes the gamma share for a single epoch, used as a measure for the upper slug range
     function _getGammaShare() internal view returns (int256) {
-        return FullMath.mulDiv(epochLength, 1e18, endingTime - startingTime).toInt256();
+        return FullMath.mulDiv(epochLength, WAD, endingTime - startingTime).toInt256();
     }
 
     /// @notice If offset == 0, retrieves the expected amount sold by the end of the last epoch
@@ -589,7 +642,7 @@ contract Doppler is BaseHook {
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime),
             numTokensToSell,
-            1e18
+            WAD
         );
     }
 
@@ -597,7 +650,7 @@ contract Doppler is BaseHook {
     ///         Returns an 18 decimal fixed point value
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
         // Safe from overflow since max value is (2**24-1) * 1e18
-        return int256(endingTick - startingTick) * 1e18 / int256((endingTime - startingTime) / epochLength);
+        return int256(endingTick - startingTick) * I_WAD / int256((endingTime - startingTime) / epochLength);
     }
 
     /// @notice Aligns a given tick with the tickSpacing of the pool
@@ -656,7 +709,7 @@ contract Doppler is BaseHook {
         int256 accumulator,
         int24 tickSpacing
     ) internal view returns (int24 lower, int24 upper) {
-        int24 accumulatorDelta = (accumulator / 1e18).toInt24();
+        int24 accumulatorDelta = (accumulator / I_WAD).toInt24();
         int24 adjustedTick = startingTick + accumulatorDelta;
         lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
 
@@ -733,8 +786,7 @@ contract Doppler is BaseHook {
         // the expected amount sold by next epoch
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
-            int24 computedDelta =
-                int24(int256(FullMath.mulDiv(uint256(_getGammaShare()), uint256(int256(gamma)), 1e18)));
+            int24 computedDelta = int24(int256(FullMath.mulDiv(uint256(_getGammaShare()), uint256(int256(gamma)), WAD)));
             int24 accumulatorDelta = computedDelta > key.tickSpacing ? computedDelta : key.tickSpacing;
             slug.tickLower = currentTick;
             slug.tickUpper = _alignComputedTickWithTickSpacing(
@@ -803,22 +855,14 @@ contract Doppler is BaseHook {
             --pdSlugsToLp;
         }
 
-        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, 1e18);
+        uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, WAD);
         bool surplusAssets = tokensToLp * pdSlugsToLp <= assetAvailable;
         tokensToLp = surplusAssets ? tokensToLp : assetAvailable / pdSlugsToLp;
-        for (uint256 i; i < numPDSlugs; ++i) {
-            // If epoch [i] end time is equal to next epoch [i+1] end time, we've reached the end
-            // and don't need to provide any more slugs
-            if (_getEpochEndWithOffset(i) == _getEpochEndWithOffset(i + 1)) {
-                break;
-            }
-
-            if (i == 0) {
-                slugs[i].tickLower = upperSlug.tickUpper;
-            } else {
-                slugs[i].tickLower = slugs[i - 1].tickUpper;
-            }
-            slugs[i].tickUpper = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
+        int24 tick = upperSlug.tickUpper;
+        for (uint256 i; i < pdSlugsToLp; ++i) {
+            slugs[i].tickLower = tick;
+            tick = _alignComputedTickWithTickSpacing(slugs[i].tickLower + slugRangeDelta, key.tickSpacing);
+            slugs[i].tickUpper = tick;
 
             slugs[i].liquidity = _computeLiquidity(
                 isToken0,
@@ -952,6 +996,12 @@ contract Doppler is BaseHook {
         poolManager.settle();
     }
 
+    /// @dev Data passed through the `unlock` call to the PoolManager to the `_unlockCallback`
+    /// back in this contract. Using a struct here is usually to avoid using the wrong types.
+    /// @param key Pool key associated with this hook
+    /// @param sender Address calling the PoolManager, for example the Airlock in a migration
+    /// @param tick Current tick of the pool
+    /// @param isMigration Whether or not we reached the migration stage
     struct CallbackData {
         PoolKey key;
         address sender;
@@ -969,7 +1019,7 @@ contract Doppler is BaseHook {
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
         if (isMigration) {
-            for (uint256 i; i < 3 + numPDSlugs; ++i) {
+            for (uint256 i = 1; i < NUM_DEFAULT_SLUGS + numPDSlugs; ++i) {
                 Position memory position = positions[bytes32(uint256(i))];
 
                 if (position.liquidity != 0) {
@@ -1091,7 +1141,7 @@ contract Doppler is BaseHook {
             afterRemoveLiquidity: false,
             beforeSwap: true,
             afterSwap: true,
-            beforeDonate: false,
+            beforeDonate: true,
             afterDonate: false,
             beforeSwapReturnDelta: false,
             afterSwapReturnDelta: false,

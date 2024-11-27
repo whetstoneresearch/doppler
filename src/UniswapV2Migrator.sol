@@ -22,6 +22,9 @@ interface IUniswapV2Factory {
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
+error NotAirlock();
+error SenderNotRouter();
+
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
@@ -33,14 +36,20 @@ contract UniswapV2Migrator is IMigrator {
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
     IWETH public immutable weth;
+    address public immutable airlock;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
+
+    receive() external payable {
+        if (msg.sender != address(router)) revert SenderNotRouter();
+    }
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
      * @param router_  Address of the Uniswap V2 router
      */
-    constructor(IUniswapV2Factory factory_, IUniswapV2Router02 router_) {
+    constructor(address airlock_, IUniswapV2Factory factory_, IUniswapV2Router02 router_) {
+        airlock = airlock_;
         factory = factory_;
         router = router_;
         weth = IWETH(payable(router.WETH()));
@@ -77,6 +86,10 @@ contract UniswapV2Migrator is IMigrator {
         address recipient,
         bytes memory
     ) external payable returns (address pool, uint256 liquidity) {
+        if (msg.sender != airlock) {
+            revert NotAirlock();
+        }
+        
         uint256 balance0;
 
         if (token0 == address(0)) {
