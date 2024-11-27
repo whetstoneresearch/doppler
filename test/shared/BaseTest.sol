@@ -88,7 +88,7 @@ contract BaseTest is Test, Deployers {
             address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-                        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
                 ) ^ (0x4444 << 144)
             )
         )

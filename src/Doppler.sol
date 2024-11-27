@@ -80,6 +80,7 @@ error SenderNotPoolManager();
 error CannotMigrate();
 error AlreadyInitialized();
 error SenderNotAirlock();
+error CannotDonate();
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 uint256 constant WAD = 1e18;
@@ -251,6 +252,16 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4) {
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
+    }
+
+    function beforeDonate(
+        address,
+        PoolKey calldata,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external override returns (bytes4) {
+        revert CannotDonate();
     }
 
     /// @notice Called by the poolManager immediately before a swap is executed
@@ -1130,7 +1141,7 @@ contract Doppler is BaseHook {
             afterRemoveLiquidity: false,
             beforeSwap: true,
             afterSwap: true,
-            beforeDonate: false,
+            beforeDonate: true,
             afterDonate: false,
             beforeSwapReturnDelta: false,
             afterSwapReturnDelta: false,
