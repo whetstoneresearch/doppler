@@ -80,7 +80,6 @@ contract Airlock is Ownable {
      * @param hookFactory Address of the factory contract deploying the Uniswap v4 hook
      * @param hookData Arbitrary data to pass to the hook factory
      * @param migrator Address of the migrator contract
-     * @param salt Salt to use for the create2 calls
      */
     function create(
         string memory name,
@@ -97,9 +96,32 @@ contract Airlock is Ownable {
         IHookFactory hookFactory,
         bytes memory hookData,
         IMigrator migrator,
-        address pool,
-        bytes32 salt
+        address pool
     ) external returns (address, address, address) {
+        bytes32 salt = keccak256(
+            abi.encodePacked(
+                name,
+                symbol,
+                initialSupply,
+                numTokensToSell,
+                poolKey.currency0,
+                poolKey.currency1,
+                poolKey.fee,
+                poolKey.tickSpacing,
+                poolKey.hooks,
+                recipients,
+                amounts,
+                tokenFactory,
+                tokenData,
+                governanceFactory,
+                governanceData,
+                hookFactory,
+                hookData,
+                migrator,
+                pool
+            )
+        );
+
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
         require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
         require(getModuleState[address(hookFactory)] == ModuleState.HookFactory, WrongModuleState());
