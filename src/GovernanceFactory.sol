@@ -24,9 +24,8 @@ contract GovernanceFactory is IGovernanceFactory {
         }
 
         TimelockController timelockController = timelockFactory.create();
-        address governance = address(
-            new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))
-        );
+        address governance =
+            address(new Governance(string.concat(name, " Governance"), IVotes(token), timelockController));
         timelockController.grantRole(keccak256("PROPOSER_ROLE"), governance);
         timelockController.grantRole(keccak256("CANCELLER_ROLE"), governance);
         timelockController.grantRole(keccak256("EXECUTOR_ROLE"), address(0));
