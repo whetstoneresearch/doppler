@@ -14,7 +14,7 @@ interface IHookFactory {
     function create(
         IPoolManager poolManager,
         uint256 numTokensToSell,
-        bytes memory data,
+        bytes calldata data,
         bytes32 salt
     ) external returns (address);
 }

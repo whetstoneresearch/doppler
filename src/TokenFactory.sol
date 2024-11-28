@@ -16,13 +16,13 @@ contract TokenFactory is ITokenFactory {
     }
 
     function create(
-        string memory name,
-        string memory symbol,
+        string calldata name,
+        string calldata symbol,
         uint256 initialSupply,
         address recipient,
         address owner,
         address pool,
-        bytes memory,
+        bytes calldata,
         bytes32 salt
     ) external returns (address) {
         if (msg.sender != airlock) {

@@ -17,13 +17,13 @@ interface ITokenFactory {
      * @return Address of the newly deployed token
      */
     function create(
-        string memory name,
-        string memory symbol,
+        string calldata name,
+        string calldata symbol,
         uint256 initialSupply,
         address recipient,
         address owner,
         address pool,
-        bytes memory tokenData,
+        bytes calldata tokenData,
         bytes32 salt
     ) external returns (address);
 }

@@ -83,19 +83,19 @@ contract Airlock is Ownable {
      * @param salt Salt to use for the create2 calls
      */
     function create(
-        string memory name,
-        string memory symbol,
+        string calldata name,
+        string calldata symbol,
         uint256 initialSupply,
         uint256 numTokensToSell,
-        PoolKey memory poolKey,
-        address[] memory recipients,
-        uint256[] memory amounts,
+        PoolKey calldata poolKey,
+        address[] calldata recipients,
+        uint256[] calldata amounts,
         ITokenFactory tokenFactory,
-        bytes memory tokenData,
+        bytes calldata tokenData,
         IGovernanceFactory governanceFactory,
-        bytes memory governanceData,
+        bytes calldata governanceData,
         IHookFactory hookFactory,
-        bytes memory hookData,
+        bytes calldata hookData,
         IMigrator migrator,
         address pool,
         bytes32 salt
@@ -181,7 +181,7 @@ contract Airlock is Ownable {
      * @param modules Array of module addresses
      * @param states Array of module states
      */
-    function setModuleState(address[] memory modules, ModuleState[] memory states) external onlyOwner {
+    function setModuleState(address[] calldata modules, ModuleState[] calldata states) external onlyOwner {
         uint256 length = modules.length;
 
         if (length != states.length) {

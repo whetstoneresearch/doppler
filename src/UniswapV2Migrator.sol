@@ -84,12 +84,12 @@ contract UniswapV2Migrator is IMigrator {
         address token1,
         uint256 price,
         address recipient,
-        bytes memory
+        bytes calldata
     ) external payable returns (address pool, uint256 liquidity) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
-        
+
         uint256 balance0;
 
         if (token0 == address(0)) {

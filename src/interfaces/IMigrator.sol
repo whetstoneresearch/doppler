@@ -12,6 +12,6 @@ interface IMigrator {
         address token1,
         uint256 price,
         address recipient,
-        bytes memory data
+        bytes calldata data
     ) external payable returns (address pool, uint256 liquidity);
 }
