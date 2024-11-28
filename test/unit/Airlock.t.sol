@@ -56,10 +56,11 @@ contract AirlockTest is Test, Deployers {
         vm.warp(DEFAULT_STARTING_TIME);
         deployFreshManager();
         airlock = new Airlock(manager);
-        tokenFactory = new TokenFactory();
-        dopplerFactory = new DopplerFactory();
-        governanceFactory = new GovernanceFactory();
-        migrator = new UniswapV2Migrator(IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
+        tokenFactory = new TokenFactory(address(airlock));
+        dopplerFactory = new DopplerFactory(address(airlock));
+        governanceFactory = new GovernanceFactory(address(airlock));
+        migrator =
+            new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
