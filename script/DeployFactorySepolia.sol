@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Script, console2 } from "forge-std/Script.sol";
 import { DopplerFactory } from "../src/DopplerFactory.sol";
-import { Deployers, IPoolManager } from "v4-core/test/utils/Deployers.sol";
+import { IPoolManager } from "v4-core/test/utils/Deployers.sol";
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -13,7 +13,7 @@ import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
 
-contract DeployFactoriesUnichainSepolia is Script, Deployers {
+contract DeployFactoriesUnichainSepolia is Script {
     Airlock airlock;
     TokenFactory tokenFactory;
     DopplerFactory factory;
