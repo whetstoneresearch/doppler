@@ -838,19 +838,19 @@ contract Doppler is BaseHook {
 
         uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
-        int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(numPDSlugs));
-        if (isToken0) {
-            slugRangeDelta = slugRangeDelta < key.tickSpacing ? key.tickSpacing : slugRangeDelta;
-        } else {
-            slugRangeDelta = slugRangeDelta < -key.tickSpacing ? slugRangeDelta : -key.tickSpacing;
-        }
-
         uint256 pdSlugsToLp = numPDSlugs;
         for (uint256 i = numPDSlugs; i > 0; --i) {
             if (_getEpochEndWithOffset(i - 1) != _getEpochEndWithOffset(i)) {
                 break;
             }
             --pdSlugsToLp;
+        }
+
+        int24 slugRangeDelta = (tickUpper - upperSlug.tickUpper) / int24(int256(pdSlugsToLp));
+        if (isToken0) {
+            slugRangeDelta = slugRangeDelta < key.tickSpacing ? key.tickSpacing : slugRangeDelta;
+        } else {
+            slugRangeDelta = slugRangeDelta < -key.tickSpacing ? slugRangeDelta : -key.tickSpacing;
         }
 
         uint256 tokensToLp = FullMath.mulDiv(epochT1toT2Delta, numTokensToSell, WAD);
