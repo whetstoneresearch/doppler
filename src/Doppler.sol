@@ -699,7 +699,9 @@ contract Doppler is BaseHook {
         int256 offset
     ) internal view returns (uint256) {
         return FullMath.mulDiv(
-            _getNormalizedTimeElapsed(uint256(int256(_getCurrentEpoch()) + offset - 1) * epochLength + startingTime),
+            _getNormalizedTimeElapsed(
+                uint256((int256(_getCurrentEpoch()) + offset - 1) * int256(epochLength) + int256(startingTime))
+            ),
             numTokensToSell,
             WAD
         );
