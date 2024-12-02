@@ -459,24 +459,77 @@ contract Doppler is BaseHook {
         // Cache state var to avoid multiple SLOADs
         uint256 totalTokensSold_ = state.totalTokensSold;
 
+        Position memory upSlug = positions[UPPER_SLUG_SALT];
+
+        PoolId poolId = key.toId();
+        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
+
+        // Handle empty epochs
+        // accumulatorDelta should always be nonzero if epochsPassed > 1, so we don't need the check
+        if (epochsPassed > 1) {
+            // handle the price adjustment that should have happened in the first empty epoch
+            int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
+
+            if (initialNetSold <= 0) {
+                state.tickAccumulator += _getMaxTickDeltaPerEpoch();
+            } else if (totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))) {
+                state.tickAccumulator += _getMaxTickDeltaPerEpoch()
+                    * int256(
+                        WAD
+                            - FullMath.mulDiv(
+                                totalTokensSold_, WAD, _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))
+                            )
+                    ) / I_WAD;
+            } else {
+                int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
+
+                // Safe from overflow since the result is <= gamma which is an int24 already
+                int24 computedRange = (_getGammaShare() * gamma / I_WAD).toInt24();
+                int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+
+                // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
+                // The upperTick is not always placed so we have to compute its placement in case it's not
+                // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
+                int24 expectedTick = _alignComputedTickWithTickSpacing(
+                    isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
+                );
+
+                uint256 epochsRemaining = totalEpochs - currentEpoch;
+                int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
+                liquidityBound = epochsRemaining < numPDSlugs
+                    ? positions[bytes32(uint256(NUM_DEFAULT_SLUGS + epochsRemaining))].tickUpper
+                    : liquidityBound;
+
+                // We bound the currentTick by the top of the curve (tauTick + gamma)
+                // This is necessary because there is no liquidity above the curve and we need to
+                // ensure that the accumulatorDelta is just based on meaningful (in range) ticks
+                if (isToken0) {
+                    currentTick = currentTick > liquidityBound ? liquidityBound : currentTick;
+                } else {
+                    currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
+                }
+
+                state.tickAccumulator += int256(currentTick - expectedTick) * I_WAD;
+            }
+
+            // apply max tick delta for remaining empty epochs
+            state.tickAccumulator += _getMaxTickDeltaPerEpoch() * int256(epochsPassed - 1);
+        }
+
+        state.totalTokensSoldLastEpoch = totalTokensSold_;
+
         // Get the expected amount sold and the net sold in the last epoch
         uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
         int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        PoolId poolId = key.toId();
-        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
-
-        Position memory upperSlugPosition = positions[UPPER_SLUG_SALT];
-
         int256 accumulatorDelta;
         int256 newAccumulator;
         int24 adjustmentTick;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
-            adjustmentTick = upperSlugPosition.tickLower;
-            accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
+            accumulatorDelta = _getMaxTickDeltaPerEpoch();
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             adjustmentTick = currentTick;
@@ -490,8 +543,9 @@ contract Doppler is BaseHook {
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
             // The upperTick is not always placed so we have to compute its placement in case it's not
             // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
-            adjustmentTick =
-                isToken0 ? upperSlugPosition.tickLower + adjustmentTickDelta : upperSlugPosition.tickLower - adjustmentTickDelta;
+            adjustmentTick = isToken0
+                ? upperSlugPosition.tickLower + adjustmentTickDelta
+                : upperSlugPosition.tickLower - adjustmentTickDelta;
             int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
             uint256 epochsRemaining = totalEpochs - currentEpoch;
@@ -642,10 +696,10 @@ contract Doppler is BaseHook {
     ///         If offset == n, retrieves the expected amount sold by the end of the nth epoch from the current
     /// @param offset The epoch offset to retrieve for
     function _getExpectedAmountSoldWithEpochOffset(
-        uint256 offset
+        int256 offset
     ) internal view returns (uint256) {
         return FullMath.mulDiv(
-            _getNormalizedTimeElapsed((_getCurrentEpoch() + offset - 1) * epochLength + startingTime),
+            _getNormalizedTimeElapsed(uint256(int256(_getCurrentEpoch()) + offset - 1) * epochLength + startingTime),
             numTokensToSell,
             WAD
         );
