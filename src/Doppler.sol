@@ -463,11 +463,14 @@ contract Doppler is BaseHook {
 
         int256 accumulatorDelta;
         int256 newAccumulator;
+        int24 adjustmentTick;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
+            adjustmentTick = upSlug.tickLower;
             accumulatorDelta = _getMaxTickDeltaPerEpoch() * int256(epochsPassed);
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
+            adjustmentTick = upSlug.tickLower;
             accumulatorDelta = _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
         } else {
@@ -480,9 +483,8 @@ contract Doppler is BaseHook {
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
             // The upperTick is not always placed so we have to compute its placement in case it's not
             // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
-            int24 expectedTick = _alignComputedTickWithTickSpacing(
-                isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
-            );
+            adjustmentTick = isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange;
+            int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
             uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
@@ -509,7 +511,7 @@ contract Doppler is BaseHook {
         }
 
         currentTick =
-            _alignComputedTickWithTickSpacing(upSlug.tickLower + (accumulatorDelta / I_WAD).toInt24(), key.tickSpacing);
+            _alignComputedTickWithTickSpacing(adjustmentTick + (accumulatorDelta / I_WAD).toInt24(), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
