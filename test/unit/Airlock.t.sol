@@ -158,8 +158,7 @@ contract AirlockTest is Test, Deployers {
             params.epochLength,
             params.gamma,
             false,
-            params.numPDSlugs,
-            params.airlock
+            params.numPDSlugs
         );
 
         airlock.create(
@@ -288,8 +287,7 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_EPOCH_LENGTH,
                 DEFAULT_GAMMA,
                 false,
-                DEFAULT_PD_SLUGS,
-                address(airlock)
+                DEFAULT_PD_SLUGS
             );
 
             vm.expectRevert(WrongInitialSupply.selector);
@@ -343,8 +341,7 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_EPOCH_LENGTH,
                 DEFAULT_GAMMA,
                 false,
-                DEFAULT_PD_SLUGS,
-                address(airlock)
+                DEFAULT_PD_SLUGS
             );
 
             vm.expectRevert(WrongInitialSupply.selector);
