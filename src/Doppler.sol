@@ -112,7 +112,7 @@ contract Doppler is BaseHook {
     bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
 
     State public state;
-    mapping(bytes32 salt => Position) public positions;
+    mapping(bytes32 salt => Position position) public positions;
 
     /// @notice True if the hook was already initialized. This is used to prevent another pool from
     /// reusing the hook and messing with its state.
