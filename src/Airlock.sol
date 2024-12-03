@@ -45,6 +45,7 @@ event Migrate(address asset, address pool);
 
 event SetModuleState(address module, ModuleState state);
 
+/// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
     using CurrencyLibrary for Currency;
 

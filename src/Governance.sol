@@ -10,6 +10,7 @@ import { GovernorTimelockControl } from "@openzeppelin/governance/extensions/Gov
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/governance/utils/IVotes.sol";
 
+/// @custom:security-contact security@whetstone.cc
 contract Governance is
     Governor,
     GovernorSettings,

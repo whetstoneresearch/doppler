@@ -15,6 +15,7 @@ error MintingNotStartedYet();
 
 error PoolLocked();
 
+/// @custom:security-contact security@whetstone.cc
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     uint256 public immutable mintStartDate;
     uint256 public immutable yearlyMintCap;

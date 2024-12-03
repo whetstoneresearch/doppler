@@ -7,6 +7,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 error NotAirlock();
 
+/// @custom:security-contact security@whetstone.cc
 contract GovernanceFactory is IGovernanceFactory {
     TimelockFactory public immutable timelockFactory;
     address public immutable airlock;

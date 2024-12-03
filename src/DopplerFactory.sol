@@ -8,6 +8,7 @@ import { Doppler } from "src/Doppler.sol";
 
 error NotAirlock();
 
+/// @custom:security-contact security@whetstone.cc
 contract DopplerFactory is IHookFactory {
     address public immutable airlock;
 
