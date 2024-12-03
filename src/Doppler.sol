@@ -129,7 +129,7 @@ contract Doppler is BaseHook {
     int24 internal immutable startingTick; // dutch auction starting tick
     int24 internal immutable endingTick; // dutch auction ending tick
     uint256 internal immutable epochLength; // length of each epoch (seconds)
-    int24 internal immutable gamma; // 1.0001 ** (gamma) = max single epoch change
+    int24 internal immutable gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
     bool internal immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 internal immutable numPDSlugs; // number of price discovery slugs
 
@@ -151,7 +151,7 @@ contract Doppler is BaseHook {
     /// @param _startingTick Initial tick for the bonding curve
     /// @param _endingTick Final tick for the bonding curve
     /// @param _epochLength Duration of each epoch in seconds
-    /// @param _gamma Maximum tick movement per epoch (1.0001^gamma)
+    /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
     /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
     /// @param _numPDSlugs Number of price discovery slugs to use
     /// @param airlock_ Address of the airlock contract
