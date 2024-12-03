@@ -143,7 +143,7 @@ contract Airlock is Ownable {
         });
 
         // TODO: Do we really have to initialize the pool at the right price?
-        poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(0), new bytes(0));
+        poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(0));
 
         emit Create(token, poolKey, hook);
 

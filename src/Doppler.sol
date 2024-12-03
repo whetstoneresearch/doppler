@@ -221,8 +221,7 @@ contract Doppler is BaseHook {
     function beforeInitialize(
         address,
         PoolKey calldata key,
-        uint160,
-        bytes calldata
+        uint160
     ) external override onlyPoolManager returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
         isInitialized = true;
@@ -247,8 +246,7 @@ contract Doppler is BaseHook {
         address sender,
         PoolKey calldata key,
         uint160,
-        int24 tick,
-        bytes calldata
+        int24 tick
     ) external override onlyPoolManager returns (bytes4) {
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
