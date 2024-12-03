@@ -459,7 +459,7 @@ contract Doppler is BaseHook {
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
-        Position memory upSlug = positions[UPPER_SLUG_SALT];
+        Position memory upperSlug = positions[UPPER_SLUG_SALT];
 
         int256 accumulatorDelta;
         int256 newAccumulator;
@@ -481,7 +481,7 @@ contract Doppler is BaseHook {
             // The upperTick is not always placed so we have to compute its placement in case it's not
             // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
             int24 expectedTick = _alignComputedTickWithTickSpacing(
-                isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
+                isToken0 ? upperSlug.tickLower + upperSlugRange : upperSlug.tickLower - upperSlugRange, key.tickSpacing
             );
 
             uint256 epochsRemaining = totalEpochs - currentEpoch;
@@ -508,8 +508,9 @@ contract Doppler is BaseHook {
             state.tickAccumulator = newAccumulator;
         }
 
-        currentTick =
-            _alignComputedTickWithTickSpacing(upSlug.tickLower + (accumulatorDelta / I_WAD).toInt24(), key.tickSpacing);
+        currentTick = _alignComputedTickWithTickSpacing(
+            upperSlug.tickLower + (accumulatorDelta / I_WAD).toInt24(), key.tickSpacing
+        );
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
