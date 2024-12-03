@@ -19,6 +19,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
+import "forge-std/console.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
@@ -514,9 +515,9 @@ contract Doppler is BaseHook {
 
             // apply max tick delta for remaining empty epochs
             state.tickAccumulator += _getMaxTickDeltaPerEpoch() * int256(epochsPassed - 1);
+            state.totalTokensSoldLastEpoch = totalTokensSold_;
         }
 
-        state.totalTokensSoldLastEpoch = totalTokensSold_;
 
         // Get the expected amount sold and the net sold in the last epoch
         uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);

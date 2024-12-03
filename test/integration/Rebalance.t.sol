@@ -216,9 +216,17 @@ contract RebalanceTest is BaseTest {
             ? assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()))
             : assertGe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()));
         if (isToken0) {
-            assertEq(lowerSlug.tickUpper - lowerSlug.tickLower, poolKey.tickSpacing);
+            assertEq(
+                lowerSlug.tickUpper - lowerSlug.tickLower,
+                poolKey.tickSpacing,
+                "lowerSlug.tickUpper - lowerSlug.tickLower != poolKey.tickSpacing"
+            );
         } else {
-            assertEq(lowerSlug.tickLower - lowerSlug.tickUpper, poolKey.tickSpacing);
+            assertEq(
+                lowerSlug.tickLower - lowerSlug.tickUpper,
+                poolKey.tickSpacing,
+                "lowerSlug.tickLower - lowerSlug.tickUpper != poolKey.tickSpacing"
+            );
         }
 
         // Validate that the lower slug has liquidity
@@ -227,9 +235,17 @@ contract RebalanceTest is BaseTest {
         // Validate that upper slug and all price discovery slugs are placed continuously
         for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
             if (i == 0) {
-                assertEq(upperSlug.tickUpper, priceDiscoverySlugs[i].tickLower);
+                assertEq(
+                    upperSlug.tickUpper,
+                    priceDiscoverySlugs[i].tickLower,
+                    "upperSlug.tickUpper != priceDiscoverySlugs[i].tickLower"
+                );
             } else {
-                assertEq(priceDiscoverySlugs[i - 1].tickUpper, priceDiscoverySlugs[i].tickLower);
+                assertEq(
+                    priceDiscoverySlugs[i - 1].tickUpper,
+                    priceDiscoverySlugs[i].tickLower,
+                    "priceDiscoverySlugs[i - 1].tickUpper != priceDiscoverySlugs[i].tickLower"
+                );
             }
 
             if (i == priceDiscoverySlugs.length - 1) {
@@ -237,12 +253,13 @@ contract RebalanceTest is BaseTest {
                 assertApproxEqAbs(
                     priceDiscoverySlugs[i].tickUpper,
                     tickUpper,
-                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)),
+                    "priceDiscoverySlugs[i].tickUpper != tickUpper"
                 );
             }
 
             // Validate that each price discovery slug has liquidity
-            assertGt(priceDiscoverySlugs[i].liquidity, 0);
+            assertGt(priceDiscoverySlugs[i].liquidity, 0, "priceDiscoverySlugs[i].liquidity is 0");
         }
 
         uint256 amountDelta = isToken0
@@ -258,9 +275,9 @@ contract RebalanceTest is BaseTest {
             );
 
         // assert that the lowerSlug can support the purchase of 99.9% of the tokens sold
-        assertApproxEqAbs(amountDelta, totalTokensSold, totalTokensSold * 1 / 1000);
+        assertApproxEqAbs(amountDelta, totalTokensSold, totalTokensSold * 1 / 1000, "amountDelta != totalTokensSold");
         // TODO: Figure out how this can possibly fail even though the following trade succeeds
-        assertGt(amountDelta, totalTokensSold);
+        assertGt(amountDelta, totalTokensSold, "amountDelta <= totalTokensSold");
 
         // Validate that we can swap all tokens back into the curve
         sell(-int256(totalTokensSold));
