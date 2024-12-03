@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { IPoolManager, PoolKey, TickMath } from "v4-core/src/PoolManager.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";

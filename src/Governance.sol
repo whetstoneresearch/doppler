@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import { Governor } from "@openzeppelin/governance/Governor.sol";
 import { GovernorSettings } from "@openzeppelin/governance/extensions/GovernorSettings.sol";
