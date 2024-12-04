@@ -465,6 +465,8 @@ contract Doppler is BaseHook {
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
+        int256 accumulatorDelta = 0;
+        int256 newAccumulator;
         // Handle empty epochs
         // accumulatorDelta should always be nonzero if epochsPassed > 1, so we don't need the check
         if (epochsPassed > 1) {
@@ -472,9 +474,9 @@ contract Doppler is BaseHook {
             int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
 
             if (initialNetSold <= 0) {
-                state.tickAccumulator += _getMaxTickDeltaPerEpoch();
+                accumulatorDelta += _getMaxTickDeltaPerEpoch();
             } else if (totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))) {
-                state.tickAccumulator += _getMaxTickDeltaPerEpoch()
+                accumulatorDelta += _getMaxTickDeltaPerEpoch()
                     * int256(
                         WAD
                             - FullMath.mulDiv(
@@ -510,14 +512,14 @@ contract Doppler is BaseHook {
                     currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
                 }
 
-                state.tickAccumulator += int256(currentTick - expectedTick) * I_WAD;
+                accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
             }
 
             // apply max tick delta for remaining empty epochs
-            state.tickAccumulator += _getMaxTickDeltaPerEpoch() * int256(epochsPassed - 1);
+            // -2 because we already applied the first empty epoch and will apply the last epoch later
+            accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(epochsPassed - 2);
             state.totalTokensSoldLastEpoch = totalTokensSold_;
         }
-
 
         // Get the expected amount sold and the net sold in the last epoch
         uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
@@ -530,7 +532,7 @@ contract Doppler is BaseHook {
         int24 adjustmentTick;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
-            accumulatorDelta = _getMaxTickDeltaPerEpoch();
+            accumulatorDelta += _getMaxTickDeltaPerEpoch();
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             adjustmentTick = currentTick;
@@ -564,7 +566,7 @@ contract Doppler is BaseHook {
                 currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
             }
 
-            accumulatorDelta = int256(currentTick - expectedTick) * I_WAD;
+            accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
         }
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;

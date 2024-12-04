@@ -23,6 +23,7 @@ import { InvalidTime, SwapBelowRange } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "../../src/Doppler.sol";
 import { stdMath } from "forge-std/StdMath.sol";
+import { SlugVis } from "test/shared/SlugVis.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -1009,7 +1010,7 @@ contract RebalanceTest is BaseTest {
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
         // Assert that we've done three epochs worth of max dutch auctioning
-        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 4");
+        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 3");
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -1041,7 +1042,8 @@ contract RebalanceTest is BaseTest {
                 assertApproxEqAbs(
                     priceDiscoverySlugs[i].tickUpper,
                     tickUpper,
-                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)),
+                    "first swap: priceDiscoverySlugs[i].tickUpper != tickUpper"
                 );
             }
 
@@ -1116,7 +1118,8 @@ contract RebalanceTest is BaseTest {
                 assertApproxEqAbs(
                     priceDiscoverySlugs[i].tickUpper,
                     tickUpper,
-                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)),
+                    "priceDiscoverySlugs[i].tickUpper != tickUpper"
                 );
             }
 
@@ -1189,7 +1192,8 @@ contract RebalanceTest is BaseTest {
                 assertApproxEqAbs(
                     priceDiscoverySlugs[i].tickUpper,
                     tickUpper2,
-                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing))
+                    hook.getNumPDSlugs() * uint256(int256(poolKey.tickSpacing)),
+                    "priceDiscoverySlugs[i].tickUpper != tickUpper2"
                 );
             }
 
