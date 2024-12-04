@@ -27,6 +27,8 @@ error WrongInitialSupply();
 
 error ArrayLengthsMismatch();
 
+error UnexpectedETH();
+
 struct TokenData {
     address numeraire;
     address timelock;
@@ -50,7 +52,9 @@ contract Doppl3r is Ownable, IUniswapV3MintCallback {
     mapping(address => ModuleState) public getModuleState;
     mapping(address token => TokenData) public getTokenData;
 
-    receive() external payable { }
+    receive() external payable {
+        revert UnexpectedETH();
+    }
 
     constructor(
         IUniswapV3Factory factory_
