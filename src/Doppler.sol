@@ -243,6 +243,7 @@ contract Doppler is BaseHook {
     /// @param sender The address that called poolManager.initialize
     /// @param key The pool key
     /// @param tick The initial tick of the pool
+    /// @return The function selector for afterInitialize
     function afterInitialize(
         address sender,
         PoolKey calldata key,
@@ -268,6 +269,9 @@ contract Doppler is BaseHook {
     ///         Triggers rebalancing logic in new epochs and handles early exit/insufficient proceeds outcomes
     /// @param key The pool key
     /// @param swapParams The parameters for swapping
+    /// @return selector The function selector for beforeSwap
+    /// @return delta The delta to apply before the swap
+    /// @return feeOverride Optional fee override, this is set to 0 in doppler
     function beforeSwap(
         address,
         PoolKey calldata key,
@@ -360,6 +364,8 @@ contract Doppler is BaseHook {
     ///         We revert if the swap is below the range of the lower slug to prevent manipulation
     /// @param key The pool key
     /// @param swapDelta The balance delta of the address swapping
+    /// @return selector The function selector for afterSwap
+    /// @return delta The delta amount to return to the pool manager (always 0)
     function afterSwap(
         address,
         PoolKey calldata key,
@@ -423,6 +429,7 @@ contract Doppler is BaseHook {
     /// @notice Called by the poolManager immediately before liquidity is added
     ///         We revert if the caller is not this contract
     /// @param caller The address that called poolManager.modifyLiquidity
+    /// @return The function selector for beforeAddLiquidity
     function beforeAddLiquidity(
         address caller,
         PoolKey calldata,
