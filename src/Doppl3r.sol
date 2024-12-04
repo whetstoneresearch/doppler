@@ -11,6 +11,8 @@ import { DERC20 } from "src/DERC20.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
+import { LiquidityAmounts } from "@v3-periphery/libraries/LiquidityAmounts.sol";
+import { TickMath } from "@v3-core/libraries/TickMath.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -42,7 +44,7 @@ event Migrate(address asset, address pool);
 
 event SetModuleState(address module, ModuleState state);
 
-contract Doppl3r is Ownable {
+contract Doppl3r is Ownable, IUniswapV3MintCallback {
     IUniswapV3Factory public immutable factory;
 
     mapping(address => ModuleState) public getModuleState;
@@ -79,6 +81,7 @@ contract Doppl3r is Ownable {
         uint160 sqrtPriceX96,
         int24 tickLower,
         int24 tickUpper,
+        uint24 fee,
         address[] memory recipients,
         uint256[] memory amounts,
         ITokenFactory tokenFactory,
@@ -120,15 +123,22 @@ contract Doppl3r is Ownable {
             migratedPool: migratedPool
         });
 
-        IUniswapV3PoolActions(pool).initialize(sqrtPriceX96);
+        IUniswapV3Pool(pool).initialize(sqrtPriceX96);
 
-        uint256 amount;
+        uint256 amount = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            asset == tokenA ? numTokensToSell : 0,
+            asset == tokenA ? 0 : numTokensToSell
+        );
 
-        IUniswapV3PoolActions(pool).mint(address(this), tickLower, tickUpper, amount, abi.encode(tokenA, tokenB));
+        IUniswapV3Pool(pool).mint(address(this), tickLower, tickUpper, amount, abi.encode(tokenA, tokenB));
 
         emit Create(asset, numeraire, pool);
     }
 
+    // TODO: Add a check to ensure the pool we created is the actual msg.sender
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         (address tokenA, address tokenB) = abi.decode(data, (address, address));
         if (amount0Owed > 0) ERC20(tokenA).transfer(msg.sender, amount0Owed);
