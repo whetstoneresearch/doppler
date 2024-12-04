@@ -8,9 +8,9 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
 
-import { IUniswapV3Factory } from "src/interfaces/IUniswapV3Factory.sol";
-import { IUniswapV3PoolActions } from "src/interfaces/IUniswapV3PoolActions.sol";
-import { IUniswapV3MintCallback } from "src/interfaces/IUniswapV3MintCallback.sol";
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
+import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
 
 enum ModuleState {
     NotWhitelisted,
