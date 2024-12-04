@@ -22,13 +22,14 @@ contract TokenFactory is ITokenFactory {
         address recipient,
         address owner,
         address pool,
-        bytes memory,
+        bytes memory data,
         bytes32 salt
     ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
 
-        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool));
+        (uint256 yearlyMintCap) = abi.decode(data, (uint256));
+        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool, yearlyMintCap));
     }
 }
