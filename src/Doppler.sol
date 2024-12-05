@@ -135,6 +135,7 @@ contract Doppler is BaseHook {
 
     uint256 internal immutable totalEpochs; // total number of epochs
     uint256 internal immutable normalizedEpochDelta; // normalized delta between two epochs
+    int24 internal immutable upperSlugRange; // range of the upper slug
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
@@ -203,6 +204,9 @@ contract Doppler is BaseHook {
 
         totalEpochs = timeDelta / _epochLength;
         normalizedEpochDelta = FullMath.mulDiv(_epochLength, WAD, timeDelta);
+        // Safe from overflow since the result is <= gamma which is an int24 already
+        // Cannot check if upperSlugRange > tickSpacing because poolKey unknown
+        upperSlugRange = FullMath.mulDiv(normalizedEpochDelta, uint256(int256(_gamma)), WAD).toInt24();
 
         numTokensToSell = _numTokensToSell;
         minimumProceeds = _minimumProceeds;
@@ -473,9 +477,7 @@ contract Doppler is BaseHook {
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
-            // Safe from overflow since the result is <= gamma which is an int24 already
-            int24 computedRange = (int256(normalizedEpochDelta) * gamma / I_WAD).toInt24();
-            int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+            int24 upperSlugRange = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
 
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
             // The upperTick is not always placed so we have to compute its placement in case it's not
@@ -781,8 +783,7 @@ contract Doppler is BaseHook {
         // the expected amount sold by next epoch
         if (tokensSoldDelta > 0) {
             tokensToLp = uint256(tokensSoldDelta) > assetAvailable ? assetAvailable : uint256(tokensSoldDelta);
-            int24 computedDelta = int24(int256(FullMath.mulDiv(normalizedEpochDelta, uint256(int256(gamma)), WAD)));
-            int24 accumulatorDelta = computedDelta > key.tickSpacing ? computedDelta : key.tickSpacing;
+            int24 accumulatorDelta = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
             slug.tickLower = currentTick;
             slug.tickUpper = _alignComputedTickWithTickSpacing(
                 isToken0 ? slug.tickLower + accumulatorDelta : slug.tickLower - accumulatorDelta, key.tickSpacing
