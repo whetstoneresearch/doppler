@@ -1,7 +1,7 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { IMigrator } from "src/interfaces/IMigrator.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
@@ -29,7 +29,7 @@ error SenderNotRouter();
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
  */
-contract UniswapV2Migrator is IMigrator {
+contract UniswapV2Migrator is ILiquidityMigrator {
     using FullMath for uint256;
     using SafeTransferLib for ERC20;
 
@@ -55,7 +55,7 @@ contract UniswapV2Migrator is IMigrator {
         weth = IWETH(payable(router.WETH()));
     }
 
-    function createPool(address token0, address token1) external returns (address) {
+    function create(address token0, address token1, bytes memory) external returns (address) {
         if (token0 == address(0)) token0 = address(weth);
         if (token0 > token1) (token0, token1) = (token1, token0);
 
@@ -76,20 +76,12 @@ contract UniswapV2Migrator is IMigrator {
      * @param token1 Larger address of the two tokens
      * @param price Price of token0 in terms of token1 (Q96 format)
      * @param recipient Address receiving the liquidity pool tokens
-     * @return pool Address of the Uniswap V2 pool
-     * @return liquidity Amount of liquidity tokens minted
      */
-    function migrate(
-        address token0,
-        address token1,
-        uint256 price,
-        address recipient,
-        bytes memory
-    ) external payable returns (address pool, uint256 liquidity) {
+    function migrate(address token0, address token1, uint256 price, address recipient, bytes memory) external payable {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
-        
+
         uint256 balance0;
 
         if (token0 == address(0)) {
@@ -108,7 +100,7 @@ contract UniswapV2Migrator is IMigrator {
         }
 
         // Pool was created beforehand along the asset token deployment
-        pool = getPool[token0][token1];
+        address pool = getPool[token0][token1];
 
         uint256 amount0 = price.mulDiv(balance1, FixedPoint96.Q96);
         uint256 amount1 = balance0.mulDiv(FixedPoint96.Q96, price);
@@ -130,7 +122,7 @@ contract UniswapV2Migrator is IMigrator {
         ERC20(token0).safeTransfer(pool, amount0);
         ERC20(token1).safeTransfer(pool, amount1);
 
-        liquidity = IUniswapV2Pair(pool).mint(recipient);
+        IUniswapV2Pair(pool).mint(recipient);
 
         if (address(this).balance > 0) SafeTransferLib.safeTransferETH(recipient, address(this).balance);
 
