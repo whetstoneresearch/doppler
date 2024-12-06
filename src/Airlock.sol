@@ -124,7 +124,7 @@ contract Airlock is Ownable {
         (governance, timelock) = governanceFactory.create(name, asset, governanceData);
 
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
-        pool = poolInitializer.initialize(numTokensToSell, salt, poolInitializerData);
+        pool = poolInitializer.initialize(asset, numTokensToSell, salt, poolInitializerData);
 
         migrationPool = liquidityMigrator.initialize(liquidityMigratorData);
 
