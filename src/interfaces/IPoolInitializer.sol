@@ -9,7 +9,12 @@ interface IPoolInitializer {
      * @param data Arbitrary data to pass
      * @param pool Address of the pool
      */
-    function initialize(uint256 numTokensToSell, bytes32 salt, bytes memory data) external returns (address pool);
+    function initialize(
+        address asset,
+        uint256 numTokensToSell,
+        bytes32 salt,
+        bytes memory data
+    ) external returns (address pool);
 
     function exitLiquidity() external;
 }
