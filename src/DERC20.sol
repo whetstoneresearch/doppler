@@ -35,6 +35,12 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         pool = pool_;
     }
 
+    function lockPool(
+        address pool_
+    ) external onlyOwner {
+        isPoolUnlocked = false;
+    }
+
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
