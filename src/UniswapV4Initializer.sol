@@ -25,7 +25,12 @@ contract UniswapV4Initializer is IPoolInitializer {
         poolManager = poolManager_;
     }
 
-    function initialize(uint256 numTokensToSell, bytes32 salt, bytes memory data) external returns (address) {
+    function initialize(
+        address asset,
+        uint256 numTokensToSell,
+        bytes32 salt,
+        bytes memory data
+    ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
