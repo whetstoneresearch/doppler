@@ -14,7 +14,7 @@ import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
-import { DopplerFactory } from "src/DopplerFactory.sol";
+import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 
@@ -47,7 +47,7 @@ address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 contract AirlockTest is Test, Deployers {
     Airlock airlock;
     TokenFactory tokenFactory;
-    DopplerFactory dopplerFactory;
+    UniswapV4Initializer uniswapV4Initializer;
     GovernanceFactory governanceFactory;
     UniswapV2Migrator migrator;
 
@@ -55,24 +55,24 @@ contract AirlockTest is Test, Deployers {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
         deployFreshManager();
-        airlock = new Airlock(manager);
+        airlock = new Airlock(address(this));
         tokenFactory = new TokenFactory(address(airlock));
-        dopplerFactory = new DopplerFactory(address(airlock));
+        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager);
         governanceFactory = new GovernanceFactory(address(airlock));
         migrator =
             new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
-        modules[1] = address(dopplerFactory);
+        modules[1] = address(uniswapV4Initializer);
         modules[2] = address(governanceFactory);
         modules[3] = address(migrator);
 
         ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.HookFactory;
+        states[1] = ModuleState.PoolInitializer;
         states[2] = ModuleState.GovernanceFactory;
-        states[3] = ModuleState.Migrator;
+        states[3] = ModuleState.LiquidityMigrator;
 
         airlock.setModuleState(modules, states);
     }
@@ -138,7 +138,7 @@ contract AirlockTest is Test, Deployers {
     function _create(
         MineParams memory params
     ) internal returns (address, address) {
-        (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(dopplerFactory), params);
+        (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(uniswapV4Initializer), params);
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -166,18 +166,17 @@ contract AirlockTest is Test, Deployers {
             params.symbol,
             params.initialSupply,
             params.numTokensToSell,
-            poolKey,
+            address(0),
             new address[](0),
             new uint256[](0),
             tokenFactory,
             new bytes(0),
             governanceFactory,
             new bytes(0),
-            dopplerFactory,
-            hookFactoryData,
+            uniswapV4Initializer,
+            new bytes(0),
             migrator,
-            address(0), // FIXME: Use the pool address
-            salt
+            new bytes(0)
         );
 
         return (hook, token);
@@ -240,7 +239,7 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_RevertsIfWrongHookFactory() public {
         address[] memory modules = new address[](1);
-        modules[0] = address(dopplerFactory);
+        modules[0] = address(uniswapV4Initializer);
         ModuleState[] memory states = new ModuleState[](1);
         states[0] = ModuleState.NotWhitelisted;
         airlock.setModuleState(modules, states);
@@ -267,7 +266,8 @@ contract AirlockTest is Test, Deployers {
             // Trying to mint more tokens than the amount to sell.
             params.initialSupply = DEFAULT_INITIAL_SUPPLY + 1;
 
-            (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(dopplerFactory), params);
+            (bytes32 salt, address hook, address token) =
+                mine(address(tokenFactory), address(uniswapV4Initializer), params);
 
             PoolKey memory poolKey = PoolKey({
                 currency0: Currency.wrap(address(0)),
@@ -296,18 +296,17 @@ contract AirlockTest is Test, Deployers {
                 params.symbol,
                 params.initialSupply,
                 params.numTokensToSell,
-                poolKey,
+                address(0),
                 new address[](0),
                 new uint256[](0),
                 tokenFactory,
                 new bytes(0),
                 governanceFactory,
                 new bytes(0),
-                dopplerFactory,
-                hookFactoryData,
+                uniswapV4Initializer,
+                new bytes(0),
                 migrator,
-                address(0), // FIXME: Use the pool address
-                salt
+                new bytes(0)
             );
         }
 
@@ -321,7 +320,7 @@ contract AirlockTest is Test, Deployers {
             }
 
             (bytes32 salt, address hook, address token) =
-                mine(address(tokenFactory), address(dopplerFactory), _getDefaultMineParams());
+                mine(address(tokenFactory), address(uniswapV4Initializer), _getDefaultMineParams());
 
             PoolKey memory poolKey = PoolKey({
                 currency0: Currency.wrap(address(0)),
@@ -350,18 +349,17 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_TOKEN_SYMBOL,
                 DEFAULT_INITIAL_SUPPLY,
                 DEFAULT_INITIAL_SUPPLY,
-                poolKey,
-                recipients,
-                amounts,
+                address(0),
+                new address[](0),
+                new uint256[](0),
                 tokenFactory,
                 new bytes(0),
                 governanceFactory,
                 new bytes(0),
-                dopplerFactory,
-                hookFactoryData,
+                uniswapV4Initializer,
+                new bytes(0),
                 migrator,
-                address(0), // FIXME: Use the pool address
-                salt
+                new bytes(0)
             );
         }
     }
