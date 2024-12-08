@@ -55,7 +55,11 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         weth = IWETH(payable(router.WETH()));
     }
 
-    function create(address token0, address token1, bytes memory) external returns (address) {
+    function initialize(
+        bytes memory data
+    ) external returns (address) {
+        (address token0, address token1) = abi.decode(data, (address, address));
+
         if (token0 == address(0)) token0 = address(weth);
         if (token0 > token1) (token0, token1) = (token1, token0);
 
@@ -124,12 +128,18 @@ contract UniswapV2Migrator is ILiquidityMigrator {
 
         IUniswapV2Pair(pool).mint(recipient);
 
-        if (address(this).balance > 0) SafeTransferLib.safeTransferETH(recipient, address(this).balance);
+        if (address(this).balance > 0) {
+            SafeTransferLib.safeTransferETH(recipient, address(this).balance);
+        }
 
         uint256 dust0 = ERC20(token0).balanceOf(address(this));
-        if (dust0 > 0) SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
+        if (dust0 > 0) {
+            SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
+        }
 
         uint256 dust1 = ERC20(token1).balanceOf(address(this));
-        if (dust1 > 0) SafeTransferLib.safeTransfer(ERC20(token1), recipient, dust1);
+        if (dust1 > 0) {
+            SafeTransferLib.safeTransfer(ERC20(token1), recipient, dust1);
+        }
     }
 }
