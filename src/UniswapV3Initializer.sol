@@ -5,8 +5,9 @@ import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { TickMath } from "@v3-core/libraries/TickMath.sol";
-import { LiquidityAmounts } from "@v3-periphery/libraries/LiquidityAmounts.sol";
+import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
+// import { LiquidityAmounts } from "@v3-periphery/libraries/LiquidityAmounts.sol";
+import { LiquidityAmounts } from "lib/v4-core/test/utils/LiquidityAmounts.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
 error OnlyAirlock();
@@ -52,8 +53,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         uint128 amount = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(tickLower),
-            TickMath.getSqrtRatioAtTick(tickUpper),
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
             asset == tokenA ? numTokensToSell : 0,
             asset == tokenA ? 0 : numTokensToSell
         );
