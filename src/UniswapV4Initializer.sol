@@ -83,5 +83,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         );
     }
 
-    function exitLiquidity() external { }
+    function exitLiquidity(
+        address asset
+    ) external returns (address token0, address token1, uint256 price) { }
 }
