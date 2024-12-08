@@ -67,7 +67,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         );
     }
 
-    function exitLiquidity() external { }
+    function exitLiquidity(
+        address asset
+    ) external returns (address token0, address token1, uint256 price) { }
 
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
