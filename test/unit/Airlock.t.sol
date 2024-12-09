@@ -17,6 +17,7 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
+import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mine, MineParams } from "test/shared/AirlockMiner.sol";
@@ -48,31 +49,38 @@ contract AirlockTest is Test, Deployers {
     Airlock airlock;
     TokenFactory tokenFactory;
     UniswapV4Initializer uniswapV4Initializer;
+    UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
     UniswapV2Migrator migrator;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
+
         deployFreshManager();
+
         airlock = new Airlock(address(this));
         tokenFactory = new TokenFactory(address(airlock));
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager);
+        uniswapV3Initializer =
+            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
         migrator =
             new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
 
-        address[] memory modules = new address[](4);
+        address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
+        modules[1] = address(uniswapV3Initializer);
         modules[1] = address(uniswapV4Initializer);
         modules[2] = address(governanceFactory);
         modules[3] = address(migrator);
 
-        ModuleState[] memory states = new ModuleState[](4);
+        ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.PoolInitializer;
-        states[2] = ModuleState.GovernanceFactory;
-        states[3] = ModuleState.LiquidityMigrator;
+        states[2] = ModuleState.PoolInitializer;
+        states[3] = ModuleState.GovernanceFactory;
+        states[4] = ModuleState.LiquidityMigrator;
 
         airlock.setModuleState(modules, states);
     }
