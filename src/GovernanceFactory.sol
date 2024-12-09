@@ -18,10 +18,12 @@ contract GovernanceFactory is IGovernanceFactory {
         timelockFactory = new TimelockFactory();
     }
 
-    function create(string memory name, address token, bytes memory) external returns (address, address) {
+    function create(address token, bytes memory data) external returns (address, address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
+
+        (string memory name) = abi.decode(data, (string));
 
         TimelockController timelockController = timelockFactory.create();
         address governance = address(
