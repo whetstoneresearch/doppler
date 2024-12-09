@@ -18,7 +18,6 @@ interface ITokenFactory {
         uint256 initialSupply,
         address recipient,
         address owner,
-        address pool,
         bytes32 salt,
         bytes memory tokenData
     ) external returns (address);
