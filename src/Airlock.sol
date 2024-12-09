@@ -57,8 +57,6 @@ contract Airlock is Ownable {
      * - Creating a token should incur fees (platform and frontend fees)
      *
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
-     * @param name Name of the token
-     * @param symbol Symbol of the token
      * @param initialSupply Total supply of the token (might be increased later on)
      * @param numTokensToSell Amount of tokens to sell in the Doppler hook
      * @param recipients Array of addresses to receive tokens after the migration
@@ -70,8 +68,6 @@ contract Airlock is Ownable {
      * @param liquidityMigrator Address of the liquidity migrator contract
      */
     function create(
-        string memory name,
-        string memory symbol,
         uint256 initialSupply,
         uint256 numTokensToSell,
         address numeraire,
@@ -95,8 +91,6 @@ contract Airlock is Ownable {
 
         bytes32 salt = keccak256(
             abi.encodePacked(
-                name,
-                symbol,
                 initialSupply,
                 numTokensToSell,
                 numeraire,
@@ -119,9 +113,9 @@ contract Airlock is Ownable {
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
 
-        asset = tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
+        asset = tokenFactory.create(initialSupply, address(this), address(this), pool, tokenData, salt);
 
-        (governance, timelock) = governanceFactory.create(name, asset, governanceData);
+        (governance, timelock) = governanceFactory.create(asset, governanceData);
 
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
         pool = poolInitializer.initialize(asset, numTokensToSell, salt, poolInitializerData);
