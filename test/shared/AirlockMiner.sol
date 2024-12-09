@@ -1,11 +1,15 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
-import { console } from "forge-std/console.sol";
+import { Test, console } from "forge-std/Test.sol";
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
-import { Doppler } from "src/Doppler.sol";
+import { Doppler, IPoolManager } from "src/Doppler.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -38,49 +42,91 @@ struct MineParams {
 }
 
 function mine(
-    address tokenFactory,
-    address hookFactory,
-    MineParams memory params
+    uint256 initialSupply,
+    uint256 numTokensToSell,
+    address numeraire,
+    address[] memory recipients,
+    uint256[] memory amounts,
+    ITokenFactory tokenFactory,
+    bytes memory tokenData,
+    bytes memory tokenCreationCode,
+    IGovernanceFactory governanceFactory,
+    bytes memory governanceData,
+    IPoolInitializer poolInitializer,
+    bytes memory poolInitializerData,
+    bytes memory poolCreationCode,
+    ILiquidityMigrator liquidityMigrator,
+    bytes memory liquidityMigratorData
 ) view returns (bytes32, address, address) {
-    bool isToken0 = params.numeraire != address(0);
+    (
+        IPoolManager poolManager,
+        // uint256 numTokensToSell_
+        ,
+        uint256 minimumProceeds,
+        uint256 maximumProceeds,
+        uint256 startingTime,
+        uint256 endingTime,
+        int24 startingTick,
+        int24 endingTick,
+        uint256 epochLength,
+        int24 gamma,
+        bool isToken0,
+        uint256 numPDSlugs,
+        address airlock
+    ) = abi.decode(
+        poolInitializerData,
+        (
+            IPoolManager,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            int24,
+            int24,
+            uint256,
+            int24,
+            bool,
+            uint256,
+            address
+        )
+    );
+
+    isToken0 = numeraire != address(0);
 
     bytes32 hookInitHash = keccak256(
         abi.encodePacked(
             type(Doppler).creationCode,
             abi.encode(
-                params.poolManager,
-                params.numTokensToSell,
-                params.minimumProceeds,
-                params.maximumProceeds,
-                params.startingTime,
-                params.endingTime,
-                params.minTick,
-                params.maxTick,
-                params.epochLength,
-                params.gamma,
+                poolManager,
+                numTokensToSell,
+                minimumProceeds,
+                maximumProceeds,
+                startingTime,
+                endingTime,
+                startingTick,
+                endingTick,
+                epochLength,
+                gamma,
                 isToken0,
-                params.numPDSlugs,
-                params.airlock
+                numPDSlugs,
+                airlock
             )
         )
     );
 
-    bytes32 tokenInitHash = keccak256(
-        abi.encodePacked(
-            type(DERC20).creationCode,
-            abi.encode(params.name, params.symbol, params.initialSupply, params.airlock, params.airlock)
-        )
-    );
+    bytes32 tokenInitHash =
+        keccak256(abi.encodePacked(type(DERC20).creationCode, abi.encode(initialSupply, airlock, airlock)));
 
     for (uint256 salt; salt < 1_000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), hookInitHash, hookFactory);
-        address token = computeCreate2Address(bytes32(salt), tokenInitHash, tokenFactory);
+        address hook = computeCreate2Address(bytes32(salt), hookInitHash, address(poolInitializer));
+        address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
         if (
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
-                && ((isToken0 && token < params.numeraire) || (!isToken0 && token > params.numeraire))
+                && ((isToken0 && asset < numeraire) || (!isToken0 && asset > numeraire))
         ) {
-            return (bytes32(salt), hook, token);
+            return (bytes32(salt), hook, asset);
         }
     }
 
@@ -97,7 +143,14 @@ contract AirlockMinerTest is Test {
         address hookFactory = address(0xbeef);
         address numeraire = address(type(uint160).max / 2);
 
-        (bytes32 salt, address hook, address token) = mine(
+        bytes32 salt;
+        address hook;
+        address token;
+
+        /*
+         = mine(
+
+
             tokenFactory,
             hookFactory,
             MineParams(
@@ -118,7 +171,9 @@ contract AirlockMinerTest is Test {
                 int24(800),
                 3
             )
-        );
+        ); 
+
+        */
 
         console.log("salt: %s", uint256(salt));
         console.log("hook: %s", hook);
