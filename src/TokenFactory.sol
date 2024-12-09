@@ -16,18 +16,18 @@ contract TokenFactory is ITokenFactory {
     }
 
     function create(
-        string memory name,
-        string memory symbol,
         uint256 initialSupply,
         address recipient,
         address owner,
         address pool,
-        bytes memory,
+        bytes memory data,
         bytes32 salt
     ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
+
+        (string memory name, string memory symbol) = abi.decode(data, (string, string));
 
         return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool));
     }
