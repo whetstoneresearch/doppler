@@ -62,7 +62,7 @@ contract Airlock is Ownable {
      * @param recipients Array of addresses to receive tokens after the migration
      * @param amounts Array of amounts to receive after the migration
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
-     * @param tokenData Arbitrary data to pass to the token factory
+     * @param tokenFactoryData Arbitrary data to pass to the token factory
      * @param governanceFactory Address of the factory contract deploying the governance
      * @param governanceData Arbitrary data to pass to the governance factory
      * @param liquidityMigrator Address of the liquidity migrator contract
@@ -74,7 +74,7 @@ contract Airlock is Ownable {
         address[] memory recipients,
         uint256[] memory amounts,
         ITokenFactory tokenFactory,
-        bytes memory tokenData,
+        bytes memory tokenFactoryData,
         IGovernanceFactory governanceFactory,
         bytes memory governanceData,
         IPoolInitializer poolInitializer,
@@ -97,7 +97,7 @@ contract Airlock is Ownable {
                 recipients,
                 amounts,
                 tokenFactory,
-                tokenData,
+                tokenFactoryData,
                 governanceFactory,
                 governanceData,
                 poolInitializer,
@@ -113,7 +113,7 @@ contract Airlock is Ownable {
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
 
-        asset = tokenFactory.create(initialSupply, address(this), address(this), pool, tokenData, salt);
+        asset = tokenFactory.create(initialSupply, address(this), address(this), pool, tokenFactoryData, salt);
 
         (governance, timelock) = governanceFactory.create(asset, governanceData);
 
