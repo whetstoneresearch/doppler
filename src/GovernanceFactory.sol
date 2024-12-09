@@ -18,7 +18,7 @@ contract GovernanceFactory is IGovernanceFactory {
         timelockFactory = new TimelockFactory();
     }
 
-    function create(address token, bytes memory data) external returns (address, address) {
+    function create(address asset, bytes memory data) external returns (address, address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
@@ -27,7 +27,7 @@ contract GovernanceFactory is IGovernanceFactory {
 
         TimelockController timelockController = timelockFactory.create();
         address governance = address(
-            new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))
+            new Governance(string.concat(name, " Governance"), IVotes(asset), TimelockController(timelockController))
         );
         timelockController.grantRole(keccak256("PROPOSER_ROLE"), governance);
         timelockController.grantRole(keccak256("CANCELLER_ROLE"), governance);
