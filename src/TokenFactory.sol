@@ -20,15 +20,17 @@ contract TokenFactory is ITokenFactory {
         address recipient,
         address owner,
         address pool,
-        bytes memory data,
-        bytes32 salt
+        bytes32 salt,
+        bytes memory data
     ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
 
-        (string memory name, string memory symbol) = abi.decode(data, (string, string));
+        (string memory name, string memory symbol, address[] memory recipients, uint256[] memory amounts) =
+            abi.decode(data, (string, string, address[], uint256[]));
 
-        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool));
+        return
+            address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool, recipients, amounts));
     }
 }

@@ -30,8 +30,6 @@ struct AssetData {
     address governance;
     ILiquidityMigrator liquidityMigrator;
     IPoolInitializer poolInitializer;
-    address[] recipients;
-    uint256[] amounts;
     address pool;
     address migrationPool;
 }
@@ -59,36 +57,32 @@ contract Airlock is Ownable {
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
      * @param initialSupply Total supply of the token (might be increased later on)
      * @param numTokensToSell Amount of tokens to sell in the Doppler hook
-     * @param recipients Array of addresses to receive tokens after the migration
-     * @param amounts Array of amounts to receive after the migration
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
      * @param tokenFactoryData Arbitrary data to pass to the token factory
      * @param governanceFactory Address of the factory contract deploying the governance
-     * @param governanceData Arbitrary data to pass to the governance factory
+     * @param governanceFactoryData Arbitrary data to pass to the governance factory
      * @param liquidityMigrator Address of the liquidity migrator contract
      */
     function create(
         uint256 initialSupply,
         uint256 numTokensToSell,
         address numeraire,
-        address[] memory recipients,
-        uint256[] memory amounts,
         ITokenFactory tokenFactory,
         bytes memory tokenFactoryData,
         IGovernanceFactory governanceFactory,
-        bytes memory governanceData,
+        bytes memory governanceFactoryData,
         IPoolInitializer poolInitializer,
         bytes memory poolInitializerData,
         ILiquidityMigrator liquidityMigrator,
-        bytes memory liquidityMigratorData
+        bytes memory liquidityMigratorData,
+        bytes32 salt
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
         require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
         require(getModuleState[address(poolInitializer)] == ModuleState.PoolInitializer, WrongModuleState());
         require(getModuleState[address(liquidityMigrator)] == ModuleState.LiquidityMigrator, WrongModuleState());
 
-        require(recipients.length == amounts.length, ArrayLengthsMismatch());
-
+        /*
         bytes32 salt = keccak256(
             abi.encodePacked(
                 initialSupply,
@@ -99,23 +93,26 @@ contract Airlock is Ownable {
                 tokenFactory,
                 tokenFactoryData,
                 governanceFactory,
-                governanceData,
+                governanceFactoryData,
                 poolInitializer,
                 poolInitializerData,
                 liquidityMigrator,
                 liquidityMigratorData
             )
         );
+        */
 
+        /*
         uint256 totalToMint = numTokensToSell;
         for (uint256 i; i < amounts.length; i++) {
             totalToMint += amounts[i];
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
+        */
 
-        asset = tokenFactory.create(initialSupply, address(this), address(this), pool, tokenFactoryData, salt);
+        asset = tokenFactory.create(initialSupply, address(this), address(this), pool, salt, tokenFactoryData);
 
-        (governance, timelock) = governanceFactory.create(asset, governanceData);
+        (governance, timelock) = governanceFactory.create(asset, governanceFactoryData);
 
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
         pool = poolInitializer.initialize(asset, numTokensToSell, salt, poolInitializerData);
@@ -128,8 +125,6 @@ contract Airlock is Ownable {
             governance: governance,
             liquidityMigrator: liquidityMigrator,
             poolInitializer: poolInitializer,
-            recipients: recipients,
-            amounts: amounts,
             pool: pool,
             migrationPool: migrationPool
         });
@@ -145,11 +140,6 @@ contract Airlock is Ownable {
         address asset
     ) external {
         AssetData memory assetData = getAssetData[asset];
-
-        uint256 length = assetData.recipients.length;
-        for (uint256 i; i < length; i++) {
-            ERC20(asset).transfer(assetData.recipients[i], assetData.amounts[i]);
-        }
 
         DERC20(asset).unlockPool();
         Ownable(asset).transferOwnership(assetData.timelock);

@@ -19,7 +19,7 @@ interface ITokenFactory {
         address recipient,
         address owner,
         address pool,
-        bytes memory tokenData,
-        bytes32 salt
+        bytes32 salt,
+        bytes memory tokenData
     ) external returns (address);
 }

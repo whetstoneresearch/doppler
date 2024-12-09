@@ -15,6 +15,8 @@ error MintingNotStartedYet();
 
 error PoolLocked();
 
+error ArrayLengthsMismatch();
+
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     uint256 public immutable mintStartDate;
     uint256 public immutable yearlyMintCap;
@@ -22,17 +24,27 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     address public immutable pool;
     bool public isPoolUnlocked;
 
+    address[] public recipients;
+    uint256[] public amounts;
+
     constructor(
         string memory name_,
         string memory symbol_,
         uint256 initialSupply,
         address recipient,
         address owner_,
-        address pool_
+        address pool_,
+        address[] memory recipients_,
+        uint256[] memory amounts_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
         _mint(recipient, initialSupply);
         mintStartDate = block.timestamp + 365 days;
         pool = pool_;
+
+        require(recipients.length == amounts.length, ArrayLengthsMismatch());
+
+        recipients = recipients_;
+        amounts = amounts_;
     }
 
     function lockPool(
@@ -44,6 +56,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
+
+        uint256 length = recipients.length;
+        for (uint256 i; i < length; i++) {
+            transfer(recipients[i], amounts[i]);
+        }
     }
 
     function mint(address to, uint256 value) external onlyOwner {
