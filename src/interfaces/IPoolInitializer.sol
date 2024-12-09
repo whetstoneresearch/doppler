@@ -11,6 +11,7 @@ interface IPoolInitializer {
      */
     function initialize(
         address asset,
+        address numeraire,
         uint256 numTokensToSell,
         bytes32 salt,
         bytes memory data

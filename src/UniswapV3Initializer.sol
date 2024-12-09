@@ -33,6 +33,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
     function initialize(
         address asset,
+        address numeraire,
         uint256 numTokensToSell,
         bytes32 salt,
         bytes memory data
