@@ -45,13 +45,11 @@ function mine(
     uint256 initialSupply,
     uint256 numTokensToSell,
     address numeraire,
-    address[] memory recipients,
-    uint256[] memory amounts,
     ITokenFactory tokenFactory,
-    bytes memory tokenData,
+    bytes memory tokenFactoryData,
     bytes memory tokenCreationCode,
     IGovernanceFactory governanceFactory,
-    bytes memory governanceData,
+    bytes memory governanceFactoryData,
     IPoolInitializer poolInitializer,
     bytes memory poolInitializerData,
     bytes memory poolCreationCode,
@@ -96,7 +94,7 @@ function mine(
 
     bytes32 hookInitHash = keccak256(
         abi.encodePacked(
-            type(Doppler).creationCode,
+            poolCreationCode,
             abi.encode(
                 poolManager,
                 numTokensToSell,
@@ -115,8 +113,10 @@ function mine(
         )
     );
 
+    (string memory name, string memory symbol) = abi.decode(tokenFactoryData, (string, string));
+
     bytes32 tokenInitHash =
-        keccak256(abi.encodePacked(type(DERC20).creationCode, abi.encode(initialSupply, airlock, airlock)));
+        keccak256(abi.encodePacked(tokenCreationCode, abi.encode("", "", initialSupply, airlock, airlock, address(0))));
 
     for (uint256 salt; salt < 1_000_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), hookInitHash, address(poolInitializer));
