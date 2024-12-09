@@ -110,12 +110,12 @@ contract Airlock is Ownable {
         require(totalToMint == initialSupply, WrongInitialSupply());
         */
 
-        asset = tokenFactory.create(initialSupply, address(this), address(this), pool, salt, tokenFactoryData);
+        asset = tokenFactory.create(initialSupply, address(this), address(this), salt, tokenFactoryData);
 
         (governance, timelock) = governanceFactory.create(asset, governanceFactoryData);
 
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
-        pool = poolInitializer.initialize(asset, numTokensToSell, salt, poolInitializerData);
+        poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
 
         migrationPool = liquidityMigrator.initialize(liquidityMigratorData);
 
