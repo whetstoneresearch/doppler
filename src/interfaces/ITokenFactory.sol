@@ -8,8 +8,6 @@ pragma solidity ^0.8.13;
 interface ITokenFactory {
     /**
      * @notice Deploys a new asset token.
-     * @param name Name of the token
-     * @param symbol Symbol of the token
      * @param initialSupply Initial supply that will be minted
      * @param recipient Address receiving the initial supply
      * @param owner Address receiving the ownership of the token
@@ -17,8 +15,6 @@ interface ITokenFactory {
      * @return Address of the newly deployed token
      */
     function create(
-        string memory name,
-        string memory symbol,
         uint256 initialSupply,
         address recipient,
         address owner,
