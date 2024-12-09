@@ -19,7 +19,6 @@ contract TokenFactory is ITokenFactory {
         uint256 initialSupply,
         address recipient,
         address owner,
-        address pool,
         bytes32 salt,
         bytes memory data
     ) external returns (address) {
@@ -30,7 +29,6 @@ contract TokenFactory is ITokenFactory {
         (string memory name, string memory symbol, address[] memory recipients, uint256[] memory amounts) =
             abi.decode(data, (string, string, address[], uint256[]));
 
-        return
-            address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool, recipients, amounts));
+        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, recipients, amounts));
     }
 }
