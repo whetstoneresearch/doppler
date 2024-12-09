@@ -21,7 +21,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     uint256 public immutable mintStartDate;
     uint256 public immutable yearlyMintCap;
 
-    address public immutable pool;
+    address public pool;
     bool public isPoolUnlocked;
 
     address[] public recipients;
@@ -33,13 +33,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 initialSupply,
         address recipient,
         address owner_,
-        address pool_,
         address[] memory recipients_,
         uint256[] memory amounts_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
         _mint(recipient, initialSupply);
         mintStartDate = block.timestamp + 365 days;
-        pool = pool_;
 
         require(recipients.length == amounts.length, ArrayLengthsMismatch());
 
