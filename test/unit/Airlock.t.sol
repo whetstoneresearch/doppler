@@ -177,8 +177,6 @@ contract AirlockTest is Test, Deployers {
             params.initialSupply,
             params.numTokensToSell,
             address(0),
-            new address[](0),
-            new uint256[](0),
             tokenFactory,
             new bytes(0),
             governanceFactory,
@@ -186,7 +184,8 @@ contract AirlockTest is Test, Deployers {
             uniswapV4Initializer,
             new bytes(0),
             uniswapV2LiquidityMigrator,
-            new bytes(0)
+            new bytes(0),
+            bytes32(0)
         );
 
         return (hook, asset);
@@ -309,8 +308,6 @@ contract AirlockTest is Test, Deployers {
                 params.initialSupply,
                 params.numTokensToSell,
                 address(0),
-                new address[](0),
-                new uint256[](0),
                 tokenFactory,
                 new bytes(0),
                 governanceFactory,
@@ -318,7 +315,8 @@ contract AirlockTest is Test, Deployers {
                 uniswapV4Initializer,
                 new bytes(0),
                 uniswapV2LiquidityMigrator,
-                new bytes(0)
+                new bytes(0),
+                bytes32(0)
             );
         }
 
@@ -364,8 +362,6 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_INITIAL_SUPPLY,
                 DEFAULT_INITIAL_SUPPLY,
                 address(0),
-                new address[](0),
-                new uint256[](0),
                 tokenFactory,
                 new bytes(0),
                 governanceFactory,
@@ -373,10 +369,15 @@ contract AirlockTest is Test, Deployers {
                 uniswapV4Initializer,
                 new bytes(0),
                 uniswapV2LiquidityMigrator,
-                new bytes(0)
+                new bytes(0),
+                bytes32(0)
             );
         }
     }
 
-    function test_create_DeploysOnUniswapV3() public { }
+    function test_create_DeploysOnUniswapV3() public {
+        bytes memory tokenFactoryData = abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL);
+        bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
+        bytes memory poolInitializerData = abi.encode();
+    }
 }
