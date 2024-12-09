@@ -51,7 +51,7 @@ contract AirlockTest is Test, Deployers {
     UniswapV4Initializer uniswapV4Initializer;
     UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
-    UniswapV2Migrator migrator;
+    UniswapV2Migrator uniswapV2LiquidityMigrator;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
@@ -65,7 +65,7 @@ contract AirlockTest is Test, Deployers {
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
-        migrator =
+        uniswapV2LiquidityMigrator =
             new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
 
         address[] memory modules = new address[](5);
@@ -73,7 +73,7 @@ contract AirlockTest is Test, Deployers {
         modules[1] = address(uniswapV3Initializer);
         modules[1] = address(uniswapV4Initializer);
         modules[2] = address(governanceFactory);
-        modules[3] = address(migrator);
+        modules[3] = address(uniswapV2LiquidityMigrator);
 
         ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
@@ -146,11 +146,15 @@ contract AirlockTest is Test, Deployers {
     function _create(
         MineParams memory params
     ) internal returns (address, address) {
-        (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(uniswapV4Initializer), params);
+        // (bytes32 salt, address hook, address token) = mine(address(tokenFactory), address(uniswapV4Initializer), params);
+
+        bytes32 salt;
+        address hook;
+        address asset;
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(token),
+            currency1: Currency.wrap(asset),
             fee: DEFAULT_FEE,
             tickSpacing: DEFAULT_TICK_SPACING,
             hooks: IHooks(hook)
@@ -170,8 +174,6 @@ contract AirlockTest is Test, Deployers {
         );
 
         airlock.create(
-            params.name,
-            params.symbol,
             params.initialSupply,
             params.numTokensToSell,
             address(0),
@@ -187,7 +189,7 @@ contract AirlockTest is Test, Deployers {
             new bytes(0)
         );
 
-        return (hook, token);
+        return (hook, asset);
     }
 
     function test_create_Deploys() public {
@@ -195,17 +197,17 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_MintsTokens() public {
-        (address hook, address token) = _create();
-        assertEq(ERC20(token).totalSupply(), DEFAULT_INITIAL_SUPPLY);
-        assertEq(ERC20(token).balanceOf(address(manager)) + ERC20(token).balanceOf(hook), DEFAULT_INITIAL_SUPPLY);
+        (address hook, address asset) = _create();
+        assertEq(ERC20(asset).totalSupply(), DEFAULT_INITIAL_SUPPLY);
+        assertEq(ERC20(asset).balanceOf(address(manager)) + ERC20(asset).balanceOf(hook), DEFAULT_INITIAL_SUPPLY);
     }
 
     function test_migrate() public {
-        (address hook, address token) = _create();
+        (address hook, address asset) = _create();
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(token),
+            currency1: Currency.wrap(asset),
             fee: DEFAULT_FEE,
             tickSpacing: DEFAULT_TICK_SPACING,
             hooks: IHooks(hook)
@@ -220,7 +222,7 @@ contract AirlockTest is Test, Deployers {
         deal(address(this), amountIn);
         router.buyExactOut{ value: amountIn }(DEFAULT_MIN_PROCEEDS);
         vm.warp(DEFAULT_ENDING_TIME);
-        airlock.migrate(token);
+        airlock.migrate(asset);
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
@@ -274,12 +276,16 @@ contract AirlockTest is Test, Deployers {
             // Trying to mint more tokens than the amount to sell.
             params.initialSupply = DEFAULT_INITIAL_SUPPLY + 1;
 
-            (bytes32 salt, address hook, address token) =
-                mine(address(tokenFactory), address(uniswapV4Initializer), params);
+            // (bytes32 salt, address hook, address asset) =
+            // mine(address(tokenFactory), address(uniswapV4Initializer), _getDefaultMineParams());
+
+            bytes32 salt;
+            address hook;
+            address asset;
 
             PoolKey memory poolKey = PoolKey({
                 currency0: Currency.wrap(address(0)),
-                currency1: Currency.wrap(token),
+                currency1: Currency.wrap(asset),
                 fee: DEFAULT_FEE,
                 tickSpacing: DEFAULT_TICK_SPACING,
                 hooks: IHooks(hook)
@@ -300,8 +306,6 @@ contract AirlockTest is Test, Deployers {
 
             vm.expectRevert(WrongInitialSupply.selector);
             airlock.create(
-                params.name,
-                params.symbol,
                 params.initialSupply,
                 params.numTokensToSell,
                 address(0),
@@ -327,12 +331,16 @@ contract AirlockTest is Test, Deployers {
                 amounts[i] = 10_000 ether;
             }
 
-            (bytes32 salt, address hook, address token) =
-                mine(address(tokenFactory), address(uniswapV4Initializer), _getDefaultMineParams());
+            // (bytes32 salt, address hook, address asset) =
+            // mine(address(tokenFactory), address(uniswapV4Initializer), _getDefaultMineParams());
+
+            bytes32 salt;
+            address hook;
+            address asset;
 
             PoolKey memory poolKey = PoolKey({
                 currency0: Currency.wrap(address(0)),
-                currency1: Currency.wrap(token),
+                currency1: Currency.wrap(asset),
                 fee: DEFAULT_FEE,
                 tickSpacing: DEFAULT_TICK_SPACING,
                 hooks: IHooks(hook)
@@ -353,8 +361,6 @@ contract AirlockTest is Test, Deployers {
 
             vm.expectRevert(WrongInitialSupply.selector);
             airlock.create(
-                DEFAULT_TOKEN_NAME,
-                DEFAULT_TOKEN_SYMBOL,
                 DEFAULT_INITIAL_SUPPLY,
                 DEFAULT_INITIAL_SUPPLY,
                 address(0),
@@ -371,4 +377,6 @@ contract AirlockTest is Test, Deployers {
             );
         }
     }
+
+    function test_create_DeploysOnUniswapV3() public { }
 }
