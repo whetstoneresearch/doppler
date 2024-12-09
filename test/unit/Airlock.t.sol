@@ -185,7 +185,7 @@ contract AirlockTest is Test, Deployers {
             new bytes(0),
             uniswapV4Initializer,
             new bytes(0),
-            migrator,
+            uniswapV2LiquidityMigrator,
             new bytes(0)
         );
 
@@ -260,7 +260,7 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_RevertsIfWrongMigrator() public {
         address[] memory modules = new address[](1);
-        modules[0] = address(migrator);
+        modules[0] = address(uniswapV2LiquidityMigrator);
         ModuleState[] memory states = new ModuleState[](1);
         states[0] = ModuleState.NotWhitelisted;
         airlock.setModuleState(modules, states);
@@ -317,7 +317,7 @@ contract AirlockTest is Test, Deployers {
                 new bytes(0),
                 uniswapV4Initializer,
                 new bytes(0),
-                migrator,
+                uniswapV2LiquidityMigrator,
                 new bytes(0)
             );
         }
@@ -372,7 +372,7 @@ contract AirlockTest is Test, Deployers {
                 new bytes(0),
                 uniswapV4Initializer,
                 new bytes(0),
-                migrator,
+                uniswapV2LiquidityMigrator,
                 new bytes(0)
             );
         }
