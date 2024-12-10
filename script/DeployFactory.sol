@@ -2,17 +2,18 @@
 pragma solidity ^0.8.24;
 
 import { Script, console2 } from "forge-std/Script.sol";
-import { DopplerFactory } from "../src/DopplerFactory.sol";
+//import { DopplerFactory } from "../src/DopplerFactory.sol";
 import { IPoolManager } from "v4-core/test/utils/Deployers.sol";
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
+import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { StateView } from "v4-periphery/src/lens/StateView.sol";
 import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
+//import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
 
 contract DeployFactoriesWorldChain is Script {
     Airlock airlock;
@@ -44,20 +45,21 @@ contract DeployFactoriesWorldChain is Script {
         console2.log("Manager: ", address(manager));
         console2.log("Quoter: ", address(quoter));
         console2.log("UniRouter: ", address(uniRouter));
-        router = new CustomRouter2(PoolSwapTest(uniRouter), Quoter(quoter));
-        console2.log("CustomRouter: ", address(router));
+        // router = new CustomRouter2(PoolSwapTest(uniRouter), Quoter(quoter));
+        // console2.log("CustomRouter: ", address(router));
         console2.log("StateView: ", address(stateView));
         airlock = new Airlock(address(this));
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("TokenFactory: ", address(tokenFactory));
-        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager);
+        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), IPoolManager(manager));
         console2.log("UniswapV4Initializer: ", address(uniswapV4Initializer));
         uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(v3CoreFactory));
         governanceFactory = new GovernanceFactory(address(airlock));
         console2.log("GovernanceFactory: ", address(governanceFactory));
-        migrator = new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
-        console2.log("Migrator: ", address(migrator));
+        uniswapV2LiquidityMigrator =
+            new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
+        console2.log("Migrator: ", address(uniswapV2LiquidityMigrator));
 
         address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
