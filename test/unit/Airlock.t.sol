@@ -11,6 +11,7 @@ import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
 import { Quoter } from "v4-periphery/src/lens/Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
@@ -34,8 +35,8 @@ int24 constant DEFAULT_GAMMA = 800;
 uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 address constant DEFAULT_OWNER = address(0xdeadbeef);
 
-int24 constant DEFAULT_START_TICK = 1600;
-int24 constant DEFAULT_END_TICK = 171_200;
+int24 constant DEFAULT_START_TICK = 6000;
+int24 constant DEFAULT_END_TICK = 60_000;
 
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;
@@ -44,6 +45,8 @@ uint256 constant DEFAULT_PD_SLUGS = 3;
 
 address constant uniRouterV2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+
+address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
 contract AirlockTest is Test, Deployers {
     Airlock airlock;
@@ -71,9 +74,9 @@ contract AirlockTest is Test, Deployers {
         address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
-        modules[1] = address(uniswapV4Initializer);
-        modules[2] = address(governanceFactory);
-        modules[3] = address(uniswapV2LiquidityMigrator);
+        modules[2] = address(uniswapV4Initializer);
+        modules[3] = address(governanceFactory);
+        modules[4] = address(uniswapV2LiquidityMigrator);
 
         ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
@@ -376,8 +379,24 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_DeploysOnUniswapV3() public {
-        bytes memory tokenFactoryData = abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL);
+        bytes memory tokenFactoryData =
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, new address[](0), new uint256[](0));
         bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
-        bytes memory poolInitializerData = abi.encode();
+        bytes memory poolInitializerData = abi.encode(uint24(3000), DEFAULT_START_TICK, DEFAULT_END_TICK);
+
+        airlock.create(
+            DEFAULT_INITIAL_SUPPLY,
+            DEFAULT_INITIAL_SUPPLY,
+            WETH,
+            tokenFactory,
+            tokenFactoryData,
+            governanceFactory,
+            governanceFactoryData,
+            uniswapV3Initializer,
+            poolInitializerData,
+            uniswapV2LiquidityMigrator,
+            new bytes(0),
+            bytes32(uint256(0xbeef))
+        );
     }
 }
