@@ -6,7 +6,6 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
-// import { LiquidityAmounts } from "@v3-periphery/libraries/LiquidityAmounts.sol";
 import { LiquidityAmounts } from "lib/v4-core/test/utils/LiquidityAmounts.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
@@ -35,19 +34,22 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address asset,
         address numeraire,
         uint256 numTokensToSell,
-        bytes32 salt,
+        bytes32,
         bytes memory data
     ) external returns (address pool) {
         require(msg.sender == airlock, OnlyAirlock());
 
-        (address tokenA, address tokenB, uint24 fee, uint160 sqrtPriceX96, int24 tickLower, int24 tickUpper) =
-            abi.decode(data, (address, address, uint24, uint160, int24, int24));
+        (uint24 fee, int24 tickLower, int24 tickUpper) = abi.decode(data, (uint24, int24, int24));
+        (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         pool = factory.getPool(tokenA, tokenB, fee);
 
         if (pool == address(0)) {
             pool = factory.createPool(tokenA, tokenB, fee);
         }
+
+        uint160 sqrtPriceX96 =
+            asset == tokenA ? TickMath.getSqrtPriceAtTick(tickLower) : TickMath.getSqrtPriceAtTick(tickUpper);
 
         // TODO: This will fail if the pool is already initialized
         IUniswapV3Pool(pool).initialize(sqrtPriceX96);
@@ -65,7 +67,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             tickLower,
             tickUpper,
             amount,
-            abi.encode(CallbackData({ asset: asset, numeraire: tokenA == asset ? tokenB : tokenA, fee: fee }))
+            abi.encode(CallbackData({ asset: asset, numeraire: numeraire, fee: fee }))
         );
     }
 
@@ -82,6 +84,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         require(isInitialized[pool] == false, PoolAlreadyInitialized());
         isInitialized[pool] = true;
 
-        ERC20(callbackData.asset).transfer(pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
+        ERC20(callbackData.asset).transferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
 }

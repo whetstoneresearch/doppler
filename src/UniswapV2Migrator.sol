@@ -55,10 +55,8 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         weth = IWETH(payable(router.WETH()));
     }
 
-    function initialize(
-        bytes memory data
-    ) external returns (address) {
-        (address token0, address token1) = abi.decode(data, (address, address));
+    function initialize(address asset, address numeraire, bytes memory) external returns (address) {
+        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
         if (token0 > token1) (token0, token1) = (token1, token0);

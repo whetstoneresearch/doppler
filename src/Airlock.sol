@@ -117,7 +117,7 @@ contract Airlock is Ownable {
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
         poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
 
-        migrationPool = liquidityMigrator.initialize(liquidityMigratorData);
+        migrationPool = liquidityMigrator.initialize(asset, numeraire, liquidityMigratorData);
 
         getAssetData[asset] = AssetData({
             numeraire: numeraire,

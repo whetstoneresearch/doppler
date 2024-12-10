@@ -5,9 +5,7 @@ pragma solidity ^0.8.13;
  * @notice Generic interface to migrate current liquidity to a new pool
  */
 interface ILiquidityMigrator {
-    function initialize(
-        bytes memory data
-    ) external returns (address pool);
+    function initialize(address asset, address numeraire, bytes memory data) external returns (address pool);
 
     function migrate(
         address token0,
