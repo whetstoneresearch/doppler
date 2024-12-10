@@ -41,25 +41,29 @@ contract DeployFactoriesWorldChain is Script {
         uint256 pk = vm.envUint(ENV_PRIVATE_KEY);
         vm.startBroadcast(pk);
 
-        vm.addr(pk);
-        console2.log("Manager: ", address(manager));
-        console2.log("Quoter: ", address(quoter));
-        console2.log("UniRouter: ", address(uniRouter));
+        address account = vm.addr(pk);
+        console2.log("address this", address(this));
+        console2.log("account", account);
+        // console2.log("Manager: ", address(manager));
+        // console2.log("Quoter: ", address(quoter));
+        // console2.log("UniRouter: ", address(uniRouter));
         // router = new CustomRouter2(PoolSwapTest(uniRouter), Quoter(quoter));
         // console2.log("CustomRouter: ", address(router));
-        console2.log("StateView: ", address(stateView));
-        airlock = new Airlock(address(this));
+        // console2.log("StateView: ", address(stateView));
+        airlock = new Airlock(address(account));
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("TokenFactory: ", address(tokenFactory));
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), IPoolManager(manager));
         console2.log("UniswapV4Initializer: ", address(uniswapV4Initializer));
         uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(v3CoreFactory));
+        console2.log("UniswapV3Initializer: ", address(uniswapV3Initializer));
         governanceFactory = new GovernanceFactory(address(airlock));
         console2.log("GovernanceFactory: ", address(governanceFactory));
         uniswapV2LiquidityMigrator =
             new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
         console2.log("Migrator: ", address(uniswapV2LiquidityMigrator));
+        console2.log(airlock.owner());
 
         address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
