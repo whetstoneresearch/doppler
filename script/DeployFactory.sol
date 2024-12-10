@@ -26,7 +26,7 @@ contract DeployFactoriesWorldChain is Script {
 
     function setUp() public { }
 
-    address constant uniRouterV2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address constant uniRouterV2 = 0x541aB7c31A119441eF3575F6973277DE0eF460bd;
     address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
     address v3CoreFactory = 0x7a5028BDa40e7B173C278C5342087826455ea25a;
