@@ -107,6 +107,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     ) external returns (address token0, uint256 amount0, address token1, uint256 amount1) {
         require(msg.sender == airlock, OnlyAirlock());
         require(getState[pool].isExited == false, PoolAlreadyExited());
+        getState[pool].isExited = true;
 
         token0 = IUniswapV3Pool(pool).token0();
         token1 = IUniswapV3Pool(pool).token1();
