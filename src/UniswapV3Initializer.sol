@@ -12,6 +12,8 @@ import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 error OnlyAirlock();
 error OnlyPool();
 error PoolAlreadyInitialized();
+error PoolAlreadyExited();
+error CannotMigrate();
 
 struct CallbackData {
     address asset;
@@ -19,11 +21,25 @@ struct CallbackData {
     uint24 fee;
 }
 
+struct PoolState {
+    address asset;
+    address numeraire;
+    uint256 mininmumProceeds;
+    uint256 maximumProceeds;
+    uint256 startingTime;
+    uint256 endingTime;
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidityDelta;
+    bool isInitialized;
+    bool isExited;
+}
+
 contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     address public immutable airlock;
     IUniswapV3Factory public immutable factory;
 
-    mapping(address pool => bool status) public isInitialized;
+    mapping(address pool => PoolState state) public getState;
 
     constructor(address airlock_, IUniswapV3Factory factory_) {
         airlock = airlock_;
@@ -62,6 +78,20 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             asset == tokenA ? 0 : numTokensToSell
         );
 
+        getState[pool] = PoolState({
+            asset: asset,
+            numeraire: numeraire,
+            mininmumProceeds: 0,
+            maximumProceeds: 0,
+            startingTime: 0,
+            endingTime: 0,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            liquidityDelta: amount,
+            isInitialized: false,
+            isExited: false
+        });
+
         IUniswapV3Pool(pool).mint(
             address(this),
             tickLower,
@@ -72,8 +102,28 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     }
 
     function exitLiquidity(
-        address asset
-    ) external returns (address token0, address token1, uint256 price) { }
+        address pool
+    ) external returns (address token0, uint256 amount0, address token1, uint256 amount1) {
+        require(msg.sender == airlock, OnlyAirlock());
+        require(getState[pool].isExited == false, PoolAlreadyExited());
+
+        token0 = IUniswapV3Pool(pool).token0();
+        token1 = IUniswapV3Pool(pool).token1();
+        (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
+
+        int24 endingTick = getState[pool].asset == token0 ? getState[pool].tickLower : getState[pool].tickUpper;
+
+        require(tick == endingTick, CannotMigrate());
+
+        (,,, uint128 tokensOwed0, uint128 tokensOwed1) = IUniswapV3Pool(pool).positions(
+            keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
+        );
+        IUniswapV3Pool(pool).collect(
+            address(this), getState[pool].tickLower, getState[pool].tickUpper, tokensOwed0, tokensOwed1
+        );
+        (amount0, amount1) =
+            IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
+    }
 
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
@@ -81,8 +131,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool = factory.getPool(callbackData.asset, callbackData.numeraire, callbackData.fee);
         require(msg.sender == pool, OnlyPool());
 
-        require(isInitialized[pool] == false, PoolAlreadyInitialized());
-        isInitialized[pool] = true;
+        require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
+        getState[pool].isInitialized = true;
 
         ERC20(callbackData.asset).transferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
