@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { IPoolManager, PoolKey, TickMath } from "v4-core/src/PoolManager.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
@@ -39,12 +39,13 @@ struct TokenData {
     uint256[] amounts;
 }
 
-event Create(address asset, PoolKey poolKey, address hook);
+event Create(address indexed asset, PoolKey indexed poolKey, address hook);
 
-event Migrate(address asset, address pool);
+event Migrate(address indexed asset, address indexed pool);
 
-event SetModuleState(address module, ModuleState state);
+event SetModuleState(address indexed module, ModuleState indexed state);
 
+/// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
     using CurrencyLibrary for Currency;
 
@@ -111,7 +112,7 @@ contract Airlock is Ownable {
         require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
 
         uint256 totalToMint = numTokensToSell;
-        for (uint256 i; i < amounts.length; i++) {
+        for (uint256 i; i < amounts.length; ++i) {
             totalToMint += amounts[i];
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
@@ -128,7 +129,6 @@ contract Airlock is Ownable {
 
         ERC20(token).transfer(hook, numTokensToSell);
 
-        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
         (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
 
         migrator.createPool(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
@@ -160,7 +160,7 @@ contract Airlock is Ownable {
         TokenData memory tokenData = getTokenData[asset];
 
         uint256 length = tokenData.recipients.length;
-        for (uint256 i; i < length; i++) {
+        for (uint256 i; i < length; ++i) {
             ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
         }
 
@@ -191,7 +191,7 @@ contract Airlock is Ownable {
             revert ArrayLengthsMismatch();
         }
 
-        for (uint256 i; i < length; i++) {
+        for (uint256 i; i < length; ++i) {
             getModuleState[modules[i]] = states[i];
             emit SetModuleState(modules[i], states[i]);
         }

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
-
-import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
+pragma solidity ^0.8.24;
 
 interface IGovernanceFactory {
     function create(

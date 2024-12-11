@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
 import { Hooks } from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
@@ -93,6 +93,10 @@ contract DopplerImplementation is Doppler {
         return gamma;
     }
 
+    function getNormalizedEpochDelta() public view returns (uint256) {
+        return normalizedEpochDelta;
+    }
+
     function getExpectedAmountSoldWithEpochOffset(
         uint256 offset
     ) public view returns (uint256) {
@@ -119,10 +123,6 @@ contract DopplerImplementation is Doppler {
         uint256 timestamp
     ) public view returns (uint256) {
         return _getNormalizedTimeElapsed(timestamp);
-    }
-
-    function getGammaShare() public view returns (int256) {
-        return _getGammaShare();
     }
 
     function getEpochEndWithOffset(
