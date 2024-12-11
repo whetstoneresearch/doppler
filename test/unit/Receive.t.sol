@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";

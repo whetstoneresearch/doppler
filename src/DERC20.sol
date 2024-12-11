@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { ERC20Votes } from "@openzeppelin/token/ERC20/extensions/ERC20Votes.sol";
