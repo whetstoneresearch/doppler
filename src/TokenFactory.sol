@@ -6,6 +6,7 @@ import { DERC20 } from "src/DERC20.sol";
 
 error NotAirlock();
 
+/// @custom:security-contact security@whetstone.cc
 contract TokenFactory is ITokenFactory {
     address public immutable airlock;
 

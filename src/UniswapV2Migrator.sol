@@ -28,6 +28,7 @@ error SenderNotRouter();
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
+ * @custom:security-contact security@whetstone.cc
  */
 contract UniswapV2Migrator is IMigrator {
     using FullMath for uint256;
