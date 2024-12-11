@@ -113,7 +113,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         token1 = IUniswapV3Pool(pool).token1();
         (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
-        int24 endingTick = getState[pool].asset == token0 ? getState[pool].tickLower : getState[pool].tickUpper;
+        int24 endingTick = getState[pool].asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
 
         require(tick == endingTick, CannotMigrate());
 
