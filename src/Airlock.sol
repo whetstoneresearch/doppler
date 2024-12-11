@@ -51,8 +51,8 @@ contract Airlock is Ownable {
 
     IPoolManager public immutable poolManager;
 
-    mapping(address => ModuleState) public getModuleState;
-    mapping(address token => TokenData) public getTokenData;
+    mapping(address module => ModuleState moduleState) public getModuleState;
+    mapping(address token => TokenData tokenData) public getTokenData;
 
     receive() external payable { }
 
