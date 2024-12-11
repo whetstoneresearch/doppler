@@ -44,7 +44,9 @@ contract Airlock is Ownable {
     mapping(address module => ModuleState state) public getModuleState;
     mapping(address asset => AssetData data) public getAssetData;
 
-    receive() external payable { }
+    receive() external payable {
+        // TODO: We might want to restrict this to only approved poolInitializer contracts
+    }
 
     constructor(
         address owner_
