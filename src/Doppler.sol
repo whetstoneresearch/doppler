@@ -70,7 +70,6 @@ error InvalidTime();
 error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
-error InvalidTickDelta();
 error InvalidProceedLimits();
 error InvalidNumPDSlugs();
 error InvalidSwapAfterMaturitySufficientProceeds();
