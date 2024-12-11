@@ -59,6 +59,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         pool = factory.getPool(tokenA, tokenB, fee);
+        require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
 
         if (pool == address(0)) {
             pool = factory.createPool(tokenA, tokenB, fee);
@@ -88,7 +89,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             tickLower: tickLower,
             tickUpper: tickUpper,
             liquidityDelta: amount,
-            isInitialized: false,
+            isInitialized: true,
             isExited: false
         });
 
@@ -130,9 +131,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         address pool = factory.getPool(callbackData.asset, callbackData.numeraire, callbackData.fee);
         require(msg.sender == pool, OnlyPool());
-
-        require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
-        getState[pool].isInitialized = true;
 
         ERC20(callbackData.asset).transferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
