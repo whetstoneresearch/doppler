@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { UniswapV3Initializer, OnlyAirlock } from "src/UniswapV3Initializer.sol";
+import { UniswapV3Initializer, OnlyAirlock, PoolAlreadyInitialized } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 contract UniswapV3InitializerTest is Test {
@@ -23,7 +23,6 @@ contract UniswapV3InitializerTest is Test {
 
     function test_initialize() public {
         DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
-
         token.approve(address(initializer), type(uint256).max);
 
         address pool = initializer.initialize(
@@ -44,6 +43,28 @@ contract UniswapV3InitializerTest is Test {
             keccak256(abi.encodePacked(address(initializer), int24(-200_040), int24(-167_520)))
         );
         assertEq(liquidity, totalLiquidity, "Wrong liquidity");
+    }
+
+    function test_initialize_RevertsIfAlreadyInitialized() public {
+        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
+        token.approve(address(initializer), type(uint256).max);
+
+        initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+        );
+
+        vm.expectRevert(PoolAlreadyInitialized.selector);
+        initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+        );
     }
 
     function test_initialize_RevertsWhenSenderNotAirlock() public {
