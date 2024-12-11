@@ -72,4 +72,19 @@ contract UniswapV3InitializerTest is Test {
         vm.expectRevert(OnlyAirlock.selector);
         initializer.initialize(address(0), address(0), 0, bytes32(0), abi.encode());
     }
+
+    function test_exitLiquidity() public {
+        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
+        token.approve(address(initializer), type(uint256).max);
+
+        address pool = initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+        );
+
+        initializer.exitLiquidity(pool);
+    }
 }
