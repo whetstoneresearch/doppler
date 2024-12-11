@@ -652,8 +652,18 @@ contract Doppler is BaseHook {
     /// @notice Computes the max tick delta, i.e. max dutch auction amount, per epoch
     ///         Returns an 18 decimal fixed point value
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
+        PoolId poolId = poolKey.toId();
+        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+
+        int24 effectiveStartingTick;
+        if (isToken0) {
+            effectiveStartingTick = currentTick > startingTick ? currentTick : startingTick;
+        } else {
+            effectiveStartingTick = currentTick < startingTick ? currentTick : startingTick;
+        }
+
         // Safe from overflow since max value is (2**24-1) * 1e18
-        return int256(endingTick - startingTick) * I_WAD / int256((endingTime - startingTime) / epochLength);
+        return int256(effectiveStartingTick - startingTick) * I_WAD / int256((endingTime - startingTime) / epochLength);
     }
 
     /// @notice Aligns a given tick with the tickSpacing of the pool
