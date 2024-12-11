@@ -43,7 +43,6 @@ int24 constant DEFAULT_TICK_SPACING = 8;
 
 uint256 constant DEFAULT_PD_SLUGS = 3;
 
-address constant uniRouterV2 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
 address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -68,8 +67,7 @@ contract AirlockTest is Test, Deployers {
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator =
-            new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2));
 
         address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
