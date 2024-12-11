@@ -3,8 +3,6 @@ pragma solidity ^0.8.13;
 
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
-import { FullMath } from "v4-core/src/libraries/FullMath.sol";
-import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 
 interface IUniswapV2Router02 {
@@ -30,7 +28,6 @@ error SenderNotRouter();
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
  */
 contract UniswapV2Migrator is ILiquidityMigrator {
-    using FullMath for uint256;
     using SafeTransferLib for ERC20;
 
     IUniswapV2Factory public immutable factory;
@@ -76,44 +73,26 @@ contract UniswapV2Migrator is ILiquidityMigrator {
      * @notice Migrates the liquidity into a Uniswap V2 pool
      * @param token0 Smaller address of the two tokens
      * @param token1 Larger address of the two tokens
-     * @param price Price of token0 in terms of token1 (Q96 format)
      * @param recipient Address receiving the liquidity pool tokens
      */
-    function migrate(address token0, address token1, uint256 price, address recipient, bytes memory) external payable {
+    function migrate(
+        address token0,
+        uint256 amount0,
+        address token1,
+        uint256 amount1,
+        address recipient,
+        bytes memory
+    ) external payable {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
 
-        uint256 balance0;
-
         if (token0 == address(0)) {
-            balance0 = address(this).balance;
             token0 = address(weth);
-        } else {
-            balance0 = ERC20(token0).balanceOf(address(this));
-        }
-
-        uint256 balance1 = ERC20(token1).balanceOf(address(this));
-
-        if (token0 > token1) {
-            (token0, token1) = (token1, token0);
-            (balance0, balance1) = (balance1, balance0);
-            price = FixedPoint96.Q96 / price;
         }
 
         // Pool was created beforehand along the asset token deployment
         address pool = getPool[token0][token1];
-
-        uint256 amount0 = price.mulDiv(balance1, FixedPoint96.Q96);
-        uint256 amount1 = balance0.mulDiv(FixedPoint96.Q96, price);
-
-        if (amount0 > balance0) {
-            amount0 = balance0;
-            amount1 = amount0.mulDiv(FixedPoint96.Q96, price);
-        } else if (amount1 > balance1) {
-            amount1 = balance1;
-            amount0 = price.mulDiv(amount1, FixedPoint96.Q96);
-        }
 
         if (token0 == address(weth)) {
             weth.deposit{ value: amount0 }();
@@ -130,6 +109,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         }
 
+        // TODO: Not sure if this is necessary anymore
         uint256 dust0 = ERC20(token0).balanceOf(address(this));
         if (dust0 > 0) {
             SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
