@@ -19,6 +19,6 @@ interface ITokenFactory {
         address recipient,
         address owner,
         bytes32 salt,
-        bytes memory tokenData
+        bytes calldata tokenData
     ) external returns (address);
 }

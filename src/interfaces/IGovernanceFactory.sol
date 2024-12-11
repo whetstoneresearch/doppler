@@ -6,6 +6,6 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 interface IGovernanceFactory {
     function create(
         address asset,
-        bytes memory governanceData
+        bytes calldata governanceData
     ) external returns (address governance, address timelockController);
 }
