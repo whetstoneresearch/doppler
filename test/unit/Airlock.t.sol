@@ -51,6 +51,8 @@ contract AirlockTest is Test, Deployers {
     GovernanceFactory governanceFactory;
     UniswapV2Migrator migrator;
 
+    bytes public defaultTokenData = abi.encode(1e21);
+
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
@@ -170,7 +172,7 @@ contract AirlockTest is Test, Deployers {
             new address[](0),
             new uint256[](0),
             tokenFactory,
-            new bytes(0),
+            defaultTokenData,
             governanceFactory,
             new bytes(0),
             dopplerFactory,
@@ -300,7 +302,7 @@ contract AirlockTest is Test, Deployers {
                 new address[](0),
                 new uint256[](0),
                 tokenFactory,
-                new bytes(0),
+                defaultTokenData,
                 governanceFactory,
                 new bytes(0),
                 dopplerFactory,
@@ -354,7 +356,7 @@ contract AirlockTest is Test, Deployers {
                 recipients,
                 amounts,
                 tokenFactory,
-                new bytes(0),
+                defaultTokenData,
                 governanceFactory,
                 new bytes(0),
                 dopplerFactory,

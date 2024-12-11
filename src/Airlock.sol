@@ -129,7 +129,6 @@ contract Airlock is Ownable {
 
         ERC20(token).transfer(hook, numTokensToSell);
 
-        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
         (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
 
         migrator.createPool(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
