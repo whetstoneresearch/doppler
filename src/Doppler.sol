@@ -460,13 +460,14 @@ contract Doppler is BaseHook {
         // Cache state var to avoid multiple SLOADs
         uint256 totalTokensSold_ = state.totalTokensSold;
 
-        Position memory upSlug = positions[UPPER_SLUG_SALT];
+        Position memory upperSlugPosition = positions[UPPER_SLUG_SALT];
 
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
-        int256 accumulatorDelta = 0;
+        int256 accumulatorDelta;
         int256 newAccumulator;
+        int24 adjustmentTick;
         // Handle empty epochs
         // accumulatorDelta should always be nonzero if epochsPassed > 1, so we don't need the check
         if (epochsPassed > 1) {
@@ -486,16 +487,15 @@ contract Doppler is BaseHook {
             } else {
                 int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
-                // Safe from overflow since the result is <= gamma which is an int24 already
-                int24 computedRange = (_getGammaShare() * gamma / I_WAD).toInt24();
-                int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+                int24 adjustmentTickDelta = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
 
                 // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
                 // The upperTick is not always placed so we have to compute its placement in case it's not
                 // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
-                int24 expectedTick = _alignComputedTickWithTickSpacing(
-                    isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
-                );
+                adjustmentTick = isToken0
+                    ? upperSlugPosition.tickLower + adjustmentTickDelta
+                    : upperSlugPosition.tickLower - adjustmentTickDelta;
+                int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
                 uint256 epochsRemaining = totalEpochs - currentEpoch;
                 int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
@@ -527,16 +527,14 @@ contract Doppler is BaseHook {
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        int256 accumulatorDelta;
-        int256 newAccumulator;
-        int24 adjustmentTick;
         // Possible if no tokens purchased or tokens are sold back into the pool
         if (netSold <= 0) {
+            adjustmentTick = upperSlugPosition.tickLower;
             accumulatorDelta += _getMaxTickDeltaPerEpoch();
         } else if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             adjustmentTick = currentTick;
-            accumulatorDelta = _getMaxTickDeltaPerEpoch()
+            accumulatorDelta += _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
