@@ -9,7 +9,7 @@ import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
 import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
-import { Quoter } from "v4-periphery/src/lens/Quoter.sol";
+import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
@@ -208,7 +208,7 @@ contract AirlockTest is Test, Deployers {
 
         // Deploy swapRouter
         swapRouter = new PoolSwapTest(manager);
-        Quoter quoter = new Quoter(manager);
+        V4Quoter quoter = new V4Quoter(manager);
         CustomRouter router = new CustomRouter(swapRouter, quoter, poolKey, false, true);
         uint256 amountIn = router.computeBuyExactOut(DEFAULT_MIN_PROCEEDS);
 
