@@ -18,7 +18,7 @@ contract GovernanceFactory is IGovernanceFactory {
         timelockFactory = new TimelockFactory();
     }
 
-    function create(address asset, bytes memory data) external returns (address, address) {
+    function create(address asset, bytes calldata data) external returns (address, address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }

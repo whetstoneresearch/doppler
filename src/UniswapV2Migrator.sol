@@ -45,7 +45,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         weth = IWETH(payable(router.WETH()));
     }
 
-    function initialize(address asset, address numeraire, bytes memory) external returns (address) {
+    function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
@@ -74,7 +74,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         address token1,
         uint256 amount1,
         address recipient,
-        bytes memory
+        bytes calldata
     ) external payable {
         if (msg.sender != airlock) {
             revert NotAirlock();

@@ -51,7 +51,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address numeraire,
         uint256 numTokensToSell,
         bytes32,
-        bytes memory data
+        bytes calldata data
     ) external returns (address pool) {
         require(msg.sender == airlock, OnlyAirlock());
 

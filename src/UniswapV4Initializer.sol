@@ -30,7 +30,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         address numeraire,
         uint256 numTokensToSell,
         bytes32 salt,
-        bytes memory data
+        bytes calldata data
     ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();

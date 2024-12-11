@@ -20,7 +20,7 @@ contract TokenFactory is ITokenFactory {
         address recipient,
         address owner,
         bytes32 salt,
-        bytes memory data
+        bytes calldata data
     ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();

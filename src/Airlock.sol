@@ -70,13 +70,13 @@ contract Airlock is Ownable {
         uint256 numTokensToSell,
         address numeraire,
         ITokenFactory tokenFactory,
-        bytes memory tokenFactoryData,
+        bytes calldata tokenFactoryData,
         IGovernanceFactory governanceFactory,
-        bytes memory governanceFactoryData,
+        bytes calldata governanceFactoryData,
         IPoolInitializer poolInitializer,
-        bytes memory poolInitializerData,
+        bytes calldata poolInitializerData,
         ILiquidityMigrator liquidityMigrator,
-        bytes memory liquidityMigratorData,
+        bytes calldata liquidityMigratorData,
         bytes32 salt
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
@@ -159,7 +159,7 @@ contract Airlock is Ownable {
      * @param modules Array of module addresses
      * @param states Array of module states
      */
-    function setModuleState(address[] memory modules, ModuleState[] memory states) external onlyOwner {
+    function setModuleState(address[] calldata modules, ModuleState[] calldata states) external onlyOwner {
         uint256 length = modules.length;
 
         if (length != states.length) {
