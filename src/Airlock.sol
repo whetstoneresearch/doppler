@@ -39,11 +39,11 @@ struct TokenData {
     uint256[] amounts;
 }
 
-event Create(address asset, PoolKey poolKey, address hook);
+event Create(address indexed asset, PoolKey indexed poolKey, address hook);
 
-event Migrate(address asset, address pool);
+event Migrate(address indexed asset, address indexed pool);
 
-event SetModuleState(address module, ModuleState state);
+event SetModuleState(address indexed module, ModuleState indexed state);
 
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
