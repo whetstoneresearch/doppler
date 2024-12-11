@@ -21,7 +21,6 @@ interface IUniswapV2Factory {
 }
 
 error NotAirlock();
-error SenderNotRouter();
 
 /**
  * @author Whetstone Research
@@ -37,18 +36,12 @@ contract UniswapV2Migrator is ILiquidityMigrator {
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
 
-    receive() external payable {
-        if (msg.sender != address(router)) revert SenderNotRouter();
-    }
-
     /**
      * @param factory_ Address of the Uniswap V2 factory
-     * @param router_  Address of the Uniswap V2 router
      */
-    constructor(address airlock_, IUniswapV2Factory factory_, IUniswapV2Router02 router_) {
+    constructor(address airlock_, IUniswapV2Factory factory_) {
         airlock = airlock_;
         factory = factory_;
-        router = router_;
         weth = IWETH(payable(router.WETH()));
     }
 
