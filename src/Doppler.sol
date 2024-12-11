@@ -363,7 +363,7 @@ contract Doppler is BaseHook {
     function afterSwap(
         address,
         PoolKey calldata key,
-        IPoolManager.SwapParams calldata,
+        IPoolManager.SwapParams calldata swapParams,
         BalanceDelta swapDelta,
         bytes calldata
     ) external override onlyPoolManager returns (bytes4, int128) {
@@ -372,7 +372,8 @@ contract Doppler is BaseHook {
         (, int24 currentTick, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
-        uint24 swapFee = uint16(protocolFee).calculateSwapFee(lpFee);
+        uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
+            .calculateSwapFee(lpFee);
 
         if (isToken0) {
             if (currentTick < tickLower) revert SwapBelowRange();
