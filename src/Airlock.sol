@@ -83,6 +83,9 @@ contract Airlock is Ownable {
      * @param hookData Arbitrary data to pass to the hook factory
      * @param migrator Address of the migrator contract
      * @param salt Salt to use for the create2 calls
+     * @return token Address of the deployed DERC20 token contract
+     * @return governance Address of the deployed governance contract
+     * @return hook Address of the deployed doppler hook
      */
     function create(
         string memory name,
@@ -101,7 +104,7 @@ contract Airlock is Ownable {
         IMigrator migrator,
         address pool,
         bytes32 salt
-    ) external returns (address, address, address) {
+    ) external returns (address token, address governance, address hook) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
         require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
         require(getModuleState[address(hookFactory)] == ModuleState.HookFactory, WrongModuleState());
@@ -117,9 +120,8 @@ contract Airlock is Ownable {
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
 
-        address token =
-            tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
-        address hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
+        token = tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
+        hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
 
         require(
             token == Currency.unwrap(poolKey.currency0) || token == Currency.unwrap(poolKey.currency1),
@@ -129,7 +131,9 @@ contract Airlock is Ownable {
 
         ERC20(token).transfer(hook, numTokensToSell);
 
-        (address governance, address timelock) = governanceFactory.create(name, token, governanceData);
+        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
+        address timelock;
+        (governance, timelock) = governanceFactory.create(name, token, governanceData);
 
         migrator.createPool(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
 
