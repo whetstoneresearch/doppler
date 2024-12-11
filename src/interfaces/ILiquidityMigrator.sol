@@ -9,8 +9,9 @@ interface ILiquidityMigrator {
 
     function migrate(
         address token0,
+        uint256 amount0,
         address token1,
-        uint256 price,
+        uint256 amount1,
         address recipient,
         bytes memory data
     ) external payable;
