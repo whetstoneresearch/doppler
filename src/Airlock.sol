@@ -143,8 +143,9 @@ contract Airlock is Ownable {
 
         DERC20(asset).unlockPool();
         Ownable(asset).transferOwnership(assetData.timelock);
-        (address token0, address token1, uint256 price) = assetData.poolInitializer.exitLiquidity(asset);
-        assetData.liquidityMigrator.migrate(token0, token1, price, assetData.timelock, new bytes(0));
+        (address token0, uint256 amount0, address token1, uint256 amount1) =
+            assetData.poolInitializer.exitLiquidity(asset);
+        assetData.liquidityMigrator.migrate(token0, amount0, token1, amount1, assetData.timelock, new bytes(0));
 
         emit Migrate(asset, assetData.pool);
     }
