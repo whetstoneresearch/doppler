@@ -112,7 +112,7 @@ contract Airlock is Ownable {
         require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
 
         uint256 totalToMint = numTokensToSell;
-        for (uint256 i; i < amounts.length; i++) {
+        for (uint256 i; i < amounts.length; ++i) {
             totalToMint += amounts[i];
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
@@ -161,7 +161,7 @@ contract Airlock is Ownable {
         TokenData memory tokenData = getTokenData[asset];
 
         uint256 length = tokenData.recipients.length;
-        for (uint256 i; i < length; i++) {
+        for (uint256 i; i < length; ++i) {
             ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
         }
 
@@ -192,7 +192,7 @@ contract Airlock is Ownable {
             revert ArrayLengthsMismatch();
         }
 
-        for (uint256 i; i < length; i++) {
+        for (uint256 i; i < length; ++i) {
             getModuleState[modules[i]] = states[i];
             emit SetModuleState(modules[i], states[i]);
         }
