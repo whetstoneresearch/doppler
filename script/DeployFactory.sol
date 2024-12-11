@@ -60,8 +60,7 @@ contract DeployFactoriesWorldChain is Script {
         console2.log("UniswapV3Initializer: ", address(uniswapV3Initializer));
         governanceFactory = new GovernanceFactory(address(airlock));
         console2.log("GovernanceFactory: ", address(governanceFactory));
-        uniswapV2LiquidityMigrator =
-            new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2));
         console2.log("Migrator: ", address(uniswapV2LiquidityMigrator));
         console2.log(airlock.owner());
 
