@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 
@@ -88,12 +88,12 @@ contract DopplerTest is BaseTest {
     //                       _getGammaShare Unit Tests
     // =========================================================================
 
-    function testGetGammaShare() public view {
+    function testNormalizedEpochDelta() public view {
         uint256 endingTime = hook.getEndingTime();
         uint256 startingTime = hook.getStartingTime();
         uint256 epochLength = hook.getEpochLength();
 
-        assertApproxEqAbs(epochLength, uint256(hook.getGammaShare()) * (endingTime - startingTime) / 1e18, 1);
+        assertApproxEqAbs(epochLength, uint256(hook.getNormalizedEpochDelta()) * (endingTime - startingTime) / 1e18, 1);
     }
 
     // =========================================================================

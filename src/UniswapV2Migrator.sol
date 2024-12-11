@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { IMigrator } from "src/interfaces/IMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
@@ -28,6 +28,7 @@ error SenderNotRouter();
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
+ * @custom:security-contact security@whetstone.cc
  */
 contract UniswapV2Migrator is IMigrator {
     using FullMath for uint256;
@@ -89,7 +90,7 @@ contract UniswapV2Migrator is IMigrator {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
-        
+
         uint256 balance0;
 
         if (token0 == address(0)) {

@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
 import { SlugData, Position } from "../../src/Doppler.sol";

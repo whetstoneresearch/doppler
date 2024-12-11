@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 
@@ -362,7 +362,7 @@ contract RebalanceTest is BaseTest {
         assertGt(upperSlug.liquidity, 0, "upperSlug.liquidity is 0");
 
         // Validate that the upper slug has the correct range
-        int24 accumulatorDelta = int24(hook.getGammaShare() * hook.getGamma() / 1e18);
+        int24 accumulatorDelta = int24(int256(hook.getNormalizedEpochDelta()) * hook.getGamma() / 1e18);
         // Explicitly checking that accumulatorDelta is nonzero to show issues with
         // implicit assumption that gamma is positive.
         accumulatorDelta = accumulatorDelta != 0 ? accumulatorDelta : poolKey.tickSpacing;
@@ -910,7 +910,7 @@ contract RebalanceTest is BaseTest {
         }
 
         int24 tauTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
-        int24 computedRange = int24(hook.getGammaShare() * hook.getGamma() / 1e18);
+        int24 computedRange = int24(int256(hook.getNormalizedEpochDelta()) * hook.getGamma() / 1e18);
         int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
 
         int24 expectedTick = hook.alignComputedTickWithTickSpacing(

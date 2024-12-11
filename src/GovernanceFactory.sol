@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { Governance, IVotes } from "src/Governance.sol";
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
@@ -7,6 +7,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 error NotAirlock();
 
+/// @custom:security-contact security@whetstone.cc
 contract GovernanceFactory is IGovernanceFactory {
     TimelockFactory public immutable timelockFactory;
     address public immutable airlock;
@@ -24,9 +25,8 @@ contract GovernanceFactory is IGovernanceFactory {
         }
 
         TimelockController timelockController = timelockFactory.create();
-        address governance = address(
-            new Governance(string.concat(name, " Governance"), IVotes(token), TimelockController(timelockController))
-        );
+        address governance =
+            address(new Governance(string.concat(name, " Governance"), IVotes(token), timelockController));
         timelockController.grantRole(keccak256("PROPOSER_ROLE"), governance);
         timelockController.grantRole(keccak256("CANCELLER_ROLE"), governance);
         timelockController.grantRole(keccak256("EXECUTOR_ROLE"), address(0));

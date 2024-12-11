@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
 import { BaseTest } from "../shared/BaseTest.sol";

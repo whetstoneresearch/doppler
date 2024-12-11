@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
 
@@ -8,6 +8,7 @@ import { Doppler } from "src/Doppler.sol";
 
 error NotAirlock();
 
+/// @custom:security-contact security@whetstone.cc
 contract DopplerFactory is IHookFactory {
     address public immutable airlock;
 
