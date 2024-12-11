@@ -480,11 +480,13 @@ contract Doppler is BaseHook {
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
+            int24 adjustmentTickDelta = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
+
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
             // The upperTick is not always placed so we have to compute its placement in case it's not
             // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
             adjustmentTick =
-                isToken0 ? upperSlugPosition.tickLower + upperSlugRange : upperSlugPosition.tickLower - upperSlugRange;
+                isToken0 ? upperSlugPosition.tickLower + adjustmentTickDelta : upperSlugPosition.tickLower - adjustmentTickDelta;
             int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
             uint256 epochsRemaining = totalEpochs - currentEpoch;
