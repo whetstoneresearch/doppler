@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
+import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02, SenderNotAirlock } from "src/UniswapV2Migrator.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2MigratorTest is Test {
@@ -29,5 +29,11 @@ contract UniswapV2MigratorTest is Test {
         IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).createPair(token0, token1);
         address pair = migrator.initialize(token0, token1, new bytes(0));
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token0, token1), "Wrong pair");
+    }
+
+    function test_migrate_RevertsWhenSenderNotAirlock() public {
+        vm.prank(address(0xbeef));
+        vm.expectRevert(SenderNotAirlock.selector);
+        migrator.migrate(address(0x1111), 0, address(0x2222), 0, address(0), new bytes(0));
     }
 }
