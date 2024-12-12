@@ -1,13 +1,21 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
+import { WETH } from "solmate/src/tokens/WETH.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+
+import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 import { UniswapV3Initializer, OnlyAirlock, PoolAlreadyInitialized } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 
-import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET } from "test/shared/Addresses.sol";
+import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+
+int24 constant DEFAULT_LOWER_TICK = -200_040;
+int24 constant DEFAULT_UPPER_TICK = -167_520;
 
 contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
@@ -31,7 +39,7 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
         );
 
         assertEq(token.balanceOf(address(initializer)), 0, "Wrong initializer balance");
@@ -41,7 +49,7 @@ contract UniswapV3InitializerTest is Test {
         uint128 totalLiquidity = IUniswapV3Pool(pool).liquidity();
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
         (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(initializer), int24(-200_040), int24(-167_520)))
+            keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
         );
         assertEq(liquidity, totalLiquidity, "Wrong liquidity");
     }
@@ -55,7 +63,7 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
         );
 
         vm.expectRevert(PoolAlreadyInitialized.selector);
@@ -64,7 +72,7 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
         );
     }
 
@@ -83,9 +91,36 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(-200_040), int24(-167_520))
+            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
         );
 
+        deal(address(this), 1000 ether);
+        WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
+        WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(token),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+            })
+        );
+
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+
         initializer.exitLiquidity(pool);
+
+        (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
+            keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
+        );
+        assertEq(liquidity, 0, "Position liquidity is not empty");
+        assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 10, "Pool token0 balance is not empty");
+        assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
+        assertEq(IUniswapV3Pool(pool).liquidity(), 0, "Pool liquidity is not empty");
     }
 }
