@@ -9,7 +9,9 @@ import { WETH } from "solmate/src/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
-import { UniswapV3Initializer, OnlyAirlock, PoolAlreadyInitialized } from "src/UniswapV3Initializer.sol";
+import {
+    UniswapV3Initializer, OnlyAirlock, PoolAlreadyInitialized, PoolAlreadyExited
+} from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
@@ -82,11 +84,11 @@ contract UniswapV3InitializerTest is Test {
         initializer.initialize(address(0), address(0), 0, bytes32(0), abi.encode());
     }
 
-    function test_exitLiquidity() public {
+    function test_exitLiquidity() public returns (address pool) {
         DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
         token.approve(address(initializer), type(uint256).max);
 
-        address pool = initializer.initialize(
+        pool = initializer.initialize(
             address(token),
             address(WETH_MAINNET),
             1e27,
@@ -122,6 +124,12 @@ contract UniswapV3InitializerTest is Test {
         assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 10, "Pool token0 balance is not empty");
         assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
         assertEq(IUniswapV3Pool(pool).liquidity(), 0, "Pool liquidity is not empty");
+    }
+
+    function test_exitLiquidity_RevertsWhenAlreadyExited() public {
+        address pool = test_exitLiquidity();
+        vm.expectRevert(PoolAlreadyExited.selector);
+        initializer.exitLiquidity(pool);
     }
 
     function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
