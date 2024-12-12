@@ -5,8 +5,8 @@ import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
-import { LiquidityAmounts } from "lib/v4-core/test/utils/LiquidityAmounts.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
 error OnlyAirlock();
