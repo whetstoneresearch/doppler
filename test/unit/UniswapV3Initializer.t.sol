@@ -123,4 +123,10 @@ contract UniswapV3InitializerTest is Test {
         assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
         assertEq(IUniswapV3Pool(pool).liquidity(), 0, "Pool liquidity is not empty");
     }
+
+    function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
+        vm.prank(address(0xbeef));
+        vm.expectRevert(OnlyAirlock.selector);
+        initializer.exitLiquidity(address(0));
+    }
 }
