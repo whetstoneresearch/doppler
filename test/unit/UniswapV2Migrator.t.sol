@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02, SenderNotAirlock } from "src/UniswapV2Migrator.sol";
-import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2MigratorTest is Test {
     UniswapV2Migrator public migrator;
@@ -21,6 +21,14 @@ contract UniswapV2MigratorTest is Test {
         address pair = migrator.initialize(token0, token1, new bytes(0));
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token0, token1), "Wrong pair");
         assertEq(pair, migrator.getPool(token0, token1), "Wrong pair");
+    }
+
+    function test_initialize_UsesWETHWhenToken0IsZero() public {
+        address token0 = address(0);
+        address token1 = address(0x2222);
+        address pair = migrator.initialize(token0, token1, new bytes(0));
+        assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token1, WETH_MAINNET), "Wrong pair");
+        assertEq(pair, migrator.getPool(token1, WETH_MAINNET), "Wrong pair");
     }
 
     function test_initialize_DoesNotFailWhenPairIsAlreadyCreated() public {
