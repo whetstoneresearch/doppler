@@ -20,7 +20,7 @@ interface IUniswapV2Factory {
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
-error NotAirlock();
+error SenderNotAirlock();
 
 /**
  * @author Whetstone Research
@@ -76,7 +76,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         bytes calldata
     ) external payable {
         if (msg.sender != airlock) {
-            revert NotAirlock();
+            revert SenderNotAirlock();
         }
 
         if (token0 == address(0)) {
