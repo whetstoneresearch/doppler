@@ -98,7 +98,7 @@ contract DopplerImplementation is Doppler {
     }
 
     function getExpectedAmountSoldWithEpochOffset(
-        uint256 offset
+        int256 offset
     ) public view returns (uint256) {
         return _getExpectedAmountSoldWithEpochOffset(offset);
     }
