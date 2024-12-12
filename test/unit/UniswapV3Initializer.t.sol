@@ -10,7 +10,12 @@ import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 import {
-    UniswapV3Initializer, OnlyAirlock, PoolAlreadyInitialized, PoolAlreadyExited
+    UniswapV3Initializer,
+    OnlyAirlock,
+    PoolAlreadyInitialized,
+    PoolAlreadyExited,
+    OnlyPool,
+    CallbackData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 
@@ -136,5 +141,10 @@ contract UniswapV3InitializerTest is Test {
         vm.prank(address(0xbeef));
         vm.expectRevert(OnlyAirlock.selector);
         initializer.exitLiquidity(address(0));
+    }
+
+    function test_uniswapV3MintCallback_RevertsWhenSenderNotPool() public {
+        vm.expectRevert(OnlyPool.selector);
+        initializer.uniswapV3MintCallback(0, 0, abi.encode(CallbackData(address(0), address(0), 0)));
     }
 }
