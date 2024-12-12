@@ -30,7 +30,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     using SafeTransferLib for ERC20;
 
     IUniswapV2Factory public immutable factory;
-    IUniswapV2Router02 public immutable router;
     IWETH public immutable weth;
     address public immutable airlock;
 
@@ -39,7 +38,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(address airlock_, IUniswapV2Factory factory_) {
+    constructor(address airlock_, IUniswapV2Factory factory_, IUniswapV2Router02 router) {
         airlock = airlock_;
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
