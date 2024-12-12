@@ -13,7 +13,7 @@ error OnlyAirlock();
 error OnlyPool();
 error PoolAlreadyInitialized();
 error PoolAlreadyExited();
-error CannotMigrate();
+error CannotMigrate(int24 expectedTick, int24 currentTick);
 
 struct CallbackData {
     address asset;
@@ -115,16 +115,21 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         int24 endingTick = getState[pool].asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
 
-        require(tick == endingTick, CannotMigrate());
+        // TODO: I think it's possible to move the current tick above or under our current tick range
+        require(tick == endingTick, CannotMigrate(endingTick, tick));
 
+        (amount0, amount1) =
+            IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
         (,,, uint128 tokensOwed0, uint128 tokensOwed1) = IUniswapV3Pool(pool).positions(
             keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
         );
         IUniswapV3Pool(pool).collect(
             address(this), getState[pool].tickLower, getState[pool].tickUpper, tokensOwed0, tokensOwed1
         );
-        (amount0, amount1) =
-            IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
+
+        // TODO: Use safeTransfer instead
+        ERC20(token0).transfer(msg.sender, tokensOwed0);
+        ERC20(token1).transfer(msg.sender, tokensOwed1);
     }
 
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
