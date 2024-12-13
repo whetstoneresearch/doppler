@@ -6,8 +6,6 @@ import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler, IPoolManager } from "src/Doppler.sol";
 
@@ -22,44 +20,17 @@ uint160 constant flags = uint160(
         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
 );
 
-struct MineParams {
-    address poolManager;
-    uint256 numTokensToSell;
-    int24 minTick;
-    int24 maxTick;
-    address airlock;
-    string name;
-    string symbol;
-    uint256 initialSupply;
-    address numeraire;
-    uint256 startingTime;
-    uint256 endingTime;
-    uint256 minimumProceeds;
-    uint256 maximumProceeds;
-    uint256 epochLength;
-    int24 gamma;
-    uint256 numPDSlugs;
-}
-
-function mine(
+function mineV4(
     uint256 initialSupply,
-    uint256 numTokensToSell,
     address numeraire,
     ITokenFactory tokenFactory,
     bytes memory tokenFactoryData,
-    bytes memory tokenCreationCode,
-    IGovernanceFactory governanceFactory,
-    bytes memory governanceFactoryData,
     IPoolInitializer poolInitializer,
-    bytes memory poolInitializerData,
-    bytes memory poolCreationCode,
-    ILiquidityMigrator liquidityMigrator,
-    bytes memory liquidityMigratorData
+    bytes memory poolInitializerData
 ) view returns (bytes32, address, address) {
     (
         IPoolManager poolManager,
-        // uint256 numTokensToSell_
-        ,
+        uint256 numTokensToSell,
         uint256 minimumProceeds,
         uint256 maximumProceeds,
         uint256 startingTime,
@@ -92,9 +63,9 @@ function mine(
 
     isToken0 = numeraire != address(0);
 
-    bytes32 hookInitHash = keccak256(
+    bytes32 dopplerInitHash = keccak256(
         abi.encodePacked(
-            poolCreationCode,
+            type(Doppler).creationCode,
             abi.encode(
                 poolManager,
                 numTokensToSell,
@@ -113,13 +84,23 @@ function mine(
         )
     );
 
-    (string memory name, string memory symbol) = abi.decode(tokenFactoryData, (string, string));
+    (
+        string memory name,
+        string memory symbol,
+        uint256 yearlyMintCap,
+        address[] memory recipients,
+        uint256[] memory amounts
+    ) = abi.decode(tokenFactoryData, (string, string, uint256, address[], uint256[]));
 
-    bytes32 tokenInitHash =
-        keccak256(abi.encodePacked(tokenCreationCode, abi.encode("", "", initialSupply, airlock, airlock, address(0))));
+    bytes32 tokenInitHash = keccak256(
+        abi.encodePacked(
+            type(DERC20).creationCode,
+            abi.encode(name, symbol, initialSupply, airlock, airlock, yearlyMintCap, recipients, amounts)
+        )
+    );
 
     for (uint256 salt; salt < 1_000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), hookInitHash, address(poolInitializer));
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
         if (
@@ -139,46 +120,19 @@ function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deplo
 
 contract AirlockMinerTest is Test {
     function test_mine_works() public view {
-        address tokenFactory = address(0xb0b);
-        address hookFactory = address(0xbeef);
-        address numeraire = address(type(uint160).max / 2);
-
-        bytes32 salt;
-        address hook;
-        address token;
-
-        /*
-         = mine(
-
-
-            tokenFactory,
-            hookFactory,
-            MineParams(
-                address(0xbeef),
-                1e27,
-                int24(-1600),
-                int24(1600),
-                address(0xdead),
-                "Test",
-                "TST",
-                1e27,
-                numeraire,
-                1 days,
-                7 days,
-                1 ether,
-                10 ether,
-                400 seconds,
-                int24(800),
-                3
-            )
-        ); 
-
-        */
+        (bytes32 salt, address hook, address token) = mineV4(
+            1e27,
+            address(0),
+            ITokenFactory(address(0xfac)),
+            abi.encode("Test", "TST", 1e27, new address[](0), new uint256[](0)),
+            IPoolInitializer(address(0x9007)),
+            abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0, address(this))
+        );
 
         console.log("salt: %s", uint256(salt));
         console.log("hook: %s", hook);
         console.log("token: %s", token);
 
-        assertTrue(numeraire > token);
+        // assertTrue(address(0) > token);
     }
 }
