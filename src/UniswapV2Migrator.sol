@@ -13,6 +13,9 @@ interface IUniswapV2Pair {
     function mint(
         address to
     ) external returns (uint256 liquidity);
+    function balanceOf(
+        address owner
+    ) external view returns (uint256);
 }
 
 interface IUniswapV2Factory {
@@ -74,7 +77,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         uint256 amount1,
         address recipient,
         bytes calldata
-    ) external payable {
+    ) external payable returns (uint256 liquidity) {
         if (msg.sender != airlock) {
             revert SenderNotAirlock();
         }
@@ -95,7 +98,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         ERC20(token0).safeTransfer(pool, amount0);
         ERC20(token1).safeTransfer(pool, amount1);
 
-        IUniswapV2Pair(pool).mint(recipient);
+        liquidity = IUniswapV2Pair(pool).mint(recipient);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);

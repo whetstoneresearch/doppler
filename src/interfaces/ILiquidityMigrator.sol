@@ -14,5 +14,5 @@ interface ILiquidityMigrator {
         uint256 amount1,
         address recipient,
         bytes calldata data
-    ) external payable;
+    ) external payable returns (uint256 liquidity);
 }
