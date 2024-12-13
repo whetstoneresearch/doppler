@@ -38,7 +38,7 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_initialize() public {
-        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
+        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, new address[](0), new uint256[](0));
         token.approve(address(initializer), type(uint256).max);
 
         address pool = initializer.initialize(
@@ -62,7 +62,7 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsIfAlreadyInitialized() public {
-        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
+        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, new address[](0), new uint256[](0));
         token.approve(address(initializer), type(uint256).max);
 
         initializer.initialize(
@@ -90,7 +90,7 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_exitLiquidity() public returns (address pool) {
-        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), new address[](0), new uint256[](0));
+        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, new address[](0), new uint256[](0));
         token.approve(address(initializer), type(uint256).max);
 
         pool = initializer.initialize(

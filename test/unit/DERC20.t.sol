@@ -18,7 +18,7 @@ contract DERC20Test is Test {
         amounts[0] = 1e20;
         amounts[1] = 2e22;
 
-        token = new DERC20("Test", "TST", INITIAL_SUPPLY, address(0xb0b), address(0xbeef), recipients, amounts);
+        token = new DERC20("Test", "TST", INITIAL_SUPPLY, address(0xb0b), address(0xbeef), 0, recipients, amounts);
 
         assertEq(token.name(), "Test", "Wrong name");
         assertEq(token.symbol(), "TST", "Wrong symbol");
