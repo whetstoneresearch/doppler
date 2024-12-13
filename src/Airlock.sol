@@ -18,7 +18,7 @@ enum ModuleState {
     LiquidityMigrator
 }
 
-error WrongModuleState();
+error WrongModuleState(address module, ModuleState expected, ModuleState actual);
 
 error WrongInitialSupply();
 
@@ -80,10 +80,28 @@ contract Airlock is Ownable {
         bytes calldata liquidityMigratorData,
         bytes32 salt
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
-        require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
-        require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
-        require(getModuleState[address(poolInitializer)] == ModuleState.PoolInitializer, WrongModuleState());
-        require(getModuleState[address(liquidityMigrator)] == ModuleState.LiquidityMigrator, WrongModuleState());
+        require(
+            getModuleState[address(tokenFactory)] == ModuleState.TokenFactory,
+            WrongModuleState(address(tokenFactory), ModuleState.TokenFactory, getModuleState[address(tokenFactory)])
+        );
+        require(
+            getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory,
+            WrongModuleState(
+                address(governanceFactory), ModuleState.GovernanceFactory, getModuleState[address(governanceFactory)]
+            )
+        );
+        require(
+            getModuleState[address(poolInitializer)] == ModuleState.PoolInitializer,
+            WrongModuleState(
+                address(poolInitializer), ModuleState.PoolInitializer, getModuleState[address(poolInitializer)]
+            )
+        );
+        require(
+            getModuleState[address(liquidityMigrator)] == ModuleState.LiquidityMigrator,
+            WrongModuleState(
+                address(liquidityMigrator), ModuleState.LiquidityMigrator, getModuleState[address(liquidityMigrator)]
+            )
+        );
 
         /*
         bytes32 salt = keccak256(
