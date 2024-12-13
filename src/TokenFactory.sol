@@ -17,20 +17,26 @@ contract TokenFactory is ITokenFactory {
     }
 
     function create(
-        string memory name,
-        string memory symbol,
         uint256 initialSupply,
         address recipient,
         address owner,
-        address pool,
-        bytes memory data,
-        bytes32 salt
+        bytes32 salt,
+        bytes calldata data
     ) external returns (address) {
         if (msg.sender != airlock) {
             revert NotAirlock();
         }
 
-        (uint256 yearlyMintCap) = abi.decode(data, (uint256));
-        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, pool, yearlyMintCap));
+        (
+            string memory name,
+            string memory symbol,
+            uint256 yearlyMintCap,
+            address[] memory recipients,
+            uint256[] memory amounts
+        ) = abi.decode(data, (string, string, uint256, address[], uint256[]));
+
+        return address(
+            new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, yearlyMintCap, recipients, amounts)
+        );
     }
 }

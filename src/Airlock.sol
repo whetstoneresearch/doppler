@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { IPoolManager, PoolKey, TickMath } from "v4-core/src/PoolManager.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
-import { IHookFactory, IHook } from "src/interfaces/IHookFactory.sol";
-import { IMigrator } from "src/interfaces/IMigrator.sol";
-import { lessThan, Currency } from "v4-core/src/types/Currency.sol";
-import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 enum ModuleState {
     NotWhitelisted,
     TokenFactory,
     GovernanceFactory,
-    HookFactory,
-    Migrator
+    PoolInitializer,
+    LiquidityMigrator
 }
 
 error WrongModuleState();
@@ -26,20 +24,17 @@ error WrongInitialSupply();
 
 error ArrayLengthsMismatch();
 
-error InvalidPoolKey();
-error TokenNotInPoolKey();
-error HookNotInPoolKey();
-
-struct TokenData {
-    PoolKey poolKey;
+struct AssetData {
+    address numeraire;
     address timelock;
     address governance;
-    IMigrator migrator;
-    address[] recipients;
-    uint256[] amounts;
+    ILiquidityMigrator liquidityMigrator;
+    IPoolInitializer poolInitializer;
+    address pool;
+    address migrationPool;
 }
 
-event Create(address indexed asset, PoolKey indexed poolKey, address hook);
+event Create(address asset, address indexed numeraire);
 
 event Migrate(address indexed asset, address indexed pool);
 
@@ -47,111 +42,97 @@ event SetModuleState(address indexed module, ModuleState indexed state);
 
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
-    using CurrencyLibrary for Currency;
+    mapping(address module => ModuleState state) public getModuleState;
+    mapping(address asset => AssetData data) public getAssetData;
 
-    IPoolManager public immutable poolManager;
-
-    mapping(address module => ModuleState moduleState) public getModuleState;
-    mapping(address token => TokenData tokenData) public getTokenData;
-
-    receive() external payable { }
-
-    /// @param poolManager_ Address of the Uniswap V4 pool manager
-    constructor(
-        IPoolManager poolManager_
-    ) Ownable(msg.sender) {
-        poolManager = poolManager_;
+    receive() external payable {
+        // TODO: We might want to restrict this to only approved poolInitializer contracts
     }
+
+    constructor(
+        address owner_
+    ) Ownable(owner_) { }
 
     /**
      * TODO:
      * - Creating a token should incur fees (platform and frontend fees)
      *
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
-     * @param name Name of the token
-     * @param symbol Symbol of the token
      * @param initialSupply Total supply of the token (might be increased later on)
      * @param numTokensToSell Amount of tokens to sell in the Doppler hook
-     * @param poolKey Pool key of the liquidity pool (precomputed)
-     * @param recipients Array of addresses to receive tokens after the migration
-     * @param amounts Array of amounts to receive after the migration
      * @param tokenFactory Address of the factory contract deploying the ERC20 token
-     * @param tokenData Arbitrary data to pass to the token factory
+     * @param tokenFactoryData Arbitrary data to pass to the token factory
      * @param governanceFactory Address of the factory contract deploying the governance
-     * @param governanceData Arbitrary data to pass to the governance factory
-     * @param hookFactory Address of the factory contract deploying the Uniswap v4 hook
-     * @param hookData Arbitrary data to pass to the hook factory
-     * @param migrator Address of the migrator contract
-     * @param salt Salt to use for the create2 calls
-     * @return token Address of the deployed DERC20 token contract
-     * @return governance Address of the deployed governance contract
-     * @return hook Address of the deployed doppler hook
+     * @param governanceFactoryData Arbitrary data to pass to the governance factory
+     * @param liquidityMigrator Address of the liquidity migrator contract
      */
     function create(
-        string memory name,
-        string memory symbol,
         uint256 initialSupply,
         uint256 numTokensToSell,
-        PoolKey memory poolKey,
-        address[] memory recipients,
-        uint256[] memory amounts,
+        address numeraire,
         ITokenFactory tokenFactory,
-        bytes memory tokenData,
+        bytes calldata tokenFactoryData,
         IGovernanceFactory governanceFactory,
-        bytes memory governanceData,
-        IHookFactory hookFactory,
-        bytes memory hookData,
-        IMigrator migrator,
-        address pool,
+        bytes calldata governanceFactoryData,
+        IPoolInitializer poolInitializer,
+        bytes calldata poolInitializerData,
+        ILiquidityMigrator liquidityMigrator,
+        bytes calldata liquidityMigratorData,
         bytes32 salt
-    ) external returns (address token, address governance, address hook) {
+    ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(getModuleState[address(tokenFactory)] == ModuleState.TokenFactory, WrongModuleState());
         require(getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory, WrongModuleState());
-        require(getModuleState[address(hookFactory)] == ModuleState.HookFactory, WrongModuleState());
-        require(getModuleState[address(migrator)] == ModuleState.Migrator, WrongModuleState());
+        require(getModuleState[address(poolInitializer)] == ModuleState.PoolInitializer, WrongModuleState());
+        require(getModuleState[address(liquidityMigrator)] == ModuleState.LiquidityMigrator, WrongModuleState());
 
-        require(recipients.length == amounts.length, ArrayLengthsMismatch());
+        /*
+        bytes32 salt = keccak256(
+            abi.encodePacked(
+                initialSupply,
+                numTokensToSell,
+                numeraire,
+                recipients,
+                amounts,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceFactoryData,
+                poolInitializer,
+                poolInitializerData,
+                liquidityMigrator,
+                liquidityMigratorData
+            )
+        );
+        */
 
-        require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
-
+        /*
         uint256 totalToMint = numTokensToSell;
         for (uint256 i; i < amounts.length; ++i) {
             totalToMint += amounts[i];
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
+        */
 
-        token = tokenFactory.create(name, symbol, initialSupply, address(this), address(this), pool, tokenData, salt);
-        hook = hookFactory.create(poolManager, numTokensToSell, hookData, salt);
+        asset = tokenFactory.create(initialSupply, address(this), address(this), salt, tokenFactoryData);
 
-        require(
-            token == Currency.unwrap(poolKey.currency0) || token == Currency.unwrap(poolKey.currency1),
-            TokenNotInPoolKey()
-        );
-        require(hook == address(poolKey.hooks), HookNotInPoolKey());
+        (governance, timelock) = governanceFactory.create(asset, governanceFactoryData);
 
-        ERC20(token).transfer(hook, numTokensToSell);
+        ERC20(asset).approve(address(poolInitializer), numTokensToSell);
+        poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
 
-        // TODO: I don't think we need to pass the salt here, create2 is not needed anyway
-        address timelock;
-        (governance, timelock) = governanceFactory.create(name, token, governanceData);
+        migrationPool = liquidityMigrator.initialize(asset, numeraire, liquidityMigratorData);
 
-        migrator.createPool(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
-
-        getTokenData[token] = TokenData({
-            governance: governance,
-            recipients: recipients,
-            amounts: amounts,
-            migrator: migrator,
+        getAssetData[asset] = AssetData({
+            numeraire: numeraire,
             timelock: timelock,
-            poolKey: poolKey
+            governance: governance,
+            liquidityMigrator: liquidityMigrator,
+            poolInitializer: poolInitializer,
+            pool: pool,
+            migrationPool: migrationPool
         });
 
-        // TODO: Do we really have to initialize the pool at the right price?
-        poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(0));
-
-        emit Create(token, poolKey, hook);
-
-        return (token, governance, hook);
+        emit Create(asset, numeraire);
     }
 
     /**
@@ -161,26 +142,17 @@ contract Airlock is Ownable {
     function migrate(
         address asset
     ) external {
-        TokenData memory tokenData = getTokenData[asset];
-
-        uint256 length = tokenData.recipients.length;
-        for (uint256 i; i < length; ++i) {
-            ERC20(asset).transfer(tokenData.recipients[i], tokenData.amounts[i]);
-        }
+        AssetData memory assetData = getAssetData[asset];
 
         DERC20(asset).unlockPool();
-        uint256 price = IHook(address(tokenData.poolKey.hooks)).migrate(tokenData.timelock);
-        Ownable(asset).transferOwnership(tokenData.timelock);
-
-        (address pool,) = tokenData.migrator.migrate(
-            Currency.unwrap(tokenData.poolKey.currency0),
-            Currency.unwrap(tokenData.poolKey.currency1),
-            price,
-            tokenData.timelock,
-            new bytes(0)
+        Ownable(asset).transferOwnership(assetData.timelock);
+        (address token0, uint256 amount0, address token1, uint256 amount1) =
+            assetData.poolInitializer.exitLiquidity(asset);
+        assetData.liquidityMigrator.migrate{ value: address(this).balance > 0 ? address(this).balance : 0 }(
+            token0, amount0, token1, amount1, assetData.timelock, new bytes(0)
         );
 
-        emit Migrate(asset, pool);
+        emit Migrate(asset, assetData.pool);
     }
 
     /**
@@ -188,7 +160,7 @@ contract Airlock is Ownable {
      * @param modules Array of module addresses
      * @param states Array of module states
      */
-    function setModuleState(address[] memory modules, ModuleState[] memory states) external onlyOwner {
+    function setModuleState(address[] calldata modules, ModuleState[] calldata states) external onlyOwner {
         uint256 length = modules.length;
 
         if (length != states.length) {

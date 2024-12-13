@@ -10,7 +10,7 @@ import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId
 import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { Position } from "../../src/Doppler.sol";
+import { Position } from "src/Doppler.sol";
 
 contract AfterInitializeTest is BaseTest {
     using PoolIdLibrary for PoolKey;
