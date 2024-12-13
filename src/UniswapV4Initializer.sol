@@ -85,6 +85,8 @@ contract UniswapV4Initializer is IPoolInitializer {
         // require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
 
         poolManager.initialize(poolKey, sqrtPriceX96);
+
+        return address(doppler);
     }
 
     function exitLiquidity(
