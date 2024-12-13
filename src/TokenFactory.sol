@@ -1,11 +1,12 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 error NotAirlock();
 
+/// @custom:security-contact security@whetstone.cc
 contract TokenFactory is ITokenFactory {
     address public immutable airlock;
 
@@ -26,9 +27,16 @@ contract TokenFactory is ITokenFactory {
             revert NotAirlock();
         }
 
-        (string memory name, string memory symbol, address[] memory recipients, uint256[] memory amounts) =
-            abi.decode(data, (string, string, address[], uint256[]));
+        (
+            string memory name,
+            string memory symbol,
+            uint256 yearlyMintCap,
+            address[] memory recipients,
+            uint256[] memory amounts
+        ) = abi.decode(data, (string, string, uint256, address[], uint256[]));
 
-        return address(new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, recipients, amounts));
+        return address(
+            new DERC20{ salt: salt }(name, symbol, initialSupply, recipient, owner, yearlyMintCap, recipients, amounts)
+        );
     }
 }

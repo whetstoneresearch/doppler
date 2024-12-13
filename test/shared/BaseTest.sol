@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -17,12 +17,13 @@ import { Currency } from "v4-periphery/lib/v4-core/src/types/Currency.sol";
 import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 import { PoolModifyLiquidityTest } from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/src/types/BalanceDelta.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import { LibString } from "solmate/src/utils/LibString.sol";
+import { CustomRevert } from "v4-periphery/lib/v4-core/src/libraries/CustomRevert.sol";
 
 import { DopplerImplementation } from "./DopplerImplementation.sol";
 
@@ -113,7 +114,7 @@ contract BaseTest is Test, Deployers {
 
     // Contracts
 
-    Quoter quoter;
+    V4Quoter quoter;
     CustomRouter router;
 
     // Deploy functions
@@ -231,7 +232,7 @@ contract BaseTest is Test, Deployers {
 
         poolId = key.toId();
 
-        manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick), new bytes(0));
+        manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick));
 
         uint24 protocolFee = uint24(vm.envOr("PROTOCOL_FEE", uint256(0)));
 
@@ -245,7 +246,7 @@ contract BaseTest is Test, Deployers {
     }
 
     function setUp() public virtual {
-        manager = new PoolManager();
+        manager = new PoolManager(address(this));
         _deploy();
 
         // Deploy swapRouter
@@ -264,7 +265,7 @@ contract BaseTest is Test, Deployers {
         TestERC20(token1).approve(address(swapRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        quoter = new Quoter(manager);
+        quoter = new V4Quoter(manager);
         vm.label(address(quoter), "Quoter");
 
         router = new CustomRouter(swapRouter, quoter, key, isToken0, usingEth);
@@ -274,33 +275,31 @@ contract BaseTest is Test, Deployers {
     function computeBuyExactOut(
         uint256 amountOut
     ) public returns (uint256) {
-        (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
-            IQuoter.QuoteExactSingleParams({
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+            IV4Quoter.QuoteExactSingleParams({
                 poolKey: key,
                 zeroForOne: !isToken0,
                 exactAmount: uint128(amountOut),
-                sqrtPriceLimitX96: !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT,
                 hookData: ""
             })
         );
 
-        return uint256(uint128(deltaAmounts[0]));
+        return amountIn;
     }
 
     function computeSellExactOut(
         uint256 amountOut
     ) public returns (uint256) {
-        (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
-            IQuoter.QuoteExactSingleParams({
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+            IV4Quoter.QuoteExactSingleParams({
                 poolKey: key,
                 zeroForOne: isToken0,
                 exactAmount: uint128(amountOut),
-                sqrtPriceLimitX96: isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT,
                 hookData: ""
             })
         );
 
-        return uint256(uint128(deltaAmounts[0]));
+        return amountIn;
     }
 
     function buyExactIn(
@@ -383,7 +382,7 @@ contract BaseTest is Test, Deployers {
         return isToken0 ? (delta0, delta1) : (delta1, delta0);
     }
 
-    function sellExpectRevert(int256 amount, bytes4 selector) public {
+    function sellExpectRevert(int256 amount, bytes4 selector, bool beforeSwap) public {
         // Negative means exactIn, positive means exactOut.
         if (amount > 0) {
             revert UnexpectedPositiveAmount();
@@ -391,7 +390,13 @@ contract BaseTest is Test, Deployers {
         uint256 approveAmount = uint256(-amount);
         TestERC20(asset).approve(address(swapRouter), approveAmount);
         vm.expectRevert(
-            abi.encodeWithSelector(Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector))
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                beforeSwap ? IHooks.beforeSwap.selector : IHooks.afterSwap.selector,
+                abi.encodeWithSelector(selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
         );
         swapRouter.swap(
             key,
@@ -401,7 +406,7 @@ contract BaseTest is Test, Deployers {
         );
     }
 
-    function buyExpectRevert(int256 amount, bytes4 selector) public {
+    function buyExpectRevert(int256 amount, bytes4 selector, bool beforeSwap) public {
         // Negative means exactIn, positive means exactOut.
         if (amount > 0) {
             revert UnexpectedPositiveAmount();
@@ -416,7 +421,13 @@ contract BaseTest is Test, Deployers {
         }
 
         vm.expectRevert(
-            abi.encodeWithSelector(Hooks.Wrap__FailedHookCall.selector, hook, abi.encodeWithSelector(selector))
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                beforeSwap ? IHooks.beforeSwap.selector : IHooks.afterSwap.selector,
+                abi.encodeWithSelector(selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
         );
         swapRouter.swap{ value: usingEth ? mintAmount : 0 }(
             key,

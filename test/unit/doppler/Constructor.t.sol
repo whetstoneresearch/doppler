@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
@@ -27,7 +27,7 @@ using PoolIdLibrary for PoolKey;
 
 contract ConstructorTest is BaseTest {
     function setUp() public override {
-        manager = new PoolManager();
+        manager = new PoolManager(address(this));
         _deployTokens();
     }
 
@@ -81,7 +81,7 @@ contract ConstructorTest is BaseTest {
         if (selector == 0) {
             poolId = key.toId();
 
-            manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick), new bytes(0));
+            manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick));
         }
     }
 

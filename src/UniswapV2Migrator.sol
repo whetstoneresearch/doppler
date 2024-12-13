@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
@@ -28,6 +28,7 @@ error SenderNotAirlock();
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
+ * @custom:security-contact security@whetstone.cc
  */
 contract UniswapV2Migrator is ILiquidityMigrator {
     using SafeTransferLib for ERC20;

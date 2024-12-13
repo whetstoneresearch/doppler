@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";

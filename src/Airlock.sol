@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
@@ -36,10 +36,11 @@ struct AssetData {
 
 event Create(address asset, address indexed numeraire);
 
-event Migrate(address asset, address pool);
+event Migrate(address indexed asset, address indexed pool);
 
-event SetModuleState(address module, ModuleState state);
+event SetModuleState(address indexed module, ModuleState indexed state);
 
+/// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
     mapping(address module => ModuleState state) public getModuleState;
     mapping(address asset => AssetData data) public getAssetData;
@@ -106,7 +107,7 @@ contract Airlock is Ownable {
 
         /*
         uint256 totalToMint = numTokensToSell;
-        for (uint256 i; i < amounts.length; i++) {
+        for (uint256 i; i < amounts.length; ++i) {
             totalToMint += amounts[i];
         }
         require(totalToMint == initialSupply, WrongInitialSupply());
@@ -166,7 +167,7 @@ contract Airlock is Ownable {
             revert ArrayLengthsMismatch();
         }
 
-        for (uint256 i; i < length; i++) {
+        for (uint256 i; i < length; ++i) {
             getModuleState[modules[i]] = states[i];
             emit SetModuleState(modules[i], states[i]);
         }

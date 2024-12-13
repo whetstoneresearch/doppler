@@ -1,12 +1,12 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
 import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import { IPoolManager } from "v4-core/src/PoolManager.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/src/types/BalanceDelta.sol";
 import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
@@ -20,14 +20,14 @@ contract CustomRouter is Test {
     using BalanceDeltaLibrary for BalanceDelta;
 
     PoolSwapTest public swapRouter;
-    Quoter public quoter;
+    V4Quoter public quoter;
     PoolKey public key;
     bool public isToken0;
     bool public isUsingEth;
     address public numeraire;
     address public asset;
 
-    constructor(PoolSwapTest swapRouter_, Quoter quoter_, PoolKey memory key_, bool isToken0_, bool isUsingEth_) {
+    constructor(PoolSwapTest swapRouter_, V4Quoter quoter_, PoolKey memory key_, bool isToken0_, bool isUsingEth_) {
         swapRouter = swapRouter_;
         quoter = quoter_;
         key = key_;
@@ -41,33 +41,31 @@ contract CustomRouter is Test {
     function computeBuyExactOut(
         uint256 amountOut
     ) public returns (uint256) {
-        (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
-            IQuoter.QuoteExactSingleParams({
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+            IV4Quoter.QuoteExactSingleParams({
                 poolKey: key,
                 zeroForOne: !isToken0,
                 exactAmount: uint128(amountOut),
-                sqrtPriceLimitX96: !isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT,
                 hookData: ""
             })
         );
 
-        return uint256(uint128(deltaAmounts[0]));
+        return amountIn;
     }
 
     function computeSellExactOut(
         uint256 amountOut
     ) public returns (uint256) {
-        (int128[] memory deltaAmounts,,) = quoter.quoteExactOutputSingle(
-            IQuoter.QuoteExactSingleParams({
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+            IV4Quoter.QuoteExactSingleParams({
                 poolKey: key,
                 zeroForOne: isToken0,
                 exactAmount: uint128(amountOut),
-                sqrtPriceLimitX96: isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT,
                 hookData: ""
             })
         );
 
-        return uint256(uint128(deltaAmounts[0]));
+        return amountIn;
     }
 
     /// @notice Buys asset tokens using an exact amount of numeraire tokens.

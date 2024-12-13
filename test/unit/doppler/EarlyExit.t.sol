@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 
@@ -16,7 +16,7 @@ import { PoolManager } from "v4-core/src/PoolManager.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 import { MaximumProceedsReached } from "src/Doppler.sol";
 import { PoolModifyLiquidityTest } from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import "forge-std/console.sol";
 
@@ -61,7 +61,7 @@ contract EarlyExitTest is BaseTest {
             ),
             address(hook)
         );
-        manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick), new bytes(0));
+        manager.initialize(key, TickMath.getSqrtPriceAtTick(startTick));
 
         // Deploy swapRouter
         swapRouter = new PoolSwapTest(manager);
@@ -78,7 +78,7 @@ contract EarlyExitTest is BaseTest {
         TestERC20(token1).approve(address(swapRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        quoter = new Quoter(manager);
+        quoter = new V4Quoter(manager);
 
         router = new CustomRouter(swapRouter, quoter, key, isToken0, usingEth);
     }
@@ -96,6 +96,6 @@ contract EarlyExitTest is BaseTest {
         buy(-maximumProceeds);
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
-        sellExpectRevert(-1 ether, MaximumProceedsReached.selector);
+        sellExpectRevert(-1 ether, MaximumProceedsReached.selector, true);
     }
 }

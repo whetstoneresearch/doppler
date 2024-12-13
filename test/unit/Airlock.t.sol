@@ -1,5 +1,5 @@
 /// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 
@@ -9,7 +9,7 @@ import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
 import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
-import { Quoter } from "v4-periphery/src/lens/Quoter.sol";
+import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 
@@ -51,6 +51,8 @@ contract AirlockTest is Test, Deployers {
     UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
     UniswapV2Migrator uniswapV2LiquidityMigrator;
+
+    bytes public defaultTokenData = abi.encode(1e21);
 
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
@@ -180,7 +182,7 @@ contract AirlockTest is Test, Deployers {
             params.numTokensToSell,
             address(0),
             tokenFactory,
-            new bytes(0),
+            defaultTokenData,
             governanceFactory,
             new bytes(0),
             uniswapV4Initializer,
@@ -216,7 +218,7 @@ contract AirlockTest is Test, Deployers {
 
         // Deploy swapRouter
         swapRouter = new PoolSwapTest(manager);
-        Quoter quoter = new Quoter(manager);
+        V4Quoter quoter = new V4Quoter(manager);
         CustomRouter router = new CustomRouter(swapRouter, quoter, poolKey, false, true);
         uint256 amountIn = router.computeBuyExactOut(DEFAULT_MIN_PROCEEDS);
 
@@ -311,7 +313,7 @@ contract AirlockTest is Test, Deployers {
                 params.numTokensToSell,
                 address(0),
                 tokenFactory,
-                new bytes(0),
+                defaultTokenData,
                 governanceFactory,
                 new bytes(0),
                 uniswapV4Initializer,
@@ -365,7 +367,7 @@ contract AirlockTest is Test, Deployers {
                 DEFAULT_INITIAL_SUPPLY,
                 address(0),
                 tokenFactory,
-                new bytes(0),
+                defaultTokenData,
                 governanceFactory,
                 new bytes(0),
                 uniswapV4Initializer,

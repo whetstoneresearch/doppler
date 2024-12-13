@@ -1,4 +1,4 @@
-pragma solidity 0.8.26;
+pragma solidity ^0.8.24;
 
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
@@ -28,7 +28,7 @@ contract SwapTest is BaseTest {
     function test_swap_RevertsBeforeStartTime() public {
         vm.warp(hook.getStartingTime() - 1); // 1 second before the start time
 
-        buyExpectRevert(-1 ether, BeforeStartTime.selector);
+        buyExpectRevert(-1 ether, BeforeStartTime.selector, true);
     }
 
     function test_swap_RevertsAfterEndTimeInsufficientProceedsAssetBuy() public {
@@ -40,7 +40,7 @@ contract SwapTest is BaseTest {
 
         vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
 
-        buyExpectRevert(-1 ether, InvalidSwapAfterMaturityInsufficientProceeds.selector);
+        buyExpectRevert(-1 ether, InvalidSwapAfterMaturityInsufficientProceeds.selector, true);
     }
 
     function test_swap_CanRepurchaseNumeraireAfterEndTimeInsufficientProceeds() public {
@@ -78,7 +78,7 @@ contract SwapTest is BaseTest {
 
         vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
 
-        buyExpectRevert(-1 ether, InvalidSwapAfterMaturitySufficientProceeds.selector);
+        buyExpectRevert(-1 ether, InvalidSwapAfterMaturitySufficientProceeds.selector, true);
     }
 
     function test_swap_DoesNotRebalanceTwiceInSameEpoch() public {
@@ -163,7 +163,7 @@ contract SwapTest is BaseTest {
     function test_swap_CannotSwapBelowLowerSlug_AfterInitialization() public {
         vm.warp(hook.getStartingTime());
 
-        sellExpectRevert(-1 ether, SwapBelowRange.selector);
+        sellExpectRevert(-1 ether, SwapBelowRange.selector, false);
     }
 
     function test_swap_CannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
@@ -177,7 +177,7 @@ contract SwapTest is BaseTest {
         // Unsell half of sold tokens
         sell(-0.5 ether);
 
-        sellExpectRevert(-0.6 ether, SwapBelowRange.selector);
+        sellExpectRevert(-0.6 ether, SwapBelowRange.selector, false);
     }
 
     function test_swap_DoesNotRebalanceInTheFirstEpoch() public {
