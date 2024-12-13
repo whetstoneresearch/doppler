@@ -11,7 +11,7 @@ import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/Un
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { StateView } from "v4-periphery/src/lens/StateView.sol";
-import { Quoter, IQuoter } from "v4-periphery/src/lens/Quoter.sol";
+import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 //import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
 
