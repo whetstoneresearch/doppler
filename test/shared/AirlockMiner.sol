@@ -99,7 +99,7 @@ function mineV4(
         )
     );
 
-    for (uint256 salt; salt < 1000; ++salt) {
+    for (uint256 salt; salt < 1_000_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
@@ -132,7 +132,5 @@ contract AirlockMinerTest is Test {
         console.log("salt: %s", uint256(salt));
         console.log("hook: %s", hook);
         console.log("token: %s", token);
-
-        // assertTrue(address(0) > token);
     }
 }
