@@ -8,6 +8,7 @@ interface ILiquidityMigrator {
     function initialize(address asset, address numeraire, bytes calldata data) external returns (address pool);
 
     function migrate(
+        uint160 sqrtPriceX96,
         address token0,
         uint256 amount0,
         address token1,
