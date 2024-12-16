@@ -21,6 +21,7 @@ import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initialize
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
@@ -199,8 +200,25 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
-        vm.expectRevert(WrongModuleState.selector);
-        // airlock.create(0, 0, address(0), )
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                WrongModuleState.selector, address(0xdead), ModuleState.TokenFactory, ModuleState.NotWhitelisted
+            )
+        );
+        airlock.create(
+            DEFAULT_INITIAL_SUPPLY,
+            DEFAULT_INITIAL_SUPPLY,
+            WETH_MAINNET,
+            ITokenFactory(address(0xdead)),
+            new bytes(0),
+            governanceFactory,
+            new bytes(0),
+            uniswapV3Initializer,
+            new bytes(0),
+            uniswapV2LiquidityMigrator,
+            new bytes(0),
+            bytes32(uint256(0xbeef))
+        );
     }
 
     function test_create_RevertsIfWrongGovernanceFactory() public {
