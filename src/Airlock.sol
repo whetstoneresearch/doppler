@@ -42,16 +42,19 @@ event SetModuleState(address indexed module, ModuleState indexed state);
 
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
+    uint256 public fee;
+
     mapping(address module => ModuleState state) public getModuleState;
     mapping(address asset => AssetData data) public getAssetData;
+    mapping(address token => uint256 amount) public collectableFees;
 
     receive() external payable {
         // TODO: We might want to restrict this to only approved poolInitializer contracts
     }
 
-    constructor(
-        address owner_
-    ) Ownable(owner_) { }
+    constructor(address owner_, uint256 fee_) Ownable(owner_) {
+        fee = fee_;
+    }
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
@@ -162,6 +165,12 @@ contract Airlock is Ownable {
             uint128 fees1,
             uint128 balance1
         ) = assetData.poolInitializer.exitLiquidity(asset);
+
+        uint256 protocolFees0 = fees0 * fee / 10_000;
+        uint256 protocolFees1 = fees1 * fee / 10_000;
+        collectableFees[token0] += protocolFees0;
+        collectableFees[token1] += protocolFees1;
+
         assetData.liquidityMigrator.migrate{ value: address(this).balance > 0 ? address(this).balance : 0 }(
             sqrtPriceX96, token0, balance0, token1, balance1, assetData.timelock, new bytes(0)
         );
@@ -185,5 +194,10 @@ contract Airlock is Ownable {
             getModuleState[modules[i]] = states[i];
             emit SetModuleState(modules[i], states[i]);
         }
+    }
+
+    function collect(address to, address token, uint256 amount) external onlyOwner {
+        collectableFees[token] -= amount;
+        ERC20(token).transfer(to, amount);
     }
 }
