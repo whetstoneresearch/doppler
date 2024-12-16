@@ -20,6 +20,7 @@ import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/Un
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
@@ -203,14 +204,25 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_RevertsIfWrongGovernanceFactory() public {
-        address[] memory modules = new address[](1);
-        modules[0] = address(governanceFactory);
-        ModuleState[] memory states = new ModuleState[](1);
-        states[0] = ModuleState.NotWhitelisted;
-        airlock.setModuleState(modules, states);
-
-        vm.expectRevert(WrongModuleState.selector);
-        test_create_DeploysV4();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                WrongModuleState.selector, address(0xdead), ModuleState.GovernanceFactory, ModuleState.NotWhitelisted
+            )
+        );
+        airlock.create(
+            DEFAULT_INITIAL_SUPPLY,
+            DEFAULT_INITIAL_SUPPLY,
+            WETH_MAINNET,
+            tokenFactory,
+            new bytes(0),
+            IGovernanceFactory(address(0xdead)),
+            new bytes(0),
+            uniswapV3Initializer,
+            new bytes(0),
+            uniswapV2LiquidityMigrator,
+            new bytes(0),
+            bytes32(uint256(0xbeef))
+        );
     }
 
     function test_create_RevertsIfWrongPoolInitializer() public {
