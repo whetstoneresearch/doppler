@@ -54,9 +54,6 @@ contract Airlock is Ownable {
     ) Ownable(owner_) { }
 
     /**
-     * TODO:
-     * - Creating a token should incur fees (platform and frontend fees)
-     *
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
      * @param initialSupply Total supply of the token (might be increased later on)
      * @param numTokensToSell Amount of tokens to sell in the Doppler hook
@@ -121,14 +118,6 @@ contract Airlock is Ownable {
                 liquidityMigratorData
             )
         );
-        */
-
-        /*
-        uint256 totalToMint = numTokensToSell;
-        for (uint256 i; i < amounts.length; ++i) {
-            totalToMint += amounts[i];
-        }
-        require(totalToMint == initialSupply, WrongInitialSupply());
         */
 
         asset = tokenFactory.create(initialSupply, address(this), address(this), salt, tokenFactoryData);
