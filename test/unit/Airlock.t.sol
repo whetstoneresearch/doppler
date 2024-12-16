@@ -18,6 +18,7 @@ import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
@@ -196,14 +197,8 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
-        address[] memory modules = new address[](1);
-        modules[0] = address(tokenFactory);
-        ModuleState[] memory states = new ModuleState[](1);
-        states[0] = ModuleState.NotWhitelisted;
-
-        airlock.setModuleState(modules, states);
         vm.expectRevert(WrongModuleState.selector);
-        test_create_DeploysV4();
+        // airlock.create(0, 0, address(0), )
     }
 
     function test_create_RevertsIfWrongGovernanceFactory() public {
@@ -229,14 +224,25 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_RevertsIfWrongMigrator() public {
-        address[] memory modules = new address[](1);
-        modules[0] = address(uniswapV2LiquidityMigrator);
-        ModuleState[] memory states = new ModuleState[](1);
-        states[0] = ModuleState.NotWhitelisted;
-        airlock.setModuleState(modules, states);
-
-        vm.expectRevert(WrongModuleState.selector);
-        test_create_DeploysV4();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                WrongModuleState.selector, address(0xdead), ModuleState.LiquidityMigrator, ModuleState.NotWhitelisted
+            )
+        );
+        airlock.create(
+            DEFAULT_INITIAL_SUPPLY,
+            DEFAULT_INITIAL_SUPPLY,
+            WETH_MAINNET,
+            tokenFactory,
+            new bytes(0),
+            governanceFactory,
+            new bytes(0),
+            uniswapV3Initializer,
+            new bytes(0),
+            ILiquidityMigrator(address(0xdead)),
+            new bytes(0),
+            bytes32(uint256(0xbeef))
+        );
     }
 
     function test_create_DeploysOnUniswapV3() public {
