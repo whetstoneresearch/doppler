@@ -19,7 +19,7 @@ interface IPoolInitializer {
 
     function exitLiquidity(
         address asset
-    ) external returns (address token0, uint256 amount0, address token1, uint256 amount1);
+    ) external returns (uint160 sqrtPriceX96, address token0, uint256 amount0, address token1, uint256 amount1);
 }
 
 interface IHook {
