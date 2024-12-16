@@ -174,7 +174,7 @@ contract Airlock is Ownable {
         collectableFees[token1] += protocolFees1;
 
         assetData.liquidityMigrator.migrate{ value: address(this).balance > 0 ? address(this).balance : 0 }(
-            sqrtPriceX96, token0, balance0, token1, balance1, assetData.timelock, new bytes(0)
+            sqrtPriceX96, token0, balance0, token1, balance1, assetData.timelock
         );
 
         emit Migrate(asset, assetData.pool);

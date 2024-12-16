@@ -81,8 +81,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         uint256 amount0,
         address token1,
         uint256 amount1,
-        address recipient,
-        bytes calldata
+        address recipient
     ) external payable returns (uint256 liquidity) {
         if (msg.sender != airlock) {
             revert SenderNotAirlock();
