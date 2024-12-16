@@ -40,6 +40,8 @@ event Migrate(address indexed asset, address indexed pool);
 
 event SetModuleState(address indexed module, ModuleState indexed state);
 
+event Collect(address indexed to, address indexed token, uint256 amount);
+
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
     uint256 public fee;
@@ -199,5 +201,6 @@ contract Airlock is Ownable {
     function collect(address to, address token, uint256 amount) external onlyOwner {
         collectableFees[token] -= amount;
         ERC20(token).transfer(to, amount);
+        emit Collect(to, token, amount);
     }
 }
