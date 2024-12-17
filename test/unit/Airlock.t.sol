@@ -54,8 +54,6 @@ contract AirlockTest is Test, Deployers {
     GovernanceFactory governanceFactory;
     UniswapV2Migrator uniswapV2LiquidityMigrator;
 
-    bytes public defaultTokenData = abi.encode(1e21);
-
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
