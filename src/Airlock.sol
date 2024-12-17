@@ -20,8 +20,6 @@ enum ModuleState {
 
 error WrongModuleState(address module, ModuleState expected, ModuleState actual);
 
-error WrongInitialSupply();
-
 error ArrayLengthsMismatch();
 
 struct AssetData {
