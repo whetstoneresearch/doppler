@@ -1,9 +1,8 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { Deployers } from "v4-core/test/utils/Deployers.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
@@ -12,7 +11,7 @@ import { Currency } from "v4-core/src/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
-import { Airlock, ModuleState, WrongModuleState, SetModuleState, WrongInitialSupply } from "src/Airlock.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
