@@ -78,36 +78,40 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     function migrate(
         uint160 sqrtPriceX96,
         address token0,
-        uint256 amount0,
         address token1,
-        uint256 amount1,
         address recipient
     ) external payable returns (uint256 liquidity) {
         if (msg.sender != airlock) {
             revert SenderNotAirlock();
         }
 
+        uint256 balance0;
+        uint256 balance1 = ERC20(token1).balanceOf(address(this));
+
         if (token0 == address(0)) {
             token0 = address(weth);
-            weth.deposit{ value: amount0 }();
+            weth.deposit{ value: address(this).balance }();
+            balance0 = weth.balanceOf(address(this));
+        } else {
+            balance0 = ERC20(token0).balanceOf(address(this));
         }
 
         uint256 price = sqrtPriceX96.mulDiv(sqrtPriceX96, FixedPoint96.Q96);
 
         if (token0 > token1) {
             (token0, token1) = (token1, token0);
-            (amount0, amount1) = (amount1, amount0);
+            (balance0, balance1) = (balance1, balance0);
             price = FixedPoint96.Q96.mulDiv(FixedPoint96.Q96, price);
         }
 
-        uint256 depositAmount0 = amount1.mulDiv(price, FixedPoint96.Q96);
-        uint256 depositAmount1 = amount0.mulDiv(FixedPoint96.Q96, price);
+        uint256 depositAmount0 = balance1.mulDiv(price, FixedPoint96.Q96);
+        uint256 depositAmount1 = balance0.mulDiv(FixedPoint96.Q96, price);
 
-        if (depositAmount1 > amount1) {
-            depositAmount1 = amount1;
+        if (depositAmount1 > balance1) {
+            depositAmount1 = balance1;
             depositAmount0 = depositAmount1.mulDiv(price, FixedPoint96.Q96);
-        } else if (depositAmount0 > amount0) {
-            depositAmount0 = amount0;
+        } else if (depositAmount0 > balance0) {
+            depositAmount0 = balance0;
             depositAmount1 = depositAmount0.mulDiv(FixedPoint96.Q96, price);
         }
 
