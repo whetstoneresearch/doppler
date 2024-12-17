@@ -32,6 +32,9 @@ struct AssetData {
     IPoolInitializer poolInitializer;
     address pool;
     address migrationPool;
+    uint256 numTokensToSell;
+    uint256 totalSupply;
+    address integrator;
 }
 
 event Create(address asset, address indexed numeraire);
@@ -44,19 +47,18 @@ event Collect(address indexed to, address indexed token, uint256 amount);
 
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
-    uint256 public fee;
-
     mapping(address module => ModuleState state) public getModuleState;
     mapping(address asset => AssetData data) public getAssetData;
-    mapping(address token => uint256 amount) public collectableFees;
+    mapping(address token => uint256 amount) public protocolFees;
+    mapping(address integrator => mapping(address token => uint256 amount)) public integratorFees;
 
     receive() external payable {
         // TODO: We might want to restrict this to only approved poolInitializer contracts
     }
 
-    constructor(address owner_, uint256 fee_) Ownable(owner_) {
-        fee = fee_;
-    }
+    constructor(
+        address owner_
+    ) Ownable(owner_) { }
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
@@ -80,6 +82,7 @@ contract Airlock is Ownable {
         bytes calldata poolInitializerData,
         ILiquidityMigrator liquidityMigrator,
         bytes calldata liquidityMigratorData,
+        address integrator,
         bytes32 salt
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(
@@ -141,7 +144,10 @@ contract Airlock is Ownable {
             liquidityMigrator: liquidityMigrator,
             poolInitializer: poolInitializer,
             pool: pool,
-            migrationPool: migrationPool
+            migrationPool: migrationPool,
+            numTokensToSell: numTokensToSell,
+            totalSupply: initialSupply,
+            integrator: integrator
         });
 
         emit Create(asset, numeraire);
@@ -158,6 +164,7 @@ contract Airlock is Ownable {
 
         DERC20(asset).unlockPool();
         Ownable(asset).transferOwnership(assetData.timelock);
+
         (
             uint160 sqrtPriceX96,
             address token0,
@@ -168,14 +175,36 @@ contract Airlock is Ownable {
             uint128 balance1
         ) = assetData.poolInitializer.exitLiquidity(asset);
 
-        uint256 protocolFees0 = fees0 * fee / 10_000;
-        uint256 protocolFees1 = fees1 * fee / 10_000;
-        collectableFees[token0] += protocolFees0;
-        collectableFees[token1] += protocolFees1;
+        uint256 protocolLpFees0 = fees0 * 5 / 100;
+        uint256 protocolLpFees1 = fees1 * 5 / 100;
 
-        assetData.liquidityMigrator.migrate{ value: address(this).balance > 0 ? address(this).balance : 0 }(
-            sqrtPriceX96, token0, balance0, token1, balance1, assetData.timelock
-        );
+        uint256 protocolProceedsFees0 = (balance0 - fees0) / 1000;
+        uint256 protocolProceedsFees1 = (balance1 - fees1) / 1000;
+
+        uint256 protocolFees0 = protocolLpFees0 > protocolProceedsFees0 ? protocolLpFees0 : protocolProceedsFees0;
+        uint256 protocolFees1 = protocolLpFees1 > protocolProceedsFees1 ? protocolLpFees1 : protocolProceedsFees1;
+
+        uint256 integratorFees0 = fees0 - protocolFees0;
+        uint256 integratorFees1 = fees1 - protocolFees1;
+
+        protocolFees[token0] += protocolFees0;
+        protocolFees[token1] += protocolFees1;
+        integratorFees[assetData.integrator][token0] += integratorFees0;
+        integratorFees[assetData.integrator][token1] += integratorFees1;
+
+        uint256 total0 = balance0 - fees0;
+        uint256 total1 = balance1 - fees1;
+
+        if (token0 == asset) {
+            total0 += assetData.totalSupply - assetData.numTokensToSell;
+        } else {
+            total1 += assetData.totalSupply - assetData.numTokensToSell;
+        }
+
+        ERC20(token0).transfer(address(assetData.liquidityMigrator), total0);
+        ERC20(token1).transfer(address(assetData.liquidityMigrator), total1);
+
+        assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
 
         emit Migrate(asset, assetData.pool);
     }
@@ -198,8 +227,14 @@ contract Airlock is Ownable {
         }
     }
 
-    function collect(address to, address token, uint256 amount) external onlyOwner {
-        collectableFees[token] -= amount;
+    function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
+        protocolFees[token] -= amount;
+        ERC20(token).transfer(to, amount);
+        emit Collect(to, token, amount);
+    }
+
+    function collectIntegratorFees(address to, address token, uint256 amount) external {
+        integratorFees[msg.sender][token] -= amount;
         ERC20(token).transfer(to, amount);
         emit Collect(to, token, amount);
     }
