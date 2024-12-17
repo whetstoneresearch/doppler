@@ -24,6 +24,7 @@ import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "../../src/Doppler.sol";
 import { stdMath } from "forge-std/StdMath.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -593,8 +594,8 @@ contract RebalanceTest is BaseTest {
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength());
 
-        // Swap tokens back into the pool, netSold == 0
-        sell(-1 ether);
+        // Swap tokens back into the pool, netSold approxEq 0
+        sell(-1 ether + 1);
 
         (uint40 lastEpoch2, int256 tickAccumulator2, uint256 totalTokensSold2,, uint256 totalTokensSoldLastEpoch2,) =
             hook.state();
@@ -606,6 +607,7 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch2, 1 ether);
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2); // Next epoch
+        int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
@@ -620,7 +622,6 @@ contract RebalanceTest is BaseTest {
         assertApproxEqAbs(totalTokensSoldLastEpoch3, 0, MAX_SWAP_FEE * 1e18 / MAX_SWAP_FEE);
 
         // Assert that we reduced the accumulator by the max amount as intended
-        int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
         assertEq(tickAccumulator3, tickAccumulator2 + maxTickDeltaPerEpoch);
 
         // Get positions
@@ -687,6 +688,8 @@ contract RebalanceTest is BaseTest {
 
         vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
 
+        int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
+
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
 
@@ -700,7 +703,6 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch2, expectedAmountSold / 2, "Wrong tokens sold last epoch (2)");
 
         // Assert that we reduced the accumulator by half the max amount as intended
-        int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
         assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2, "Wrong tick accumulator");
 
         // Get positions
