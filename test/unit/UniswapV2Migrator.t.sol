@@ -60,7 +60,7 @@ contract UniswapV2MigratorTest is Test {
 
         token0.transfer(address(migrator), 1000 ether);
         token1.transfer(address(migrator), 1000 ether);
-        uint256 liquidity = migrator.migrate(uint160(0), address(token0), address(token1), address(0xbeef));
+        uint256 liquidity = migrator.migrate(uint160(2 ** 96), address(token0), address(token1), address(0xbeef));
 
         assertEq(token0.balanceOf(address(migrator)), 0, "Wrong migrator token0 balance");
         assertEq(token1.balanceOf(address(migrator)), 0, "Wrong migrator token1 balance");
