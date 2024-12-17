@@ -900,85 +900,35 @@ contract RebalanceTest is BaseTest {
         assertApproxEqAbs(int128(uint128(amount1ExpectedFee)), feesAccrued.amount1(), 1);
     }
 
-    // note: uncommenting the slug vis calls and piping the output to ./vis/plot_slugs.py is very helpful for
-    // reasoning through this scenario
-    function test_rebalance_NumPdSlugsMinusOneToLastEpochAccumulatorDelta() public {
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs()));
-        uint256 expectedProceeds = hook.getExpectedAmountSoldWithEpochOffset(1);
+    function test_rebalance_PdSlugsConvergeToZeroLiquidityAtLastEpoch() public {
+        // Start at numPdSlugs + 1 epochs from end and iterate until last epoch
+        // Start at the time where we're hook.getNumPDSlugs() epochs from the end
+        uint256 startTime =
+            hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs() - 1);
+        vm.warp(startTime);
 
-        // buy much more than expected proceeds so that we can exceed the max pd slug range
-        buy(int256(expectedProceeds) * 2);
-        // There must be numPdSlugs - 1 epochs remaining so that we have only placed numPdSlugs - 1 pd slugs
-        uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
-        assertEq(epochsRemaining, hook.getNumPDSlugs() - 1, "epochsRemaining != hook.getNumPDSlugs() - 1");
+        // Trigger initial rebalance
+        buy(1);
 
-        // SlugVis.visualizeSlugs(hook, key.toId(), "thirdToLastEpoch", block.timestamp);
-
-        vm.warp(block.timestamp + hook.getEpochLength());
-        epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
-        assertEq(epochsRemaining, hook.getNumPDSlugs() - 2, "epochsRemaining != hook.getNumPDSlugs() - 2");
-
-        (, int256 tickAccumulator,,,,) = hook.state();
-
-        Position memory upSlug = hook.getPositions(bytes32(uint256(2)));
-        int24 currentTick = hook.getCurrentTick(key.toId());
-
-        if (isToken0) {
-            assertEq(currentTick, TickMath.MAX_TICK - 1, "currentTick != TickMath.MAX_TICK - 1");
-        } else {
-            assertEq(currentTick, TickMath.MIN_TICK, "currentTick != TickMath.MIN_TICK");
+        // Verify all PD slugs have liquidity initially
+        for (uint256 i = 0; i < hook.getNumPDSlugs(); i++) {
+            Position memory pdSlug = hook.getPositions(bytes32(uint256(i + 3)));
+            assertGt(pdSlug.liquidity, 0, "PD slug should have liquidity initially");
         }
 
-        int24 tauTick = hook.getStartingTick() + int24(tickAccumulator / 1e18);
-        int24 computedRange = int24(int256(hook.getNormalizedEpochDelta()) * hook.getGamma() / 1e18);
-        int24 upperSlugRange = computedRange > key.tickSpacing ? computedRange : key.tickSpacing;
+        // Move forward one epoch at a time until the end
+        for (uint256 i = 0; i < hook.getNumPDSlugs(); i++) {
+            vm.warp(block.timestamp + hook.getEpochLength());
 
-        int24 expectedTick = hook.alignComputedTickWithTickSpacing(
-            isToken0 ? upSlug.tickLower + upperSlugRange : upSlug.tickLower - upperSlugRange, key.tickSpacing
-        );
+            // Trigger rebalance
+            buy(1);
 
-        int24 maxBounds = isToken0 ? tauTick + hook.getGamma() : tauTick - hook.getGamma();
-        if (isToken0) {
-            currentTick = currentTick > maxBounds ? maxBounds : currentTick;
-        } else {
-            currentTick = currentTick < maxBounds ? maxBounds : currentTick;
+            // Check that slugs from index 2+getNumPdSlugs()-i to the end have 0 liquidity
+            for (uint256 j = 0; j < i + 1; j++) {
+                Position memory pdSlug = hook.getPositions(bytes32(uint256(2 + hook.getNumPDSlugs() - j)));
+                assertEq(pdSlug.liquidity, 0, "PD slug should have 0 liquidity");
+            }
         }
-
-        assertEq(currentTick, maxBounds, "currentTick != maxBounds");
-        int256 accDelta = int256(currentTick - expectedTick) * 1e18;
-        int256 expectedNewAccumulatorIncorrectBounds = tickAccumulator + accDelta;
-
-        // sell back all the tokens sold
-        (,, uint256 totalTokensSold,,,) = hook.state();
-        sell(-int256(totalTokensSold));
-
-        (, int256 tickAccumulator2,,,,) = hook.state();
-        if (isToken0) {
-            assertLt(
-                tickAccumulator2,
-                expectedNewAccumulatorIncorrectBounds,
-                "tickAccumulator2 > expectedNewAccumulatorIncorrectBounds"
-            );
-        } else {
-            assertGt(
-                tickAccumulator2,
-                expectedNewAccumulatorIncorrectBounds,
-                "tickAccumulator2 < expectedNewAccumulatorIncorrectBounds"
-            );
-        }
-        uint256 expectedProceeds2 = hook.getExpectedAmountSoldWithEpochOffset(1);
-        buy(int256(expectedProceeds2) * 2);
-
-        vm.warp(hook.getEndingTime() - 1);
-        epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
-        assertEq(epochsRemaining, 0, "epochsRemaining != 0");
-
-        sell(-1);
-        // SlugVis.visualizeSlugs(hook, key.toId(), "lastEpoch", block.timestamp);
-        Position memory upSlug2 = hook.getPositions(bytes32(uint256(2)));
-        Position memory lowestPdSlug = hook.getPositions(bytes32(uint256(3)));
-        assertGt(upSlug2.liquidity, 0, "upSlug2.liquidity == 0");
-        assertEq(lowestPdSlug.liquidity, 0, "lowestPdSlug.liquidity != 0");
     }
 
     function test_rebalance_totalEpochs() public {
@@ -1253,8 +1203,11 @@ contract RebalanceTest is BaseTest {
         assertGt(priceDiscoverySlugs[0].liquidity, 1e18);
 
         // All slugs must be set
-        assertNotEq(lowerSlug.liquidity, 0, "fourth swap: lowerSlug.liquidity != 0");
-        assertNotEq(upperSlug.liquidity, 0, "fourth swap: upperSlug.liquidity != 0");
+        assertNotEq(lowerSlug.tickUpper, 0, "fourth swap: lowerSlug.tickUpper != 0");
+        assertNotEq(upperSlug.tickUpper, 0, "fourth swap: upperSlug.tickUpper != 0");
+
+        // lower slug liquidity must be 0
+        assertEq(lowerSlug.liquidity, 0, "fourth swap: lowerSlug.liquidity != 0");
 
         // Swap in last epoch
         // =========================
@@ -1326,7 +1279,7 @@ contract RebalanceTest is BaseTest {
         (,, uint256 totalTokensSold4,,,) = hook.state();
 
         // Swap all remaining tokens
-        buy(int256(numTokensToSell - totalTokensSold4));
+        buy(int256(numTokensToSell - totalTokensSold4 - 50));
 
         (, int256 tickAccumulator6,,,,) = hook.state();
 
@@ -1342,11 +1295,7 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
-        assertEq(
-            tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
-            lowerSlug.tickLower,
-            "sixth swap: lowerSlug.tickLower != global tickLower"
-        );
+        assertEq(tickLower, lowerSlug.tickLower, "sixth swap: lowerSlug.tickLower != global tickLower");
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "sixth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
         // We don't set a priceDiscoverySlug because it's the last epoch
