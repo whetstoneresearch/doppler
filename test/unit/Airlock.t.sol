@@ -165,6 +165,7 @@ contract AirlockTest is Test, Deployers {
             poolInitializerData,
             uniswapV2LiquidityMigrator,
             new bytes(0),
+            address(0xb0b),
             salt
         );
 
@@ -212,6 +213,7 @@ contract AirlockTest is Test, Deployers {
             new bytes(0),
             uniswapV2LiquidityMigrator,
             new bytes(0),
+            address(0xb0b),
             bytes32(uint256(0xbeef))
         );
     }
@@ -234,6 +236,7 @@ contract AirlockTest is Test, Deployers {
             new bytes(0),
             uniswapV2LiquidityMigrator,
             new bytes(0),
+            address(0xb0b),
             bytes32(uint256(0xbeef))
         );
     }
@@ -256,6 +259,7 @@ contract AirlockTest is Test, Deployers {
             new bytes(0),
             uniswapV2LiquidityMigrator,
             new bytes(0),
+            address(0xb0b),
             bytes32(uint256(0xbeef))
         );
     }
@@ -278,6 +282,7 @@ contract AirlockTest is Test, Deployers {
             new bytes(0),
             ILiquidityMigrator(address(0xdead)),
             new bytes(0),
+            address(0xb0b),
             bytes32(uint256(0xbeef))
         );
     }
@@ -300,6 +305,7 @@ contract AirlockTest is Test, Deployers {
             poolInitializerData,
             uniswapV2LiquidityMigrator,
             new bytes(0),
+            address(0xb0b),
             bytes32(uint256(0xbeef))
         );
     }
