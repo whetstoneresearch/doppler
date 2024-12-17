@@ -10,9 +10,7 @@ interface ILiquidityMigrator {
     function migrate(
         uint160 sqrtPriceX96,
         address token0,
-        uint256 amount0,
         address token1,
-        uint256 amount1,
         address recipient
     ) external payable returns (uint256 liquidity);
 }
