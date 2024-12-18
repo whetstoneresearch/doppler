@@ -901,14 +901,11 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_PdSlugsConvergeToZeroLiquidityAtLastEpoch() public {
-        // Start at numPdSlugs + 1 epochs from end and iterate until last epoch
-        // Start at the time where we're hook.getNumPDSlugs() epochs from the end
         uint256 startTime =
             hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs() - 1);
         vm.warp(startTime);
 
-        // Trigger initial rebalance
-        buy(1);
+        buy(1 ether);
 
         // Verify all PD slugs have liquidity initially
         for (uint256 i = 0; i < hook.getNumPDSlugs(); i++) {
@@ -918,10 +915,9 @@ contract RebalanceTest is BaseTest {
 
         // Move forward one epoch at a time until the end
         for (uint256 i = 0; i < hook.getNumPDSlugs(); i++) {
-            vm.warp(block.timestamp + hook.getEpochLength());
+            vm.warp(startTime + hook.getEpochLength() * (i + 1));
 
-            // Trigger rebalance
-            buy(1);
+            buy(1 ether);
 
             // Check that slugs from index 2+getNumPdSlugs()-i to the end have 0 liquidity
             for (uint256 j = 0; j < i + 1; j++) {
