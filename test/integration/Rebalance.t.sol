@@ -24,7 +24,6 @@ import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "../../src/Doppler.sol";
 import { stdMath } from "forge-std/StdMath.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";
-import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
