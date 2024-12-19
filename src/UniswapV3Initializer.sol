@@ -14,6 +14,7 @@ error OnlyPool();
 error PoolAlreadyInitialized();
 error PoolAlreadyExited();
 error CannotMigrate(int24 expectedTick, int24 currentTick);
+error InvalidTargetTick();
 
 struct CallbackData {
     address asset;
@@ -26,6 +27,7 @@ struct PoolState {
     address numeraire;
     int24 tickLower;
     int24 tickUpper;
+    int24 targetTick;
     uint128 liquidityDelta;
     bool isInitialized;
     bool isExited;
@@ -51,7 +53,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     ) external returns (address pool) {
         require(msg.sender == airlock, OnlyAirlock());
 
-        (uint24 fee, int24 tickLower, int24 tickUpper) = abi.decode(data, (uint24, int24, int24));
+        (uint24 fee, int24 tickLower, int24 tickUpper, int24 targetTick) =
+            abi.decode(data, (uint24, int24, int24, int24));
+
+        require(targetTick >= tickLower && targetTick <= tickUpper, InvalidTargetTick());
+
         (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         pool = factory.getPool(tokenA, tokenB, fee);
@@ -80,6 +86,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             tickLower: tickLower,
             tickUpper: tickUpper,
             liquidityDelta: amount,
+            targetTick: targetTick,
             isInitialized: true,
             isExited: false
         });
@@ -117,9 +124,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         (sqrtPriceX96, tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         int24 endingTick = getState[pool].asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
+        int24 targetTick = getState[pool].targetTick;
+        address asset = getState[pool].asset;
 
-        // TODO: I think it's possible to move the current tick above or under our current tick range
-        require(tick == endingTick, CannotMigrate(endingTick, tick));
+        require(tick != endingTick, CannotMigrate(endingTick, tick));
+        require(asset == token0 ? tick <= targetTick : tick >= targetTick, CannotMigrate(targetTick, tick));
 
         // We do this first call to track the fees separately
         (,,, fees0, fees1) = IUniswapV3Pool(pool).positions(
