@@ -24,9 +24,6 @@ struct CallbackData {
 struct PoolState {
     address asset;
     address numeraire;
-    uint256 mininmumProceeds;
-    uint256 maximumProceeds;
-    uint256 endingTime;
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidityDelta;
@@ -81,9 +78,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         getState[pool] = PoolState({
             asset: asset,
             numeraire: numeraire,
-            mininmumProceeds: 0,
-            maximumProceeds: 0,
-            endingTime: 0,
             tickLower: tickLower,
             tickUpper: tickUpper,
             liquidityDelta: amount,
