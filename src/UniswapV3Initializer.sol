@@ -26,7 +26,6 @@ struct PoolState {
     address numeraire;
     uint256 mininmumProceeds;
     uint256 maximumProceeds;
-    uint256 startingTime;
     uint256 endingTime;
     int24 tickLower;
     int24 tickUpper;
@@ -84,7 +83,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             numeraire: numeraire,
             mininmumProceeds: 0,
             maximumProceeds: 0,
-            startingTime: 0,
             endingTime: 0,
             tickLower: tickLower,
             tickUpper: tickUpper,
