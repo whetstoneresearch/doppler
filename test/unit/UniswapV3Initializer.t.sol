@@ -252,5 +252,9 @@ contract UniswapV3InitializerTest is Test {
         uint256 isToken0Balance = isToken0.balanceOf(address(0x666));
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
         assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
+
+        (,,,, int24 targetTickIsToken0,,,) = UniswapV3Initializer(initializer).getState(address(isToken0Pool));
+        (,,,, int24 targetTickNotIsToken0,,,) = UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
+        assertEq(targetTickIsToken0, targetTickNotIsToken0, "targetTicks are not equal");
     }
 }
