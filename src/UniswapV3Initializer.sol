@@ -64,8 +64,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         uint160 sqrtPriceX96 =
             asset == tokenA ? TickMath.getSqrtPriceAtTick(tickLower) : TickMath.getSqrtPriceAtTick(tickUpper);
 
-        // TODO: This will fail if the pool is already initialized
-        IUniswapV3Pool(pool).initialize(sqrtPriceX96);
+        try IUniswapV3Pool(pool).initialize(sqrtPriceX96) { } catch { }
 
         uint128 amount = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
