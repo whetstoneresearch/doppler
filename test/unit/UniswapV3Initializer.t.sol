@@ -23,6 +23,7 @@ import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } f
 
 int24 constant DEFAULT_LOWER_TICK = -200_040;
 int24 constant DEFAULT_UPPER_TICK = -167_520;
+int24 constant DEFAULT_TARGET_TICK = -200_010;
 
 contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
@@ -98,12 +99,13 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
+            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK), int24(DEFAULT_LOWER_TICK))
         );
 
         deal(address(this), 1000 ether);
         WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
+
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
@@ -111,7 +113,7 @@ contract UniswapV3InitializerTest is Test {
                 fee: 3000,
                 recipient: address(0x666),
                 deadline: block.timestamp,
-                amountIn: 1000 ether,
+                amountIn: 1 ether,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
             })
@@ -119,6 +121,17 @@ contract UniswapV3InitializerTest is Test {
 
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
+
+        // for debugging
+        // (
+        //     uint160 sqrtPriceX96,
+        //     int24 tickEnd,
+        //     uint16 observationIndex,
+        //     uint16 observationCardinality,
+        //     uint16 observationCardinalityNext,
+        //     uint8 feeProtocol,
+        //     bool unlocked
+        // ) = IUniswapV3Pool(pool).slot0();
 
         initializer.exitLiquidity(pool);
 

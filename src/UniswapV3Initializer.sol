@@ -130,7 +130,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         require(tick != endingTick, CannotMigrateOutOfRange(endingTick, tick));
         require(
-            asset == token0 ? tick <= targetTick : tick >= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
+            asset == token0 ? tick >= targetTick : tick <= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
         );
 
         // We do this first call to track the fees separately
