@@ -170,4 +170,87 @@ contract UniswapV3InitializerTest is Test {
         vm.expectRevert(OnlyPool.selector);
         initializer.uniswapV3MintCallback(0, 0, abi.encode(CallbackData(address(0), address(0), 0)));
     }
+
+    function test_Initialize_token0AndToken1SamePrice() public {
+        // will be !isToken0
+        DERC20 isToken0 =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        while (address(isToken0) > address(WETH_MAINNET)) {
+            isToken0 = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        }
+        // will be isToken0
+        DERC20 notIsToken0 =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        while (address(notIsToken0) < address(WETH_MAINNET)) {
+            notIsToken0 =
+                new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        }
+        isToken0.approve(address(initializer), type(uint256).max);
+        notIsToken0.approve(address(initializer), type(uint256).max);
+
+        assertTrue(address(isToken0) < address(WETH_MAINNET), "isToken0 is not token0");
+        assertTrue(address(notIsToken0) > address(WETH_MAINNET), "notIsToken0 is not token1");
+
+        IUniswapV3Pool isToken0Pool = IUniswapV3Pool(
+            initializer.initialize(
+                address(isToken0),
+                address(WETH_MAINNET),
+                1e27,
+                bytes32(0),
+                abi.encode(
+                    uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK), int24(DEFAULT_LOWER_TICK)
+                )
+            )
+        );
+        IUniswapV3Pool notIsToken0Pool = IUniswapV3Pool(
+            initializer.initialize(
+                address(notIsToken0),
+                address(WETH_MAINNET),
+                1e27,
+                bytes32(0),
+                abi.encode(
+                    uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK), int24(DEFAULT_LOWER_TICK)
+                )
+            )
+        );
+
+        assertEq(isToken0Pool.token0(), address(isToken0), "isToken0Pool token0 is not isToken0");
+        assertEq(notIsToken0Pool.token1(), address(notIsToken0), "notIsToken0Pool token1 is not notIsToken0");
+        assertEq(isToken0Pool.token1(), address(WETH_MAINNET), "isToken0Pool token1 is not WETH_MAINNET");
+        assertEq(notIsToken0Pool.token0(), address(WETH_MAINNET), "notIsToken0Pool token0 is not WETH_MAINNET");
+
+        deal(address(this), 1000 ether);
+        WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
+        WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
+
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(isToken0),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+            })
+        );
+
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(notIsToken0),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
+            })
+        );
+
+        uint256 isToken0Balance = isToken0.balanceOf(address(0x666));
+        uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
+        assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
+    }
 }
