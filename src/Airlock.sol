@@ -36,7 +36,6 @@ error ArrayLengthsMismatch();
  * @param numTokensToSell Amount of tokens to sell
  * @param totalSupply Total supply of the token
  * @param integrator Address of the front-end integrator
- * @param targetTick Target tick at which migration actions is available
  */
 struct AssetData {
     address numeraire;
