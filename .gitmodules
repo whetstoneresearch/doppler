@@ -16,3 +16,6 @@
 [submodule "lib/v3-core"]
 	path = lib/v3-core
 	url = https://github.com/Uniswap/v3-core
+[submodule "lib/view-quoter-v3"]
+	path = lib/view-quoter-v3
+	url = https://github.com/Uniswap/view-quoter-v3
