@@ -23,6 +23,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 
 import { CustomRouter } from "test/shared/CustomRouter.sol";
+import { mineV4 } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 // TODO: Reuse these constants from the BaseTest
