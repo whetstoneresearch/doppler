@@ -18,10 +18,25 @@ enum ModuleState {
     LiquidityMigrator
 }
 
+/// @notice Thrown when the module state is not the expected one
 error WrongModuleState(address module, ModuleState expected, ModuleState actual);
 
+/// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
 
+/**
+ * @notice Data related to the asset token
+ * @param numeraire Address of the numeraire token
+ * @param timelock Address of the timelock contract
+ * @param governance Address of the governance contract
+ * @param liquidityMigrator Address of the liquidity migrator contract
+ * @param poolInitializer Address of the pool initializer contract
+ * @param pool Address of the liquidity pool
+ * @param migrationPool Address of the liquidity pool after migration
+ * @param numTokensToSell Amount of tokens to sell
+ * @param totalSupply Total supply of the token
+ * @param integrator Address of the front-end integrator
+ */
 struct AssetData {
     address numeraire;
     address timelock;
@@ -35,10 +50,25 @@ struct AssetData {
     address integrator;
 }
 
+/**
+ * @notice Emitted when a new asset token is created
+ * @param asset Address of the asset token
+ * @param numeraire Address of the numeraire token
+ */
 event Create(address asset, address indexed numeraire);
 
+/**
+ * @notice Emitted when an asset token is migrated
+ * @param asset Address of the asset token
+ * @param pool Address of the liquidity pool
+ */
 event Migrate(address indexed asset, address indexed pool);
 
+/**
+ * @notice Emitted when the state of a module is set
+ * @param module Address of the module
+ * @param state State of the module
+ */
 event SetModuleState(address indexed module, ModuleState indexed state);
 
 event Collect(address indexed to, address indexed token, uint256 amount);
@@ -54,6 +84,9 @@ contract Airlock is Ownable {
         // TODO: We might want to restrict this to only approved poolInitializer contracts
     }
 
+    /**
+     * @param owner_ Address receiving the ownership of the Airlock contract
+     */
     constructor(
         address owner_
     ) Ownable(owner_) { }
@@ -152,7 +185,7 @@ contract Airlock is Ownable {
     }
 
     /**
-     * @notice Triggers the migration from the Doppler hook to another liquidity pool
+     * @notice Triggers the migration from one liquidity pool to another
      * @param asset Address of the token to migrate
      */
     function migrate(
@@ -225,12 +258,24 @@ contract Airlock is Ownable {
         }
     }
 
+    /**
+     * @notice Collects protocol fees
+     * @param to Address receiving the fees
+     * @param token Address of the token to collect fees from
+     * @param amount Amount of fees to collect
+     */
     function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
         protocolFees[token] -= amount;
         ERC20(token).transfer(to, amount);
         emit Collect(to, token, amount);
     }
 
+    /**
+     * @notice Collects integrator fees
+     * @param to Address receiving the fees
+     * @param token Address of the token to collect fees from
+     * @param amount Amount of fees to collect
+     */
     function collectIntegratorFees(address to, address token, uint256 amount) external {
         integratorFees[msg.sender][token] -= amount;
         ERC20(token).transfer(to, amount);
