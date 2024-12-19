@@ -18,7 +18,7 @@ contract DERC20Test is Test {
         amounts[0] = 1e20;
         amounts[1] = 2e22;
 
-        token = new DERC20("Test", "TST", INITIAL_SUPPLY, address(0xb0b), address(0xbeef), 0, recipients, amounts);
+        token = new DERC20("Test", "TST", INITIAL_SUPPLY, address(0xb0b), address(0xbeef), 0, 0, recipients, amounts);
 
         assertEq(token.name(), "Test", "Wrong name");
         assertEq(token.symbol(), "TST", "Wrong symbol");
@@ -26,9 +26,5 @@ contract DERC20Test is Test {
         assertEq(token.balanceOf(address(0xb0b)), INITIAL_SUPPLY, "Wrong balance of recipient");
         assertEq(token.mintStartDate(), block.timestamp + 365 days, "Wrong mint start date");
         assertEq(token.owner(), address(0xbeef), "Wrong owner");
-        assertEq(token.recipients(0), address(0xa), "Wrong recipient 0");
-        assertEq(token.recipients(1), address(0xb), "Wrong recipient 1");
-        assertEq(token.amounts(0), 1e20, "Wrong amount 0");
-        assertEq(token.amounts(1), 2e22, "Wrong amount 1");
     }
 }

@@ -24,10 +24,6 @@ struct CallbackData {
 struct PoolState {
     address asset;
     address numeraire;
-    uint256 mininmumProceeds;
-    uint256 maximumProceeds;
-    uint256 startingTime;
-    uint256 endingTime;
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidityDelta;
@@ -68,8 +64,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         uint160 sqrtPriceX96 =
             asset == tokenA ? TickMath.getSqrtPriceAtTick(tickLower) : TickMath.getSqrtPriceAtTick(tickUpper);
 
-        // TODO: This will fail if the pool is already initialized
-        IUniswapV3Pool(pool).initialize(sqrtPriceX96);
+        try IUniswapV3Pool(pool).initialize(sqrtPriceX96) { } catch { }
 
         uint128 amount = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
@@ -82,10 +77,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         getState[pool] = PoolState({
             asset: asset,
             numeraire: numeraire,
-            mininmumProceeds: 0,
-            maximumProceeds: 0,
-            startingTime: 0,
-            endingTime: 0,
             tickLower: tickLower,
             tickUpper: tickUpper,
             liquidityDelta: amount,
@@ -104,32 +95,52 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
     function exitLiquidity(
         address pool
-    ) external returns (address token0, uint256 amount0, address token1, uint256 amount1) {
+    )
+        external
+        returns (
+            uint160 sqrtPriceX96,
+            address token0,
+            uint128 fees0,
+            uint128 balance0,
+            address token1,
+            uint128 fees1,
+            uint128 balance1
+        )
+    {
         require(msg.sender == airlock, OnlyAirlock());
         require(getState[pool].isExited == false, PoolAlreadyExited());
         getState[pool].isExited = true;
 
         token0 = IUniswapV3Pool(pool).token0();
         token1 = IUniswapV3Pool(pool).token1();
-        (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
+        int24 tick;
+        (sqrtPriceX96, tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         int24 endingTick = getState[pool].asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
 
         // TODO: I think it's possible to move the current tick above or under our current tick range
         require(tick == endingTick, CannotMigrate(endingTick, tick));
 
-        (amount0, amount1) =
-            IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
-        (,,, uint128 tokensOwed0, uint128 tokensOwed1) = IUniswapV3Pool(pool).positions(
+        // We do this first call to track the fees separately
+        (,,, fees0, fees1) = IUniswapV3Pool(pool).positions(
             keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
         );
+
+        IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
+
+        // Calling this again allows us to get the sum of the fees + tokens from the actual position
+        (,,, balance0, balance1) = IUniswapV3Pool(pool).positions(
+            keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
+        );
+
+        // TODO: I think we can save some gas by requesting type(uint128).max instead of specific amounts
         IUniswapV3Pool(pool).collect(
-            address(this), getState[pool].tickLower, getState[pool].tickUpper, tokensOwed0, tokensOwed1
+            address(this), getState[pool].tickLower, getState[pool].tickUpper, balance0, balance1
         );
 
         // TODO: Use safeTransfer instead
-        ERC20(token0).transfer(msg.sender, tokensOwed0);
-        ERC20(token1).transfer(msg.sender, tokensOwed1);
+        ERC20(token0).transfer(msg.sender, balance0);
+        ERC20(token1).transfer(msg.sender, balance1);
     }
 
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {

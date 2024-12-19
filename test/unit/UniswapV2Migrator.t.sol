@@ -49,7 +49,7 @@ contract UniswapV2MigratorTest is Test {
     function test_migrate_RevertsWhenSenderNotAirlock() public {
         vm.prank(address(0xbeef));
         vm.expectRevert(SenderNotAirlock.selector);
-        migrator.migrate(address(0x1111), 0, address(0x2222), 0, address(0), new bytes(0));
+        migrator.migrate(uint160(0), address(0x1111), address(0x2222), address(0));
     }
 
     function test_migrate() public {
@@ -60,8 +60,7 @@ contract UniswapV2MigratorTest is Test {
 
         token0.transfer(address(migrator), 1000 ether);
         token1.transfer(address(migrator), 1000 ether);
-        uint256 liquidity =
-            migrator.migrate(address(token0), 1000 ether, address(token1), 1000 ether, address(0xbeef), new bytes(0));
+        uint256 liquidity = migrator.migrate(uint160(2 ** 96), address(token0), address(token1), address(0xbeef));
 
         assertEq(token0.balanceOf(address(migrator)), 0, "Wrong migrator token0 balance");
         assertEq(token1.balanceOf(address(migrator)), 0, "Wrong migrator token1 balance");

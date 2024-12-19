@@ -15,10 +15,21 @@ error PoolLocked();
 
 error ArrayLengthsMismatch();
 
+error CannotReleaseYet();
+
+error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
+
+error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
+
+// TODO: Set the values for these constants
+uint256 constant MAX_PRE_MINT_PER_ADDRESS = 0;
+uint256 constant MAX_TOTAL_PRE_MINT = 0;
+
 /// @custom:security-contact security@whetstone.cc
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     uint256 public immutable mintStartDate;
     uint256 public immutable yearlyMintCap;
+    uint256 public immutable vestingEnd;
 
     address public pool;
     uint256 public currentYearStart;
@@ -26,8 +37,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     bool public isPoolUnlocked;
 
-    address[] public recipients;
-    uint256[] public amounts;
+    struct VestingDetails {
+        uint256 amount;
+    }
+
+    mapping(address account => VestingDetails details) public getVestingOf;
 
     constructor(
         string memory name_,
@@ -36,17 +50,30 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         address recipient,
         address owner_,
         uint256 yearlyMintCap_,
+        uint256 vestingDuration_,
         address[] memory recipients_,
         uint256[] memory amounts_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
-        _mint(recipient, initialSupply);
         mintStartDate = block.timestamp + 365 days;
         yearlyMintCap = yearlyMintCap_;
+        vestingEnd = block.timestamp + vestingDuration_;
 
-        require(recipients.length == amounts.length, ArrayLengthsMismatch());
+        uint256 length = recipients_.length;
+        require(length == amounts_.length, ArrayLengthsMismatch());
 
-        recipients = recipients_;
-        amounts = amounts_;
+        uint256 vestedTokens;
+
+        for (uint256 i; i < length; ++i) {
+            uint256 amount = amounts_[i];
+            require(amount <= MAX_PRE_MINT_PER_ADDRESS, MaxPreMintPerAddressExceeded(amount, MAX_PRE_MINT_PER_ADDRESS));
+            getVestingOf[recipients_[i]].amount = amounts_[i];
+            vestedTokens += amounts_[i];
+        }
+
+        require(vestedTokens <= MAX_TOTAL_PRE_MINT, MaxTotalPreMintExceeded(vestedTokens, MAX_TOTAL_PRE_MINT));
+
+        _mint(address(this), vestedTokens);
+        _mint(recipient, initialSupply - vestedTokens);
     }
 
     function lockPool(
@@ -59,11 +86,6 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
-
-        uint256 length = recipients.length;
-        for (uint256 i; i < length; i++) {
-            transfer(recipients[i], amounts[i]);
-        }
     }
 
     function mint(address to, uint256 value) external onlyOwner {
@@ -78,6 +100,14 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         currentAnnualMint += value;
 
         _mint(to, value);
+    }
+
+    function release(
+        uint256 amount
+    ) external {
+        require(block.timestamp >= vestingEnd, CannotReleaseYet());
+        getVestingOf[msg.sender].amount -= amount;
+        _transfer(address(this), msg.sender, amount);
     }
 
     function nonces(

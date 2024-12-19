@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
+import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
+import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
@@ -32,6 +34,8 @@ error SenderNotAirlock();
  */
 contract UniswapV2Migrator is ILiquidityMigrator {
     using SafeTransferLib for ERC20;
+    using FullMath for uint256;
+    using FullMath for uint160;
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
@@ -72,32 +76,50 @@ contract UniswapV2Migrator is ILiquidityMigrator {
      * @param recipient Address receiving the liquidity pool tokens
      */
     function migrate(
+        uint160 sqrtPriceX96,
         address token0,
-        uint256 amount0,
         address token1,
-        uint256 amount1,
-        address recipient,
-        bytes calldata
+        address recipient
     ) external payable returns (uint256 liquidity) {
         if (msg.sender != airlock) {
             revert SenderNotAirlock();
         }
 
+        uint256 balance0;
+        uint256 balance1 = ERC20(token1).balanceOf(address(this));
+
         if (token0 == address(0)) {
             token0 = address(weth);
+            weth.deposit{ value: address(this).balance }();
+            balance0 = weth.balanceOf(address(this));
+        } else {
+            balance0 = ERC20(token0).balanceOf(address(this));
+        }
+
+        uint256 price = sqrtPriceX96.mulDiv(sqrtPriceX96, FixedPoint96.Q96);
+
+        if (token0 > token1) {
+            (token0, token1) = (token1, token0);
+            (balance0, balance1) = (balance1, balance0);
+            price = FixedPoint96.Q96.mulDiv(FixedPoint96.Q96, price);
+        }
+
+        uint256 depositAmount0 = balance1.mulDiv(price, FixedPoint96.Q96);
+        uint256 depositAmount1 = balance0.mulDiv(FixedPoint96.Q96, price);
+
+        if (depositAmount1 > balance1) {
+            depositAmount1 = balance1;
+            depositAmount0 = depositAmount1.mulDiv(price, FixedPoint96.Q96);
+        } else if (depositAmount0 > balance0) {
+            depositAmount0 = balance0;
+            depositAmount1 = depositAmount0.mulDiv(FixedPoint96.Q96, price);
         }
 
         // Pool was created beforehand along the asset token deployment
         address pool = getPool[token0][token1];
 
-        if (token0 == address(weth)) {
-            weth.deposit{ value: amount0 }();
-        } else if (token1 == address(weth)) {
-            weth.deposit{ value: amount1 }();
-        }
-
-        ERC20(token0).safeTransfer(pool, amount0);
-        ERC20(token1).safeTransfer(pool, amount1);
+        ERC20(token0).safeTransfer(pool, depositAmount0);
+        ERC20(token1).safeTransfer(pool, depositAmount1);
 
         liquidity = IUniswapV2Pair(pool).mint(recipient);
 
@@ -105,7 +127,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         }
 
-        // TODO: Not sure if this is necessary anymore
         uint256 dust0 = ERC20(token0).balanceOf(address(this));
         if (dust0 > 0) {
             SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);

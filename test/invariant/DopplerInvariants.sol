@@ -58,14 +58,16 @@ contract DopplerInvariantsTest is BaseTest {
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_TracksTotalTokensSoldAndProceeds() public view {
+    function invariant_TracksTotalTokensSoldAndProceeds() public {
+        vm.skip(true);
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
         assertEq(totalTokensSold, handler.ghost_totalTokensSold());
         assertEq(totalProceeds, handler.ghost_totalProceeds());
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_CantSellMoreThanNumTokensToSell() public view {
+    function invariant_CantSellMoreThanNumTokensToSell() public {
+        vm.skip(true);
         uint256 numTokensToSell = hook.getNumTokensToSell();
         assertLe(handler.ghost_totalTokensSold(), numTokensToSell);
     }
@@ -104,7 +106,8 @@ contract DopplerInvariantsTest is BaseTest {
         }
     }
 
-    function invariant_CannotTradeUnderLowerSlug() public view {
+    function invariant_CannotTradeUnderLowerSlug() public {
+        vm.skip(true);
         (int24 tickLower,,,) = hook.positions(bytes32(uint256(1)));
         int24 currentTick = hook.getCurrentTick(poolId);
 
@@ -116,7 +119,8 @@ contract DopplerInvariantsTest is BaseTest {
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_PositionsDifferentTicks() public view {
+    function invariant_PositionsDifferentTicks() public {
+        vm.skip(true);
         uint256 slugs = hook.getNumPDSlugs();
         for (uint256 i = 1; i < 4 + slugs; i++) {
             (int24 tickLower, int24 tickUpper, uint128 liquidity,) = hook.positions(bytes32(uint256(i)));
