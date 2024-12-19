@@ -17,6 +17,14 @@ error ArrayLengthsMismatch();
 
 error CannotReleaseYet();
 
+error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
+
+error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
+
+// TODO: Set the values for these constants
+uint256 constant MAX_PRE_MINT_PER_ADDRESS = 0;
+uint256 constant MAX_TOTAL_PRE_MINT = 0;
+
 /// @custom:security-contact security@whetstone.cc
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     uint256 public immutable mintStartDate;
@@ -56,9 +64,13 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 vestedTokens;
 
         for (uint256 i; i < length; ++i) {
+            uint256 amount = amounts_[i];
+            require(amount <= MAX_PRE_MINT_PER_ADDRESS, MaxPreMintPerAddressExceeded(amount, MAX_PRE_MINT_PER_ADDRESS));
             getVestingOf[recipients_[i]].amount = amounts_[i];
             vestedTokens += amounts_[i];
         }
+
+        require(vestedTokens <= MAX_TOTAL_PRE_MINT, MaxTotalPreMintExceeded(vestedTokens, MAX_TOTAL_PRE_MINT));
 
         _mint(address(this), vestedTokens);
         _mint(recipient, initialSupply - vestedTokens);
