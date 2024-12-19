@@ -18,7 +18,6 @@ import {
     CallbackData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
-import "forge-std/console.sol";
 
 import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
@@ -113,9 +112,7 @@ contract UniswapV3InitializerTest is Test {
         WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
-        (, int24 tickStart,,,,,) = IUniswapV3Pool(pool).slot0();
-
-        console.log("tickStart", tickStart);
+        // (, int24 tickStart,,,,,) = IUniswapV3Pool(pool).slot0();
 
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
@@ -136,17 +133,15 @@ contract UniswapV3InitializerTest is Test {
         address token1 = IUniswapV3Pool(pool).token1();
 
         // for debugging
-        (
-            uint160 sqrtPriceX96,
-            int24 tickEnd,
-            uint16 observationIndex,
-            uint16 observationCardinality,
-            uint16 observationCardinalityNext,
-            uint8 feeProtocol,
-            bool unlocked
-        ) = IUniswapV3Pool(pool).slot0();
-
-        console.log("tickEnd", tickEnd);
+        // (
+        //     uint160 sqrtPriceX96,
+        //     int24 tickEnd,
+        //     uint16 observationIndex,
+        //     uint16 observationCardinality,
+        //     uint16 observationCardinalityNext,
+        //     uint8 feeProtocol,
+        //     bool unlocked
+        // ) = IUniswapV3Pool(pool).slot0();
 
         initializer.exitLiquidity(pool);
 

@@ -9,8 +9,6 @@ import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
-import "forge-std/console.sol";
-
 error OnlyAirlock();
 error OnlyPool();
 error PoolAlreadyInitialized();
