@@ -13,7 +13,8 @@ error OnlyAirlock();
 error OnlyPool();
 error PoolAlreadyInitialized();
 error PoolAlreadyExited();
-error CannotMigrate(int24 expectedTick, int24 currentTick);
+error CannotMigrateOutOfRange(int24 expectedTick, int24 currentTick);
+error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 error InvalidTargetTick();
 
 struct CallbackData {
@@ -123,12 +124,14 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         int24 tick;
         (sqrtPriceX96, tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
-        int24 endingTick = getState[pool].asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
-        int24 targetTick = getState[pool].targetTick;
         address asset = getState[pool].asset;
+        int24 targetTick = getState[pool].targetTick;
+        int24 endingTick = asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
 
-        require(tick != endingTick, CannotMigrate(endingTick, tick));
-        require(asset == token0 ? tick <= targetTick : tick >= targetTick, CannotMigrate(targetTick, tick));
+        require(tick != endingTick, CannotMigrateOutOfRange(endingTick, tick));
+        require(
+            asset == token0 ? tick <= targetTick : tick >= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
+        );
 
         // We do this first call to track the fees separately
         (,,, fees0, fees1) = IUniswapV3Pool(pool).positions(
