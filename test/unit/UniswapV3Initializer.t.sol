@@ -18,12 +18,13 @@ import {
     CallbackData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
+import "forge-std/console.sol";
 
 import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
-int24 constant DEFAULT_LOWER_TICK = -200_040;
-int24 constant DEFAULT_UPPER_TICK = -167_520;
-int24 constant DEFAULT_TARGET_TICK = -200_010;
+int24 constant DEFAULT_LOWER_TICK = 167_520;
+int24 constant DEFAULT_UPPER_TICK = 200_040;
+int24 constant DEFAULT_TARGET_TICK = 167_520 + 12_000;
 
 contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
@@ -91,7 +92,13 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_exitLiquidity() public returns (address pool) {
+        bool isToken0;
         DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        while (address(token) < address(WETH_MAINNET)) {
+            token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        }
+
+        isToken0 = address(token) < address(WETH_MAINNET);
         token.approve(address(initializer), type(uint256).max);
 
         pool = initializer.initialize(
@@ -106,6 +113,10 @@ contract UniswapV3InitializerTest is Test {
         WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
+        (, int24 tickStart,,,,,) = IUniswapV3Pool(pool).slot0();
+
+        console.log("tickStart", tickStart);
+
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
@@ -115,7 +126,9 @@ contract UniswapV3InitializerTest is Test {
                 deadline: block.timestamp,
                 amountIn: 1 ether,
                 amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+                sqrtPriceLimitX96: isToken0
+                    ? TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+                    : TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
             })
         );
 
@@ -123,15 +136,17 @@ contract UniswapV3InitializerTest is Test {
         address token1 = IUniswapV3Pool(pool).token1();
 
         // for debugging
-        // (
-        //     uint160 sqrtPriceX96,
-        //     int24 tickEnd,
-        //     uint16 observationIndex,
-        //     uint16 observationCardinality,
-        //     uint16 observationCardinalityNext,
-        //     uint8 feeProtocol,
-        //     bool unlocked
-        // ) = IUniswapV3Pool(pool).slot0();
+        (
+            uint160 sqrtPriceX96,
+            int24 tickEnd,
+            uint16 observationIndex,
+            uint16 observationCardinality,
+            uint16 observationCardinalityNext,
+            uint8 feeProtocol,
+            bool unlocked
+        ) = IUniswapV3Pool(pool).slot0();
+
+        console.log("tickEnd", tickEnd);
 
         initializer.exitLiquidity(pool);
 

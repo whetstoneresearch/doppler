@@ -40,7 +40,7 @@ address constant DEFAULT_OWNER = address(0xdeadbeef);
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;
-int24 constant DEFAULT_TARGET_TICK = 30_000;
+int24 constant DEFAULT_TARGET_TICK = 12_000;
 
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;

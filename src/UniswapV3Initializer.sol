@@ -9,6 +9,8 @@ import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
+import "forge-std/console.sol";
+
 error OnlyAirlock();
 error OnlyPool();
 error PoolAlreadyInitialized();
@@ -16,6 +18,12 @@ error PoolAlreadyExited();
 error CannotMigrateOutOfRange(int24 expectedTick, int24 currentTick);
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 error InvalidTargetTick();
+
+error InvalidFee(uint24 fee);
+error InvalidTickRangeMisordered(int24 tickLower, int24 tickUpper);
+error InvalidTickRange500(int24 tickLower, int24 tickUpper);
+error InvalidTickRange3000(int24 tickLower, int24 tickUpper);
+error InvalidTickRange10000(int24 tickLower, int24 tickUpper);
 
 struct CallbackData {
     address asset;
@@ -57,29 +65,58 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         (uint24 fee, int24 tickLower, int24 tickUpper, int24 targetTick) =
             abi.decode(data, (uint24, int24, int24, int24));
 
+        require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
         require(targetTick >= tickLower && targetTick <= tickUpper, InvalidTargetTick());
+
+        if (fee == 3000) {
+            require(tickLower % 60 == 0 && tickUpper % 60 == 0, InvalidTickRange3000(tickLower, tickUpper));
+        } else if (fee == 10_000) {
+            require(tickLower % 200 == 0 && tickUpper % 200 == 0, InvalidTickRange10000(tickLower, tickUpper));
+        } else if (fee == 500) {
+            require(tickLower % 10 == 0 && tickUpper % 10 == 0, InvalidTickRange500(tickLower, tickUpper));
+        } else {
+            revert InvalidFee(fee);
+        }
 
         (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         pool = factory.getPool(tokenA, tokenB, fee);
         require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
 
+        bool isToken0 = asset == tokenA;
+
         if (pool == address(0)) {
             pool = factory.createPool(tokenA, tokenB, fee);
         }
 
-        uint160 sqrtPriceX96 =
-            asset == tokenA ? TickMath.getSqrtPriceAtTick(tickLower) : TickMath.getSqrtPriceAtTick(tickUpper);
+        int24 targetTickDelta = tickUpper - targetTick;
+
+        int24 startTick;
+        int24 endTick;
+        if (isToken0) {
+            startTick = -tickUpper;
+            endTick = -tickLower;
+            targetTick = endTick - targetTickDelta;
+        } else {
+            startTick = tickUpper;
+            endTick = tickLower;
+            targetTick = endTick + targetTickDelta;
+        }
+
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
 
         try IUniswapV3Pool(pool).initialize(sqrtPriceX96) { } catch { }
 
         uint128 amount = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            asset == tokenA ? numTokensToSell : 0,
-            asset == tokenA ? 0 : numTokensToSell
+            TickMath.getSqrtPriceAtTick(startTick),
+            TickMath.getSqrtPriceAtTick(endTick),
+            isToken0 ? numTokensToSell : 0,
+            isToken0 ? 0 : numTokensToSell
         );
+
+        tickLower = startTick < endTick ? startTick : endTick;
+        tickUpper = startTick < endTick ? endTick : startTick;
 
         getState[pool] = PoolState({
             asset: asset,
