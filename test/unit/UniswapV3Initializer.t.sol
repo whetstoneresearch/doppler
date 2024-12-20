@@ -130,7 +130,7 @@ contract UniswapV3InitializerTest is Test {
 
         int24 tickLower = isToken0 ? DEFAULT_LOWER_TICK : -DEFAULT_UPPER_TICK;
         int24 tickUpper = isToken0 ? DEFAULT_UPPER_TICK : -DEFAULT_LOWER_TICK;
-        int24 targetTick = isToken0 ? tickLower : tickUpper;
+        int24 targetTick = isToken0 ? DEFAULT_UPPER_TICK : -DEFAULT_UPPER_TICK;
 
         console.log("isToken0 %s", isToken0);
         console.log("tickLower %s", tickLower);
