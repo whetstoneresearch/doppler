@@ -243,9 +243,9 @@ contract UniswapV3InitializerTest is Test {
                 abi.encode(
                     InitData({
                         fee: 3000,
-                        tickLower: DEFAULT_LOWER_TICK,
-                        tickUpper: DEFAULT_UPPER_TICK,
-                        targetTick: DEFAULT_LOWER_TICK
+                        tickLower: -DEFAULT_UPPER_TICK,
+                        tickUpper: -DEFAULT_LOWER_TICK,
+                        targetTick: -DEFAULT_TARGET_TICK
                     })
                 )
             )
@@ -261,7 +261,7 @@ contract UniswapV3InitializerTest is Test {
                         fee: 3000,
                         tickLower: DEFAULT_LOWER_TICK,
                         tickUpper: DEFAULT_UPPER_TICK,
-                        targetTick: DEFAULT_LOWER_TICK
+                        targetTick: DEFAULT_TARGET_TICK
                     })
                 )
             )
