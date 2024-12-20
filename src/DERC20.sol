@@ -21,9 +21,11 @@ error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 
 error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 
-// TODO: Set the values for these constants
-uint256 constant MAX_PRE_MINT_PER_ADDRESS = 0;
-uint256 constant MAX_TOTAL_PRE_MINT = 0;
+/// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
+uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
+
+/// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
+uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.1 ether;
 
 /// @custom:security-contact security@whetstone.cc
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
@@ -63,14 +65,17 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         uint256 vestedTokens;
 
+        uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
+
         for (uint256 i; i < length; ++i) {
             uint256 amount = amounts_[i];
-            require(amount <= MAX_PRE_MINT_PER_ADDRESS, MaxPreMintPerAddressExceeded(amount, MAX_PRE_MINT_PER_ADDRESS));
+            require(amount <= maxPreMintPerAddress, MaxPreMintPerAddressExceeded(amount, maxPreMintPerAddress));
             getVestingOf[recipients_[i]].amount = amounts_[i];
             vestedTokens += amounts_[i];
         }
 
-        require(vestedTokens <= MAX_TOTAL_PRE_MINT, MaxTotalPreMintExceeded(vestedTokens, MAX_TOTAL_PRE_MINT));
+        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+        require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
 
         _mint(address(this), vestedTokens);
         _mint(recipient, initialSupply - vestedTokens);

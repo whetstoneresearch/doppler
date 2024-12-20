@@ -40,6 +40,7 @@ address constant DEFAULT_OWNER = address(0xdeadbeef);
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;
+int24 constant DEFAULT_TARGET_TICK = 12_000;
 
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;
@@ -289,9 +290,10 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_DeploysOnUniswapV3() public {
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, new address[](0), new uint256[](0));
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
         bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
-        bytes memory poolInitializerData = abi.encode(uint24(3000), DEFAULT_START_TICK, DEFAULT_END_TICK);
+        bytes memory poolInitializerData =
+            abi.encode(uint24(3000), DEFAULT_START_TICK, DEFAULT_END_TICK, DEFAULT_TARGET_TICK);
 
         airlock.create(
             DEFAULT_INITIAL_SUPPLY,

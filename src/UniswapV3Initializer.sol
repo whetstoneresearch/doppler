@@ -13,7 +13,23 @@ error OnlyAirlock();
 error OnlyPool();
 error PoolAlreadyInitialized();
 error PoolAlreadyExited();
-error CannotMigrate(int24 expectedTick, int24 currentTick);
+error CannotMigrateOutOfRange(int24 expectedTick, int24 currentTick);
+error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
+error InvalidTargetTick();
+error CannotMintZeroLiquidity();
+
+error InvalidFee(uint24 fee);
+error InvalidTickRangeMisordered(int24 tickLower, int24 tickUpper);
+error InvalidTickRange500(int24 tickLower, int24 tickUpper);
+error InvalidTickRange3000(int24 tickLower, int24 tickUpper);
+error InvalidTickRange10000(int24 tickLower, int24 tickUpper);
+
+struct InitData {
+    uint24 fee;
+    int24 tickLower;
+    int24 tickUpper;
+    int24 targetTick;
+}
 
 struct CallbackData {
     address asset;
@@ -26,6 +42,7 @@ struct PoolState {
     address numeraire;
     int24 tickLower;
     int24 tickUpper;
+    int24 targetTick;
     uint128 liquidityDelta;
     bool isInitialized;
     bool isExited;
@@ -51,18 +68,35 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     ) external returns (address pool) {
         require(msg.sender == airlock, OnlyAirlock());
 
-        (uint24 fee, int24 tickLower, int24 tickUpper) = abi.decode(data, (uint24, int24, int24));
+        InitData memory initData = abi.decode(data, (InitData));
+        (uint24 fee, int24 tickLower, int24 tickUpper, int24 targetTick) =
+            (initData.fee, initData.tickLower, initData.tickUpper, initData.targetTick);
+
+        require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
+        require(targetTick >= tickLower && targetTick <= tickUpper, InvalidTargetTick());
+
+        if (fee == 3000) {
+            require(tickLower % 60 == 0 && tickUpper % 60 == 0, InvalidTickRange3000(tickLower, tickUpper));
+        } else if (fee == 10_000) {
+            require(tickLower % 200 == 0 && tickUpper % 200 == 0, InvalidTickRange10000(tickLower, tickUpper));
+        } else if (fee == 500) {
+            require(tickLower % 10 == 0 && tickUpper % 10 == 0, InvalidTickRange500(tickLower, tickUpper));
+        } else {
+            revert InvalidFee(fee);
+        }
+
         (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         pool = factory.getPool(tokenA, tokenB, fee);
         require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
 
+        bool isToken0 = asset == tokenA;
+
         if (pool == address(0)) {
             pool = factory.createPool(tokenA, tokenB, fee);
         }
 
-        uint160 sqrtPriceX96 =
-            asset == tokenA ? TickMath.getSqrtPriceAtTick(tickLower) : TickMath.getSqrtPriceAtTick(tickUpper);
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? tickLower : tickUpper);
 
         try IUniswapV3Pool(pool).initialize(sqrtPriceX96) { } catch { }
 
@@ -70,9 +104,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(tickLower),
             TickMath.getSqrtPriceAtTick(tickUpper),
-            asset == tokenA ? numTokensToSell : 0,
-            asset == tokenA ? 0 : numTokensToSell
+            isToken0 ? numTokensToSell : 0,
+            isToken0 ? 0 : numTokensToSell
         );
+
+        require(amount > 0, CannotMintZeroLiquidity());
 
         getState[pool] = PoolState({
             asset: asset,
@@ -80,6 +116,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             tickLower: tickLower,
             tickUpper: tickUpper,
             liquidityDelta: amount,
+            targetTick: targetTick,
             isInitialized: true,
             isExited: false
         });
@@ -116,10 +153,14 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         int24 tick;
         (sqrtPriceX96, tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
-        int24 endingTick = getState[pool].asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
+        address asset = getState[pool].asset;
+        int24 targetTick = getState[pool].targetTick;
+        int24 endingTick = asset != token0 ? getState[pool].tickLower : getState[pool].tickUpper;
 
-        // TODO: I think it's possible to move the current tick above or under our current tick range
-        require(tick == endingTick, CannotMigrate(endingTick, tick));
+        require(tick != endingTick, CannotMigrateOutOfRange(endingTick, tick));
+        require(
+            asset == token0 ? tick <= targetTick : tick >= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
+        );
 
         // We do this first call to track the fees separately
         (,,, fees0, fees1) = IUniswapV3Pool(pool).positions(
