@@ -346,9 +346,9 @@ contract UniswapV3InitializerTest is Test {
                 })
             );
 
-            if (sqrtPriceX96AfterNotIsToken0 < sqrtPriceTargetTickNotIsToken0) {
+            if (sqrtPriceX96AfterNotIsToken0 > sqrtPriceTargetTickNotIsToken0) {
                 low = mid + 1;
-            } else if (sqrtPriceX96AfterNotIsToken0 > sqrtPriceTargetTickNotIsToken0) {
+            } else if (sqrtPriceX96AfterNotIsToken0 < sqrtPriceTargetTickNotIsToken0) {
                 high = mid;
             } else {
                 break;
