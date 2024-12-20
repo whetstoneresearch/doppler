@@ -87,18 +87,15 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             pool = factory.createPool(tokenA, tokenB, fee);
         }
 
-        int24 targetTickDelta = tickUpper - targetTick;
-
         int24 startTick;
         int24 endTick;
         if (isToken0) {
             startTick = -tickUpper;
             endTick = -tickLower;
-            targetTick = endTick - targetTickDelta;
+            targetTick = -targetTick;
         } else {
             startTick = tickUpper;
             endTick = tickLower;
-            targetTick = endTick + targetTickDelta;
         }
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);

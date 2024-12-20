@@ -7,6 +7,7 @@ import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 import {
@@ -172,6 +173,7 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_Initialize_token0AndToken1SamePrice() public {
+        // FUCK this test!
         // will be !isToken0
         DERC20 isToken0 =
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
@@ -253,8 +255,110 @@ contract UniswapV3InitializerTest is Test {
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
         assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
 
-        (,,,, int24 targetTickIsToken0,,,) = UniswapV3Initializer(initializer).getState(address(isToken0Pool));
-        (,,,, int24 targetTickNotIsToken0,,,) = UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
-        assertEq(targetTickIsToken0, targetTickNotIsToken0, "targetTicks are not equal");
+        (,,, int24 tickUpperIsToken0, int24 targetTickIsToken0,,,) =
+            UniswapV3Initializer(initializer).getState(address(isToken0Pool));
+        (,, int24 tickLowerNotIsToken0,, int24 targetTickNotIsToken0,,,) =
+            UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
+
+        uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(targetTickIsToken0);
+        uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(targetTickNotIsToken0);
+
+        IQuoterV2 quoter = IQuoterV2(
+            deployCode(
+                "lib/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json",
+                abi.encode(address(UNISWAP_V3_FACTORY_MAINNET), address(WETH_MAINNET))
+            )
+        );
+
+        uint256 poolBalanceIsToken0 = isToken0.balanceOf(address(isToken0Pool));
+        uint256 poolBalanceNotIsToken0 = notIsToken0.balanceOf(address(notIsToken0Pool));
+
+        (uint256 maxWethIsToken0,,,) = quoter.quoteExactOutputSingle(
+            IQuoterV2.QuoteExactOutputSingleParams({
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(isToken0),
+                fee: 3000,
+                amount: poolBalanceIsToken0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickUpperIsToken0)
+            })
+        );
+
+        (uint256 maxWethNotIsToken0,,,) = quoter.quoteExactOutputSingle(
+            IQuoterV2.QuoteExactOutputSingleParams({
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(notIsToken0),
+                fee: 3000,
+                amount: poolBalanceNotIsToken0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0)
+            })
+        );
+
+        uint256 low = 1000;
+        uint256 high = maxWethIsToken0 - 1 ether;
+        uint256 amountReceivedIsToken0;
+        uint160 sqrtPriceX96AfterIsToken0;
+        uint32 initializedTicksCrossedIsToken0;
+        uint256 gasEstimateIsToken0;
+        while (low < high) {
+            uint256 mid = (low + high) / 2;
+
+            (amountReceivedIsToken0, sqrtPriceX96AfterIsToken0, initializedTicksCrossedIsToken0, gasEstimateIsToken0) =
+            quoter.quoteExactInputSingle(
+                IQuoterV2.QuoteExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(isToken0),
+                    fee: 3000,
+                    amountIn: mid,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickUpperIsToken0)
+                })
+            );
+
+            if (sqrtPriceX96AfterIsToken0 < sqrtPriceTargetTickIsToken0) {
+                low = mid + 1;
+            } else if (sqrtPriceX96AfterIsToken0 > sqrtPriceTargetTickIsToken0) {
+                high = mid;
+            } else {
+                break;
+            }
+        }
+
+        low = 1000;
+        high = maxWethNotIsToken0 - 1 ether;
+        uint256 amountReceivedNotIsToken0;
+        uint160 sqrtPriceX96AfterNotIsToken0;
+        uint32 initializedTicksCrossedNotIsToken0;
+        uint256 gasEstimateNotIsToken0;
+        while (low < high) {
+            uint256 mid = (low + high) / 2;
+
+            (
+                amountReceivedNotIsToken0,
+                sqrtPriceX96AfterNotIsToken0,
+                initializedTicksCrossedNotIsToken0,
+                gasEstimateNotIsToken0
+            ) = quoter.quoteExactInputSingle(
+                IQuoterV2.QuoteExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(notIsToken0),
+                    fee: 3000,
+                    amountIn: mid,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0)
+                })
+            );
+
+            if (sqrtPriceX96AfterNotIsToken0 < sqrtPriceTargetTickNotIsToken0) {
+                low = mid + 1;
+            } else if (sqrtPriceX96AfterNotIsToken0 > sqrtPriceTargetTickNotIsToken0) {
+                high = mid;
+            } else {
+                break;
+            }
+        }
+        assertApproxEqAbs(
+            amountReceivedIsToken0,
+            amountReceivedNotIsToken0,
+            1e9,
+            "amountReceivedIsToken0 and amountReceivedNotIsToken0 are not equal"
+        );
     }
 }
