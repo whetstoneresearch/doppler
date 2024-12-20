@@ -16,12 +16,20 @@ error PoolAlreadyExited();
 error CannotMigrateOutOfRange(int24 expectedTick, int24 currentTick);
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 error InvalidTargetTick();
+error CannotMintZeroLiquidity();
 
 error InvalidFee(uint24 fee);
 error InvalidTickRangeMisordered(int24 tickLower, int24 tickUpper);
 error InvalidTickRange500(int24 tickLower, int24 tickUpper);
 error InvalidTickRange3000(int24 tickLower, int24 tickUpper);
 error InvalidTickRange10000(int24 tickLower, int24 tickUpper);
+
+struct InitData {
+    uint24 fee;
+    int24 tickLower;
+    int24 tickUpper;
+    int24 targetTick;
+}
 
 struct CallbackData {
     address asset;
@@ -60,8 +68,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     ) external returns (address pool) {
         require(msg.sender == airlock, OnlyAirlock());
 
+        InitData memory initData = abi.decode(data, (InitData));
         (uint24 fee, int24 tickLower, int24 tickUpper, int24 targetTick) =
-            abi.decode(data, (uint24, int24, int24, int24));
+            (initData.fee, initData.tickLower, initData.tickUpper, initData.targetTick);
 
         require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
         require(targetTick >= tickLower && targetTick <= tickUpper, InvalidTargetTick());
@@ -87,31 +96,19 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             pool = factory.createPool(tokenA, tokenB, fee);
         }
 
-        int24 startTick;
-        int24 endTick;
-        if (isToken0) {
-            startTick = -tickUpper;
-            endTick = -tickLower;
-            targetTick = -targetTick;
-        } else {
-            startTick = tickUpper;
-            endTick = tickLower;
-        }
-
-        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? tickUpper : tickLower);
 
         try IUniswapV3Pool(pool).initialize(sqrtPriceX96) { } catch { }
 
         uint128 amount = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
-            TickMath.getSqrtPriceAtTick(startTick),
-            TickMath.getSqrtPriceAtTick(endTick),
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
             isToken0 ? numTokensToSell : 0,
             isToken0 ? 0 : numTokensToSell
         );
 
-        tickLower = startTick < endTick ? startTick : endTick;
-        tickUpper = startTick < endTick ? endTick : startTick;
+        require(amount > 0, CannotMintZeroLiquidity());
 
         getState[pool] = PoolState({
             asset: asset,
@@ -162,7 +159,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         require(tick != endingTick, CannotMigrateOutOfRange(endingTick, tick));
         require(
-            asset == token0 ? tick >= targetTick : tick <= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
+            asset == token0 ? tick <= targetTick : tick >= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
         );
 
         // We do this first call to track the fees separately

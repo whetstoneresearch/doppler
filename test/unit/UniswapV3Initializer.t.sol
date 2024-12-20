@@ -16,7 +16,8 @@ import {
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
-    CallbackData
+    CallbackData,
+    InitData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 
@@ -48,7 +49,14 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_LOWER_TICK,
+                    tickUpper: DEFAULT_UPPER_TICK,
+                    targetTick: DEFAULT_TARGET_TICK
+                })
+            )
         );
 
         assertEq(token.balanceOf(address(initializer)), 0, "Wrong initializer balance");
@@ -57,6 +65,11 @@ contract UniswapV3InitializerTest is Test {
 
         uint128 totalLiquidity = IUniswapV3Pool(pool).liquidity();
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
+
+        console.log("DEFAULT_LOWER_TICK %e", DEFAULT_LOWER_TICK);
+        console.log("DEFAULT_UPPER_TICK %e", DEFAULT_UPPER_TICK);
+
+        // FIXME: The test fails because the call is looking at the wrong range (ticks were negated and flipped)
         (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
             keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
         );
@@ -72,7 +85,14 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_LOWER_TICK,
+                    tickUpper: DEFAULT_UPPER_TICK,
+                    targetTick: DEFAULT_TARGET_TICK
+                })
+            )
         );
 
         vm.expectRevert(PoolAlreadyInitialized.selector);
@@ -81,7 +101,14 @@ contract UniswapV3InitializerTest is Test {
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK))
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_LOWER_TICK,
+                    tickUpper: DEFAULT_UPPER_TICK,
+                    targetTick: DEFAULT_TARGET_TICK
+                })
+            )
         );
     }
 
@@ -101,34 +128,49 @@ contract UniswapV3InitializerTest is Test {
         isToken0 = address(token) < address(WETH_MAINNET);
         token.approve(address(initializer), type(uint256).max);
 
+        int24 tickLower = isToken0 ? DEFAULT_LOWER_TICK : -DEFAULT_UPPER_TICK;
+        int24 tickUpper = isToken0 ? DEFAULT_UPPER_TICK : -DEFAULT_LOWER_TICK;
+        int24 targetTick = isToken0 ? tickLower : tickUpper;
+
+        console.log("isToken0 %s", isToken0);
+        console.log("tickLower %s", tickLower);
+        console.log("tickUpper %s", tickUpper);
+        console.log("targetTick %s", targetTick);
+
         pool = initializer.initialize(
             address(token),
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK), int24(DEFAULT_LOWER_TICK))
+            abi.encode(InitData({ fee: 3000, tickLower: tickLower, tickUpper: tickUpper, targetTick: targetTick }))
         );
 
-        deal(address(this), 1000 ether);
-        WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
+        deal(address(this), 100_000_000 ether);
+        WETH(payable(WETH_MAINNET)).deposit{ value: 100_000_000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
-        // (, int24 tickStart,,,,,) = IUniswapV3Pool(pool).slot0();
+        (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
+        console.log("Current tick %s", currentTick);
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+        console.log("token0 %s", IUniswapV3Pool(pool).token0());
+        console.log("token1 %s", IUniswapV3Pool(pool).token1());
+
+        uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
                 tokenOut: address(token),
                 fee: 3000,
                 recipient: address(0x666),
                 deadline: block.timestamp,
-                amountIn: 1 ether,
+                amountIn: 1000 ether,
                 amountOutMinimum: 0,
-                sqrtPriceLimitX96: isToken0
-                    ? TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
-                    : TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(targetTick)
             })
         );
+
+        console.log("Bought %e", amountOut);
+        (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
+        console.log("Final tick %s", currentTick);
 
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
@@ -146,9 +188,8 @@ contract UniswapV3InitializerTest is Test {
 
         initializer.exitLiquidity(pool);
 
-        (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
-        );
+        (uint128 liquidity,,,,) =
+            IUniswapV3Pool(pool).positions(keccak256(abi.encodePacked(address(initializer), tickLower, tickUpper)));
         assertEq(liquidity, 0, "Position liquidity is not empty");
         assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 10, "Pool token0 balance is not empty");
         assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
@@ -200,7 +241,12 @@ contract UniswapV3InitializerTest is Test {
                 1e27,
                 bytes32(0),
                 abi.encode(
-                    uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK), int24(DEFAULT_LOWER_TICK)
+                    InitData({
+                        fee: 3000,
+                        tickLower: DEFAULT_LOWER_TICK,
+                        tickUpper: DEFAULT_UPPER_TICK,
+                        targetTick: DEFAULT_LOWER_TICK
+                    })
                 )
             )
         );
@@ -211,7 +257,12 @@ contract UniswapV3InitializerTest is Test {
                 1e27,
                 bytes32(0),
                 abi.encode(
-                    uint24(3000), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK), int24(DEFAULT_LOWER_TICK)
+                    InitData({
+                        fee: 3000,
+                        tickLower: DEFAULT_LOWER_TICK,
+                        tickUpper: DEFAULT_UPPER_TICK,
+                        targetTick: DEFAULT_LOWER_TICK
+                    })
                 )
             )
         );
@@ -263,12 +314,7 @@ contract UniswapV3InitializerTest is Test {
         uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(targetTickIsToken0);
         uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(targetTickNotIsToken0);
 
-        IQuoterV2 quoter = IQuoterV2(
-            deployCode(
-                "lib/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json",
-                abi.encode(address(UNISWAP_V3_FACTORY_MAINNET), address(WETH_MAINNET))
-            )
-        );
+        IQuoterV2 quoter = IQuoterV2(0x61fFE014bA17989E743c5F6cB21bF9697530B21e);
 
         uint256 poolBalanceIsToken0 = isToken0.balanceOf(address(isToken0Pool));
         uint256 poolBalanceNotIsToken0 = notIsToken0.balanceOf(address(notIsToken0Pool));
