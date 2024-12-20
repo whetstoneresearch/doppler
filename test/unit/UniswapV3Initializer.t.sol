@@ -66,9 +66,6 @@ contract UniswapV3InitializerTest is Test {
         uint128 totalLiquidity = IUniswapV3Pool(pool).liquidity();
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
 
-        console.log("DEFAULT_LOWER_TICK %e", DEFAULT_LOWER_TICK);
-        console.log("DEFAULT_UPPER_TICK %e", DEFAULT_UPPER_TICK);
-
         // FIXME: The test fails because the call is looking at the wrong range (ticks were negated and flipped)
         (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
             keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
@@ -132,11 +129,6 @@ contract UniswapV3InitializerTest is Test {
         int24 tickUpper = isToken0 ? DEFAULT_UPPER_TICK : -DEFAULT_LOWER_TICK;
         int24 targetTick = isToken0 ? DEFAULT_UPPER_TICK : -DEFAULT_UPPER_TICK;
 
-        console.log("isToken0 %s", isToken0);
-        console.log("tickLower %s", tickLower);
-        console.log("tickUpper %s", tickUpper);
-        console.log("targetTick %s", targetTick);
-
         pool = initializer.initialize(
             address(token),
             address(WETH_MAINNET),
@@ -150,10 +142,6 @@ contract UniswapV3InitializerTest is Test {
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
         (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
-        console.log("Current tick %s", currentTick);
-
-        console.log("token0 %s", IUniswapV3Pool(pool).token0());
-        console.log("token1 %s", IUniswapV3Pool(pool).token1());
 
         uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
@@ -168,9 +156,7 @@ contract UniswapV3InitializerTest is Test {
             })
         );
 
-        console.log("Bought %e", amountOut);
         (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
-        console.log("Final tick %s", currentTick);
 
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
