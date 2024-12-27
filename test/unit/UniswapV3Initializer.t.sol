@@ -145,7 +145,9 @@ contract UniswapV3InitializerTest is Test {
 
         // (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
-        uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+        uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 60 : targetTick - 60);
+
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
                 tokenOut: address(token),
@@ -154,7 +156,7 @@ contract UniswapV3InitializerTest is Test {
                 deadline: block.timestamp,
                 amountIn: 1000 ether,
                 amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(targetTick)
+                sqrtPriceLimitX96: priceLimit
             })
         );
 
