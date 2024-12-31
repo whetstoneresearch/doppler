@@ -169,14 +169,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
 
-        // Calling this again allows us to get the sum of the fees + tokens from the actual position
-        (,,, balance0, balance1) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
-        );
-
-        // TODO: I think we can save some gas by requesting type(uint128).max instead of specific amounts
-        IUniswapV3Pool(pool).collect(
-            address(this), getState[pool].tickLower, getState[pool].tickUpper, balance0, balance1
+        (balance0, balance1) = IUniswapV3Pool(pool).collect(
+            address(this), getState[pool].tickLower, getState[pool].tickUpper, type(uint128).max, type(uint128).max
         );
 
         // TODO: Use safeTransfer instead
