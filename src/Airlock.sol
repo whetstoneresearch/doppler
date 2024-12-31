@@ -9,7 +9,6 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
-import "forge-std/console.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -207,29 +206,17 @@ contract Airlock is Ownable {
             uint128 balance1
         ) = assetData.poolInitializer.exitLiquidity(assetData.pool);
 
-        console.log("sqrtPriceX96", sqrtPriceX96);
-        console.log("token0", token0);
-        console.log("token1", token1);
-        console.log("balance0", balance0);
-        console.log("balance1", balance1);
-        console.log("fees0", fees0);
-        console.log("fees1", fees1);
-
         uint256 protocolLpFees0 = fees0 * 5 / 100;
         uint256 protocolLpFees1 = fees1 * 5 / 100;
 
-        uint256 protocolProceedsFees0 = (balance0 - fees0) / 1000;
-        uint256 protocolProceedsFees1 = (balance1 - fees1) / 1000;
+        uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
+        uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
 
         uint256 protocolFees0 = protocolLpFees0 > protocolProceedsFees0 ? protocolLpFees0 : protocolProceedsFees0;
         uint256 protocolFees1 = protocolLpFees1 > protocolProceedsFees1 ? protocolLpFees1 : protocolProceedsFees1;
 
-        console.log("protocolFees0", protocolFees0);
-        console.log("protocolFees1", protocolFees1);
-
         uint256 integratorFees0 = fees0 - protocolFees0;
         uint256 integratorFees1 = fees1 - protocolFees1;
-        console.log("here?");
 
         protocolFees[token0] += protocolFees0;
         protocolFees[token1] += protocolFees1;
@@ -245,9 +232,6 @@ contract Airlock is Ownable {
             total1 += assetData.totalSupply - assetData.numTokensToSell;
         }
 
-        console.log("sqrtPriceX96", sqrtPriceX96);
-        console.log("token0", token0);
-        console.log("token1", token1);
         ERC20(token0).transfer(address(assetData.liquidityMigrator), total0);
         ERC20(token1).transfer(address(assetData.liquidityMigrator), total1);
 

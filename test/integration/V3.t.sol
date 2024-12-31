@@ -133,6 +133,20 @@ contract V3Test is Test {
             })
         );
 
+        priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 80 : targetTick - 80);
+        amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: 3000,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
+        );
+
         assertGt(amountOut, 0, "Amount out is 0");
 
         (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
