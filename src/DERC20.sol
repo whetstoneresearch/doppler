@@ -7,18 +7,25 @@ import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { ERC20Permit } from "@openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import { Nonces } from "@openzeppelin/utils/Nonces.sol";
 
+/// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
 
+/// @dev Thrown when trying to mint more than the yearly cap
 error ExceedsYearlyMintCap();
 
+/// @dev Thrown when trying to transfer tokens into the pool while it is locked
 error PoolLocked();
 
+/// @dev Thrown when two arrays have different lengths
 error ArrayLengthsMismatch();
 
+/// @dev Thrown when trying to release tokens before the end of the vesting period
 error CannotReleaseYet();
 
+/// @dev Thrown when trying to premint more than the maximum allowed per address
 error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 
+/// @dev Thrown when trying to premint more than the maximum allowed in total
 error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
