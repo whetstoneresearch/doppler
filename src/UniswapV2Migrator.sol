@@ -6,6 +6,9 @@ import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
+import "forge-std/console.sol";
+
+uint256 constant WAD = 1e18;
 
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
@@ -87,6 +90,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
 
         uint256 balance0;
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
+        console.log("sqrtPriceX96", sqrtPriceX96);
 
         if (token0 == address(0)) {
             token0 = address(weth);
@@ -104,16 +108,20 @@ contract UniswapV2Migrator is ILiquidityMigrator {
             price = FixedPoint96.Q96.mulDiv(FixedPoint96.Q96, price);
         }
 
-        uint256 depositAmount0 = balance1.mulDiv(price, FixedPoint96.Q96);
-        uint256 depositAmount1 = balance0.mulDiv(FixedPoint96.Q96, price);
+        uint256 depositAmount0 = balance1.mulDiv(FixedPoint96.Q96, price);
+        uint256 depositAmount1 = balance0.mulDiv(price, FixedPoint96.Q96);
 
         if (depositAmount1 > balance1) {
             depositAmount1 = balance1;
-            depositAmount0 = depositAmount1.mulDiv(price, FixedPoint96.Q96);
+            depositAmount0 = depositAmount1.mulDiv(FixedPoint96.Q96, price);
         } else if (depositAmount0 > balance0) {
             depositAmount0 = balance0;
-            depositAmount1 = depositAmount0.mulDiv(FixedPoint96.Q96, price);
+            depositAmount1 = depositAmount0.mulDiv(price, FixedPoint96.Q96);
         }
+        console.log("balance0", balance0);
+        console.log("balance1", balance1);
+        console.log("depositAmount0", depositAmount0);
+        console.log("depositAmount1", depositAmount1);
 
         // Pool was created beforehand along the asset token deployment
         address pool = getPool[token0][token1];

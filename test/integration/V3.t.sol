@@ -6,7 +6,7 @@ import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/Un
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState, AssetData } from "src/Airlock.sol";
 import {
     UniswapV3Initializer,
     OnlyAirlock,
@@ -32,7 +32,7 @@ import { WETH } from "solmate/src/tokens/WETH.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
-int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - 12_000;
+int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - (6000 * 4);
 
 contract V3Test is Test {
     UniswapV3Initializer public initializer;
@@ -94,7 +94,7 @@ contract V3Test is Test {
         bytes memory poolInitializerData =
             abi.encode(InitData({ fee: 3000, tickLower: tickLower, tickUpper: tickUpper, targetTick: targetTick }));
 
-        (address asset, address pool, address governance, address timelock, address migrationPool) = airlock.create(
+        (address asset, address pool,,, address migrationPool) = airlock.create(
             initialSupply,
             initialSupply,
             WETH_MAINNET,
@@ -157,6 +157,21 @@ contract V3Test is Test {
             assertLt(currentTick, targetTick, "Current tick is not greater than target tick");
         }
 
+        uint256 poolBalanceAssetBefore = DERC20(asset).balanceOf(pool);
+        uint256 poolBalanceWETHBefore = DERC20(WETH_MAINNET).balanceOf(pool);
+
         airlock.migrate(asset);
+
+        uint256 poolBalanceAssetAfter = DERC20(asset).balanceOf(pool);
+        uint256 poolBalanceWETHAfter = DERC20(WETH_MAINNET).balanceOf(pool);
+
+        // Allow for some dust
+        assertApproxEqAbs(poolBalanceAssetAfter, 0, 1000, "Pool balance of asset is not 0");
+        assertApproxEqAbs(poolBalanceWETHAfter, 0, 1000, "Pool balance of WETH is not 0");
+
+        uint256 migrationPoolBalanceAssetAfter = DERC20(asset).balanceOf(migrationPool);
+        uint256 migrationPoolBalanceWETHAfter = DERC20(WETH_MAINNET).balanceOf(migrationPool);
+        // assertEq(migrationPoolBalanceAssetAfter, poolBalanceAssetBefore, "Migration pool balance of asset is incorrect");
+        // assertEq(migrationPoolBalanceWETHAfter, poolBalanceWETHBefore, "Migration pool balance of WETH is incorrect");
     }
 }
