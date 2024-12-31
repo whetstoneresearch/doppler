@@ -6,6 +6,15 @@ import { DERC20 } from "src/DERC20.sol";
 
 error NotAirlock();
 
+struct CreateData {
+    string name;
+    string symbol;
+    uint256 yearlyMintCap;
+    uint256 vestingDuration;
+    address[] recipients;
+    uint256[] amounts;
+}
+
 /// @custom:security-contact security@whetstone.cc
 contract TokenFactory is ITokenFactory {
     address public immutable airlock;
@@ -27,18 +36,19 @@ contract TokenFactory is ITokenFactory {
             revert NotAirlock();
         }
 
-        (
-            string memory name,
-            string memory symbol,
-            uint256 yearlyMintCap,
-            uint256 vestingDuration,
-            address[] memory recipients,
-            uint256[] memory amounts
-        ) = abi.decode(data, (string, string, uint256, uint256, address[], uint256[]));
+        CreateData memory createData = abi.decode(data, (CreateData));
 
         return address(
             new DERC20{ salt: salt }(
-                name, symbol, initialSupply, recipient, owner, yearlyMintCap, vestingDuration, recipients, amounts
+                createData.name,
+                createData.symbol,
+                initialSupply,
+                recipient,
+                owner,
+                createData.yearlyMintCap,
+                createData.vestingDuration,
+                createData.recipients,
+                createData.amounts
             )
         );
     }
