@@ -13,7 +13,7 @@ import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
 import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
@@ -63,7 +63,7 @@ contract AirlockTest is Test, Deployers {
 
         airlock = new Airlock(address(this));
         tokenFactory = new TokenFactory(address(airlock));
-        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager);
+        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, DopplerDeployer(address(0)));
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
