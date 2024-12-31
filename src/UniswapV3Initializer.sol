@@ -8,6 +8,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import "forge-std/console.sol";
 
 error OnlyAirlock();
 error OnlyPool();
@@ -166,6 +167,12 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         (,,, fees0, fees1) = IUniswapV3Pool(pool).positions(
             keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
         );
+
+        uint256 feeGrowthGlobal0X128 = IUniswapV3Pool(pool).feeGrowthGlobal0X128();
+        uint256 feeGrowthGlobal1X128 = IUniswapV3Pool(pool).feeGrowthGlobal1X128();
+
+        console.log("feeGrowthGlobal0X128", feeGrowthGlobal0X128);
+        console.log("feeGrowthGlobal1X128", feeGrowthGlobal1X128);
 
         IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
 

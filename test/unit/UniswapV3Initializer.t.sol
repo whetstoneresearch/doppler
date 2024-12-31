@@ -8,6 +8,10 @@ import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { GovernanceFactory } from "src/GovernanceFactory.sol";
 
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 import {
@@ -20,8 +24,13 @@ import {
     InitData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
-
-import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+import {
+    WETH_MAINNET,
+    UNISWAP_V3_FACTORY_MAINNET,
+    UNISWAP_V3_ROUTER_MAINNET,
+    UNISWAP_V2_FACTORY_MAINNET,
+    UNISWAP_V2_ROUTER_MAINNET
+} from "test/shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
@@ -29,6 +38,11 @@ int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - 12_000;
 
 contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
+    UniswapV3Initializer public initializer2;
+    Airlock public airlock;
+    UniswapV2Migrator public uniswapV2LiquidityMigrator;
+    TokenFactory public tokenFactory;
+    GovernanceFactory public governanceFactory;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
