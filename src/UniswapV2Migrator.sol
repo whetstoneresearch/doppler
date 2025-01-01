@@ -6,7 +6,6 @@ import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
-import "forge-std/console.sol";
 
 uint256 constant WAD = 1e18;
 
