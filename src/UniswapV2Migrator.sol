@@ -90,7 +90,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
 
         uint256 balance0;
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
-        console.log("sqrtPriceX96", sqrtPriceX96);
 
         if (token0 == address(0)) {
             token0 = address(weth);
@@ -102,26 +101,21 @@ contract UniswapV2Migrator is ILiquidityMigrator {
 
         uint256 price = sqrtPriceX96.mulDiv(sqrtPriceX96, FixedPoint96.Q96);
 
-        if (token0 > token1) {
-            (token0, token1) = (token1, token0);
-            (balance0, balance1) = (balance1, balance0);
-            price = FixedPoint96.Q96.mulDiv(FixedPoint96.Q96, price);
-        }
-
         uint256 depositAmount0 = balance1.mulDiv(FixedPoint96.Q96, price);
         uint256 depositAmount1 = balance0.mulDiv(price, FixedPoint96.Q96);
 
         if (depositAmount1 > balance1) {
             depositAmount1 = balance1;
-            depositAmount0 = depositAmount1.mulDiv(FixedPoint96.Q96, price);
+            depositAmount0 = depositAmount0;
         } else if (depositAmount0 > balance0) {
             depositAmount0 = balance0;
-            depositAmount1 = depositAmount0.mulDiv(price, FixedPoint96.Q96);
+            depositAmount1 = depositAmount1;
         }
-        console.log("balance0", balance0);
-        console.log("balance1", balance1);
-        console.log("depositAmount0", depositAmount0);
-        console.log("depositAmount1", depositAmount1);
+
+        if (token0 > token1) {
+            (token0, token1) = (token1, token0);
+            (depositAmount0, depositAmount1) = (depositAmount1, depositAmount0);
+        }
 
         // Pool was created beforehand along the asset token deployment
         address pool = getPool[token0][token1];
