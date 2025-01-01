@@ -169,6 +169,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             address(this), getState[pool].tickLower, getState[pool].tickUpper, type(uint128).max, type(uint128).max
         );
 
+        // is uint128 safe here?
         fees0 = balance0 - uint128(amount0);
         fees1 = balance1 - uint128(amount1);
 
