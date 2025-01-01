@@ -172,11 +172,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         fees0 = balance0 - uint128(amount0);
         fees1 = balance1 - uint128(amount1);
 
-        // // Calling this again allows us to get the sum of the fees + tokens from the actual position
-        // (,,, balance0, balance1) = IUniswapV3Pool(pool).positions(
-        //     keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
-        // );
-
         // TODO: Use safeTransfer instead
         ERC20(token0).transfer(msg.sender, balance0);
         ERC20(token1).transfer(msg.sender, balance1);
