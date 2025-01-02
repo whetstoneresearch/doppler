@@ -181,6 +181,8 @@ contract UniswapV3InitializerTest is Test {
         assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 10, "Pool token0 balance is not empty");
         assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
         assertEq(IUniswapV3Pool(pool).liquidity(), 0, "Pool liquidity is not empty");
+        assertEq(ERC20(token0).balanceOf(address(initializer)), 0, "Initializer balance0 is not zero");
+        assertEq(ERC20(token1).balanceOf(address(initializer)), 0, "Initializer balance1 is not zero");
     }
 
     function test_exitLiquidity_RevertsWhenAlreadyExited() public {

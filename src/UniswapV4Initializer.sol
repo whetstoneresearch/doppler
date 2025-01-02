@@ -14,38 +14,19 @@ error TokenNotInPoolKey();
 
 error HookNotInPoolKey();
 
-contract UniswapV4Initializer is IPoolInitializer {
-    using CurrencyLibrary for Currency;
-
-    address public immutable airlock;
-    IPoolManager public immutable poolManager;
+contract DopplerDeployer {
+    // These variables are purposely not immutable to avoid hitting the contract size limit
+    address public airlock;
+    IPoolManager public poolManager;
 
     constructor(address airlock_, IPoolManager poolManager_) {
-        airlock = airlock_;
         poolManager = poolManager_;
+        airlock = airlock_;
     }
 
-    function initialize(
-        address asset,
-        address numeraire,
-        uint256 numTokensToSell,
-        bytes32 salt,
-        bytes calldata data
-    ) external returns (address) {
-        if (msg.sender != airlock) {
-            revert NotAirlock();
-        }
-
-        /*
-        require(
-            asset == Currency.unwrap(poolKey.currency0) || asset == Currency.unwrap(poolKey.currency1),
-            TokenNotInPoolKey()
-        );
-        require(hook == address(poolKey.hooks), HookNotInPoolKey());
-        */
-
+    function deploy(uint256 numTokensToSell, bytes32 salt, bytes calldata data) external returns (Doppler) {
         (
-            uint160 sqrtPriceX96,
+            ,
             uint256 minimumProceeds,
             uint256 maximumProceeds,
             uint256 startingTime,
@@ -73,6 +54,47 @@ contract UniswapV4Initializer is IPoolInitializer {
             numPDSlugs,
             airlock
         );
+
+        return doppler;
+    }
+}
+
+contract UniswapV4Initializer is IPoolInitializer {
+    using CurrencyLibrary for Currency;
+
+    address public immutable airlock;
+    IPoolManager public immutable poolManager;
+    DopplerDeployer public immutable deployer;
+
+    constructor(address airlock_, IPoolManager poolManager_, DopplerDeployer deployer_) {
+        airlock = airlock_;
+        poolManager = poolManager_;
+        deployer = deployer_;
+    }
+
+    function initialize(
+        address asset,
+        address numeraire,
+        uint256 numTokensToSell,
+        bytes32 salt,
+        bytes calldata data
+    ) external returns (address) {
+        if (msg.sender != airlock) {
+            revert NotAirlock();
+        }
+
+        /*
+        require(
+            asset == Currency.unwrap(poolKey.currency0) || asset == Currency.unwrap(poolKey.currency1),
+            TokenNotInPoolKey()
+        );
+        require(hook == address(poolKey.hooks), HookNotInPoolKey());
+        */
+
+        (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,) =
+            abi.decode(data, (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256));
+
+        Doppler doppler = deployer.deploy(numTokensToSell, salt, data);
 
         PoolKey memory poolKey = PoolKey({
             currency0: isToken0 ? Currency.wrap(asset) : Currency.wrap(numeraire),

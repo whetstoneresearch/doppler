@@ -9,7 +9,7 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { StateView } from "v4-periphery/src/lens/StateView.sol";
 import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
@@ -54,7 +54,8 @@ contract DeployFactoriesWorldChain is Script {
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("TokenFactory: ", address(tokenFactory));
-        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), IPoolManager(manager));
+        uniswapV4Initializer =
+            new UniswapV4Initializer(address(airlock), IPoolManager(manager), DopplerDeployer(address(0)));
         console2.log("UniswapV4Initializer: ", address(uniswapV4Initializer));
         uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(v3CoreFactory));
         console2.log("UniswapV3Initializer: ", address(uniswapV3Initializer));
