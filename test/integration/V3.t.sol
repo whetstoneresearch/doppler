@@ -17,7 +17,7 @@ import {
     InitData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
+import { TokenFactory, CreateData } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 
@@ -73,7 +73,7 @@ contract V3Test is Test {
         string memory name = "Best Coin";
         string memory symbol = "BEST";
         bytes memory governanceData = abi.encode(name);
-        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0));
+        bytes memory tokenFactoryData = abi.encode(CreateData(name, symbol, 0, 0, new address[](0), new uint256[](0)));
 
         // Compute the asset address that will be created
         bytes32 salt = bytes32(0);
