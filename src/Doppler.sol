@@ -822,7 +822,7 @@ contract Doppler is BaseHook {
                 !isToken0,
                 TickMath.getSqrtPriceAtTick(tickLower),
                 TickMath.getSqrtPriceAtTick(currentTick),
-                totalProceeds_
+                requiredProceeds
             );
         }
 

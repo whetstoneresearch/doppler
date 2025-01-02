@@ -7,6 +7,8 @@ import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 
+uint256 constant WAD = 1e18;
+
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
 }
@@ -98,21 +100,20 @@ contract UniswapV2Migrator is ILiquidityMigrator {
 
         uint256 price = sqrtPriceX96.mulDiv(sqrtPriceX96, FixedPoint96.Q96);
 
-        if (token0 > token1) {
-            (token0, token1) = (token1, token0);
-            (balance0, balance1) = (balance1, balance0);
-            price = FixedPoint96.Q96.mulDiv(FixedPoint96.Q96, price);
-        }
-
-        uint256 depositAmount0 = balance1.mulDiv(price, FixedPoint96.Q96);
-        uint256 depositAmount1 = balance0.mulDiv(FixedPoint96.Q96, price);
+        uint256 depositAmount0 = balance1.mulDiv(FixedPoint96.Q96, price);
+        uint256 depositAmount1 = balance0.mulDiv(price, FixedPoint96.Q96);
 
         if (depositAmount1 > balance1) {
             depositAmount1 = balance1;
-            depositAmount0 = depositAmount1.mulDiv(price, FixedPoint96.Q96);
+            depositAmount0 = depositAmount0;
         } else if (depositAmount0 > balance0) {
             depositAmount0 = balance0;
-            depositAmount1 = depositAmount0.mulDiv(FixedPoint96.Q96, price);
+            depositAmount1 = depositAmount1;
+        }
+
+        if (token0 > token1) {
+            (token0, token1) = (token1, token0);
+            (depositAmount0, depositAmount1) = (depositAmount1, depositAmount0);
         }
 
         // Pool was created beforehand along the asset token deployment
