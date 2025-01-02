@@ -8,7 +8,6 @@ import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-
 import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
@@ -20,7 +19,6 @@ import {
     InitData
 } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
-
 import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;

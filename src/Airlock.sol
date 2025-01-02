@@ -204,13 +204,13 @@ contract Airlock is Ownable {
             address token1,
             uint128 fees1,
             uint128 balance1
-        ) = assetData.poolInitializer.exitLiquidity(asset);
+        ) = assetData.poolInitializer.exitLiquidity(assetData.pool);
 
         uint256 protocolLpFees0 = fees0 * 5 / 100;
         uint256 protocolLpFees1 = fees1 * 5 / 100;
 
-        uint256 protocolProceedsFees0 = (balance0 - fees0) / 1000;
-        uint256 protocolProceedsFees1 = (balance1 - fees1) / 1000;
+        uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
+        uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
 
         uint256 protocolFees0 = protocolLpFees0 > protocolProceedsFees0 ? protocolLpFees0 : protocolProceedsFees0;
         uint256 protocolFees1 = protocolLpFees1 > protocolProceedsFees1 ? protocolLpFees1 : protocolProceedsFees1;

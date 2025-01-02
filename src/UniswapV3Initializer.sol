@@ -162,22 +162,16 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             asset == token0 ? tick >= targetTick : tick <= targetTick, CannotMigrateInsufficientTick(targetTick, tick)
         );
 
-        // We do this first call to track the fees separately
-        (,,, fees0, fees1) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
+        (uint256 amount0, uint256 amount1) =
+            IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
+
+        (balance0, balance1) = IUniswapV3Pool(pool).collect(
+            address(this), getState[pool].tickLower, getState[pool].tickUpper, type(uint128).max, type(uint128).max
         );
 
-        IUniswapV3Pool(pool).burn(getState[pool].tickLower, getState[pool].tickUpper, getState[pool].liquidityDelta);
-
-        // Calling this again allows us to get the sum of the fees + tokens from the actual position
-        (,,, balance0, balance1) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(this), getState[pool].tickLower, getState[pool].tickUpper))
-        );
-
-        // TODO: I think we can save some gas by requesting type(uint128).max instead of specific amounts
-        IUniswapV3Pool(pool).collect(
-            address(this), getState[pool].tickLower, getState[pool].tickUpper, balance0, balance1
-        );
+        // is uint128 safe here?
+        fees0 = balance0 - uint128(amount0);
+        fees1 = balance1 - uint128(amount1);
 
         // TODO: Use safeTransfer instead
         ERC20(token0).transfer(msg.sender, balance0);
