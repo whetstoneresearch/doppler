@@ -23,7 +23,8 @@ import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } f
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
-int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - 12_000;
+int24 constant DEFAULT_TARGET_TICK = 167_520 + 12_000;
+int24 constant DEFAULT_TARGET_TICK_DELTA = 12_000;
 
 contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
@@ -125,7 +126,8 @@ contract UniswapV3InitializerTest is Test {
 
         int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
         int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
-        int24 targetTick = isToken0 ? -DEFAULT_TARGET_TICK : DEFAULT_TARGET_TICK;
+        int24 targetTick =
+            isToken0 ? -DEFAULT_UPPER_TICK + DEFAULT_TARGET_TICK_DELTA : DEFAULT_UPPER_TICK - DEFAULT_TARGET_TICK_DELTA;
 
         pool = initializer.initialize(
             address(token),
@@ -139,7 +141,7 @@ contract UniswapV3InitializerTest is Test {
         WETH(payable(WETH_MAINNET)).deposit{ value: 100_000_000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
-        (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
+        // (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 60 : targetTick - 60);
 
@@ -156,7 +158,7 @@ contract UniswapV3InitializerTest is Test {
             })
         );
 
-        (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
+        // (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
@@ -171,7 +173,6 @@ contract UniswapV3InitializerTest is Test {
         //     uint8 feeProtocol,
         //     bool unlocked
         // ) = IUniswapV3Pool(pool).slot0();
-
         initializer.exitLiquidity(pool);
 
         (uint128 liquidity,,,,) =
