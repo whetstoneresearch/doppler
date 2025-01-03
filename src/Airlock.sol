@@ -54,8 +54,10 @@ struct AssetData {
  * @notice Emitted when a new asset token is created
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
+ * @param initializer Address of the pool initializer contract, either based on uniswapV3 or uniswapV4
+ * @param poolOrHook Address of the liquidity pool (if uniswapV3) or hook (if uniswapV4)
  */
-event Create(address asset, address indexed numeraire);
+event Create(address asset, address indexed numeraire, address initializer, address poolOrHook);
 
 /**
  * @notice Emitted when an asset token is migrated
@@ -181,7 +183,7 @@ contract Airlock is Ownable {
             integrator: integrator
         });
 
-        emit Create(asset, numeraire);
+        emit Create(asset, numeraire, address(poolInitializer), pool);
     }
 
     /**
