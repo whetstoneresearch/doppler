@@ -37,6 +37,7 @@ struct CallbackData {
     address asset;
     address numeraire;
     uint24 fee;
+    address pool;
 }
 
 struct PoolState {
@@ -174,9 +175,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
                 uint160 binSqrtPriceX96 = TickMath.getSqrtRatioAtTick(binPositionInternal);
 
                 // calculate the liquidity for the position that is (i * distance)/n of size
-                // if totalAssets = 0 then we are skipping that calculation to calculate the position of each boundry
+                // note: if totalAssets = 0 then we are skipping that calculation to calculate the position of each boundry
+                // we dont save this value on following iterations
+                uint128 liquidity;
                 if (totalAssets != 0) {
-                    uint128 liquidity = isToken0
+                    liquidity = isToken0
                         ? LiquidityAmounts.getLiquidityForAmount0(
                             binSqrtPriceX96, binPositionInternal, totalAssetsSold / totalPositions
                         )
@@ -242,7 +245,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     }
 
     // todo: we can optimize this by checking the next value and then avoiding an extra mint if they are the same tl and tu
-    function mintPositions(address pool, lpPosition[] memory newPositions, uint16 numPositions) public {
+    function mintPositions(address asset, address numeraire, int24 fee, address pool, lpPosition[] memory newPositions, uint16 numPositions) public {
         for (uint256 i; i < numPositions; i++) {
             IUniswapV3Pool(pool).mint(
                 address(this),
@@ -320,16 +323,18 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         // reserves = the amount of eventual reserves and lbpPositions are n number of positions that approx log normal liquidity distribution
         (lpPosition[] memory lbpPositions, uint256 reserves) =
             calculateLogNormalDistribution(tickLower, tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell);
+        
         // probably an easier way to do this
         for (uint256 i; i < numPositions; i++) {
             newPositions[i + 1] = lbpPositions[i];
         }
         newPositions[0] = calculatelpTail(numTokensToBond, tickLower, tickUpper, isToken0, reserves, tickSpacing);
 
-        mintPositions(pool, newPositions, numPositions);
+        mintPositions(asset, numeraire, fee, pool, newPositions, numPositions);
     }
 
-    // todo: we can optimize this by checking the next value and then avoiding an extra mint if they are the same tl and tu
+    // todo: we can optimize this by checking the next value and then avoiding an extra mint if they are the same tl and tu 
+    // todo: we could also write a function that collapses the positions into as few mints as possible
     function burnPositionsMultiple(
         address pool,
         lpPosition[] memory newPositions,
@@ -413,10 +418,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         //TODO: transfer fees to the multsig?
     }
 
-    function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
+    function uniswapV3MintCallback(address pool, uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
-
-        address pool = factory.getPool(callbackData.asset, callbackData.numeraire, callbackData.fee);
         require(msg.sender == pool, OnlyPool());
 
         ERC20(callbackData.asset).transferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
