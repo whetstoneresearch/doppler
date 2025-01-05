@@ -84,9 +84,12 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         for (uint256 i; i < length; ++i) {
             uint256 amount = amounts_[i];
-            require(amount <= maxPreMintPerAddress, MaxPreMintPerAddressExceeded(amount, maxPreMintPerAddress));
-            getVestingDataOf[recipients_[i]].totalAmount = amounts_[i];
-            vestedTokens += amounts_[i];
+            getVestingDataOf[recipients_[i]].totalAmount += amount;
+            require(
+                getVestingDataOf[recipients_[i]].totalAmount <= maxPreMintPerAddress,
+                MaxPreMintPerAddressExceeded(getVestingDataOf[recipients_[i]].totalAmount, maxPreMintPerAddress)
+            );
+            vestedTokens += amount;
         }
 
         uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
