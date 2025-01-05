@@ -132,6 +132,7 @@ contract DERC20Test is Test {
         );
         token.lockPool(pool);
         assertEq(token.pool(), pool, "Wrong pool");
+        assertEq(token.isPoolUnlocked(), false, "Pool should be locked");
     }
 
     function test_lockPool_RevertsWhenInvalidOwner() public {
