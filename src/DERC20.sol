@@ -34,6 +34,11 @@ uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
 uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.1 ether;
 
+/**
+ * @notice Vesting data for a specific address
+ * @param totalAmount Total amount of vested tokens
+ * @param releasedAmount Amount of tokens already released
+ */
 struct VestingData {
     uint256 totalAmount;
     uint256 releasedAmount;
