@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
+
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import {
     DERC20,
     ArrayLengthsMismatch,
@@ -113,5 +115,40 @@ contract DERC20Test is Test {
         token = new DERC20(
             NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts
         );
+    }
+
+    function test_lockPool() public {
+        address pool = address(0xdeadbeef);
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        token.lockPool(pool);
+        assertEq(token.pool(), pool, "Wrong pool");
+    }
+
+    function test_lockPool_RevertsWhenInvalidOwner() public {
+        address pool = address(0xdeadbeef);
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        vm.prank(address(0xbeef));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
+        token.lockPool(pool);
     }
 }
