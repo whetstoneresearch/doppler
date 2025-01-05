@@ -143,9 +143,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         // TODO check directionality issues in any of the equations since its bidirectional
         int24 spreadBetweenTicksInPool = tickUpper - tickLower;
 
-        // we will load the LP positions into this array
-        lpPosition[] memory newPositions = new lpPosition[](numPositions);
-
         int24 farTick = isToken0 ? tickUpper : tickLower;
         int24 closeTick = isToken0 ? tickLower : tickUpper;
 
@@ -154,13 +151,13 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         uint160 farSqrtPriceX96 = TickMath.getSqrtRatioAtTick(farTick);
 
         // how much of both token have we sold so far?
-        uint2566 totalAssetsSold;
+        uint256 totalAssetsSold;
 
         // this function may be easier to do as an accumulator now that i wrote all the math out
-        for (uint256 i; i < numPositions; i++) {
+        for (uint256 i; i < totalPositions; i++) {
             // calculate the ticks position * 1/n to optimize the division
             // might be able to make this easier
-            int24 sprBetweenBins = calculateInternalBinPosition(i, spreadBetweenTicksInPool, numPositions);
+            int24 sprBetweenBins = calculateInternalBinPosition(i, spreadBetweenTicksInPool, totalPositions);
 
             // this directionality i think is correct
             // internal referes to the tick position inside the pool
@@ -177,61 +174,63 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
                 uint160 binSqrtPriceX96 = TickMath.getSqrtRatioAtTick(binPositionInternal);
 
                 // calculate the liquidity for the position that is (i * distance)/n of size
-                uint128 liquidity = isToken0
-                    ? LiquidityAmounts.getLiquidityForAmount0(
-                        binSqrtPriceX96, binPositionInternal, totalAssetSold / totalPositions
-                    )
-                    : LiquidityAmounts.getLiquidityForAmount1(
-                        binSqrtPriceX96, binPositionInternal, totalAmtToBeSold, totalAssetSold / totalPositions
+                // if totalAssets = 0 then we are skipping that calculation to calculate the position of each boundry
+                if (totalAssets != 0) {
+                    uint128 liquidity = isToken0
+                        ? LiquidityAmounts.getLiquidityForAmount0(
+                            binSqrtPriceX96, binPositionInternal, totalAssetsSold / totalPositions
+                        )
+                        : LiquidityAmounts.getLiquidityForAmount1(
+                            binSqrtPriceX96, binPositionInternal, totalAmtToBeSold, totalAssetsSold / totalPositions
+                        );
+
+                    // note: inside the TickMath function calls, the sqrtPrices will flip to the correct order
+                    // todo: potentially test this and remove this function
+                    // this may be removeable
+                    // todo: check if we could avoid these calculations when removing positions
+                    totalAssetsSold += (
+                        isToken0
+                            ? SqrtPriceMath.getAmount0Delta(
+                                binSqrtPriceX96,
+                                binPositionInternal,
+                                assets,
+                                true // round for the amount of liquidity needed in this direction as it is more important to put too much than too little
+                                    // we will also check against this value in a different function
+                            )
+                            : SqrtPriceMath.getAmount1Delta(
+                                binSqrtPriceX96,
+                                binPositionInternal,
+                                assets,
+                                true // round for the amount of liquidity needed in this direction as it is more important to put too much than too little
+                                    // we will also check against this value in a different function
+                            )
                     );
 
-                // note: inside the TickMath function calls, the sqrtPrices will flip to the correct order
-                // todo: potentially test this and remove this function
-                // this may be removeable
-                // todo: check if we could avoid these calculations when removing positions
-                totalAssetsSold += (
-                    isToken0
-                        ? SqrtPriceMath.getAmount0Delta(
-                            binSqrtPriceX96,
-                            binPositionInternal,
-                            assets,
-                            true // round for the amount of liquidity needed in this direction as it is more important to put too much than too little
-                                // we will also check against this value in a different function
-                        )
-                        : SqrtPriceMath.getAmount1Delta(
-                            binSqrtPriceX96,
-                            binPositionInternal,
-                            assets,
-                            true // round for the amount of liquidity needed in this direction as it is more important to put too much than too little
-                                // we will also check against this value in a different function
-                        )
-                );
-
-                // note: we keep track how the theoretical reserves amount at that time to then calculate the breakeven liquidity amount
-                // once we get to the end of the loop, we will know exactly how many of the reserve assets have been raised, and we can
-                // calculate the total amount of reserves after the endTick which makes swappers and LPs indifferent between Uniswap v2 (CPMM) and Uniswap v3 (CLAMM)
-                // we can then bond the tokens to the Uniswap v2 pool by moving them over to the Uniswap v3 pool whenever possible, but there is no rush as it goes up
-                reserves += (
-                    isToken0
-                        ? SqrtPriceMath.getAmount1Delta(
-                            binSqrtPriceX96,
-                            binPositionInternal,
-                            assets,
-                            false // round against the reserves to undercount eventual liquidity
-                        )
-                        : SqrtPriceMath.getAmount0Delta(
-                            binSqrtPriceX96,
-                            binPositionInternal,
-                            amount,
-                            false // round against the reserves to undercount eventual liquidity
-                        )
-                );
-
+                    // note: we keep track how the theoretical reserves amount at that time to then calculate the breakeven liquidity amount
+                    // once we get to the end of the loop, we will know exactly how many of the reserve assets have been raised, and we can
+                    // calculate the total amount of reserves after the endTick which makes swappers and LPs indifferent between Uniswap v2 (CPMM) and Uniswap v3 (CLAMM)
+                    // we can then bond the tokens to the Uniswap v2 pool by moving them over to the Uniswap v3 pool whenever possible, but there is no rush as it goes up
+                    reserves += (
+                        isToken0
+                            ? SqrtPriceMath.getAmount1Delta(
+                                binSqrtPriceX96,
+                                binPositionInternal,
+                                assets,
+                                false // round against the reserves to undercount eventual liquidity
+                            )
+                            : SqrtPriceMath.getAmount0Delta(
+                                binSqrtPriceX96,
+                                binPositionInternal,
+                                amount,
+                                false // round against the reserves to undercount eventual liquidity
+                            )
+                    );
+                }
                 // todo: check the direction of these ticks
                 newPositions[i] = lpPosition({
                     tickLower: posTickInternal < binPositionInternal ? posTickInternal : binPositionInternal,
                     tickUpper: posTickInternal < binPositionInternal ? binPositionInternal : posTickInternal,
-                    liquidity: amount,
+                    liquidity: liquidity,
                     salt: uint8(i + 1) // the 0 index = LP tail
                  });
             }
@@ -243,7 +242,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     }
 
     // todo: we can optimize this by checking the next value and then avoiding an extra mint if they are the same tl and tu
-    function mintPositions(address pool, dlpPosition[] memory newPositions, uint16 numPositions) public {
+    function mintPositions(address pool, lpPosition[] memory newPositions, uint16 numPositions) public {
         for (uint256 i; i < numPositions; i++) {
             IUniswapV3Pool(pool).mint(
                 address(this),
@@ -289,6 +288,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         // TODO: should we pass this or calculate it in the contract?
         uint256 numTokensToSell = FullMath.mulDiv(IERC20(asset).totalSupply(), maxShareToBeSold, 1e6);
+        uint256 numTokensToBond = FullMath.mulDiv(IERC20(asset).totalSupply(), maxShareToBond, 1e6);
 
         pool = factory.getPool(tokenA, tokenB, fee);
         require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
@@ -324,7 +324,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         for (uint256 i; i < numPositions; i++) {
             newPositions[i + 1] = lbpPositions[i];
         }
-        newPositions[0] = calculatelpTail(numTokensToSell, tickLower, tickUpper, isToken0, reserves, tickSpacing);
+        newPositions[0] = calculatelpTail(numTokensToBond, tickLower, tickUpper, isToken0, reserves, tickSpacing);
 
         mintPositions(pool, newPositions, numPositions);
     }
