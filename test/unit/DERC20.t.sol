@@ -32,6 +32,7 @@ contract DERC20Test is Test {
         assertEq(token.symbol(), SYMBOL, "Wrong symbol");
         assertEq(token.totalSupply(), INITIAL_SUPPLY, "Wrong total supply");
         assertEq(token.balanceOf(RECIPIENT), INITIAL_SUPPLY - amounts[0] - amounts[1], "Wrong balance of recipient");
+        assertEq(token.balanceOf(address(this)), amounts[0] + amounts[1], "Wrong balance of vested tokens");
         assertEq(token.mintStartDate(), block.timestamp + 365 days, "Wrong mint start date");
         assertEq(token.owner(), OWNER, "Wrong owner");
         assertEq(token.yearlyMintCap(), YEARLY_MINT_CAP, "Wrong yearly mint cap");
