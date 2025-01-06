@@ -191,4 +191,21 @@ contract DERC20Test is Test {
         vm.expectRevert(PoolLocked.selector);
         token.transferFrom(address(this), pool, 1);
     }
+
+    function test_mint_RevertsWhenInvalidOwner() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        vm.prank(address(0xbeef));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
+        token.mint(address(0xbeef), 1);
+    }
 }
