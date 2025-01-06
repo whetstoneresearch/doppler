@@ -10,7 +10,8 @@ import {
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
-    MAX_TOTAL_PRE_MINT_WAD
+    MAX_TOTAL_PRE_MINT_WAD,
+    PoolLocked
 } from "src/DERC20.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
@@ -151,5 +152,43 @@ contract DERC20Test is Test {
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
         token.lockPool(pool);
+    }
+
+    function test_transfer_RevertsWhenPoolLocked() public {
+        address pool = address(0xdeadbeef);
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        token.lockPool(pool);
+        vm.expectRevert(PoolLocked.selector);
+        token.transfer(pool, 1);
+    }
+
+    function test_transferFrom_RevertsWhenPoolLocked() public {
+        address pool = address(0xdeadbeef);
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        token.lockPool(pool);
+        token.approve(address(0xbeef), 1);
+        vm.prank(address(0xbeef));
+        vm.expectRevert(PoolLocked.selector);
+        token.transferFrom(address(this), pool, 1);
     }
 }
