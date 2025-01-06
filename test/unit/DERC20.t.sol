@@ -11,7 +11,8 @@ import {
     MaxTotalPreMintExceeded,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
-    PoolLocked
+    PoolLocked,
+    MintingNotStartedYet
 } from "src/DERC20.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
@@ -206,6 +207,22 @@ contract DERC20Test is Test {
         );
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
+        token.mint(address(0xbeef), 1);
+    }
+
+    function test_mint_RevertsWhenMintingNotStartedYet() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        vm.expectRevert(MintingNotStartedYet.selector);
         token.mint(address(0xbeef), 1);
     }
 }
