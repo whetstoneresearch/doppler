@@ -267,4 +267,28 @@ contract DERC20Test is Test {
         assertEq(token.balanceOf(address(0xbeef)), initialBalance + 2 * YEARLY_MINT_CAP, "Wrong balance");
         assertEq(token.totalSupply(), INITIAL_SUPPLY + 2 * YEARLY_MINT_CAP, "Wrong total supply");
     }
+
+    function test_release_ReleasesAllTokensAfterVesting() public {
+        address[] memory recipients = new address[](1);
+        recipients[0] = address(0xa);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1e23;
+
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            recipients,
+            amounts
+        );
+
+        vm.warp(token.vestingStart() + VESTING_DURATION);
+        vm.prank(address(0xa));
+        token.release(amounts[0]);
+        assertEq(token.balanceOf(address(0xa)), amounts[0], "Wrong balance");
+    }
 }
