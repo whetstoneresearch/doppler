@@ -23,9 +23,7 @@ error CannotMintZeroLiquidity();
 
 error InvalidFee(uint24 fee);
 error InvalidTickRangeMisordered(int24 tickLower, int24 tickUpper);
-error InvalidTickRange500(int24 tickLower, int24 tickUpper);
-error InvalidTickRange3000(int24 tickLower, int24 tickUpper);
-error InvalidTickRange10000(int24 tickLower, int24 tickUpper);
+error InvalidTickRange(int24 tick, int24 tickSpacing);
 
 // is a uint16 too big?
 struct InitData {
@@ -114,8 +112,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         );
 
         // maybe we just hot calculate these
-        int24 posTickLower = isToken0 ? binTickOnTickSpacing(-887_272, tickSpacing) : tailTick;
-        int24 posTickUpper = isToken0 ? tailTick : binTickOnTickSpacing(887_272, tickSpacing);
+        int24 posTickLower = isToken0 ? binTickOnTickSpacing(TickMath.MIN_TICK, tickSpacing) : tailTick;
+        int24 posTickUpper = isToken0 ? tailTick : binTickOnTickSpacing(TickMath.MAX_TICK, tickSpacing);
         require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
 
         // we may want to check this lol
@@ -258,6 +256,10 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         }
     }
 
+    function checkPoolParams(int24 tick, int24 tickSpacing) public returns (bool) {
+        require(tick % tickSpacing == 0, InvalidTickRange(tick, tickSpacing));
+    }
+
     // TODO: should maxNumTokensToBond be in the initialize data
     // it means that the airlock controls it, which is good for security
     function initialize(
@@ -277,16 +279,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
         // require(targetTick >= tickLower && targetTick <= tickUpper, InvalidTargetTick());
 
-        // TODO: check this from the factory instead of a look up like this
-        if (fee == 3000) {
-            require(tickLower % 60 == 0 && tickUpper % 60 == 0, InvalidTickRange3000(tickLower, tickUpper));
-        } else if (fee == 10_000) {
-            require(tickLower % 200 == 0 && tickUpper % 200 == 0, InvalidTickRange10000(tickLower, tickUpper));
-        } else if (fee == 500) {
-            require(tickLower % 10 == 0 && tickUpper % 10 == 0, InvalidTickRange500(tickLower, tickUpper));
-        } else {
-            revert InvalidFee(fee);
-        }
+
+        int24 tickSpacing = factory.feeAmountTickSpacing(fee);
+        require(tickSpacing != 0, InvalidFee(fee));
+        checkTickSpacing(tickLower, tickSpacing);
+        checkTickSpacing(tickUpper, tickSpacing);
 
         (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
