@@ -12,7 +12,8 @@ import {
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
     PoolLocked,
-    MintingNotStartedYet
+    MintingNotStartedYet,
+    ExceedsYearlyMintCap
 } from "src/DERC20.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
@@ -224,5 +225,46 @@ contract DERC20Test is Test {
         );
         vm.expectRevert(MintingNotStartedYet.selector);
         token.mint(address(0xbeef), 1);
+    }
+
+    function test_mint_RevertsWhenExceedsYearlyMintCap() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        vm.warp(token.mintStartDate());
+        token.mint(address(0xbeef), YEARLY_MINT_CAP);
+        vm.expectRevert(abi.encodeWithSelector(ExceedsYearlyMintCap.selector));
+        token.mint(address(0xbeef), 1);
+    }
+
+    function test_mint_MintsCapEveryYear() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        vm.warp(token.mintStartDate());
+        uint256 initialBalance = token.balanceOf(address(0xbeef));
+        token.mint(address(0xbeef), YEARLY_MINT_CAP);
+        assertEq(token.balanceOf(address(0xbeef)), initialBalance + YEARLY_MINT_CAP, "Wrong balance");
+        assertEq(token.totalSupply(), INITIAL_SUPPLY + YEARLY_MINT_CAP, "Wrong total supply");
+        vm.warp(token.mintStartDate() + 365 days);
+        token.mint(address(0xbeef), YEARLY_MINT_CAP);
+        assertEq(token.balanceOf(address(0xbeef)), initialBalance + 2 * YEARLY_MINT_CAP, "Wrong balance");
+        assertEq(token.totalSupply(), INITIAL_SUPPLY + 2 * YEARLY_MINT_CAP, "Wrong total supply");
     }
 }
