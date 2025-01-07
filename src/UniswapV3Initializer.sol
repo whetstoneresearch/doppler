@@ -9,8 +9,7 @@ import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { SqrtPriceMath } from "v4-core/src/libraries/SqrtPriceMath.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
-import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
-import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol"; // do i need this?
+import { ERC20, SafeTransferLib } from "solmate/src/utils/SafeTransferLib.sol";
 
 error OnlyAirlock();
 error OnlyPool();
@@ -60,6 +59,8 @@ struct LpPosition {
 }
 
 contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
+    using SafeTransferLib for ERC20;
+
     address public immutable airlock;
     IUniswapV3Factory public immutable factory;
 
@@ -106,8 +107,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
-        uint256 numTokensToSell = FullMath.mulDiv(IERC20(asset).totalSupply(), maxShareToBeSold, WAD);
-        uint256 numTokensToBond = FullMath.mulDiv(IERC20(asset).totalSupply(), maxShareToBond, WAD);
+        uint256 numTokensToSell = FullMath.mulDiv(ERC20(asset).totalSupply(), maxShareToBeSold, WAD);
+        uint256 numTokensToBond = FullMath.mulDiv(ERC20(asset).totalSupply(), maxShareToBond, WAD);
 
         pool = factory.getPool(tokenA, tokenB, fee);
         require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
