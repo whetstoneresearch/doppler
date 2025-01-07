@@ -11,7 +11,6 @@ import { SqrtPriceMath } from "v4-core/src/libraries/SqrtPriceMath.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol"; // do i need this?
-import "forge-std/console.sol";
 
 error OnlyAirlock();
 error OnlyPool();
@@ -295,7 +294,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
             // round the tick to the nearest bin
             startingTick = alignTickToTickSpacing(isToken0, startingTick, tickSpacing);
-            console.log("startingTick", startingTick);
+
             if (startingTick != farTick) {
                 uint160 startingSqrtPriceX96 = TickMath.getSqrtPriceAtTick(startingTick);
 
