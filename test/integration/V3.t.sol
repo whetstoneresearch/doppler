@@ -33,6 +33,8 @@ import { WETH } from "solmate/src/tokens/WETH.sol";
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
 int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - 16_260;
+uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.15 ether;
+uint256 constant DEFAULT_MAX_SHARE_TO_BOND = 0.5 ether;
 
 contract V3Test is Test {
     UniswapV3Initializer public initializer;
@@ -91,8 +93,16 @@ contract V3Test is Test {
         int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
         int24 targetTick = isToken0 ? -DEFAULT_TARGET_TICK : DEFAULT_TARGET_TICK;
 
-        bytes memory poolInitializerData =
-            abi.encode(InitData({ fee: 3000, tickLower: tickLower, tickUpper: tickUpper, targetTick: targetTick }));
+        bytes memory poolInitializerData = abi.encode(
+            InitData({
+                fee: 3000,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                numPositions: 10,
+                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+            })
+        );
 
         (address asset, address pool,,, address migrationPool) = airlock.create(
             initialSupply,
