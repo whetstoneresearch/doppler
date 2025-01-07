@@ -105,18 +105,18 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         checkPoolParams(tickLower, tickSpacing);
         checkPoolParams(tickUpper, tickSpacing);
 
-        (address tokenA, address tokenB) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         uint256 numTokensToSell = FullMath.mulDiv(ERC20(asset).totalSupply(), maxShareToBeSold, WAD);
         uint256 numTokensToBond = FullMath.mulDiv(ERC20(asset).totalSupply(), maxShareToBond, WAD);
 
-        pool = factory.getPool(tokenA, tokenB, fee);
+        pool = factory.getPool(token0, token1, fee);
         require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
 
-        bool isToken0 = asset == tokenA;
+        bool isToken0 = asset == token0;
 
         if (pool == address(0)) {
-            pool = factory.createPool(tokenA, tokenB, fee);
+            pool = factory.createPool(token0, token1, fee);
         }
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? tickLower : tickUpper);
 
@@ -159,7 +159,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         require(getState[pool].isExited == false, PoolAlreadyExited());
         getState[pool].isExited = true;
 
-        // todo: fix notation - tokenA and tokenB in initialize() but exitLiquidity() its token0 and token1
         token0 = IUniswapV3Pool(pool).token0();
         token1 = IUniswapV3Pool(pool).token1();
         int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
