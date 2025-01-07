@@ -23,8 +23,11 @@ error PoolAlreadyInitialized();
 /// @notice Thrown when the pool is already exited
 error PoolAlreadyExited();
 
+/// @notice Thrown when the current tick is not sufficient to migrate
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
+
 error InvalidTargetTick();
+
 error CannotMintZeroLiquidity();
 
 error InvalidFee(uint24 fee);
