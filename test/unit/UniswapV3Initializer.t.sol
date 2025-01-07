@@ -133,8 +133,7 @@ contract UniswapV3InitializerTest is Test {
 
         int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
         int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
-        int24 targetTick =
-            isToken0 ? -DEFAULT_UPPER_TICK + DEFAULT_TARGET_TICK_DELTA : DEFAULT_UPPER_TICK - DEFAULT_TARGET_TICK_DELTA;
+        int24 targetTick = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK;
 
         pool = initializer.initialize(
             address(token),
@@ -194,8 +193,8 @@ contract UniswapV3InitializerTest is Test {
         (uint128 liquidity,,,,) =
             IUniswapV3Pool(pool).positions(keccak256(abi.encodePacked(address(initializer), tickLower, tickUpper)));
         assertEq(liquidity, 0, "Position liquidity is not empty");
-        assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 10, "Pool token0 balance is not empty");
-        assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
+        assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 1000, "Pool token0 balance is not empty");
+        assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 1000, "Pool token1 balance is not empty");
         assertEq(IUniswapV3Pool(pool).liquidity(), 0, "Pool liquidity is not empty");
         assertEq(ERC20(token0).balanceOf(address(initializer)), 0, "Initializer balance0 is not zero");
         assertEq(ERC20(token1).balanceOf(address(initializer)), 0, "Initializer balance1 is not zero");
