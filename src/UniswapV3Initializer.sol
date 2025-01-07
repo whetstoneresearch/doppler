@@ -63,6 +63,8 @@ struct PoolState {
     uint16 numPositions;
     bool isInitialized;
     bool isExited;
+    uint256 maxShareToBeSold;
+    uint256 maxShareToBond;
 }
 
 struct LpPosition {
@@ -152,7 +154,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             tickUpper: tickUpper,
             isInitialized: true,
             isExited: false,
-            numPositions: numPositions
+            numPositions: numPositions,
+            maxShareToBeSold: maxShareToBeSold,
+            maxShareToBond: maxShareToBond
         });
 
         (LpPosition[] memory lbpPositions, uint256 reserves) =
@@ -198,18 +202,26 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         uint16 numPositions = getState[pool].numPositions;
 
+        uint256 numTokensToSell = FullMath.mulDiv(ERC20(asset).totalSupply(), getState[pool].maxShareToBeSold, WAD);
+        uint256 numTokensToBond = FullMath.mulDiv(ERC20(asset).totalSupply(), getState[pool].maxShareToBond, WAD);
+
         (LpPosition[] memory lbpPositions, uint256 reserves) = calculateLogNormalDistribution(
-            getState[pool].tickLower, getState[pool].tickUpper, tickSpacing, isToken0, numPositions, 0
+            getState[pool].tickLower, getState[pool].tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell
         );
 
         lbpPositions[numPositions] = calculateLpTail(
-            numPositions, getState[pool].tickLower, getState[pool].tickUpper, isToken0, 0, reserves, tickSpacing
+            numPositions,
+            getState[pool].tickLower,
+            getState[pool].tickUpper,
+            isToken0,
+            reserves,
+            numTokensToBond,
+            tickSpacing
         );
 
-        (uint256 amount0, uint256 amount1) = burnPositionsMultiple(pool, lbpPositions, numPositions);
-        (balance0, balance1) = IUniswapV3Pool(pool).collect(
-            address(this), getState[pool].tickLower, getState[pool].tickUpper, type(uint128).max, type(uint128).max
-        );
+        uint256 amount0;
+        uint256 amount1;
+        (amount0, amount1, balance0, balance1) = burnPositionsMultiple(pool, lbpPositions, numPositions);
 
         fees0 = uint128(balance0 - amount0);
         fees1 = uint128(balance1 - amount1);
@@ -379,7 +391,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         LpPosition[] memory newPositions,
         uint16 numPositions
     ) public {
-        for (uint256 i; i < numPositions + 1; i++) {
+        for (uint256 i; i <= numPositions; i++) {
             IUniswapV3Pool(pool).mint(
                 address(this),
                 newPositions[i].tickLower,
@@ -400,14 +412,28 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool,
         LpPosition[] memory newPositions,
         uint16 numPositions
-    ) public returns (uint256 amount0, uint256 amount1) {
+    ) public returns (uint256 amount0, uint256 amount1, uint128 balance0, uint128 balance1) {
         uint256 posAmount0;
         uint256 posAmount1;
-        for (uint256 i; i < numPositions; i++) {
-            (posAmount0, posAmount1) =
-                IUniswapV3Pool(pool).burn(newPositions[i].tickLower, newPositions[i].tickUpper, type(uint128).max);
+        uint128 posBalance0;
+        uint128 posBalance1;
+        for (uint256 i; i <= numPositions; i++) {
+            (posAmount0, posAmount1) = IUniswapV3Pool(pool).burn(
+                newPositions[i].tickLower, newPositions[i].tickUpper, newPositions[i].liquidity
+            );
+            (posBalance0, posBalance1) = IUniswapV3Pool(pool).collect(
+                address(this),
+                newPositions[i].tickLower,
+                newPositions[i].tickUpper,
+                type(uint128).max,
+                type(uint128).max
+            );
+
             amount0 += posAmount0;
             amount1 += posAmount1;
+
+            balance0 += posBalance0;
+            balance1 += posBalance1;
         }
     }
 }

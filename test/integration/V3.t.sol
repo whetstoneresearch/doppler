@@ -91,7 +91,7 @@ contract V3Test is Test {
 
         int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
         int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
-        int24 targetTick = isToken0 ? -DEFAULT_TARGET_TICK : DEFAULT_TARGET_TICK;
+        int24 targetTick = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK;
 
         bytes memory poolInitializerData = abi.encode(
             InitData({
@@ -126,9 +126,13 @@ contract V3Test is Test {
         WETH(payable(WETH_MAINNET)).deposit{ value: 100_000_000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
+        uint256 balancePool = DERC20(asset).balanceOf(pool);
+
+        console.log("balancePool", balancePool);
+
         (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
-        uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 60 : targetTick - 60);
+        uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick : targetTick);
 
         uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
