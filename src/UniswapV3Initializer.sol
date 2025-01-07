@@ -239,7 +239,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         ERC20(callbackData.asset).transferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
 
-    // round the tick to a bin
     function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
         if (isToken0) {
             // Round down if isToken0
@@ -262,10 +261,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         }
     }
 
-    // lpTail is the final position in the pool, to give liquidity from the farTick to the end of the pool
-    // the LP position is calculated to be the breakeven position between Uniswap v2 and Uniswap v3 between
-    // the far tick and the min/max tick of the pool. this means that anyone above the LBP will still have the
-    // same execution price as the migrated Uniswap v2 pool in the Uniswap v3.
+    /// @notice Calculates the final LP position that extends from the far tick to the pool's min/max tick
+    /// @dev This position ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
     function calculateLpTail(
         uint16 id,
         int24 tickLower,
@@ -279,8 +276,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         uint160 sqrtPriceAtTail = TickMath.getSqrtPriceAtTick(tailTick);
 
-        // todo: check if this is ever bigger than bondingAssetsRemaining
-        // this does the nice calculation if token0 or token1 is the limiting asset in the pool
         uint128 lpTailLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceAtTail,
             TickMath.MIN_SQRT_PRICE,
@@ -382,7 +377,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         return (newPositions, reserves);
     }
 
-    // todo: we can optimize this by checking the next value and then avoiding an extra mint if they are the same tl and tu
     function mintPositions(
         address asset,
         address numeraire,
@@ -406,8 +400,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         if (tick % tickSpacing != 0) revert InvalidTickRange(tick, tickSpacing);
     }
 
-    // todo: we can optimize this by checking the next value and then avoiding an extra mint if they are the same tl and tu
-    // todo: we could also write a function that collapses the positions into as few mints as possible
     function burnPositionsMultiple(
         address pool,
         LpPosition[] memory newPositions,
