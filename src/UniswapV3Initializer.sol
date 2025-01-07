@@ -23,7 +23,6 @@ error PoolAlreadyInitialized();
 /// @notice Thrown when the pool is already exited
 error PoolAlreadyExited();
 
-error CannotMigrateOutOfRange(int24 expectedTick, int24 currentTick);
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 error InvalidTargetTick();
 error CannotMintZeroLiquidity();
