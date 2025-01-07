@@ -191,9 +191,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         fees0 = uint128(balance0 - amount0);
         fees1 = uint128(balance1 - amount1);
 
-        // TODO: Use safeTransfer instead
-        ERC20(token0).transfer(msg.sender, balance0);
-        ERC20(token1).transfer(msg.sender, balance1);
+        ERC20(token0).safeTransfer(msg.sender, balance0);
+        ERC20(token1).safeTransfer(msg.sender, balance1);
     }
 
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
