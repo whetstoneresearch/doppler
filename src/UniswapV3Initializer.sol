@@ -279,6 +279,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         int24 farTick = isToken0 ? tickUpper : tickLower;
         int24 closeTick = isToken0 ? tickLower : tickUpper;
 
+        int24 spread = tickUpper - tickLower;
+
         uint160 farSqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
         uint256 amountPerPosition = FullMath.mulDiv(totalAmtToBeSold, WAD, totalPositions * WAD);
         uint256 totalAssetsSold;
@@ -288,8 +290,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         for (uint256 i; i < totalPositions; i++) {
             // calculate the ticks position * 1/n to optimize the division
             int24 startingTick = isToken0
-                ? closeTick + int24(uint24(FullMath.mulDiv(i, uint256(uint24(farTick - closeTick)), totalPositions)))
-                : closeTick - int24(uint24(FullMath.mulDiv(i, uint256(uint24(farTick + closeTick)), totalPositions)));
+                ? closeTick + int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), totalPositions)))
+                : closeTick - int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), totalPositions)));
 
             // round the tick to the nearest bin
             startingTick = alignTickToTickSpacing(isToken0, startingTick, tickSpacing);
