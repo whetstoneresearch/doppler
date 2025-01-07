@@ -11,10 +11,18 @@ import { SqrtPriceMath } from "v4-core/src/libraries/SqrtPriceMath.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "solmate/src/utils/SafeTransferLib.sol";
 
+/// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();
+
+/// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
+
+/// @notice Thrown when the pool is already initialized
 error PoolAlreadyInitialized();
+
+/// @notice Thrown when the pool is already exited
 error PoolAlreadyExited();
+
 error CannotMigrateOutOfRange(int24 expectedTick, int24 currentTick);
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 error InvalidTargetTick();
