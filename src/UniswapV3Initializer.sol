@@ -28,10 +28,16 @@ error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 
 error CannotMintZeroLiquidity();
 
+/// @notice Thrown when the specified fee is not set in the Uniswap V3 factory
 error InvalidFee(uint24 fee);
+
+/// @notice Thrown when the tick range is misordered
 error InvalidTickRangeMisordered(int24 tickLower, int24 tickUpper);
+
+/// @notice Thrown when a tick is not aligned with the tick spacing
 error InvalidTickRange(int24 tick, int24 tickSpacing);
 
+/// @dev Constant used to increase precision during calculations
 uint256 constant WAD = 1e18;
 
 struct InitData {
@@ -69,16 +75,25 @@ struct LpPosition {
 contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
 
+    /// @notice Address of the Airlock contract
     address public immutable airlock;
+
+    /// @notice Address of the Uniswap V3 factory
     IUniswapV3Factory public immutable factory;
 
+    /// @notice Returns the state of a pool
     mapping(address pool => PoolState state) public getState;
 
+    /**
+     * @param airlock_ Address of the Airlock contract
+     * @param factory_ Address of the Uniswap V3 factory
+     */
     constructor(address airlock_, IUniswapV3Factory factory_) {
         airlock = airlock_;
         factory = factory_;
     }
 
+    /// @inheritdoc IPoolInitializer
     function initialize(
         address asset,
         address numeraire,
@@ -149,6 +164,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         mintPositions(asset, numeraire, fee, pool, lbpPositions, numPositions);
     }
 
+    /// @inheritdoc IPoolInitializer
     function exitLiquidity(
         address pool
     )
