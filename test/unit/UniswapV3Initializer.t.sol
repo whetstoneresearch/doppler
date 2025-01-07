@@ -25,6 +25,9 @@ int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
 int24 constant DEFAULT_TARGET_TICK = 167_520 + 12_000;
 int24 constant DEFAULT_TARGET_TICK_DELTA = 12_000;
+uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.15 ether;
+uint256 constant DEFAULT_MAX_SHARE_TO_BOND = 0.5 ether;
+uint16 constant DEFAULT_NUM_POSITIONS = 10;
 
 contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
@@ -39,7 +42,7 @@ contract UniswapV3InitializerTest is Test {
         assertEq(address(initializer.factory()), address(UNISWAP_V3_FACTORY_MAINNET), "Wrong factory");
     }
 
-    function test_initialize() public {
+    function test_initialize_success() public {
         DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
         token.approve(address(initializer), type(uint256).max);
 
@@ -53,14 +56,14 @@ contract UniswapV3InitializerTest is Test {
                     fee: 3000,
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
-                    targetTick: DEFAULT_TARGET_TICK
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
                 })
             )
         );
 
         assertEq(token.balanceOf(address(initializer)), 0, "Wrong initializer balance");
-        // assertEq(token.balanceOf(pool), 1e27, "Wrong pool balance");
-        // assertEq(token.balanceOf(address(this)), 1e27, "Wrong this balance");
 
         uint128 totalLiquidity = IUniswapV3Pool(pool).liquidity();
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
@@ -86,7 +89,9 @@ contract UniswapV3InitializerTest is Test {
                     fee: 3000,
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
-                    targetTick: DEFAULT_TARGET_TICK
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
                 })
             )
         );
@@ -102,7 +107,9 @@ contract UniswapV3InitializerTest is Test {
                     fee: 3000,
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
-                    targetTick: DEFAULT_TARGET_TICK
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
                 })
             )
         );
@@ -126,15 +133,23 @@ contract UniswapV3InitializerTest is Test {
 
         int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
         int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
-        int24 targetTick =
-            isToken0 ? -DEFAULT_UPPER_TICK + DEFAULT_TARGET_TICK_DELTA : DEFAULT_UPPER_TICK - DEFAULT_TARGET_TICK_DELTA;
+        int24 targetTick = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK;
 
         pool = initializer.initialize(
             address(token),
             address(WETH_MAINNET),
             1e27,
             bytes32(0),
-            abi.encode(InitData({ fee: 3000, tickLower: tickLower, tickUpper: tickUpper, targetTick: targetTick }))
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                })
+            )
         );
 
         deal(address(this), 100_000_000 ether);
@@ -178,8 +193,8 @@ contract UniswapV3InitializerTest is Test {
         (uint128 liquidity,,,,) =
             IUniswapV3Pool(pool).positions(keccak256(abi.encodePacked(address(initializer), tickLower, tickUpper)));
         assertEq(liquidity, 0, "Position liquidity is not empty");
-        assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 10, "Pool token0 balance is not empty");
-        assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 10, "Pool token1 balance is not empty");
+        assertApproxEqAbs(ERC20(token0).balanceOf(address(pool)), 0, 1000, "Pool token0 balance is not empty");
+        assertApproxEqAbs(ERC20(token1).balanceOf(address(pool)), 0, 1000, "Pool token1 balance is not empty");
         assertEq(IUniswapV3Pool(pool).liquidity(), 0, "Pool liquidity is not empty");
         assertEq(ERC20(token0).balanceOf(address(initializer)), 0, "Initializer balance0 is not zero");
         assertEq(ERC20(token1).balanceOf(address(initializer)), 0, "Initializer balance1 is not zero");
@@ -234,7 +249,9 @@ contract UniswapV3InitializerTest is Test {
                         fee: 3000,
                         tickLower: -DEFAULT_UPPER_TICK,
                         tickUpper: -DEFAULT_LOWER_TICK,
-                        targetTick: -DEFAULT_TARGET_TICK
+                        numPositions: DEFAULT_NUM_POSITIONS,
+                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                        maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
                     })
                 )
             )
@@ -250,7 +267,9 @@ contract UniswapV3InitializerTest is Test {
                         fee: 3000,
                         tickLower: DEFAULT_LOWER_TICK,
                         tickUpper: DEFAULT_UPPER_TICK,
-                        targetTick: DEFAULT_TARGET_TICK
+                        numPositions: DEFAULT_NUM_POSITIONS,
+                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                        maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
                     })
                 )
             )
@@ -295,13 +314,13 @@ contract UniswapV3InitializerTest is Test {
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
         assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
 
-        (,,, int24 tickUpperIsToken0, int24 targetTickIsToken0,,,) =
+        (,, int24 tickLowerIsToken0, int24 tickUpperIsToken0,,,,,) =
             UniswapV3Initializer(initializer).getState(address(isToken0Pool));
-        (,, int24 tickLowerNotIsToken0,, int24 targetTickNotIsToken0,,,) =
+        (,, int24 tickLowerNotIsToken0, int24 tickUpperNotIsToken0,,,,,) =
             UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
 
-        uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(targetTickIsToken0);
-        uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(targetTickNotIsToken0);
+        uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(tickUpperIsToken0 + 1);
+        uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0 - 1);
 
         IQuoterV2 quoter = IQuoterV2(0x61fFE014bA17989E743c5F6cB21bF9697530B21e);
 
