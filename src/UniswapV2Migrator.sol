@@ -6,26 +6,11 @@ import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
+import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 
 uint256 constant WAD = 1e18;
-
-interface IUniswapV2Router02 {
-    function WETH() external pure returns (address);
-}
-
-interface IUniswapV2Pair {
-    function mint(
-        address to
-    ) external returns (uint256 liquidity);
-    function balanceOf(
-        address owner
-    ) external view returns (uint256);
-}
-
-interface IUniswapV2Factory {
-    function createPair(address tokenA, address tokenB) external returns (address pair);
-    function getPair(address tokenA, address tokenB) external view returns (address pair);
-}
 
 error SenderNotAirlock();
 

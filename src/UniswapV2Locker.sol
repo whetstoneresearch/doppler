@@ -7,18 +7,11 @@ import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPointMathLib } from "solmate/src/utils/FixedPointMathLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { AssetData, Airlock } from "src/Airlock.sol";
-import { IUniswapV2Pair } from "src/interfaces/IUniswapPairV2.sol";
+import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
+import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 
 uint256 constant WAD = 1e18;
-
-interface IUniswapV2Router02 {
-    function WETH() external pure returns (address);
-}
-
-interface IUniswapV2Factory {
-    function createPair(address tokenA, address tokenB) external returns (address pair);
-    function getPair(address tokenA, address tokenB) external view returns (address pair);
-}
 
 // todo: think about minUnlockDate
 // 2106 problem?
