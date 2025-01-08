@@ -10,6 +10,7 @@ import { AssetData, Airlock } from "src/Airlock.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 uint256 constant WAD = 1e18;
 
@@ -24,7 +25,7 @@ struct PoolState {
     bool initialized;
 }
 
-contract UniswapV2Locker {
+contract UniswapV2Locker is Ownable {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
@@ -40,7 +41,7 @@ contract UniswapV2Locker {
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(Airlock airlock_, IUniswapV2Factory factory_, ILiquidityMigrator migrator_) {
+    constructor(Airlock airlock_, IUniswapV2Factory factory_, ILiquidityMigrator migrator_) Ownable(msg.sender) {
         airlock = airlock_;
         factory = factory_;
         migrator = migrator_;
@@ -67,7 +68,7 @@ contract UniswapV2Locker {
     // todo: add exit blocker for only owner
     function claimFeesAndExit(
         address pool
-    ) external returns (uint112, uint112) {
+    ) external onlyOwner returns (uint112, uint112) {
         PoolState memory state = getState[pool];
 
         require(state.initialized, "UniswapV2Locker: Pool not initialized");
