@@ -44,6 +44,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     address public immutable airlock;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
+    mapping(address pool => address) public getAsset;
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
@@ -66,7 +67,9 @@ contract UniswapV2Migrator is ILiquidityMigrator {
             pool = factory.createPair(token0, token1);
         }
 
+        // todo: can we remove this check for the pool?
         getPool[token0][token1] = pool;
+        getAsset[pool] = asset;
 
         return pool;
     }
@@ -117,7 +120,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         }
 
         // Pool was created beforehand along the asset token deployment
-        address pool = getPool[token0][token1];
+        address pool = factory.getPair(token0, token1);
 
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
