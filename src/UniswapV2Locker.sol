@@ -13,6 +13,9 @@ import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 
 uint256 constant WAD = 1e18;
 
+error PoolAlreadyInitialized();
+error NoBalanceToLock();
+
 // todo: think about minUnlockDate
 // 2106 problem?
 struct PoolState {
@@ -46,10 +49,10 @@ contract UniswapV2Locker {
     function receiveAndLock(
         address pool
     ) external {
-        require(getState[pool].initialized == false, "UniswapV2Locker: Pool already initialized");
+        require(getState[pool].initialized == false, PoolAlreadyInitialized());
 
         uint256 balance = IUniswapV2Pair(pool).balanceOf(address(this));
-        require(balance > 0, "UniswapV2Locker: No balance to lock");
+        require(balance > 0, NoBalanceToLock());
 
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(pool).getReserves();
         uint256 supply = IUniswapV2Pair(pool).totalSupply();
