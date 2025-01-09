@@ -144,6 +144,9 @@ contract AirlockTest is Test, Deployers {
         );
 
         (bytes32 salt, address hook, address asset) = mineV4(
+            address(airlock),
+            address(manager),
+            DEFAULT_INITIAL_SUPPLY,
             DEFAULT_INITIAL_SUPPLY,
             address(0),
             tokenFactory,
