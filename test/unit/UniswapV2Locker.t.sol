@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { UniswapV2Locker, NoBalanceToLock } from "src/UniswapV2Locker.sol";
+import { UniswapV2Locker, PoolAlreadyInitialized, NoBalanceToLock } from "src/UniswapV2Locker.sol";
 import { UNISWAP_V2_FACTORY_MAINNET } from "test/shared/Addresses.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { Airlock } from "src/Airlock.sol";
@@ -33,6 +33,12 @@ contract UniswapV2LockerTest is Test {
         );
     }
 
+    function test_constructor() public view {
+        assertEq(address(locker.airlock()), address(this));
+        assertEq(address(locker.factory()), UNISWAP_V2_FACTORY_MAINNET);
+        assertEq(address(locker.migrator()), address(migrator));
+    }
+
     function test_receiveAndLock_InitializesPool() public {
         tokenFoo.transfer(address(pool), 1e18);
         tokenBar.transfer(address(pool), 1e18);
@@ -40,6 +46,12 @@ contract UniswapV2LockerTest is Test {
         locker.receiveAndLock(address(pool));
         (,, bool initialized) = locker.getState(address(pool));
         assertEq(initialized, true);
+    }
+
+    function test_receiveAndLock_RevertsWhenPoolAlreadyInitialized() public {
+        test_receiveAndLock_InitializesPool();
+        vm.expectRevert(PoolAlreadyInitialized.selector);
+        locker.receiveAndLock(address(pool));
     }
 
     function test_receiveAndLock_RevertsWhenNoBalanceToLock() public {
