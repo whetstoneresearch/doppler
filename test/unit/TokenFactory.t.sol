@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { TokenFactory, CreateData } from "src/TokenFactory.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
 
 contract TokenFactoryTest is Test {
     TokenFactory public factory;
@@ -32,16 +32,7 @@ contract TokenFactoryTest is Test {
             recipient,
             owner,
             salt,
-            abi.encode(
-                CreateData({
-                    name: name,
-                    symbol: symbol,
-                    yearlyMintCap: yearlyMintCap,
-                    vestingDuration: vestingDuration,
-                    recipients: recipients,
-                    amounts: amounts
-                })
-            )
+            abi.encode(name, symbol, yearlyMintCap, vestingDuration, recipients, amounts)
         );
     }
 }

@@ -16,14 +16,14 @@ error NotAirlock();
  * @param recipients List of recipients for the vesting schedule
  * @param amounts List of amounts for the vesting schedule
  */
-struct CreateData {
-    string name;
-    string symbol;
-    uint256 yearlyMintCap;
-    uint256 vestingDuration;
-    address[] recipients;
-    uint256[] amounts;
-}
+// struct CreateData {
+//     string name;
+//     string symbol;
+//     uint256 yearlyMintCap;
+//     uint256 vestingDuration;
+//     address[] recipients;
+//     uint256[] amounts;
+// }
 
 /// @custom:security-contact security@whetstone.cc
 contract TokenFactory is ITokenFactory {
@@ -55,19 +55,18 @@ contract TokenFactory is ITokenFactory {
             revert NotAirlock();
         }
 
-        CreateData memory createData = abi.decode(data, (CreateData));
+        (
+            string memory name,
+            string memory symbol,
+            uint256 yearlyMintCap,
+            uint256 vestingDuration,
+            address[] memory recipients,
+            uint256[] memory amounts
+        ) = abi.decode(data, (string, string, uint256, uint256, address[], uint256[]));
 
         return address(
             new DERC20{ salt: salt }(
-                createData.name,
-                createData.symbol,
-                initialSupply,
-                recipient,
-                owner,
-                createData.yearlyMintCap,
-                createData.vestingDuration,
-                createData.recipients,
-                createData.amounts
+                name, symbol, initialSupply, recipient, owner, yearlyMintCap, vestingDuration, recipients, amounts
             )
         );
     }

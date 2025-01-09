@@ -19,7 +19,7 @@ import {
 } from "test/shared/Addresses.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { TokenFactory, CreateData } from "src/TokenFactory.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
 import "forge-std/console.sol";
@@ -115,7 +115,7 @@ contract UniswapV4InitializerTest is Test {
         address numeraire = address(0);
 
         bytes memory tokenFactoryData =
-            abi.encode(CreateData("Test Token", "TEST", 1e18, 365 days, new address[](0), new uint256[](0)));
+            abi.encode("Test Token", "TEST", 1e18, 365 days, new address[](0), new uint256[](0));
         bytes memory governanceFactoryData = abi.encode("Test Token");
 
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);

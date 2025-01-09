@@ -5,10 +5,10 @@ import { Test, console } from "forge-std/Test.sol";
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { CreateData } from "src/TokenFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler, IPoolManager } from "src/Doppler.sol";
+import "forge-std/console.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -68,21 +68,20 @@ function mineV4(
         )
     );
 
-    CreateData memory createData = abi.decode(tokenFactoryData, (CreateData));
+    (
+        string memory name,
+        string memory symbol,
+        uint256 yearlyMintCap,
+        uint256 vestingDuration,
+        address[] memory recipients,
+        uint256[] memory amounts
+    ) = abi.decode(tokenFactoryData, (string, string, uint256, uint256, address[], uint256[]));
 
     bytes32 tokenInitHash = keccak256(
         abi.encodePacked(
             type(DERC20).creationCode,
             abi.encode(
-                createData.name,
-                createData.symbol,
-                initialSupply,
-                airlock,
-                airlock,
-                createData.yearlyMintCap,
-                createData.vestingDuration,
-                createData.recipients,
-                createData.amounts
+                name, symbol, initialSupply, airlock, airlock, yearlyMintCap, vestingDuration, recipients, amounts
             )
         )
     );
@@ -95,6 +94,9 @@ function mineV4(
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
                 && ((isToken0 && asset < numeraire) || (!isToken0 && asset > numeraire))
         ) {
+            console.log("found salt");
+            console.log("hook: %s", hook);
+            console.log("asset: %s", asset);
             return (bytes32(salt), hook, asset);
         }
     }
