@@ -113,10 +113,9 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
         liquidity = IUniswapV2Pair(pool).mint(address(this));
-        IUniswapV2Pair(pool).transfer(recipient, liquidity);
-
-        // TODO: Compute the amount of LP tokens to lock
-        IUniswapV2Pair(pool).transfer(address(locker), 0);
+        uint256 liquidityToLock = liquidity / 20;
+        IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
+        IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
         locker.receiveAndLock(pool);
 
         if (address(this).balance > 0) {
