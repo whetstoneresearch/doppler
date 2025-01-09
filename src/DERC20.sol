@@ -84,7 +84,10 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
         require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
 
-        _mint(address(this), vestedTokens);
+        if (vestedTokens > 0) {
+            _mint(address(this), vestedTokens);
+        }
+        
         _mint(recipient, initialSupply - vestedTokens);
     }
 
