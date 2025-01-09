@@ -1,16 +1,16 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPointMathLib } from "solmate/src/utils/FixedPointMathLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { AssetData, Airlock } from "src/Airlock.sol";
+import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 
 uint256 constant WAD = 1e18;
 
@@ -33,7 +33,7 @@ contract UniswapV2Locker is Ownable {
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
     Airlock public immutable airlock;
-    ILiquidityMigrator public immutable migrator;
+    UniswapV2Migrator public immutable migrator;
 
     /// @notice Returns the state of a pool
     mapping(address pool => PoolState state) public getState;
@@ -41,7 +41,7 @@ contract UniswapV2Locker is Ownable {
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(Airlock airlock_, IUniswapV2Factory factory_, ILiquidityMigrator migrator_) Ownable(msg.sender) {
+    constructor(Airlock airlock_, IUniswapV2Factory factory_, UniswapV2Migrator migrator_) Ownable(msg.sender) {
         airlock = airlock_;
         factory = factory_;
         migrator = migrator_;
@@ -104,13 +104,13 @@ contract UniswapV2Locker is Ownable {
         uint256 principal0 = fees0 > 0 ? amount0 - fees0 : amount0;
         uint256 principal1 = fees1 > 0 ? amount1 - fees1 : amount1;
 
-        // address timelock = ILiquidityMigrator(airlock).getAssetData(pool).timelock;
+        (, address timelock,,,,,,,,) = airlock.getAssetData(migrator.getAsset(pool));
 
         if (principal0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), owner, fees0);
+            SafeTransferLib.safeTransfer(ERC20(token0), timelock, fees0);
         }
         if (principal1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), owner, fees1);
+            SafeTransferLib.safeTransfer(ERC20(token1), timelock, fees1);
         }
     }
 }
