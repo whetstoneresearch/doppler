@@ -65,7 +65,6 @@ contract UniswapV2Locker is Ownable {
         getState[pool] = PoolState({ amount0: amount0, amount1: amount1, initialized: true });
     }
 
-    // todo: add exit blocker for only owner
     function claimFeesAndExit(
         address pool
     ) external onlyOwner returns (uint112, uint112) {
