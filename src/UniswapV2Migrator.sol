@@ -8,7 +8,9 @@ import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
+import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 
 error SenderNotAirlock();
 
@@ -25,6 +27,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
     address public immutable airlock;
+    UniswapV2Locker public locker;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
     mapping(address pool => address) public getAsset;
@@ -36,6 +39,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         airlock = airlock_;
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
+        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this);
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
@@ -108,7 +112,12 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
-        liquidity = IUniswapV2Pair(pool).mint(recipient);
+        liquidity = IUniswapV2Pair(pool).mint(address(this));
+        IUniswapV2Pair(pool).transfer(recipient, liquidity);
+
+        // TODO: Compute the amount of LP tokens to lock
+        IUniswapV2Pair(pool).transfer(address(locker), 0);
+        locker.receiveAndLock(pool);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
