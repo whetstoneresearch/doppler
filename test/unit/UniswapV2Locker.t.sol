@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { UniswapV2Locker, PoolAlreadyInitialized, NoBalanceToLock } from "src/UniswapV2Locker.sol";
+import { UniswapV2Locker, PoolAlreadyInitialized, NoBalanceToLock, PoolNotInitialized } from "src/UniswapV2Locker.sol";
 import { UNISWAP_V2_FACTORY_MAINNET } from "test/shared/Addresses.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { Airlock } from "src/Airlock.sol";
@@ -57,5 +57,10 @@ contract UniswapV2LockerTest is Test {
     function test_receiveAndLock_RevertsWhenNoBalanceToLock() public {
         vm.expectRevert(NoBalanceToLock.selector);
         locker.receiveAndLock(address(pool));
+    }
+
+    function test_claimFeesAndExit_RevertsWhenPoolNotInitialized() public {
+        vm.expectRevert(PoolNotInitialized.selector);
+        locker.claimFeesAndExit(address(0xbeef));
     }
 }
