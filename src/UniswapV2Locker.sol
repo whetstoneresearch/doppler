@@ -9,6 +9,9 @@ import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 
+/// @notice Thrown when the sender is not the migrator contract
+error SenderNotMigrator();
+
 /// @notice Thrown when trying to initialized a pool that was already initialized
 error PoolAlreadyInitialized();
 
@@ -66,6 +69,7 @@ contract UniswapV2Locker is Ownable {
     function receiveAndLock(
         address pool
     ) external {
+        require(msg.sender == address(migrator), SenderNotMigrator());
         require(getState[pool].initialized == false, PoolAlreadyInitialized());
 
         uint256 balance = IUniswapV2Pair(pool).balanceOf(address(this));

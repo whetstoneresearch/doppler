@@ -44,6 +44,7 @@ contract UniswapV2LockerTest is Test {
         tokenFoo.transfer(address(pool), 100e18);
         tokenBar.transfer(address(pool), 100e18);
         pool.mint(address(locker));
+        vm.prank(address(migrator));
         locker.receiveAndLock(address(pool));
         (,, bool initialized) = locker.getState(address(pool));
         assertEq(initialized, true);
@@ -51,11 +52,13 @@ contract UniswapV2LockerTest is Test {
 
     function test_receiveAndLock_RevertsWhenPoolAlreadyInitialized() public {
         test_receiveAndLock_InitializesPool();
+        vm.startPrank(address(migrator));
         vm.expectRevert(PoolAlreadyInitialized.selector);
         locker.receiveAndLock(address(pool));
     }
 
     function test_receiveAndLock_RevertsWhenNoBalanceToLock() public {
+        vm.startPrank(address(migrator));
         vm.expectRevert(NoBalanceToLock.selector);
         locker.receiveAndLock(address(pool));
     }
