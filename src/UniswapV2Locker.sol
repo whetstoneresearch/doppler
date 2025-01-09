@@ -14,12 +14,24 @@ import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 
 uint256 constant WAD = 1e18;
 
+/// @notice Thrown when trying to initialized a pool that was already initialized
 error PoolAlreadyInitialized();
+
+/// @notice Thrown when trying to exit a pool that was not initialized
 error PoolNotInitialized();
+
+/// @notice Thrown when the Locker contract doesn't hold any LP tokens
 error NoBalanceToLock();
 
 // todo: think about minUnlockDate
 // 2106 problem?
+
+/**
+ * @notice State of a pool
+ * @param amount0 Reserve of token0
+ * @param amount1 Reserve of token1
+ * @param initialized Whether the pool has been initialized
+ */
 struct PoolState {
     uint112 amount0;
     uint112 amount1;
@@ -31,9 +43,15 @@ contract UniswapV2Locker is Ownable {
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
 
+    /// @notice Address of the Uniswap V2 factory
     IUniswapV2Factory public immutable factory;
+
     IWETH public immutable weth;
+
+    /// @notice Address of the Airlock contract
     Airlock public immutable airlock;
+
+    /// @notice Address of the Uniswap V2 migrator
     UniswapV2Migrator public immutable migrator;
 
     /// @notice Returns the state of a pool
@@ -48,6 +66,10 @@ contract UniswapV2Locker is Ownable {
         migrator = migrator_;
     }
 
+    /**
+     * @notice Locks the LP tokens held by this contract
+     * @param pool Address of the pool
+     */
     function receiveAndLock(
         address pool
     ) external {
@@ -66,6 +88,11 @@ contract UniswapV2Locker is Ownable {
         getState[pool] = PoolState({ amount0: amount0, amount1: amount1, initialized: true });
     }
 
+    /**
+     * @notice Unlocks the LP tokens by burning them, fees are sent to the Airlock owner
+     * and the principal tokens to the timelock contract
+     * @param pool Address of the pool
+     */
     function claimFeesAndExit(
         address pool
     ) external onlyOwner returns (uint112, uint112) {
@@ -105,7 +132,6 @@ contract UniswapV2Locker is Ownable {
         uint256 principal1 = fees1 > 0 ? amount1 - fees1 : amount1;
 
         (, address timelock,,,,,,,,) = airlock.getAssetData(migrator.getAsset(pool));
-
         if (principal0 > 0) {
             SafeTransferLib.safeTransfer(ERC20(token0), timelock, principal0);
         }
