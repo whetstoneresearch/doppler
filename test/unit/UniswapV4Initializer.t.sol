@@ -146,6 +146,10 @@ contract UniswapV4InitializerTest is Test {
             poolInitializerData
         );
 
+        console.log("hook: %s", hook);
+        console.log("token: %s", token);
+        console.logBytes32(salt);
+
         (address asset, address pool,,,) = airlock.create(
             config.numTokensToSell,
             config.numTokensToSell,

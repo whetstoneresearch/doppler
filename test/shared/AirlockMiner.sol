@@ -5,7 +5,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler, IPoolManager } from "src/Doppler.sol";
 import "forge-std/console.sol";
@@ -18,7 +18,7 @@ uint256 constant MAX_LOOP = 100_000;
 
 uint160 constant flags = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
 );
 
 function mineV4(
@@ -29,7 +29,7 @@ function mineV4(
     address numeraire,
     ITokenFactory tokenFactory,
     bytes memory tokenFactoryData,
-    IPoolInitializer poolInitializer,
+    UniswapV4Initializer poolInitializer,
     bytes memory poolInitializerData
 ) view returns (bytes32, address, address) {
     (
@@ -63,7 +63,8 @@ function mineV4(
                 epochLength,
                 gamma,
                 isToken0,
-                numPDSlugs
+                numPDSlugs,
+                airlock
             )
         )
     );
@@ -87,16 +88,13 @@ function mineV4(
     );
 
     for (uint256 salt; salt < 1_000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer));
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer.deployer()));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
         if (
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
                 && ((isToken0 && asset < numeraire) || (!isToken0 && asset > numeraire))
         ) {
-            console.log("found salt");
-            console.log("hook: %s", hook);
-            console.log("asset: %s", asset);
             return (bytes32(salt), hook, asset);
         }
     }
@@ -118,7 +116,7 @@ contract AirlockMinerTest is Test {
             address(0),
             ITokenFactory(address(0xfac)),
             abi.encode("Test", "TST", 1e27, new address[](0), new uint256[](0)),
-            IPoolInitializer(address(0x9007)),
+            UniswapV4Initializer(address(0x9007)),
             abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0)
         );
 
