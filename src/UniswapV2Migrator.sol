@@ -10,8 +10,6 @@ import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 
-uint256 constant WAD = 1e18;
-
 error SenderNotAirlock();
 
 /**
