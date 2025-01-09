@@ -15,6 +15,7 @@ import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 uint256 constant WAD = 1e18;
 
 error PoolAlreadyInitialized();
+error PoolNotInitialized();
 error NoBalanceToLock();
 
 // todo: think about minUnlockDate
@@ -70,7 +71,7 @@ contract UniswapV2Locker is Ownable {
     ) external onlyOwner returns (uint112, uint112) {
         PoolState memory state = getState[pool];
 
-        require(state.initialized, "UniswapV2Locker: Pool not initialized");
+        require(state.initialized, PoolNotInitialized());
 
         // get previous reserves and share of invariant
         uint256 kLast = uint256(state.amount0) * uint256(state.amount1);
