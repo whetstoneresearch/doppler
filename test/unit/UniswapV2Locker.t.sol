@@ -33,11 +33,13 @@ contract UniswapV2LockerTest is Test {
         );
     }
 
-    function test_receiveAndLock() public {
+    function test_receiveAndLock_InitializesPool() public {
         tokenFoo.transfer(address(pool), 1e18);
         tokenBar.transfer(address(pool), 1e18);
         pool.mint(address(locker));
         locker.receiveAndLock(address(pool));
+        (,, bool initialized) = locker.getState(address(pool));
+        assertEq(initialized, true);
     }
 
     function test_receiveAndLock_RevertsWhenNoBalanceToLock() public {
