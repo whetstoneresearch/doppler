@@ -95,7 +95,7 @@ contract UniswapV2Locker is Ownable {
      */
     function claimFeesAndExit(
         address pool
-    ) external onlyOwner returns (uint112, uint112) {
+    ) external onlyOwner {
         PoolState memory state = getState[pool];
 
         require(state.initialized, PoolNotInitialized());
