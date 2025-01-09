@@ -107,10 +107,10 @@ contract UniswapV2Locker is Ownable {
         (, address timelock,,,,,,,,) = airlock.getAssetData(migrator.getAsset(pool));
 
         if (principal0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), timelock, fees0);
+            SafeTransferLib.safeTransfer(ERC20(token0), timelock, principal0);
         }
         if (principal1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), timelock, fees1);
+            SafeTransferLib.safeTransfer(ERC20(token1), timelock, principal1);
         }
     }
 }
