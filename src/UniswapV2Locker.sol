@@ -2,17 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
-import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPointMathLib } from "solmate/src/utils/FixedPointMathLib.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
-
-uint256 constant WAD = 1e18;
 
 /// @notice Thrown when trying to initialized a pool that was already initialized
 error PoolAlreadyInitialized();
@@ -45,8 +40,6 @@ contract UniswapV2Locker is Ownable {
 
     /// @notice Address of the Uniswap V2 factory
     IUniswapV2Factory public immutable factory;
-
-    IWETH public immutable weth;
 
     /// @notice Address of the Airlock contract
     Airlock public immutable airlock;
