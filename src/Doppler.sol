@@ -721,7 +721,7 @@ contract Doppler is BaseHook {
         }
 
         // Safe from overflow since max value is (2**24-1) * 1e18
-        return int256(effectiveStartingTick - startingTick) * I_WAD / int256((endingTime - startingTime) / epochLength);
+        return int256(endingTick - effectiveStartingTick) * I_WAD / int256((endingTime - startingTime) / epochLength);
     }
 
     /// @notice Aligns a given tick with the tickSpacing of the pool
