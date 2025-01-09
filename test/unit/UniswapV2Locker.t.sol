@@ -110,6 +110,7 @@ contract UniswapV2LockerTest is Test {
         assertGt(tokenFoo.balanceOf(timelock), 0, "Timelock balance1 is wrong");
         assertGt(tokenBar.balanceOf(owner), 0, "Owner balance0 is wrong");
         assertGt(tokenFoo.balanceOf(owner), 0, "Owner balance1 is wrong");
+        assertEq(pool.balanceOf(address(locker)), 0, "Locker balance is wrong");
     }
 
     function test_claimFeesAndExit_RevertsWhenPoolNotInitialized() public {
