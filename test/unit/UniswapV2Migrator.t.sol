@@ -68,6 +68,8 @@ contract UniswapV2MigratorTest is Test {
         assertEq(token0.balanceOf(pool), 1000 ether, "Wrong pool token0 balance");
         assertEq(token1.balanceOf(pool), 1000 ether, "Wrong pool token1 balance");
 
-        assertEq(liquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
+        uint256 lockedLiquidity = liquidity / 20;
+        assertEq(liquidity - lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
+        assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
     }
 }

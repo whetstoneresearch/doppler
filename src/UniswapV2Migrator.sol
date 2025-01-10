@@ -6,26 +6,11 @@ import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
 import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
-
-uint256 constant WAD = 1e18;
-
-interface IUniswapV2Router02 {
-    function WETH() external pure returns (address);
-}
-
-interface IUniswapV2Pair {
-    function mint(
-        address to
-    ) external returns (uint256 liquidity);
-    function balanceOf(
-        address owner
-    ) external view returns (uint256);
-}
-
-interface IUniswapV2Factory {
-    function createPair(address tokenA, address tokenB) external returns (address pair);
-    function getPair(address tokenA, address tokenB) external view returns (address pair);
-}
+import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
+import { Airlock } from "src/Airlock.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 
 error SenderNotAirlock();
 
@@ -42,8 +27,10 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
     address public immutable airlock;
+    UniswapV2Locker public locker;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
+    mapping(address pool => address) public getAsset;
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
@@ -52,6 +39,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         airlock = airlock_;
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
+        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this);
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
@@ -66,7 +54,9 @@ contract UniswapV2Migrator is ILiquidityMigrator {
             pool = factory.createPair(token0, token1);
         }
 
+        // todo: can we remove this check for the pool?
         getPool[token0][token1] = pool;
+        getAsset[pool] = asset;
 
         return pool;
     }
@@ -117,12 +107,16 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         }
 
         // Pool was created beforehand along the asset token deployment
-        address pool = getPool[token0][token1];
+        address pool = factory.getPair(token0, token1);
 
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
-        liquidity = IUniswapV2Pair(pool).mint(recipient);
+        liquidity = IUniswapV2Pair(pool).mint(address(this));
+        uint256 liquidityToLock = liquidity / 20;
+        IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
+        IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
+        locker.receiveAndLock(pool);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);

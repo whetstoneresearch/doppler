@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -77,6 +77,8 @@ event Collect(address indexed to, address indexed token, uint256 amount);
 
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
+    using SafeTransferLib for ERC20;
+
     mapping(address module => ModuleState state) public getModuleState;
     mapping(address asset => AssetData data) public getAssetData;
     mapping(address token => uint256 amount) public protocolFees;
@@ -234,8 +236,8 @@ contract Airlock is Ownable {
             total1 += assetData.totalSupply - assetData.numTokensToSell;
         }
 
-        ERC20(token0).transfer(address(assetData.liquidityMigrator), total0);
-        ERC20(token1).transfer(address(assetData.liquidityMigrator), total1);
+        ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        ERC20(token1).safeTransfer(address(assetData.liquidityMigrator), total1);
 
         assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
 
@@ -268,7 +270,7 @@ contract Airlock is Ownable {
      */
     function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
         protocolFees[token] -= amount;
-        ERC20(token).transfer(to, amount);
+        ERC20(token).safeTransfer(to, amount);
         emit Collect(to, token, amount);
     }
 
@@ -280,7 +282,7 @@ contract Airlock is Ownable {
      */
     function collectIntegratorFees(address to, address token, uint256 amount) external {
         integratorFees[msg.sender][token] -= amount;
-        ERC20(token).transfer(to, amount);
+        ERC20(token).safeTransfer(to, amount);
         emit Collect(to, token, amount);
     }
 }
