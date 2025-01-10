@@ -143,7 +143,8 @@ contract UniswapV4InitializerTest is Test {
             tokenFactory,
             tokenFactoryData,
             initializer,
-            poolInitializerData
+            poolInitializerData,
+            address(initializer.deployer())
         );
 
         console.log("hook: %s", hook);
