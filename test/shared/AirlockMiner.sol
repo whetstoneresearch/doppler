@@ -30,7 +30,8 @@ function mineV4(
     ITokenFactory tokenFactory,
     bytes memory tokenFactoryData,
     UniswapV4Initializer poolInitializer,
-    bytes memory poolInitializerData
+    bytes memory poolInitializerData,
+    address dopplerDeployer
 ) view returns (bytes32, address, address) {
     (
         ,
@@ -87,8 +88,8 @@ function mineV4(
         )
     );
 
-    for (uint256 salt; salt < 1_000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer.deployer()));
+    for (uint256 salt; salt < 1000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(dopplerDeployer));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
         if (
@@ -115,9 +116,10 @@ contract AirlockMinerTest is Test {
             1e27,
             address(0),
             ITokenFactory(address(0xfac)),
-            abi.encode("Test", "TST", 1e27, new address[](0), new uint256[](0)),
+            abi.encode("Test", "TST", 1e27, 0, new address[](0), new uint256[](0)),
             UniswapV4Initializer(address(0x9007)),
-            abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0)
+            abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0),
+            address(0xbeef)
         );
 
         console.log("salt: %s", uint256(salt));
