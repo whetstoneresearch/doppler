@@ -24,7 +24,9 @@ contract MigrateTest is BaseTest {
         uint256 numPDSlugs = hook.getNumPDSlugs();
 
         vm.warp(hook.getStartingTime());
-        buyExactOut(hook.getNumTokensToSell());
+
+        // buy minimumProceeds In
+        buyExactIn(hook.getMinimumProceeds());
 
         vm.warp(hook.getEndingTime());
         vm.prank(hook.airlock());
@@ -40,32 +42,13 @@ contract MigrateTest is BaseTest {
     }
 
     function test_migrate_NoMoreFundsInHook() public {
-        console.log("In Pool %e", ERC20(isToken0 ? token0 : token1).balanceOf(address(manager)));
-
-        uint256 preBalance = ERC20(isToken0 ? token0 : token1).balanceOf(address(hook));
-        console.log("preBalance %e", preBalance);
-
         vm.warp(hook.getStartingTime());
 
-        _debugPositions("Initial positions");
-
-        buyExactOut(1 ether);
-        console.log("In Pool %e", ERC20(isToken0 ? token0 : token1).balanceOf(address(manager)));
-
-        _debugPositions("After swap");
-
-        buyExactOut(hook.getNumTokensToSell() - 1);
-
-        _debugPositions("After swap 2");
-
-        uint256 midBalance = ERC20(isToken0 ? token0 : token1).balanceOf(address(hook));
-        console.log("midBalance %e", midBalance);
+        buyExactOut(hook.getMinimumProceeds());
 
         vm.warp(hook.getEndingTime());
         vm.prank(hook.airlock());
         hook.migrate(address(0xbeef));
-
-        _debugPositions("After migration");
 
         if (usingEth) {
             assertEq(address(hook).balance, 0, "hook should have no ETH");

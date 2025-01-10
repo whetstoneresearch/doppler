@@ -19,6 +19,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
+import "forge-std/console.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
@@ -1247,6 +1248,6 @@ contract Doppler is BaseHook {
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
 
-        return sqrtPriceX96 * sqrtPriceX96;
+        return sqrtPriceX96;
     }
 }
