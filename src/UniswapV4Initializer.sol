@@ -15,6 +15,8 @@ error TokenNotInPoolKey();
 
 error HookNotInPoolKey();
 
+error InvalidTokenOrder();
+
 contract DopplerDeployer {
     // These variables are purposely not immutable to avoid hitting the contract size limit
     address public airlock;
@@ -84,18 +86,14 @@ contract UniswapV4Initializer is IPoolInitializer {
             revert NotAirlock();
         }
 
-        /*
-        require(
-            asset == Currency.unwrap(poolKey.currency0) || asset == Currency.unwrap(poolKey.currency1),
-            TokenNotInPoolKey()
-        );
-        require(hook == address(poolKey.hooks), HookNotInPoolKey());
-        */
-
         (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,) =
             abi.decode(data, (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256));
 
         Doppler doppler = deployer.deploy(numTokensToSell, salt, data);
+
+        if (isToken0 && asset < numeraire || !isToken0 && asset > numeraire) {
+            revert InvalidTokenOrder();
+        }
 
         PoolKey memory poolKey = PoolKey({
             currency0: isToken0 ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -105,9 +103,16 @@ contract UniswapV4Initializer is IPoolInitializer {
             tickSpacing: 8
         });
 
+        if (asset != Currency.unwrap(poolKey.currency0) && asset != Currency.unwrap(poolKey.currency1)) {
+            revert TokenNotInPoolKey();
+        }
+
+        if (address(doppler) != address(poolKey.hooks)) {
+            revert HookNotInPoolKey();
+        }
+
         DERC20 token = DERC20(asset);
         token.transferFrom(address(airlock), address(doppler), numTokensToSell);
-        // require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
