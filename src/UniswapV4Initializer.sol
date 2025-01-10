@@ -5,6 +5,7 @@ import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
 import { lessThan, Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
+import { DERC20 } from "src/DERC20.sol";
 
 error NotAirlock();
 
@@ -101,9 +102,11 @@ contract UniswapV4Initializer is IPoolInitializer {
             currency1: isToken0 ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: IHooks(doppler),
             fee: 3000,
-            tickSpacing: 60
+            tickSpacing: 8
         });
 
+        DERC20 token = DERC20(asset);
+        token.transferFrom(address(airlock), address(doppler), numTokensToSell);
         // require(lessThan(poolKey.currency0, poolKey.currency1), InvalidPoolKey());
 
         poolManager.initialize(poolKey, sqrtPriceX96);

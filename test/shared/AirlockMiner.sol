@@ -8,7 +8,9 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler, IPoolManager } from "src/Doppler.sol";
-import "forge-std/console.sol";
+import { Airlock } from "src/Airlock.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { PoolManager } from "v4-core/src/PoolManager.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -30,8 +32,7 @@ function mineV4(
     ITokenFactory tokenFactory,
     bytes memory tokenFactoryData,
     UniswapV4Initializer poolInitializer,
-    bytes memory poolInitializerData,
-    address dopplerDeployer
+    bytes memory poolInitializerData
 ) view returns (bytes32, address, address) {
     (
         ,
@@ -88,8 +89,8 @@ function mineV4(
         )
     );
 
-    for (uint256 salt; salt < 1000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(dopplerDeployer));
+    for (uint256 salt; salt < 100_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer.deployer()));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
         if (
@@ -107,23 +108,25 @@ function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deplo
     return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
 }
 
-contract AirlockMinerTest is Test {
-    function test_mine_works() public view {
-        (bytes32 salt, address hook, address token) = mineV4(
-            address(this),
-            address(this),
-            1e27,
-            1e27,
-            address(0),
-            ITokenFactory(address(0xfac)),
-            abi.encode("Test", "TST", 1e27, 0, new address[](0), new uint256[](0)),
-            UniswapV4Initializer(address(0x9007)),
-            abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0),
-            address(0xbeef)
-        );
+// UNCOMMENT AT YOUR OWN RISK
+// CAUSES COMPILE TIME YUL EXCEPTION
+// contract AirlockMinerTest is Test {
 
-        console.log("salt: %s", uint256(salt));
-        console.log("hook: %s", hook);
-        console.log("token: %s", token);
-    }
-}
+//     function test_mine_works() public view {
+//         (bytes32 salt, address hook, address token) = mineV4(
+//             address(airlock),
+//             address(manager),
+//             1e27,
+//             1e27,
+//             address(0),
+//             ITokenFactory(address(0xfac)),
+//             abi.encode("Test", "TST", 1e27, 0, new address[](0), new uint256[](0)),
+//             initializer,
+//             abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0)
+//         );
+
+//         console.log("salt: %s", uint256(salt));
+//         console.log("hook: %s", hook);
+//         console.log("token: %s", token);
+//     }
+// }

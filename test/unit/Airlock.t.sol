@@ -21,6 +21,8 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { IDopplerDeployer } from "src/interfaces/IDopplerDeployer.sol";
+import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
@@ -51,6 +53,7 @@ contract AirlockTest is Test, Deployers {
     Airlock airlock;
     TokenFactory tokenFactory;
     UniswapV4Initializer uniswapV4Initializer;
+    DopplerDeployer deployer;
     UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
     UniswapV2Migrator uniswapV2LiquidityMigrator;
@@ -63,7 +66,8 @@ contract AirlockTest is Test, Deployers {
 
         airlock = new Airlock(address(this));
         tokenFactory = new TokenFactory(address(airlock));
-        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, DopplerDeployer(address(0)));
+        deployer = new DopplerDeployer(address(airlock), manager);
+        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
@@ -123,13 +127,13 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_DeploysV4() public returns (address, address) {
-        vm.skip(true);
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, new address[](0), new uint256[](0));
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
+
+        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
 
         bytes memory poolInitializerData = abi.encode(
-            manager,
-            DEFAULT_INITIAL_SUPPLY,
+            sqrtPrice,
             DEFAULT_MIN_PROCEEDS,
             DEFAULT_MAX_PROCEEDS,
             DEFAULT_STARTING_TIME,
@@ -139,8 +143,7 @@ contract AirlockTest is Test, Deployers {
             DEFAULT_EPOCH_LENGTH,
             DEFAULT_GAMMA,
             false,
-            DEFAULT_PD_SLUGS,
-            address(airlock)
+            DEFAULT_PD_SLUGS
         );
 
         (bytes32 salt, address hook, address asset) = mineV4(
@@ -152,8 +155,7 @@ contract AirlockTest is Test, Deployers {
             tokenFactory,
             tokenFactoryData,
             uniswapV4Initializer,
-            poolInitializerData,
-            address(uniswapV4Initializer.deployer())
+            poolInitializerData
         );
 
         airlock.create(

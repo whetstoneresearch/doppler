@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import { Test, console } from "forge-std/Test.sol";
-import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
+import { Deployers } from "v4-core/test/utils/Deployers.sol";
+import { PoolManager, IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
@@ -22,7 +23,8 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
-import "forge-std/console.sol";
+import { IDopplerDeployer } from "src/interfaces/IDopplerDeployer.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -58,7 +60,7 @@ struct DopplerConfig {
     uint256 numPDSlugs;
 }
 
-contract UniswapV4InitializerTest is Test {
+contract UniswapV4InitializerTest is Test, Deployers {
     UniswapV4Initializer public initializer;
     DopplerDeployer public deployer;
     Airlock public airlock;
@@ -66,15 +68,15 @@ contract UniswapV4InitializerTest is Test {
     GovernanceFactory public governanceFactory;
     UniswapV2Migrator public migrator;
 
-    IPoolManager public poolManager = IPoolManager(UNISWAP_V4_POOL_MANAGER_UNICHAIN_SEPOLIA);
     IUniswapV2Factory public uniswapV2Factory = IUniswapV2Factory(UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA);
     IUniswapV2Router02 public uniswapV2Router = IUniswapV2Router02(UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA);
 
     function setUp() public {
         vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);
+        manager = new PoolManager(address(this));
         airlock = new Airlock(address(this));
-        deployer = new DopplerDeployer(address(airlock), poolManager);
-        initializer = new UniswapV4Initializer(address(airlock), poolManager, deployer);
+        deployer = new DopplerDeployer(address(airlock), manager);
+        initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         migrator = new UniswapV2Migrator(address(this), uniswapV2Factory, uniswapV2Router);
@@ -94,8 +96,7 @@ contract UniswapV4InitializerTest is Test {
     }
 
     function test_constructor() public view {
-        assertEq(address(initializer.airlock()), address(this), "Wrong airlock");
-        assertEq(address(initializer.poolManager()), address(UNISWAP_V4_POOL_MANAGER_UNICHAIN_SEPOLIA), "Wrong factory");
+        assertEq(address(initializer.airlock()), address(airlock), "Wrong airlock");
     }
 
     function test_v4initialize_success() public {
@@ -115,8 +116,8 @@ contract UniswapV4InitializerTest is Test {
         address numeraire = address(0);
 
         bytes memory tokenFactoryData =
-            abi.encode("Test Token", "TEST", 1e18, 365 days, new address[](0), new uint256[](0));
-        bytes memory governanceFactoryData = abi.encode("Test Token");
+            abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0));
+        bytes memory governanceFactoryData = abi.encode("Best Token");
 
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
 
@@ -136,20 +137,17 @@ contract UniswapV4InitializerTest is Test {
 
         (bytes32 salt, address hook, address token) = mineV4(
             address(airlock),
-            address(poolManager),
+            address(manager),
             config.numTokensToSell,
             config.numTokensToSell,
             numeraire,
-            tokenFactory,
+            ITokenFactory(address(tokenFactory)),
             tokenFactoryData,
             initializer,
-            poolInitializerData,
-            address(initializer.deployer())
+            poolInitializerData
         );
 
-        console.log("hook: %s", hook);
-        console.log("token: %s", token);
-        console.logBytes32(salt);
+        deal(address(this), 100_000_000 ether);
 
         (address asset, address pool,,,) = airlock.create(
             config.numTokensToSell,

@@ -165,12 +165,13 @@ contract Airlock is Ownable {
         */
 
         asset = tokenFactory.create(initialSupply, address(this), address(this), salt, tokenFactoryData);
-        console.log("asset: %s", asset);
 
         (governance, timelock) = governanceFactory.create(asset, governanceFactoryData);
 
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
         pool = poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
+
+        console.log("pool: %s", pool);
 
         migrationPool = liquidityMigrator.initialize(asset, numeraire, liquidityMigratorData);
 
