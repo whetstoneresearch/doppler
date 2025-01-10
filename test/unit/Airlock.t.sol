@@ -12,7 +12,7 @@ import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
 import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
-import { CreateData, TokenFactory } from "src/TokenFactory.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
@@ -152,7 +152,8 @@ contract AirlockTest is Test, Deployers {
             tokenFactory,
             tokenFactoryData,
             uniswapV4Initializer,
-            poolInitializerData
+            poolInitializerData,
+            address(uniswapV4Initializer.deployer())
         );
 
         airlock.create(
@@ -292,16 +293,8 @@ contract AirlockTest is Test, Deployers {
     }
 
     function test_create_DeploysOnUniswapV3() public {
-        bytes memory tokenFactoryData = abi.encode(
-            CreateData({
-                name: DEFAULT_TOKEN_NAME,
-                symbol: DEFAULT_TOKEN_SYMBOL,
-                yearlyMintCap: 0,
-                vestingDuration: 0,
-                recipients: new address[](0),
-                amounts: new uint256[](0)
-            })
-        );
+        bytes memory tokenFactoryData =
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
         bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
         bytes memory poolInitializerData = abi.encode(
             InitData({
