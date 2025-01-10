@@ -91,7 +91,7 @@ contract UniswapV4Initializer is IPoolInitializer {
 
         Doppler doppler = deployer.deploy(numTokensToSell, salt, data);
 
-        if (isToken0 && asset < numeraire || !isToken0 && asset > numeraire) {
+        if (isToken0 && asset > numeraire || !isToken0 && asset < numeraire) {
             revert InvalidTokenOrder();
         }
 
