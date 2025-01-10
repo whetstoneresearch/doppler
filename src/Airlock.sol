@@ -9,7 +9,6 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
-import "forge-std/console.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -170,8 +169,6 @@ contract Airlock is Ownable {
 
         ERC20(asset).approve(address(poolInitializer), numTokensToSell);
         pool = poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
-
-        console.log("pool: %s", pool);
 
         migrationPool = liquidityMigrator.initialize(asset, numeraire, liquidityMigratorData);
 
