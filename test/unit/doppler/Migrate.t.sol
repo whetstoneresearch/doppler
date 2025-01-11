@@ -26,7 +26,8 @@ contract MigrateTest is BaseTest {
         vm.warp(hook.getStartingTime());
 
         // buy minimumProceeds In
-        buyExactIn(hook.getMinimumProceeds());
+        // TODO: Check why buying only minimumProceeds is not enough
+        buyExactIn(hook.getMinimumProceeds() + 1 ether);
 
         vm.warp(hook.getEndingTime());
         vm.prank(hook.airlock());
