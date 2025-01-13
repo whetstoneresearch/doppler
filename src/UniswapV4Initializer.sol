@@ -8,6 +8,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { DERC20 } from "src/DERC20.sol";
 
+/// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();
 
 error InvalidPoolKey();
