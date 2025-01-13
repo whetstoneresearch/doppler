@@ -236,7 +236,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         require(msg.sender == pool, OnlyPool());
 
-        ERC20(callbackData.asset).transferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
+        ERC20(callbackData.asset).safeTransferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
 
     function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
