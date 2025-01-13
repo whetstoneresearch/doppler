@@ -137,5 +137,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         if (msg.sender != airlock) {
             revert OnlyAirlock();
         }
+
+        (sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1) = Doppler(payable(hook)).migrate(airlock);
     }
 }
