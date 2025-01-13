@@ -2,12 +2,12 @@
 pragma solidity ^0.8.13;
 
 import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
-import { lessThan, Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
+import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { DERC20 } from "src/DERC20.sol";
 
-error NotAirlock();
+error OnlyAirlock();
 
 error InvalidPoolKey();
 
@@ -62,19 +62,35 @@ contract DopplerDeployer {
     }
 }
 
+/**
+ * @title Uniswap V4 Initializer
+ * @notice Initializes a Uniswap V4 pool with an associated Doppler contract as a hook
+ * @custom:security-contact security@whetstone.cc
+ */
 contract UniswapV4Initializer is IPoolInitializer {
     using CurrencyLibrary for Currency;
 
+    /// @notice Address of the Airlock contract
     address public immutable airlock;
+
+    /// @notice Address of the Uniswap V4 PoolManager
     IPoolManager public immutable poolManager;
+
+    /// @notice Address of the DopplerDeployer contract
     DopplerDeployer public immutable deployer;
 
+    /**
+     * @param airlock_ Address of the Airlock contract
+     * @param poolManager_ Address of the Uniswap V4 PoolManager
+     * @param deployer_ Address of the DopplerDeployer contract
+     */
     constructor(address airlock_, IPoolManager poolManager_, DopplerDeployer deployer_) {
         airlock = airlock_;
         poolManager = poolManager_;
         deployer = deployer_;
     }
 
+    /// @inheritdoc IPoolInitializer
     function initialize(
         address asset,
         address numeraire,
@@ -83,7 +99,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         bytes calldata data
     ) external returns (address) {
         if (msg.sender != airlock) {
-            revert NotAirlock();
+            revert OnlyAirlock();
         }
 
         (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,) =
@@ -119,8 +135,9 @@ contract UniswapV4Initializer is IPoolInitializer {
         return address(doppler);
     }
 
+    /// @inheritdoc IPoolInitializer
     function exitLiquidity(
-        address asset
+        address hook
     )
         external
         returns (
@@ -132,5 +149,11 @@ contract UniswapV4Initializer is IPoolInitializer {
             uint128 fees1,
             uint128 balance1
         )
-    { }
+    {
+        if (msg.sender != airlock) {
+            revert OnlyAirlock();
+        }
+
+        (sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1) = Doppler(payable(hook)).migrate(airlock);
+    }
 }
