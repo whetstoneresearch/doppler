@@ -8,6 +8,7 @@ import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
 import { Doppler, SlugData, Position } from "../../src/Doppler.sol";
 import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
 import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
+import { BalanceDelta } from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
 
 contract DopplerImplementation is Doppler {
     using PoolIdLibrary for PoolKey;
@@ -193,5 +194,9 @@ contract DopplerImplementation is Doppler {
         uint256 totalTokensSold
     ) public view returns (uint256) {
         return _computeRequiredProceeds(sqrtPriceLower, sqrtPriceUpper, totalTokensSold);
+    }
+
+    function getFeesAccrued() public view returns (BalanceDelta) {
+        return state.feesAccrued;
     }
 }

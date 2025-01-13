@@ -1202,7 +1202,11 @@ contract RebalanceTest is BaseTest {
         assertNotEq(upperSlug.tickUpper, 0, "fourth swap: upperSlug.tickUpper != 0");
 
         // lower slug liquidity must be 0
-        assertEq(lowerSlug.liquidity, 0, "fourth swap: lowerSlug.liquidity != 0");
+        uint24 fee = poolKey.fee;
+        // if the fee is not 0 then the lower slug is expected to have nonzero liquidity
+        if (fee == 0) {
+            assertEq(lowerSlug.liquidity, 0, "fourth swap: lowerSlug.liquidity != 0");
+        }
 
         // Swap in last epoch
         // =========================
@@ -1273,8 +1277,12 @@ contract RebalanceTest is BaseTest {
         uint256 numTokensToSell = hook.getNumTokensToSell();
         (,, uint256 totalTokensSold4,,,) = hook.state();
 
+        uint256 feesAccrued =
+            uint256(int256(isToken0 ? hook.getFeesAccrued().amount0() : hook.getFeesAccrued().amount1()));
+
         // Swap all remaining tokens
-        buy(int256(numTokensToSell - totalTokensSold4 - 50));
+        // we subtract 50 to account for rounding errors
+        buy(int256(numTokensToSell - totalTokensSold4 - feesAccrued - 50));
 
         (, int256 tickAccumulator6,,,,) = hook.state();
 
