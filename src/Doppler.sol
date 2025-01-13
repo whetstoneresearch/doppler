@@ -19,6 +19,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
+import { Currency } from "v4-core/src/types/Currency.sol";
 import "forge-std/console.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
@@ -1095,11 +1096,14 @@ contract Doppler is BaseHook {
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
         if (isMigration) {
+            BalanceDelta totalCallerDelta;
+            BalanceDelta totalFeesAccrued;
+
             for (uint256 i = 1; i < NUM_DEFAULT_SLUGS + numPDSlugs; ++i) {
                 Position memory position = positions[bytes32(i)];
 
                 if (position.liquidity != 0) {
-                    poolManager.modifyLiquidity(
+                    (BalanceDelta callerDelta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
                         key,
                         IPoolManager.ModifyLiquidityParams({
                             tickLower: isToken0 ? position.tickLower : position.tickUpper,
@@ -1109,6 +1113,9 @@ contract Doppler is BaseHook {
                         }),
                         ""
                     );
+
+                    totalCallerDelta = add(totalCallerDelta, callerDelta);
+                    totalFeesAccrued = add(totalFeesAccrued, feesAccrued);
                 }
             }
 
@@ -1124,49 +1131,51 @@ contract Doppler is BaseHook {
             }
 
             poolManager.settle();
-        } else {
-            state.lastEpoch = 1;
 
-            (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
-            uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
-            uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
+            return abi.encode(totalCallerDelta, totalFeesAccrued);
+        }
 
-            // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
-            SlugData memory lowerSlug = SlugData({ tickLower: tick, tickUpper: tick, liquidity: 0 });
-            (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
-            SlugData[] memory priceDiscoverySlugs =
-                _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
+        state.lastEpoch = 1;
 
-            Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + priceDiscoverySlugs.length);
+        (, int24 tickUpper) = _getTicksBasedOnState(0, key.tickSpacing);
+        uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(tick);
+        uint160 sqrtPriceCurrent = TickMath.getSqrtPriceAtTick(tick);
 
-            newPositions[0] = Position({
-                tickLower: lowerSlug.tickLower,
-                tickUpper: lowerSlug.tickUpper,
-                liquidity: lowerSlug.liquidity,
-                salt: uint8(uint256(LOWER_SLUG_SALT))
+        // set the tickLower and tickUpper to the current tick as this is the default behavior when requiredProceeds and totalProceeds are 0
+        SlugData memory lowerSlug = SlugData({ tickLower: tick, tickUpper: tick, liquidity: 0 });
+        (SlugData memory upperSlug, uint256 assetRemaining) = _computeUpperSlugData(key, 0, tick, numTokensToSell);
+        SlugData[] memory priceDiscoverySlugs =
+            _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
+
+        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + priceDiscoverySlugs.length);
+
+        newPositions[0] = Position({
+            tickLower: lowerSlug.tickLower,
+            tickUpper: lowerSlug.tickUpper,
+            liquidity: lowerSlug.liquidity,
+            salt: uint8(uint256(LOWER_SLUG_SALT))
+        });
+        newPositions[1] = Position({
+            tickLower: upperSlug.tickLower,
+            tickUpper: upperSlug.tickUpper,
+            liquidity: upperSlug.liquidity,
+            salt: uint8(uint256(UPPER_SLUG_SALT))
+        });
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
+                tickLower: priceDiscoverySlugs[i].tickLower,
+                tickUpper: priceDiscoverySlugs[i].tickUpper,
+                liquidity: priceDiscoverySlugs[i].liquidity,
+                salt: uint8(NUM_DEFAULT_SLUGS + i)
             });
-            newPositions[1] = Position({
-                tickLower: upperSlug.tickLower,
-                tickUpper: upperSlug.tickUpper,
-                liquidity: upperSlug.liquidity,
-                salt: uint8(uint256(UPPER_SLUG_SALT))
-            });
-            for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-                newPositions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
-                    tickLower: priceDiscoverySlugs[i].tickLower,
-                    tickUpper: priceDiscoverySlugs[i].tickUpper,
-                    liquidity: priceDiscoverySlugs[i].liquidity,
-                    salt: uint8(NUM_DEFAULT_SLUGS + i)
-                });
-            }
+        }
 
-            _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
+        _update(newPositions, sqrtPriceCurrent, sqrtPriceNext, key);
 
-            positions[LOWER_SLUG_SALT] = newPositions[0];
-            positions[UPPER_SLUG_SALT] = newPositions[1];
-            for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
-                positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
-            }
+        positions[LOWER_SLUG_SALT] = newPositions[0];
+        positions[UPPER_SLUG_SALT] = newPositions[1];
+        for (uint256 i; i < priceDiscoverySlugs.length; ++i) {
+            positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
         }
 
         return new bytes(0);
@@ -1229,25 +1238,46 @@ contract Doppler is BaseHook {
     /**
      * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
      * @dev This function can only be called by the Airlock contract under specific conditions
-     * @return Price of the pool in the Q96 format
+     * @return sqrtPriceX96 Square root of the price of the pool in the Q96 format
      */
     function migrate(
         address recipient
-    ) external returns (uint256) {
+    )
+        external
+        returns (
+            uint160 sqrtPriceX96,
+            address token0,
+            uint128 fees0,
+            uint128 balance0,
+            address token1,
+            uint128 fees1,
+            uint128 balance1
+        )
+    {
         if (msg.sender != airlock) revert SenderNotAirlock();
 
         if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
             revert CannotMigrate();
         }
 
-        poolManager.unlock(abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true })));
+        bytes memory data = poolManager.unlock(
+            abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true }))
+        );
+
+        (BalanceDelta totalCallerDelta, BalanceDelta totalFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
 
         // In case some dust tokens are still left in the contract
         poolKey.currency0.transfer(recipient, poolKey.currency0.balanceOfSelf());
         poolKey.currency1.transfer(recipient, poolKey.currency1.balanceOfSelf());
 
-        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+        (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+        token0 = Currency.unwrap(poolKey.currency0);
+        token1 = Currency.unwrap(poolKey.currency1);
 
-        return sqrtPriceX96;
+        // TODO: Do we want to safe cast here?
+        fees0 = uint128(int128(totalFeesAccrued.amount0()));
+        balance0 = uint128(int128(totalCallerDelta.amount0()));
+        fees1 = uint128(int128(totalFeesAccrued.amount1()));
+        balance1 = uint128(int128(totalCallerDelta.amount1()));
     }
 }
