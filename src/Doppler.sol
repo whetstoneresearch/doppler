@@ -274,7 +274,7 @@ contract Doppler is BaseHook {
         uint256,
         uint256,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external pure override returns (bytes4) {
         revert CannotDonate();
     }
 
