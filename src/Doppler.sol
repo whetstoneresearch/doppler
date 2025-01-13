@@ -70,7 +70,9 @@ error InvalidTimeRange();
 /// @notice Thrown when an attempt is made to add liquidity to the pool
 error CannotAddLiquidity();
 
-error BeforeStartTime();
+/// @notice Thrown when an attempt is made to swap before the start time
+error CannotSwapBeforeStartTime();
+
 error SwapBelowRange();
 
 /// @notice Thrown when start time is before the current block.timestamp
@@ -291,7 +293,7 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
         if (earlyExit) revert MaximumProceedsReached();
 
-        if (block.timestamp < startingTime) revert BeforeStartTime();
+        if (block.timestamp < startingTime) revert CannotSwapBeforeStartTime();
 
         // We can skip rebalancing if we're in an epoch that already had a rebalance
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
