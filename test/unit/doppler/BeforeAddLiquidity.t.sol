@@ -8,7 +8,7 @@ import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
 import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
-import { Unauthorized } from "src/Doppler.sol";
+import { CannotAddLiquidity } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract BeforeAddLiquidityTest is BaseTest {
@@ -50,7 +50,7 @@ contract BeforeAddLiquidityTest is BaseTest {
 
     function testBeforeAddLiquidity_RevertsForNonHookCaller() public {
         vm.prank(address(manager));
-        vm.expectRevert(Unauthorized.selector);
+        vm.expectRevert(CannotAddLiquidity.selector);
         hook.beforeAddLiquidity(
             address(0xBEEF),
             key,
