@@ -63,6 +63,8 @@ struct Position {
 }
 
 error InvalidGamma();
+
+/// @notice Thrown when the time range is invalid (likely start is after end)
 error InvalidTimeRange();
 
 /// @notice Thrown when an attempt is made to add liquidity to the pool
