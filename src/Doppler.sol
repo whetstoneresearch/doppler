@@ -72,7 +72,10 @@ error CannotAddLiquidity();
 
 error BeforeStartTime();
 error SwapBelowRange();
-error InvalidTime();
+
+/// @notice Thrown when start time is before the current block.timestamp
+error InvalidStartTime();
+
 error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
@@ -178,7 +181,7 @@ contract Doppler is BaseHook {
         address airlock_
     ) BaseHook(_poolManager) {
         // Check that the current time is before the starting time
-        if (block.timestamp > _startingTime) revert InvalidTime();
+        if (block.timestamp > _startingTime) revert InvalidStartTime();
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
