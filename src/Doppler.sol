@@ -64,7 +64,10 @@ struct Position {
 
 error InvalidGamma();
 error InvalidTimeRange();
-error Unauthorized();
+
+/// @notice Thrown when an attempt is made to add liquidity to the pool
+error CannotAddLiquidity();
+
 error BeforeStartTime();
 error SwapBelowRange();
 error InvalidTime();
