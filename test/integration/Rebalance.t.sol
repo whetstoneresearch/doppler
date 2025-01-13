@@ -18,8 +18,6 @@ import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";
 import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-
-import { InvalidTime, SwapBelowRange } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "../../src/Doppler.sol";
 import { stdMath } from "forge-std/StdMath.sol";
