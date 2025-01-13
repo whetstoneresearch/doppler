@@ -10,6 +10,9 @@ import { GovernorTimelockControl } from "@openzeppelin/governance/extensions/Gov
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/governance/utils/IVotes.sol";
 
+/// @notice Thrown if propose is called before the proposal period starts.
+error ProposalPeriodNotStarted();
+
 /// @custom:security-contact security@whetstone.cc
 contract Governance is
     Governor,
@@ -19,6 +22,8 @@ contract Governance is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl
 {
+    uint32 public immutable proposalPeriodStart;
+
     constructor(
         string memory name_,
         IVotes _token,
@@ -29,7 +34,9 @@ contract Governance is
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(4)
         GovernorTimelockControl(_timelock)
-    { }
+    {
+        proposalPeriodStart = uint32(block.timestamp + 90 days);
+    }
 
     // The following functions are overrides required by Solidity.
 
@@ -61,6 +68,18 @@ contract Governance is
 
     function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.proposalThreshold();
+    }
+
+    /// @inheritdoc Governor
+    function _propose(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description,
+        address proposer
+    ) internal override returns (uint256 proposalId) {
+        require(block.timestamp >= proposalPeriodStart, ProposalPeriodNotStarted());
+        return super._propose(targets, values, calldatas, description, proposer);
     }
 
     function _queueOperations(
