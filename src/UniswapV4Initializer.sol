@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
 import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { DERC20 } from "src/DERC20.sol";
@@ -69,6 +70,7 @@ contract DopplerDeployer {
  */
 contract UniswapV4Initializer is IPoolInitializer {
     using CurrencyLibrary for Currency;
+    using SafeTransferLib for address;
 
     /// @notice Address of the Airlock contract
     address public immutable airlock;
@@ -128,7 +130,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         }
 
         DERC20 token = DERC20(asset);
-        token.transferFrom(address(airlock), address(doppler), numTokensToSell);
+        address(token).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
