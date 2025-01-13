@@ -5,9 +5,12 @@ import { Test, console } from "forge-std/Test.sol";
 import { Hooks } from "v4-core/src/libraries/Hooks.sol";
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler, IPoolManager } from "src/Doppler.sol";
+import { Airlock } from "src/Airlock.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { PoolManager } from "v4-core/src/PoolManager.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -17,20 +20,22 @@ uint256 constant MAX_LOOP = 100_000;
 
 uint160 constant flags = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
 );
 
 function mineV4(
+    address airlock,
+    address poolManager,
     uint256 initialSupply,
+    uint256 numTokensToSell,
     address numeraire,
     ITokenFactory tokenFactory,
     bytes memory tokenFactoryData,
-    IPoolInitializer poolInitializer,
+    UniswapV4Initializer poolInitializer,
     bytes memory poolInitializerData
 ) view returns (bytes32, address, address) {
     (
-        IPoolManager poolManager,
-        uint256 numTokensToSell,
+        ,
         uint256 minimumProceeds,
         uint256 maximumProceeds,
         uint256 startingTime,
@@ -40,28 +45,10 @@ function mineV4(
         uint256 epochLength,
         int24 gamma,
         bool isToken0,
-        uint256 numPDSlugs,
-        address airlock
+        uint256 numPDSlugs
     ) = abi.decode(
-        poolInitializerData,
-        (
-            IPoolManager,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            int24,
-            int24,
-            uint256,
-            int24,
-            bool,
-            uint256,
-            address
-        )
+        poolInitializerData, (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256)
     );
-
-    isToken0 = numeraire != address(0);
 
     bytes32 dopplerInitHash = keccak256(
         abi.encodePacked(
@@ -88,19 +75,22 @@ function mineV4(
         string memory name,
         string memory symbol,
         uint256 yearlyMintCap,
+        uint256 vestingDuration,
         address[] memory recipients,
         uint256[] memory amounts
-    ) = abi.decode(tokenFactoryData, (string, string, uint256, address[], uint256[]));
+    ) = abi.decode(tokenFactoryData, (string, string, uint256, uint256, address[], uint256[]));
 
     bytes32 tokenInitHash = keccak256(
         abi.encodePacked(
             type(DERC20).creationCode,
-            abi.encode(name, symbol, initialSupply, airlock, airlock, yearlyMintCap, recipients, amounts)
+            abi.encode(
+                name, symbol, initialSupply, airlock, airlock, yearlyMintCap, vestingDuration, recipients, amounts
+            )
         )
     );
 
-    for (uint256 salt; salt < 1_000_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer));
+    for (uint256 salt; salt < 100_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer.deployer()));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
 
         if (
@@ -118,19 +108,25 @@ function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deplo
     return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
 }
 
-contract AirlockMinerTest is Test {
-    function test_mine_works() public view {
-        (bytes32 salt, address hook, address token) = mineV4(
-            1e27,
-            address(0),
-            ITokenFactory(address(0xfac)),
-            abi.encode("Test", "TST", 1e27, new address[](0), new uint256[](0)),
-            IPoolInitializer(address(0x9007)),
-            abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0, address(this))
-        );
+// UNCOMMENT AT YOUR OWN RISK
+// CAUSES COMPILE TIME YUL EXCEPTION
+// contract AirlockMinerTest is Test {
 
-        console.log("salt: %s", uint256(salt));
-        console.log("hook: %s", hook);
-        console.log("token: %s", token);
-    }
-}
+//     function test_mine_works() public view {
+//         (bytes32 salt, address hook, address token) = mineV4(
+//             address(airlock),
+//             address(manager),
+//             1e27,
+//             1e27,
+//             address(0),
+//             ITokenFactory(address(0xfac)),
+//             abi.encode("Test", "TST", 1e27, 0, new address[](0), new uint256[](0)),
+//             initializer,
+//             abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0)
+//         );
+
+//         console.log("salt: %s", uint256(salt));
+//         console.log("hook: %s", hook);
+//         console.log("token: %s", token);
+//     }
+// }
