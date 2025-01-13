@@ -7,7 +7,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { DERC20 } from "src/DERC20.sol";
 
-error NotAirlock();
+error OnlyAirlock();
 
 error InvalidPoolKey();
 
@@ -83,7 +83,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         bytes calldata data
     ) external returns (address) {
         if (msg.sender != airlock) {
-            revert NotAirlock();
+            revert OnlyAirlock();
         }
 
         (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,) =
@@ -119,8 +119,9 @@ contract UniswapV4Initializer is IPoolInitializer {
         return address(doppler);
     }
 
+    /// @inheritdoc IPoolInitializer
     function exitLiquidity(
-        address asset
+        address hook
     )
         external
         returns (
@@ -132,5 +133,9 @@ contract UniswapV4Initializer is IPoolInitializer {
             uint128 fees1,
             uint128 balance1
         )
-    { }
+    {
+        if (msg.sender != airlock) {
+            revert OnlyAirlock();
+        }
+    }
 }
