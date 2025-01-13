@@ -20,7 +20,6 @@ import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/Proto
 import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
-import "forge-std/console.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
