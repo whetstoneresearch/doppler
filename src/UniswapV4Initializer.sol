@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
-import { lessThan, Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
+import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { DERC20 } from "src/DERC20.sol";
