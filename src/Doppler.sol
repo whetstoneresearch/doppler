@@ -119,24 +119,25 @@ contract Doppler is BaseHook {
     /// reusing the hook and messing with its state.
     bool public isInitialized;
 
+    // The following variables are NOT immutable to avoid hitting the contract size limit
     PoolKey public poolKey;
-    address public immutable airlock;
+    address public airlock;
 
-    uint256 internal immutable numTokensToSell; // total amount of tokens to be sold
-    uint256 internal immutable minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 internal immutable maximumProceeds; // proceeds amount that will trigger early exit condition
-    uint256 internal immutable startingTime; // sale start time
-    uint256 internal immutable endingTime; // sale end time
-    int24 internal immutable startingTick; // dutch auction starting tick
-    int24 internal immutable endingTick; // dutch auction ending tick
-    uint256 internal immutable epochLength; // length of each epoch (seconds)
-    int24 internal immutable gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
-    bool internal immutable isToken0; // whether token0 is the token being sold (true) or token1 (false)
-    uint256 internal immutable numPDSlugs; // number of price discovery slugs
+    uint256 internal numTokensToSell; // total amount of tokens to be sold
+    uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 internal maximumProceeds; // proceeds amount that will trigger early exit condition
+    uint256 internal startingTime; // sale start time
+    uint256 internal endingTime; // sale end time
+    int24 internal startingTick; // dutch auction starting tick
+    int24 internal endingTick; // dutch auction ending tick
+    uint256 internal epochLength; // length of each epoch (seconds)
+    int24 internal gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
+    bool internal isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    uint256 internal numPDSlugs; // number of price discovery slugs
 
-    uint256 internal immutable totalEpochs; // total number of epochs
-    uint256 internal immutable normalizedEpochDelta; // normalized delta between two epochs
-    int24 internal immutable upperSlugRange; // range of the upper slug
+    uint256 internal totalEpochs; // total number of epochs
+    uint256 internal normalizedEpochDelta; // normalized delta between two epochs
+    int24 internal upperSlugRange; // range of the upper slug
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
