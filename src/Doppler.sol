@@ -233,6 +233,7 @@ contract Doppler is BaseHook {
         airlock = airlock_;
     }
 
+    /// @inheritdoc BaseHook
     function beforeInitialize(
         address,
         PoolKey calldata key,
@@ -1226,7 +1227,7 @@ contract Doppler is BaseHook {
         );
     }
 
-    /// @notice Returns a struct of permissions to signal which hook functions are to be implemented
+    /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
