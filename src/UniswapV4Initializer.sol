@@ -62,19 +62,35 @@ contract DopplerDeployer {
     }
 }
 
+/**
+ * @title Uniswap V4 Initializer
+ * @notice Initializes a Uniswap V4 pool with an associated Doppler contract as a hook
+ * @custom:security-contact security@whetstone.cc
+ */
 contract UniswapV4Initializer is IPoolInitializer {
     using CurrencyLibrary for Currency;
 
+    /// @notice Address of the Airlock contract
     address public immutable airlock;
+
+    /// @notice Address of the Uniswap V4 PoolManager
     IPoolManager public immutable poolManager;
+
+    /// @notice Address of the DopplerDeployer contract
     DopplerDeployer public immutable deployer;
 
+    /**
+     * @param airlock_ Address of the Airlock contract
+     * @param poolManager_ Address of the Uniswap V4 PoolManager
+     * @param deployer_ Address of the DopplerDeployer contract
+     */
     constructor(address airlock_, IPoolManager poolManager_, DopplerDeployer deployer_) {
         airlock = airlock_;
         poolManager = poolManager_;
         deployer = deployer_;
     }
 
+    /// @inheritdoc IPoolInitializer
     function initialize(
         address asset,
         address numeraire,
