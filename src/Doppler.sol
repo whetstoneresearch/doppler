@@ -82,6 +82,14 @@ error AlreadyInitialized();
 error SenderNotAirlock();
 error CannotDonate();
 
+event Rebalance(int24 currentTick, int24 tickLower, int24 tickUpper, uint256 epoch);
+
+event Swap(int24 currentTick, uint256 totalProceeds, uint256 totalTokensSold);
+
+event EarlyExit(uint256 epoch);
+
+event InsufficientProceeds();
+
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
 uint256 constant WAD = 1e18;
 int256 constant I_WAD = 1e18;
@@ -296,7 +304,7 @@ contract Doppler is BaseHook {
             // the curve at the average clearing price
             if (state.totalProceeds < minimumProceeds) {
                 insufficientProceeds = true;
-
+                emit InsufficientProceeds();
                 PoolId poolId = key.toId();
                 (, int24 currentTick,,) = poolManager.getSlot0(poolId);
 
@@ -425,7 +433,10 @@ contract Doppler is BaseHook {
         // If we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
             earlyExit = true;
+            emit EarlyExit(_getCurrentEpoch());
         }
+
+        emit Swap(currentTick, state.totalProceeds, state.totalTokensSold);
 
         return (BaseHook.afterSwap.selector, 0);
     }
@@ -664,6 +675,7 @@ contract Doppler is BaseHook {
                 positions[bytes32(uint256(NUM_DEFAULT_SLUGS + i))] = newPositions[NUM_DEFAULT_SLUGS - 1 + i];
             }
         }
+        emit Rebalance(currentTick, tickLower, tickUpper, currentEpoch);
     }
 
     /// @notice If offset == 0, retrieves the end time of the current epoch
@@ -1274,7 +1286,6 @@ contract Doppler is BaseHook {
         token0 = Currency.unwrap(poolKey.currency0);
         token1 = Currency.unwrap(poolKey.currency1);
 
-        // TODO: Do we want to safe cast here?
         fees0 = uint128(int128(totalFeesAccrued.amount0()));
         balance0 = uint128(int128(totalCallerDelta.amount0()));
         fees1 = uint128(int128(totalFeesAccrued.amount1()));
