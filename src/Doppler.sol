@@ -268,6 +268,7 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
+    /// @inheritdoc BaseHook
     function beforeDonate(
         address,
         PoolKey calldata,
