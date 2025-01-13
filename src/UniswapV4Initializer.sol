@@ -11,8 +11,6 @@ import { DERC20 } from "src/DERC20.sol";
 /// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();
 
-error InvalidPoolKey();
-
 error TokenNotInPoolKey();
 
 error HookNotInPoolKey();
