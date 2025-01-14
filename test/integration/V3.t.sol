@@ -6,7 +6,7 @@ import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/Un
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState, AssetData } from "src/Airlock.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState, AssetData, CreateParams } from "src/Airlock.sol";
 import {
     UniswapV3Initializer,
     OnlyAirlock,
@@ -105,19 +105,21 @@ contract V3Test is Test {
         );
 
         (address asset, address pool,,, address migrationPool) = airlock.create(
-            initialSupply,
-            initialSupply,
-            WETH_MAINNET,
-            tokenFactory,
-            tokenFactoryData,
-            governanceFactory,
-            governanceData,
-            initializer,
-            poolInitializerData,
-            uniswapV2LiquidityMigrator,
-            "",
-            address(this),
-            salt
+            CreateParams(
+                initialSupply,
+                initialSupply,
+                WETH_MAINNET,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceData,
+                initializer,
+                poolInitializerData,
+                uniswapV2LiquidityMigrator,
+                "",
+                address(this),
+                salt
+            )
         );
 
         assertEq(asset, predictedAsset, "Predicted asset address doesn't match actual");

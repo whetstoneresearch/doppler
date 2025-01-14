@@ -62,7 +62,7 @@ struct AssetData {
  * @param integrator Address of the front-end integrator
  * @param salt Salt used by the different factories to deploy the contracts using CREATE2
  */
-struct CreateData {
+struct CreateParams {
     uint256 initialSupply;
     uint256 numTokensToSell;
     address numeraire;
@@ -127,7 +127,7 @@ contract Airlock is Ownable {
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
      */
     function create(
-        CreateData calldata createData
+        CreateParams calldata createData
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(
             getModuleState[address(createData.tokenFactory)] == ModuleState.TokenFactory,

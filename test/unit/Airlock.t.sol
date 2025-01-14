@@ -11,7 +11,7 @@ import { Currency } from "v4-core/src/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 
-import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -159,19 +159,21 @@ contract AirlockTest is Test, Deployers {
         );
 
         airlock.create(
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            address(0),
-            tokenFactory,
-            tokenFactoryData,
-            governanceFactory,
-            abi.encode(DEFAULT_TOKEN_NAME),
-            uniswapV4Initializer,
-            poolInitializerData,
-            uniswapV2LiquidityMigrator,
-            new bytes(0),
-            address(0xb0b),
-            salt
+            CreateParams(
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                address(0),
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                abi.encode(DEFAULT_TOKEN_NAME),
+                uniswapV4Initializer,
+                poolInitializerData,
+                uniswapV2LiquidityMigrator,
+                new bytes(0),
+                address(0xb0b),
+                salt
+            )
         );
 
         return (hook, asset);
@@ -209,19 +211,21 @@ contract AirlockTest is Test, Deployers {
             )
         );
         airlock.create(
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            WETH_MAINNET,
-            ITokenFactory(address(0xdead)),
-            new bytes(0),
-            governanceFactory,
-            new bytes(0),
-            uniswapV3Initializer,
-            new bytes(0),
-            uniswapV2LiquidityMigrator,
-            new bytes(0),
-            address(0xb0b),
-            bytes32(uint256(0xbeef))
+            CreateParams(
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                WETH_MAINNET,
+                ITokenFactory(address(0xdead)),
+                new bytes(0),
+                governanceFactory,
+                new bytes(0),
+                uniswapV3Initializer,
+                new bytes(0),
+                uniswapV2LiquidityMigrator,
+                new bytes(0),
+                address(0xb0b),
+                bytes32(uint256(0xbeef))
+            )
         );
     }
 
@@ -232,19 +236,21 @@ contract AirlockTest is Test, Deployers {
             )
         );
         airlock.create(
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            WETH_MAINNET,
-            tokenFactory,
-            new bytes(0),
-            IGovernanceFactory(address(0xdead)),
-            new bytes(0),
-            uniswapV3Initializer,
-            new bytes(0),
-            uniswapV2LiquidityMigrator,
-            new bytes(0),
-            address(0xb0b),
-            bytes32(uint256(0xbeef))
+            CreateParams(
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                WETH_MAINNET,
+                tokenFactory,
+                new bytes(0),
+                IGovernanceFactory(address(0xdead)),
+                new bytes(0),
+                uniswapV3Initializer,
+                new bytes(0),
+                uniswapV2LiquidityMigrator,
+                new bytes(0),
+                address(0xb0b),
+                bytes32(uint256(0xbeef))
+            )
         );
     }
 
@@ -255,19 +261,21 @@ contract AirlockTest is Test, Deployers {
             )
         );
         airlock.create(
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            WETH_MAINNET,
-            tokenFactory,
-            new bytes(0),
-            governanceFactory,
-            new bytes(0),
-            IPoolInitializer(address(0xdead)),
-            new bytes(0),
-            uniswapV2LiquidityMigrator,
-            new bytes(0),
-            address(0xb0b),
-            bytes32(uint256(0xbeef))
+            CreateParams(
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                WETH_MAINNET,
+                tokenFactory,
+                new bytes(0),
+                governanceFactory,
+                new bytes(0),
+                IPoolInitializer(address(0xdead)),
+                new bytes(0),
+                uniswapV2LiquidityMigrator,
+                new bytes(0),
+                address(0xb0b),
+                bytes32(uint256(0xbeef))
+            )
         );
     }
 
@@ -278,19 +286,21 @@ contract AirlockTest is Test, Deployers {
             )
         );
         airlock.create(
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            WETH_MAINNET,
-            tokenFactory,
-            new bytes(0),
-            governanceFactory,
-            new bytes(0),
-            uniswapV3Initializer,
-            new bytes(0),
-            ILiquidityMigrator(address(0xdead)),
-            new bytes(0),
-            address(0xb0b),
-            bytes32(uint256(0xbeef))
+            CreateParams(
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                WETH_MAINNET,
+                tokenFactory,
+                new bytes(0),
+                governanceFactory,
+                new bytes(0),
+                uniswapV3Initializer,
+                new bytes(0),
+                ILiquidityMigrator(address(0xdead)),
+                new bytes(0),
+                address(0xb0b),
+                bytes32(uint256(0xbeef))
+            )
         );
     }
 
@@ -310,19 +320,21 @@ contract AirlockTest is Test, Deployers {
         );
 
         airlock.create(
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            WETH_MAINNET,
-            tokenFactory,
-            tokenFactoryData,
-            governanceFactory,
-            governanceFactoryData,
-            uniswapV3Initializer,
-            poolInitializerData,
-            uniswapV2LiquidityMigrator,
-            new bytes(0),
-            address(0xb0b),
-            bytes32(uint256(0xbeef))
+            CreateParams(
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                WETH_MAINNET,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceFactoryData,
+                uniswapV3Initializer,
+                poolInitializerData,
+                uniswapV2LiquidityMigrator,
+                new bytes(0),
+                address(0xb0b),
+                bytes32(uint256(0xbeef))
+            )
         );
     }
 }

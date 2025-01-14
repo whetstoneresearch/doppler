@@ -19,7 +19,7 @@ import {
     UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA
 } from "test/shared/Addresses.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
-import { Airlock, ModuleState } from "src/Airlock.sol";
+import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
@@ -150,19 +150,21 @@ contract UniswapV4InitializerTest is Test, Deployers {
         deal(address(this), 100_000_000 ether);
 
         (address asset, address pool,,,) = airlock.create(
-            config.numTokensToSell,
-            config.numTokensToSell,
-            numeraire,
-            tokenFactory,
-            tokenFactoryData,
-            governanceFactory,
-            governanceFactoryData,
-            initializer,
-            poolInitializerData,
-            migrator,
-            "",
-            address(this),
-            salt
+            CreateParams(
+                config.numTokensToSell,
+                config.numTokensToSell,
+                numeraire,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceFactoryData,
+                initializer,
+                poolInitializerData,
+                migrator,
+                "",
+                address(this),
+                salt
+            )
         );
 
         assertEq(pool, hook, "Wrong pool");
