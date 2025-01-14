@@ -384,7 +384,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool,
         LpPosition[] memory newPositions,
         uint16 numPositions
-    ) public {
+    ) internal {
         for (uint256 i; i <= numPositions; i++) {
             IUniswapV3Pool(pool).mint(
                 address(this),
@@ -404,7 +404,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool,
         LpPosition[] memory newPositions,
         uint16 numPositions
-    ) public returns (uint256 amount0, uint256 amount1, uint128 balance0, uint128 balance1) {
+    ) internal returns (uint256 amount0, uint256 amount1, uint128 balance0, uint128 balance1) {
         uint256 posAmount0;
         uint256 posAmount1;
         uint128 posBalance0;
