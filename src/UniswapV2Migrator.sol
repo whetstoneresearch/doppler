@@ -12,7 +12,8 @@ import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 
-error SenderNotAirlock();
+/// @notice Thrown when the sender is not the Airlock contract
+error OnlyAirlock();
 
 /**
  * @author Whetstone Research
@@ -43,6 +44,8 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
+        require(msg.sender == airlock, OnlyAirlock());
+
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
@@ -73,9 +76,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         address token1,
         address recipient
     ) external payable returns (uint256 liquidity) {
-        if (msg.sender != airlock) {
-            revert SenderNotAirlock();
-        }
+        require(msg.sender == airlock, OnlyAirlock());
 
         uint256 balance0;
         uint256 balance1 = ERC20(token1).balanceOf(address(this));

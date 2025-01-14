@@ -5,7 +5,8 @@ import { TimelockController } from "@openzeppelin/governance/TimelockController.
 import { Governance, IVotes } from "src/Governance.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
-error NotAirlock();
+/// @notice Thrown when the caller is not the Airlock contract
+error OnlyAirlock();
 
 /// @custom:security-contact security@whetstone.cc
 contract GovernanceFactory is IGovernanceFactory {
@@ -20,9 +21,7 @@ contract GovernanceFactory is IGovernanceFactory {
     }
 
     function create(address asset, bytes calldata data) external returns (address, address) {
-        if (msg.sender != airlock) {
-            revert NotAirlock();
-        }
+        require(msg.sender == airlock, OnlyAirlock());
 
         (string memory name) = abi.decode(data, (string));
 

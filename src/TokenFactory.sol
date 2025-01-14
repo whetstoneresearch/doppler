@@ -5,7 +5,7 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 /// @dev Thrown when the sender is not the Airlock contract
-error NotAirlock();
+error OnlyAirlock();
 
 /// @custom:security-contact security@whetstone.cc
 contract TokenFactory is ITokenFactory {
@@ -33,9 +33,7 @@ contract TokenFactory is ITokenFactory {
         bytes32 salt,
         bytes calldata data
     ) external returns (address) {
-        if (msg.sender != airlock) {
-            revert NotAirlock();
-        }
+        require(msg.sender == airlock, OnlyAirlock());
 
         (
             string memory name,
