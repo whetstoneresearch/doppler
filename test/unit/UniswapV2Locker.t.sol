@@ -65,13 +65,13 @@ contract UniswapV2LockerTest is Test {
 
     function getAssetData(
         address
-    ) external view { }
+    ) external pure { }
 
-    function owner() external view { }
+    function owner() external pure { }
 
     function getAsset(
         address
-    ) external view { }
+    ) external pure { }
 
     function test_claimFeesAndExit() public {
         test_receiveAndLock_InitializesPool();
@@ -84,8 +84,8 @@ contract UniswapV2LockerTest is Test {
         IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET).swapExactTokensForTokens(
             1 ether, 0, path, address(this), block.timestamp
         );
-        address owner = address(0xb0b);
-        vm.mockCall(address(airlock), abi.encodeWithSelector(this.owner.selector), abi.encode(owner));
+        address tokenOwner = address(0xb0b);
+        vm.mockCall(address(airlock), abi.encodeWithSelector(this.owner.selector), abi.encode(tokenOwner));
         vm.mockCall(
             address(migrator),
             abi.encodeWithSelector(this.getAsset.selector, address(pool)),
@@ -111,8 +111,8 @@ contract UniswapV2LockerTest is Test {
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(timelock), 0, "Timelock balance0 is wrong");
         assertGt(tokenFoo.balanceOf(timelock), 0, "Timelock balance1 is wrong");
-        assertGt(tokenBar.balanceOf(owner), 0, "Owner balance0 is wrong");
-        assertGt(tokenFoo.balanceOf(owner), 0, "Owner balance1 is wrong");
+        assertGt(tokenBar.balanceOf(tokenOwner), 0, "Owner balance0 is wrong");
+        assertGt(tokenFoo.balanceOf(tokenOwner), 0, "Owner balance1 is wrong");
         assertEq(pool.balanceOf(address(locker)), 0, "Locker balance is wrong");
     }
 

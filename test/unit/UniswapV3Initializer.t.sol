@@ -314,10 +314,8 @@ contract UniswapV3InitializerTest is Test {
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
         assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
 
-        (,, int24 tickLowerIsToken0, int24 tickUpperIsToken0,,,,,) =
-            UniswapV3Initializer(initializer).getState(address(isToken0Pool));
-        (,, int24 tickLowerNotIsToken0, int24 tickUpperNotIsToken0,,,,,) =
-            UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
+        (,,, int24 tickUpperIsToken0,,,,,) = UniswapV3Initializer(initializer).getState(address(isToken0Pool));
+        (,, int24 tickLowerNotIsToken0,,,,,,) = UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
 
         uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(tickUpperIsToken0 + 1);
         uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0 - 1);
