@@ -117,9 +117,7 @@ contract Airlock is Ownable {
     mapping(address token => uint256 amount) public protocolFees;
     mapping(address integrator => mapping(address token => uint256 amount)) public integratorFees;
 
-    receive() external payable {
-        // TODO: We might want to restrict this to only approved poolInitializer contracts
-    }
+    receive() external payable { }
 
     /**
      * @param owner_ Address receiving the ownership of the Airlock contract
