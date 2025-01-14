@@ -65,7 +65,7 @@ function mineV4(
                 gamma,
                 isToken0,
                 numPDSlugs,
-                airlock
+                poolInitializer
             )
         )
     );
