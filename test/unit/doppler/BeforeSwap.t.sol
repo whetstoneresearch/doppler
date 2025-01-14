@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
 import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
