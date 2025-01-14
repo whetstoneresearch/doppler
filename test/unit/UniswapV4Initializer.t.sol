@@ -1,16 +1,16 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
-import { Deployers } from "v4-core/test/utils/Deployers.sol";
-import { PoolManager, IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
-import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { WETH } from "solmate/src/tokens/WETH.sol";
-import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
-import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
+import { Test } from "forge-std/Test.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { PoolManager } from "@v4-core/PoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { DERC20 } from "src/DERC20.sol";
+import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import {
     WETH_UNICHAIN_SEPOLIA,
     UNISWAP_V4_POOL_MANAGER_UNICHAIN_SEPOLIA,
@@ -18,13 +18,7 @@ import {
     UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA,
     UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA
 } from "test/shared/Addresses.sol";
-import { mineV4 } from "test/shared/AirlockMiner.sol";
-import { Airlock, ModuleState } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
-import { IDopplerDeployer } from "src/interfaces/IDopplerDeployer.sol";
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -75,11 +69,11 @@ contract UniswapV4InitializerTest is Test, Deployers {
         vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);
         manager = new PoolManager(address(this));
         airlock = new Airlock(address(this));
-        deployer = new DopplerDeployer(address(airlock), manager);
+        deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-        migrator = new UniswapV2Migrator(address(this), uniswapV2Factory, uniswapV2Router);
+        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router);
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
@@ -136,33 +130,37 @@ contract UniswapV4InitializerTest is Test, Deployers {
         );
 
         (bytes32 salt, address hook, address token) = mineV4(
-            address(airlock),
-            address(manager),
-            config.numTokensToSell,
-            config.numTokensToSell,
-            numeraire,
-            ITokenFactory(address(tokenFactory)),
-            tokenFactoryData,
-            initializer,
-            poolInitializerData
+            MineV4Params(
+                address(airlock),
+                address(manager),
+                config.numTokensToSell,
+                config.numTokensToSell,
+                numeraire,
+                ITokenFactory(address(tokenFactory)),
+                tokenFactoryData,
+                initializer,
+                poolInitializerData
+            )
         );
 
         deal(address(this), 100_000_000 ether);
 
         (address asset, address pool,,,) = airlock.create(
-            config.numTokensToSell,
-            config.numTokensToSell,
-            numeraire,
-            tokenFactory,
-            tokenFactoryData,
-            governanceFactory,
-            governanceFactoryData,
-            initializer,
-            poolInitializerData,
-            migrator,
-            "",
-            address(this),
-            salt
+            CreateParams(
+                config.numTokensToSell,
+                config.numTokensToSell,
+                numeraire,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceFactoryData,
+                initializer,
+                poolInitializerData,
+                migrator,
+                "",
+                address(this),
+                salt
+            )
         );
 
         assertEq(pool, hook, "Wrong pool");

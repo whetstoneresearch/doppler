@@ -1,14 +1,12 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-
-import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
-import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-
-import { Unauthorized } from "src/Doppler.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { BaseHook } from "@v4-periphery/base/hooks/BaseHook.sol";
+import { SafeCallback } from "@v4-periphery/base/SafeCallback.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { CannotAddLiquidity } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract BeforeAddLiquidityTest is BaseTest {
@@ -50,7 +48,7 @@ contract BeforeAddLiquidityTest is BaseTest {
 
     function testBeforeAddLiquidity_RevertsForNonHookCaller() public {
         vm.prank(address(manager));
-        vm.expectRevert(Unauthorized.selector);
+        vm.expectRevert(CannotAddLiquidity.selector);
         hook.beforeAddLiquidity(
             address(0xBEEF),
             key,

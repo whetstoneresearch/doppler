@@ -1,31 +1,25 @@
-/// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
-import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IPoolManager, PoolKey, IHooks } from "@v4-core/PoolManager.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
-import { DERC20 } from "src/DERC20.sol";
 
+/// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();
-
-error InvalidPoolKey();
-
-error TokenNotInPoolKey();
-
-error HookNotInPoolKey();
 
 error InvalidTokenOrder();
 
 contract DopplerDeployer {
     // These variables are purposely not immutable to avoid hitting the contract size limit
-    address public airlock;
     IPoolManager public poolManager;
 
-    constructor(address airlock_, IPoolManager poolManager_) {
+    constructor(
+        IPoolManager poolManager_
+    ) {
         poolManager = poolManager_;
-        airlock = airlock_;
     }
 
     function deploy(uint256 numTokensToSell, bytes32 salt, bytes calldata data) external returns (Doppler) {
@@ -56,7 +50,7 @@ contract DopplerDeployer {
             gamma,
             isToken0,
             numPDSlugs,
-            airlock
+            msg.sender
         );
 
         return doppler;
@@ -121,16 +115,7 @@ contract UniswapV4Initializer is IPoolInitializer {
             tickSpacing: 8
         });
 
-        if (asset != Currency.unwrap(poolKey.currency0) && asset != Currency.unwrap(poolKey.currency1)) {
-            revert TokenNotInPoolKey();
-        }
-
-        if (address(doppler) != address(poolKey.hooks)) {
-            revert HookNotInPoolKey();
-        }
-
-        DERC20 token = DERC20(asset);
-        address(token).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);
+        address(asset).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 

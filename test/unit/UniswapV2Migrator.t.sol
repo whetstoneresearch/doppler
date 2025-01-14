@@ -1,7 +1,8 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import {
     UniswapV2Migrator,
     IUniswapV2Factory,
@@ -10,7 +11,6 @@ import {
     IUniswapV2Pair
 } from "src/UniswapV2Migrator.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
-import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
 
 contract UniswapV2MigratorTest is Test {
     UniswapV2Migrator public migrator;

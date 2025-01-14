@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
-
+import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -51,6 +50,34 @@ struct AssetData {
 }
 
 /**
+ * @notice Data used to create a new asset token
+ * @param initialSupply Total supply of the token (might be increased later on)
+ * @param numTokensToSell Amount of tokens to sell in the Doppler hook
+ * @param tokenFactory Address of the factory contract deploying the ERC20 token
+ * @param tokenFactoryData Arbitrary data to pass to the token factory
+ * @param governanceFactory Address of the factory contract deploying the governance
+ * @param governanceFactoryData Arbitrary data to pass to the governance factory
+ * @param liquidityMigrator Address of the liquidity migrator contract
+ * @param integrator Address of the front-end integrator
+ * @param salt Salt used by the different factories to deploy the contracts using CREATE2
+ */
+struct CreateParams {
+    uint256 initialSupply;
+    uint256 numTokensToSell;
+    address numeraire;
+    ITokenFactory tokenFactory;
+    bytes tokenFactoryData;
+    IGovernanceFactory governanceFactory;
+    bytes governanceFactoryData;
+    IPoolInitializer poolInitializer;
+    bytes poolInitializerData;
+    ILiquidityMigrator liquidityMigrator;
+    bytes liquidityMigratorData;
+    address integrator;
+    bytes32 salt;
+}
+
+/**
  * @notice Emitted when a new asset token is created
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
@@ -73,6 +100,12 @@ event Migrate(address indexed asset, address indexed pool);
  */
 event SetModuleState(address indexed module, ModuleState indexed state);
 
+/**
+ * @notice Emitted when fees are collected, either protocol or integrator
+ * @param to Address receiving the fees
+ * @param token Token from which the fees are collected
+ * @param amount Amount of fees collected
+ */
 event Collect(address indexed to, address indexed token, uint256 amount);
 
 /// @custom:security-contact security@whetstone.cc
@@ -84,9 +117,7 @@ contract Airlock is Ownable {
     mapping(address token => uint256 amount) public protocolFees;
     mapping(address integrator => mapping(address token => uint256 amount)) public integratorFees;
 
-    receive() external payable {
-        // TODO: We might want to restrict this to only approved poolInitializer contracts
-    }
+    receive() external payable { }
 
     /**
      * @param owner_ Address receiving the ownership of the Airlock contract
@@ -97,95 +128,71 @@ contract Airlock is Ownable {
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
-     * @param initialSupply Total supply of the token (might be increased later on)
-     * @param numTokensToSell Amount of tokens to sell in the Doppler hook
-     * @param tokenFactory Address of the factory contract deploying the ERC20 token
-     * @param tokenFactoryData Arbitrary data to pass to the token factory
-     * @param governanceFactory Address of the factory contract deploying the governance
-     * @param governanceFactoryData Arbitrary data to pass to the governance factory
-     * @param liquidityMigrator Address of the liquidity migrator contract
      */
     function create(
-        uint256 initialSupply,
-        uint256 numTokensToSell,
-        address numeraire,
-        ITokenFactory tokenFactory,
-        bytes calldata tokenFactoryData,
-        IGovernanceFactory governanceFactory,
-        bytes calldata governanceFactoryData,
-        IPoolInitializer poolInitializer,
-        bytes calldata poolInitializerData,
-        ILiquidityMigrator liquidityMigrator,
-        bytes calldata liquidityMigratorData,
-        address integrator,
-        bytes32 salt
+        CreateParams calldata createData
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(
-            getModuleState[address(tokenFactory)] == ModuleState.TokenFactory,
-            WrongModuleState(address(tokenFactory), ModuleState.TokenFactory, getModuleState[address(tokenFactory)])
-        );
-        require(
-            getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory,
+            getModuleState[address(createData.tokenFactory)] == ModuleState.TokenFactory,
             WrongModuleState(
-                address(governanceFactory), ModuleState.GovernanceFactory, getModuleState[address(governanceFactory)]
+                address(createData.tokenFactory),
+                ModuleState.TokenFactory,
+                getModuleState[address(createData.tokenFactory)]
             )
         );
         require(
-            getModuleState[address(poolInitializer)] == ModuleState.PoolInitializer,
+            getModuleState[address(createData.governanceFactory)] == ModuleState.GovernanceFactory,
             WrongModuleState(
-                address(poolInitializer), ModuleState.PoolInitializer, getModuleState[address(poolInitializer)]
+                address(createData.governanceFactory),
+                ModuleState.GovernanceFactory,
+                getModuleState[address(createData.governanceFactory)]
             )
         );
         require(
-            getModuleState[address(liquidityMigrator)] == ModuleState.LiquidityMigrator,
+            getModuleState[address(createData.poolInitializer)] == ModuleState.PoolInitializer,
             WrongModuleState(
-                address(liquidityMigrator), ModuleState.LiquidityMigrator, getModuleState[address(liquidityMigrator)]
+                address(createData.poolInitializer),
+                ModuleState.PoolInitializer,
+                getModuleState[address(createData.poolInitializer)]
+            )
+        );
+        require(
+            getModuleState[address(createData.liquidityMigrator)] == ModuleState.LiquidityMigrator,
+            WrongModuleState(
+                address(createData.liquidityMigrator),
+                ModuleState.LiquidityMigrator,
+                getModuleState[address(createData.liquidityMigrator)]
             )
         );
 
-        /*
-        bytes32 salt = keccak256(
-            abi.encodePacked(
-                initialSupply,
-                numTokensToSell,
-                numeraire,
-                recipients,
-                amounts,
-                tokenFactory,
-                tokenFactoryData,
-                governanceFactory,
-                governanceFactoryData,
-                poolInitializer,
-                poolInitializerData,
-                liquidityMigrator,
-                liquidityMigratorData
-            )
+        asset = createData.tokenFactory.create(
+            createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
         );
-        */
 
-        asset = tokenFactory.create(initialSupply, address(this), address(this), salt, tokenFactoryData);
+        (governance, timelock) = createData.governanceFactory.create(asset, createData.governanceFactoryData);
 
-        (governance, timelock) = governanceFactory.create(asset, governanceFactoryData);
+        ERC20(asset).approve(address(createData.poolInitializer), createData.numTokensToSell);
+        pool = createData.poolInitializer.initialize(
+            asset, createData.numeraire, createData.numTokensToSell, createData.salt, createData.poolInitializerData
+        );
 
-        ERC20(asset).approve(address(poolInitializer), numTokensToSell);
-        pool = poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
-
-        migrationPool = liquidityMigrator.initialize(asset, numeraire, liquidityMigratorData);
+        migrationPool =
+            createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
 
         getAssetData[asset] = AssetData({
-            numeraire: numeraire,
+            numeraire: createData.numeraire,
             timelock: timelock,
             governance: governance,
-            liquidityMigrator: liquidityMigrator,
-            poolInitializer: poolInitializer,
+            liquidityMigrator: createData.liquidityMigrator,
+            poolInitializer: createData.poolInitializer,
             pool: pool,
             migrationPool: migrationPool,
-            numTokensToSell: numTokensToSell,
-            totalSupply: initialSupply,
-            integrator: integrator
+            numTokensToSell: createData.numTokensToSell,
+            totalSupply: createData.initialSupply,
+            integrator: createData.integrator
         });
 
-        emit Create(asset, numeraire, address(poolInitializer), pool);
+        emit Create(asset, createData.numeraire, address(createData.poolInitializer), pool);
     }
 
     /**

@@ -1,14 +1,8 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-
-import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { toBalanceDelta } from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
-import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "src/Doppler.sol";
 

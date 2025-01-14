@@ -1,18 +1,18 @@
-/// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
-import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-core/src/libraries/SqrtPriceMath.sol";
-import { FullMath } from "v4-core/src/libraries/FullMath.sol";
-import { ERC20, SafeTransferLib } from "solmate/src/utils/SafeTransferLib.sol";
 
 /// @notice Thrown when the caller is not the Airlock contract
-error OnlyAirlock();
+error SenderNotAirlock();
 
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
@@ -103,7 +103,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         bytes32,
         bytes calldata data
     ) external returns (address pool) {
-        require(msg.sender == airlock, OnlyAirlock());
+        require(msg.sender == airlock, SenderNotAirlock());
 
         InitData memory initData = abi.decode(data, (InitData));
         (
@@ -183,7 +183,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             uint128 balance1
         )
     {
-        require(msg.sender == airlock, OnlyAirlock());
+        require(msg.sender == airlock, SenderNotAirlock());
         require(getState[pool].isExited == false, PoolAlreadyExited());
         getState[pool].isExited = true;
 
@@ -384,7 +384,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool,
         LpPosition[] memory newPositions,
         uint16 numPositions
-    ) public {
+    ) internal {
         for (uint256 i; i <= numPositions; i++) {
             IUniswapV3Pool(pool).mint(
                 address(this),
@@ -404,7 +404,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool,
         LpPosition[] memory newPositions,
         uint16 numPositions
-    ) public returns (uint256 amount0, uint256 amount1, uint128 balance0, uint128 balance1) {
+    ) internal returns (uint256 amount0, uint256 amount1, uint128 balance0, uint128 balance1) {
         uint256 posAmount0;
         uint256 posAmount1;
         uint128 posBalance0;

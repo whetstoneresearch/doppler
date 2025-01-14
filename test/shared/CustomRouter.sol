@@ -1,15 +1,15 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import { IPoolManager } from "v4-core/src/PoolManager.sol";
-import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
-import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/src/types/BalanceDelta.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
-import { Currency } from "v4-core/src/types/Currency.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IPoolManager } from "@v4-core/PoolManager.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { V4Quoter, IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 
 uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;

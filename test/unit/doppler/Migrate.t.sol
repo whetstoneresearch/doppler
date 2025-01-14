@@ -1,21 +1,21 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-import { StateLibrary, IPoolManager, PoolId } from "v4-core/src/libraries/StateLibrary.sol";
-import { SenderNotAirlock, CannotMigrate } from "src/Doppler.sol";
-import { ERC20 } from "solmate/src/tokens/ERC20.sol";
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
+import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
+import { SenderNotInitializer, CannotMigrate } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract MigrateTest is BaseTest {
     using StateLibrary for IPoolManager;
 
-    function test_migrate_RevertsIfSenderNotAirlock() public {
-        vm.expectRevert(SenderNotAirlock.selector);
+    function test_migrate_RevertsIfSenderNotInitializer() public {
+        vm.expectRevert(SenderNotInitializer.selector);
         hook.migrate(address(0));
     }
 
     function test_migrate_RevertsIfConditionsNotMet() public {
-        vm.startPrank(hook.airlock());
+        vm.startPrank(hook.initializer());
         vm.expectRevert(CannotMigrate.selector);
         hook.migrate(address(0));
     }
@@ -30,7 +30,7 @@ contract MigrateTest is BaseTest {
         buyExactIn(hook.getMinimumProceeds() + 1 ether);
 
         vm.warp(hook.getEndingTime());
-        vm.prank(hook.airlock());
+        vm.prank(hook.initializer());
         hook.migrate(address(0xbeef));
 
         for (uint256 i = 1; i < numPDSlugs + 3; i++) {
@@ -48,7 +48,7 @@ contract MigrateTest is BaseTest {
         buyExactOut(hook.getMinimumProceeds());
 
         vm.warp(hook.getEndingTime());
-        vm.prank(hook.airlock());
+        vm.prank(hook.initializer());
         hook.migrate(address(0xbeef));
 
         if (usingEth) {

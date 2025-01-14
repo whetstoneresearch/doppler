@@ -1,17 +1,17 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { WETH } from "solmate/src/tokens/WETH.sol";
+import { WETH } from "@solmate/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
-    OnlyAirlock,
+    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
@@ -117,7 +117,7 @@ contract UniswapV3InitializerTest is Test {
 
     function test_initialize_RevertsWhenSenderNotAirlock() public {
         vm.prank(address(0xbeef));
-        vm.expectRevert(OnlyAirlock.selector);
+        vm.expectRevert(SenderNotAirlock.selector);
         initializer.initialize(address(0), address(0), 0, bytes32(0), abi.encode());
     }
 
@@ -208,7 +208,7 @@ contract UniswapV3InitializerTest is Test {
 
     function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
         vm.prank(address(0xbeef));
-        vm.expectRevert(OnlyAirlock.selector);
+        vm.expectRevert(SenderNotAirlock.selector);
         initializer.exitLiquidity(address(0));
     }
 
@@ -314,10 +314,8 @@ contract UniswapV3InitializerTest is Test {
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
         assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
 
-        (,, int24 tickLowerIsToken0, int24 tickUpperIsToken0,,,,,) =
-            UniswapV3Initializer(initializer).getState(address(isToken0Pool));
-        (,, int24 tickLowerNotIsToken0, int24 tickUpperNotIsToken0,,,,,) =
-            UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
+        (,,, int24 tickUpperIsToken0,,,,,) = UniswapV3Initializer(initializer).getState(address(isToken0Pool));
+        (,, int24 tickLowerNotIsToken0,,,,,,) = UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
 
         uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(tickUpperIsToken0 + 1);
         uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0 - 1);

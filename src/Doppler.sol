@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
-import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { Hooks } from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import { BalanceDelta, add, BalanceDeltaLibrary } from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import { TickMath } from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
-import { LiquidityAmounts } from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
-import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import { FixedPoint96 } from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
-import { TransientStateLibrary } from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
-import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
-import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
-import { Currency } from "v4-core/src/types/Currency.sol";
+import { BaseHook } from "@v4-periphery/base/hooks/BaseHook.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
+import { BalanceDelta, add, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
+import { TransientStateLibrary } from "@v4-core/libraries/TransientStateLibrary.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
+import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
@@ -63,11 +63,21 @@ struct Position {
 }
 
 error InvalidGamma();
+
+/// @notice Thrown when the time range is invalid (likely start is after end)
 error InvalidTimeRange();
-error Unauthorized();
-error BeforeStartTime();
+
+/// @notice Thrown when an attempt is made to add liquidity to the pool
+error CannotAddLiquidity();
+
+/// @notice Thrown when an attempt is made to swap before the start time
+error CannotSwapBeforeStartTime();
+
 error SwapBelowRange();
-error InvalidTime();
+
+/// @notice Thrown when start time is before the current block.timestamp
+error InvalidStartTime();
+
 error InvalidTickRange();
 error InvalidTickSpacing();
 error InvalidEpochLength();
@@ -79,7 +89,7 @@ error MaximumProceedsReached();
 error SenderNotPoolManager();
 error CannotMigrate();
 error AlreadyInitialized();
-error SenderNotAirlock();
+error SenderNotInitializer();
 error CannotDonate();
 
 event Rebalance(int24 currentTick, int24 tickLower, int24 tickUpper, uint256 epoch);
@@ -128,7 +138,7 @@ contract Doppler is BaseHook {
 
     // The following variables are NOT immutable to avoid hitting the contract size limit
     PoolKey public poolKey;
-    address public airlock;
+    address public initializer;
 
     uint256 internal numTokensToSell; // total amount of tokens to be sold
     uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
@@ -164,7 +174,6 @@ contract Doppler is BaseHook {
     /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
     /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
     /// @param _numPDSlugs Number of price discovery slugs to use
-    /// @param airlock_ Address of the airlock contract
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -178,10 +187,10 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0,
         uint256 _numPDSlugs,
-        address airlock_
+        address initializer_
     ) BaseHook(_poolManager) {
         // Check that the current time is before the starting time
-        if (block.timestamp > _startingTime) revert InvalidTime();
+        if (block.timestamp > _startingTime) revert InvalidStartTime();
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
@@ -228,9 +237,10 @@ contract Doppler is BaseHook {
         gamma = _gamma;
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
-        airlock = airlock_;
+        initializer = initializer_;
     }
 
+    /// @inheritdoc BaseHook
     function beforeInitialize(
         address,
         PoolKey calldata key,
@@ -266,13 +276,14 @@ contract Doppler is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
+    /// @inheritdoc BaseHook
     function beforeDonate(
         address,
         PoolKey calldata,
         uint256,
         uint256,
         bytes calldata
-    ) external override returns (bytes4) {
+    ) external pure override returns (bytes4) {
         revert CannotDonate();
     }
 
@@ -291,7 +302,7 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
         if (earlyExit) revert MaximumProceedsReached();
 
-        if (block.timestamp < startingTime) revert BeforeStartTime();
+        if (block.timestamp < startingTime) revert CannotSwapBeforeStartTime();
 
         // We can skip rebalancing if we're in an epoch that already had a rebalance
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
@@ -451,7 +462,7 @@ contract Doppler is BaseHook {
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
     ) external view override onlyPoolManager returns (bytes4) {
-        if (caller != address(this)) revert Unauthorized();
+        if (caller != address(this)) revert CannotAddLiquidity();
 
         return BaseHook.beforeAddLiquidity.selector;
     }
@@ -1227,7 +1238,7 @@ contract Doppler is BaseHook {
         );
     }
 
-    /// @notice Returns a struct of permissions to signal which hook functions are to be implemented
+    /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
@@ -1266,7 +1277,7 @@ contract Doppler is BaseHook {
             uint128 balance1
         )
     {
-        if (msg.sender != airlock) revert SenderNotAirlock();
+        if (msg.sender != initializer) revert SenderNotInitializer();
 
         if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
             revert CannotMigrate();
@@ -1286,9 +1297,10 @@ contract Doppler is BaseHook {
         token0 = Currency.unwrap(poolKey.currency0);
         token1 = Currency.unwrap(poolKey.currency1);
 
-        fees0 = uint128(int128(totalFeesAccrued.amount0()));
-        balance0 = uint128(int128(totalCallerDelta.amount0()));
-        fees1 = uint128(int128(totalFeesAccrued.amount1()));
-        balance1 = uint128(int128(totalCallerDelta.amount1()));
+        // No need to safe cast since these amounts will always be positive
+        fees0 = uint128(totalFeesAccrued.amount0());
+        balance0 = uint128(totalCallerDelta.amount0());
+        fees1 = uint128(totalFeesAccrued.amount1());
+        balance1 = uint128(totalCallerDelta.amount1());
     }
 }

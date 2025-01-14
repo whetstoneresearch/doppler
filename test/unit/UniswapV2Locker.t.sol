@@ -1,7 +1,8 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { UniswapV2Locker, PoolAlreadyInitialized, NoBalanceToLock, PoolNotInitialized } from "src/UniswapV2Locker.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
@@ -9,7 +10,6 @@ import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
 
 contract UniswapV2LockerTest is Test {
     UniswapV2Locker public locker;
@@ -65,13 +65,13 @@ contract UniswapV2LockerTest is Test {
 
     function getAssetData(
         address
-    ) external view { }
+    ) external pure { }
 
-    function owner() external view { }
+    function owner() external pure { }
 
     function getAsset(
         address
-    ) external view { }
+    ) external pure { }
 
     function test_claimFeesAndExit() public {
         test_receiveAndLock_InitializesPool();
@@ -84,8 +84,8 @@ contract UniswapV2LockerTest is Test {
         IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET).swapExactTokensForTokens(
             1 ether, 0, path, address(this), block.timestamp
         );
-        address owner = address(0xb0b);
-        vm.mockCall(address(airlock), abi.encodeWithSelector(this.owner.selector), abi.encode(owner));
+        address tokenOwner = address(0xb0b);
+        vm.mockCall(address(airlock), abi.encodeWithSelector(this.owner.selector), abi.encode(tokenOwner));
         vm.mockCall(
             address(migrator),
             abi.encodeWithSelector(this.getAsset.selector, address(pool)),
@@ -111,8 +111,8 @@ contract UniswapV2LockerTest is Test {
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(timelock), 0, "Timelock balance0 is wrong");
         assertGt(tokenFoo.balanceOf(timelock), 0, "Timelock balance1 is wrong");
-        assertGt(tokenBar.balanceOf(owner), 0, "Owner balance0 is wrong");
-        assertGt(tokenFoo.balanceOf(owner), 0, "Owner balance1 is wrong");
+        assertGt(tokenBar.balanceOf(tokenOwner), 0, "Owner balance0 is wrong");
+        assertGt(tokenFoo.balanceOf(tokenOwner), 0, "Owner balance1 is wrong");
         assertEq(pool.balanceOf(address(locker)), 0, "Locker balance is wrong");
     }
 

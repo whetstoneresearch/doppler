@@ -1,17 +1,18 @@
-/// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
+import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
+import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
-import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
-import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
-import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 
+/// @notice Thrown when the sender is not the Airlock contract
 error SenderNotAirlock();
 
 /**
@@ -43,6 +44,8 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
+        require(msg.sender == airlock, SenderNotAirlock());
+
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
@@ -73,9 +76,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         address token1,
         address recipient
     ) external payable returns (uint256 liquidity) {
-        if (msg.sender != airlock) {
-            revert SenderNotAirlock();
-        }
+        require(msg.sender == airlock, SenderNotAirlock());
 
         uint256 balance0;
         uint256 balance1 = ERC20(token1).balanceOf(address(this));

@@ -2,16 +2,16 @@
 pragma solidity ^0.8.24;
 
 import { Script, console2 } from "forge-std/Script.sol";
-import { IPoolManager } from "v4-core/test/utils/Deployers.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState } from "src/Airlock.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { StateView } from "@v4-periphery/lens/StateView.sol";
+import { V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { StateView } from "v4-periphery/src/lens/StateView.sol";
-import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
-import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
 import { CustomRouter2 } from "test/shared/CustomRouter2.sol";
 
 contract DeployDopplerV3FactoryUnichainSepolia is Script {
@@ -46,7 +46,7 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script {
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("TokenFactory: ", address(tokenFactory));
-        dopplerDeployer = new DopplerDeployer(address(airlock), IPoolManager(manager));
+        dopplerDeployer = new DopplerDeployer(IPoolManager(manager));
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), IPoolManager(manager), dopplerDeployer);
         console2.log("UniswapV4Initializer: ", address(uniswapV4Initializer));
         uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(v3CoreFactory));

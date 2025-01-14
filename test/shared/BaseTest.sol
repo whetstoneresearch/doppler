@@ -1,30 +1,28 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
-
-import { Deployers } from "v4-core/test/utils/Deployers.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
-import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
-import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import { PoolManager, IPoolManager } from "v4-core/src/PoolManager.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
-import { Currency } from "v4-periphery/lib/v4-core/src/types/Currency.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
-import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-import { PoolModifyLiquidityTest } from "v4-core/src/test/PoolModifyLiquidityTest.sol";
-import { V4Quoter, IV4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
-import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/src/types/BalanceDelta.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
+import { V4Quoter, IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
-import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import { LibString } from "solmate/src/utils/LibString.sol";
-import { CustomRevert } from "v4-periphery/lib/v4-core/src/libraries/CustomRevert.sol";
-
+import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { DopplerImplementation } from "./DopplerImplementation.sol";
 
 using PoolIdLibrary for PoolKey;

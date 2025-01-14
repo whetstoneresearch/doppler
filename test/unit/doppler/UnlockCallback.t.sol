@@ -1,7 +1,7 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
+import { SafeCallback } from "@v4-periphery/base/SafeCallback.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Doppler } from "src/Doppler.sol";
 
