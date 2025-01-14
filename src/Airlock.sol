@@ -165,26 +165,6 @@ contract Airlock is Ownable {
             )
         );
 
-        /*
-        bytes32 salt = keccak256(
-            abi.encodePacked(
-                initialSupply,
-                numTokensToSell,
-                numeraire,
-                recipients,
-                amounts,
-                tokenFactory,
-                tokenFactoryData,
-                governanceFactory,
-                governanceFactoryData,
-                poolInitializer,
-                poolInitializerData,
-                liquidityMigrator,
-                liquidityMigratorData
-            )
-        );
-        */
-
         asset = createData.tokenFactory.create(
             createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
         );
