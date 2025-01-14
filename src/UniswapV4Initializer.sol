@@ -11,10 +11,6 @@ import { DERC20 } from "src/DERC20.sol";
 /// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();
 
-error TokenNotInPoolKey();
-
-error HookNotInPoolKey();
-
 error InvalidTokenOrder();
 
 contract DopplerDeployer {
@@ -120,16 +116,7 @@ contract UniswapV4Initializer is IPoolInitializer {
             tickSpacing: 8
         });
 
-        if (asset != Currency.unwrap(poolKey.currency0) && asset != Currency.unwrap(poolKey.currency1)) {
-            revert TokenNotInPoolKey();
-        }
-
-        if (address(doppler) != address(poolKey.hooks)) {
-            revert HookNotInPoolKey();
-        }
-
-        DERC20 token = DERC20(asset);
-        address(token).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);
+        address(asset).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
