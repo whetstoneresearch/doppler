@@ -89,7 +89,7 @@ error MaximumProceedsReached();
 error SenderNotPoolManager();
 error CannotMigrate();
 error AlreadyInitialized();
-error SenderNotAirlock();
+error SenderNotInitializer();
 error CannotDonate();
 
 event Rebalance(int24 currentTick, int24 tickLower, int24 tickUpper, uint256 epoch);
@@ -138,7 +138,7 @@ contract Doppler is BaseHook {
 
     // The following variables are NOT immutable to avoid hitting the contract size limit
     PoolKey public poolKey;
-    address public airlock;
+    address public initializer;
 
     uint256 internal numTokensToSell; // total amount of tokens to be sold
     uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
@@ -174,7 +174,6 @@ contract Doppler is BaseHook {
     /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
     /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
     /// @param _numPDSlugs Number of price discovery slugs to use
-    /// @param airlock_ Address of the airlock contract
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -188,7 +187,7 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0,
         uint256 _numPDSlugs,
-        address airlock_
+        address initializer_
     ) BaseHook(_poolManager) {
         // Check that the current time is before the starting time
         if (block.timestamp > _startingTime) revert InvalidStartTime();
@@ -238,7 +237,7 @@ contract Doppler is BaseHook {
         gamma = _gamma;
         isToken0 = _isToken0;
         numPDSlugs = _numPDSlugs;
-        airlock = airlock_;
+        initializer = initializer_;
     }
 
     /// @inheritdoc BaseHook
@@ -1278,7 +1277,7 @@ contract Doppler is BaseHook {
             uint128 balance1
         )
     {
-        if (msg.sender != airlock) revert SenderNotAirlock();
+        if (msg.sender != initializer) revert SenderNotInitializer();
 
         if (!earlyExit && !(state.totalProceeds >= minimumProceeds && block.timestamp >= endingTime)) {
             revert CannotMigrate();
