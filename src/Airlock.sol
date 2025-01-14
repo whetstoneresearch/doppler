@@ -101,6 +101,12 @@ event Migrate(address indexed asset, address indexed pool);
  */
 event SetModuleState(address indexed module, ModuleState indexed state);
 
+/**
+ * @notice Emitted when fees are collected, either protocol or integrator
+ * @param to Address receiving the fees
+ * @param token Token from which the fees are collected
+ * @param amount Amount of fees collected
+ */
 event Collect(address indexed to, address indexed token, uint256 amount);
 
 /// @custom:security-contact security@whetstone.cc
