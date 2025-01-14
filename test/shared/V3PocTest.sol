@@ -61,7 +61,7 @@ contract V3PocTest is Test {
         airlock.setModuleState(modules, states);
     }
 
-    function test_poc() public {
+    function test_v3_poc() public {
         // TODO: YOUR DOPPLER V3 POC HERE
     }
 }
