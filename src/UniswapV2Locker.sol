@@ -107,7 +107,6 @@ contract UniswapV2Locker is Ownable {
 
         (uint256 amount0, uint256 amount1) = IUniswapV2Pair(pool).burn(address(this));
 
-        // TODO: Check out the rounding direction
         uint256 position0 = kLast.mulDivDown(reserve0, reserve1).sqrt();
         uint256 position1 = kLast.mulDivDown(reserve1, reserve0).sqrt();
 
