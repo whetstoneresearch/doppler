@@ -1,4 +1,4 @@
-/// SPDX-License-Identifier: UNLICENSED
+/// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
@@ -123,7 +123,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         if (vestedTokens > 0) {
             _mint(address(this), vestedTokens);
         }
-        
+
         _mint(recipient, initialSupply - vestedTokens);
     }
 
