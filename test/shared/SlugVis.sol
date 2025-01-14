@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
-import { SlugData, Position } from "../../src/Doppler.sol";
-import { DopplerImplementation } from "./DopplerImplementation.sol";
-import { PoolId } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { SlugData, Position } from "src/Doppler.sol";
+import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
 
 struct SlugDataWithName {
     string name;

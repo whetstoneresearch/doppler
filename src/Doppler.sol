@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
-import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { Hooks } from "v4-periphery/lib/v4-core/src/libraries/Hooks.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "v4-periphery/lib/v4-core/src/types/BeforeSwapDelta.sol";
-import { BalanceDelta, add, BalanceDeltaLibrary } from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import { TickMath } from "v4-periphery/lib/v4-core/src/libraries/TickMath.sol";
-import { LiquidityAmounts } from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-periphery/lib/v4-core/src/libraries/SqrtPriceMath.sol";
-import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import { FixedPoint96 } from "v4-periphery/lib/v4-core/src/libraries/FixedPoint96.sol";
-import { TransientStateLibrary } from "v4-periphery/lib/v4-core/src/libraries/TransientStateLibrary.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
-import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import { SwapMath } from "v4-core/src/libraries/SwapMath.sol";
-import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
-import { Currency } from "v4-core/src/types/Currency.sol";
+import { BaseHook } from "@v4-periphery/base/hooks/BaseHook.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
+import { BalanceDelta, add, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
+import { TransientStateLibrary } from "@v4-core/libraries/TransientStateLibrary.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
+import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`

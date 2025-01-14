@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
-import { Currency } from "v4-periphery/lib/v4-core/src/types/Currency.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
-import { PoolManager } from "v4-core/src/PoolManager.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolManager } from "@v4-core/PoolManager.sol";
 import { BaseTest, TestERC20 } from "test/shared/BaseTest.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
 import {

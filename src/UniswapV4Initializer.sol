@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { IPoolManager, PoolKey, IHooks } from "v4-core/src/PoolManager.sol";
-import { Currency, CurrencyLibrary } from "v4-core/src/types/Currency.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IPoolManager, PoolKey, IHooks } from "@v4-core/PoolManager.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { DERC20 } from "src/DERC20.sol";

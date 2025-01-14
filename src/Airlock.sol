@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
+import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";

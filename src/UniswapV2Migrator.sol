@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
-import { WETH as IWETH } from "solmate/src/tokens/WETH.sol";
-import { FixedPoint96 } from "v4-core/src/libraries/FixedPoint96.sol";
-import { FullMath } from "v4-core/src/libraries/FullMath.sol";
+import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
+import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
+import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";

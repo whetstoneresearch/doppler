@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import {
-    BalanceDelta, add, BalanceDeltaLibrary, toBalanceDelta
-} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import {
     CannotSwapBeforeStartTime,

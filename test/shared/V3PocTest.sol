@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState, AssetData } from "src/Airlock.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
+import { Test } from "forge-std/Test.sol";
+import { Airlock, ModuleState } from "src/Airlock.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import {
     UniswapV3Initializer,
@@ -15,10 +13,9 @@ import {
     CallbackData,
     InitData
 } from "src/UniswapV3Initializer.sol";
-import { DERC20 } from "src/DERC20.sol";
+import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
 
 import {
     WETH_MAINNET,

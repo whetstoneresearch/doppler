@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { Deployers } from "v4-core/test/utils/Deployers.sol";
-import { PoolManager } from "v4-core/src/PoolManager.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { PoolManager } from "@v4-core/PoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";

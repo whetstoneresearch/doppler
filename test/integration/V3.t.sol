@@ -6,7 +6,7 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
     OnlyAirlock,

@@ -2,17 +2,15 @@
 pragma solidity ^0.8.24;
 
 import { stdMath } from "forge-std/StdMath.sol";
-import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { PoolId, PoolIdLibrary } from "v4-core/src/types/PoolId.sol";
-import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "v4-core/src/types/BalanceDelta.sol";
-import { PoolKey } from "v4-core/src/types/PoolKey.sol";
-import { StateLibrary } from "v4-core/src/libraries/StateLibrary.sol";
-import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
-import { FullMath } from "v4-core/src/libraries/FullMath.sol";
-import { ProtocolFeeLibrary } from "v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";

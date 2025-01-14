@@ -5,8 +5,8 @@ import { console } from "forge-std/console.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
 import { State } from "src/Doppler.sol";
-import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;

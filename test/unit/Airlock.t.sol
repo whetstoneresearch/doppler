@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { Deployers } from "v4-core/test/utils/Deployers.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { PoolKey } from "v4-core/src/types/PoolKey.sol";
-import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
-import { Currency } from "v4-core/src/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
-import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
