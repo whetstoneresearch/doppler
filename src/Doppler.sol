@@ -1286,10 +1286,10 @@ contract Doppler is BaseHook {
         token0 = Currency.unwrap(poolKey.currency0);
         token1 = Currency.unwrap(poolKey.currency1);
 
-        // TODO: Do we want to safe cast here?
-        fees0 = uint128(int128(totalFeesAccrued.amount0()));
-        balance0 = uint128(int128(totalCallerDelta.amount0()));
-        fees1 = uint128(int128(totalFeesAccrued.amount1()));
-        balance1 = uint128(int128(totalCallerDelta.amount1()));
+        // No need to safe cast since these amounts will always be positive
+        fees0 = uint128(totalFeesAccrued.amount0());
+        balance0 = uint128(totalCallerDelta.amount0());
+        fees1 = uint128(totalFeesAccrued.amount1());
+        balance1 = uint128(totalCallerDelta.amount1());
     }
 }
