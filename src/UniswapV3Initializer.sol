@@ -12,7 +12,7 @@ import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 
 /// @notice Thrown when the caller is not the Airlock contract
-error OnlyAirlock();
+error SenderNotAirlock();
 
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
@@ -103,7 +103,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         bytes32,
         bytes calldata data
     ) external returns (address pool) {
-        require(msg.sender == airlock, OnlyAirlock());
+        require(msg.sender == airlock, SenderNotAirlock());
 
         InitData memory initData = abi.decode(data, (InitData));
         (
@@ -183,7 +183,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             uint128 balance1
         )
     {
-        require(msg.sender == airlock, OnlyAirlock());
+        require(msg.sender == airlock, SenderNotAirlock());
         require(getState[pool].isExited == false, PoolAlreadyExited());
         getState[pool].isExited = true;
 

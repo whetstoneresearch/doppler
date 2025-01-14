@@ -6,7 +6,7 @@ import { Governance, IVotes } from "src/Governance.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 /// @notice Thrown when the caller is not the Airlock contract
-error OnlyAirlock();
+error SenderNotAirlock();
 
 /// @custom:security-contact security@whetstone.cc
 contract GovernanceFactory is IGovernanceFactory {
@@ -21,7 +21,7 @@ contract GovernanceFactory is IGovernanceFactory {
     }
 
     function create(address asset, bytes calldata data) external returns (address, address) {
-        require(msg.sender == airlock, OnlyAirlock());
+        require(msg.sender == airlock, SenderNotAirlock());
 
         (string memory name) = abi.decode(data, (string));
 

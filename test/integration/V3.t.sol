@@ -9,7 +9,7 @@ import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
-    OnlyAirlock,
+    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,

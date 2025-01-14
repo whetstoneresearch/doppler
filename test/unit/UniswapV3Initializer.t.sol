@@ -11,7 +11,7 @@ import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
-    OnlyAirlock,
+    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
@@ -117,7 +117,7 @@ contract UniswapV3InitializerTest is Test {
 
     function test_initialize_RevertsWhenSenderNotAirlock() public {
         vm.prank(address(0xbeef));
-        vm.expectRevert(OnlyAirlock.selector);
+        vm.expectRevert(SenderNotAirlock.selector);
         initializer.initialize(address(0), address(0), 0, bytes32(0), abi.encode());
     }
 
@@ -208,7 +208,7 @@ contract UniswapV3InitializerTest is Test {
 
     function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
         vm.prank(address(0xbeef));
-        vm.expectRevert(OnlyAirlock.selector);
+        vm.expectRevert(SenderNotAirlock.selector);
         initializer.exitLiquidity(address(0));
     }
 

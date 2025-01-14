@@ -6,7 +6,7 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import {
     UniswapV3Initializer,
-    OnlyAirlock,
+    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
