@@ -22,16 +22,20 @@ uint160 constant flags = uint160(
         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
 );
 
+struct MineV4Params {
+    address airlock;
+    address poolManager;
+    uint256 initialSupply;
+    uint256 numTokensToSell;
+    address numeraire;
+    ITokenFactory tokenFactory;
+    bytes tokenFactoryData;
+    UniswapV4Initializer poolInitializer;
+    bytes poolInitializerData;
+}
+
 function mineV4(
-    address airlock,
-    address poolManager,
-    uint256 initialSupply,
-    uint256 numTokensToSell,
-    address numeraire,
-    ITokenFactory tokenFactory,
-    bytes memory tokenFactoryData,
-    UniswapV4Initializer poolInitializer,
-    bytes memory poolInitializerData
+    MineV4Params memory params
 ) view returns (bytes32, address, address) {
     (
         ,
@@ -46,15 +50,16 @@ function mineV4(
         bool isToken0,
         uint256 numPDSlugs
     ) = abi.decode(
-        poolInitializerData, (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256)
+        params.poolInitializerData,
+        (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256)
     );
 
     bytes32 dopplerInitHash = keccak256(
         abi.encodePacked(
             type(Doppler).creationCode,
             abi.encode(
-                poolManager,
-                numTokensToSell,
+                params.poolManager,
+                params.numTokensToSell,
                 minimumProceeds,
                 maximumProceeds,
                 startingTime,
@@ -65,7 +70,7 @@ function mineV4(
                 gamma,
                 isToken0,
                 numPDSlugs,
-                poolInitializer
+                params.poolInitializer
             )
         )
     );
@@ -77,24 +82,32 @@ function mineV4(
         uint256 vestingDuration,
         address[] memory recipients,
         uint256[] memory amounts
-    ) = abi.decode(tokenFactoryData, (string, string, uint256, uint256, address[], uint256[]));
+    ) = abi.decode(params.tokenFactoryData, (string, string, uint256, uint256, address[], uint256[]));
 
     bytes32 tokenInitHash = keccak256(
         abi.encodePacked(
             type(DERC20).creationCode,
             abi.encode(
-                name, symbol, initialSupply, airlock, airlock, yearlyMintCap, vestingDuration, recipients, amounts
+                name,
+                symbol,
+                params.initialSupply,
+                params.airlock,
+                params.airlock,
+                yearlyMintCap,
+                vestingDuration,
+                recipients,
+                amounts
             )
         )
     );
 
     for (uint256 salt; salt < 100_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(poolInitializer.deployer()));
-        address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(tokenFactory));
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(params.poolInitializer.deployer()));
+        address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
 
         if (
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
-                && ((isToken0 && asset < numeraire) || (!isToken0 && asset > numeraire))
+                && ((isToken0 && asset < params.numeraire) || (!isToken0 && asset > params.numeraire))
         ) {
             return (bytes32(salt), hook, asset);
         }

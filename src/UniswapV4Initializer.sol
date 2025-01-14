@@ -6,7 +6,6 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
-import { DERC20 } from "src/DERC20.sol";
 
 /// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();
@@ -15,12 +14,12 @@ error InvalidTokenOrder();
 
 contract DopplerDeployer {
     // These variables are purposely not immutable to avoid hitting the contract size limit
-    address public airlock;
     IPoolManager public poolManager;
 
-    constructor(address airlock_, IPoolManager poolManager_) {
+    constructor(
+        IPoolManager poolManager_
+    ) {
         poolManager = poolManager_;
-        airlock = airlock_;
     }
 
     function deploy(uint256 numTokensToSell, bytes32 salt, bytes calldata data) external returns (Doppler) {
@@ -51,7 +50,7 @@ contract DopplerDeployer {
             gamma,
             isToken0,
             numPDSlugs,
-            airlock
+            msg.sender
         );
 
         return doppler;

@@ -46,7 +46,7 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script {
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("TokenFactory: ", address(tokenFactory));
-        dopplerDeployer = new DopplerDeployer(address(airlock), IPoolManager(manager));
+        dopplerDeployer = new DopplerDeployer(IPoolManager(manager));
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), IPoolManager(manager), dopplerDeployer);
         console2.log("UniswapV4Initializer: ", address(uniswapV4Initializer));
         uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(v3CoreFactory));

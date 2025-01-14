@@ -18,7 +18,7 @@ import {
     UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA,
     UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA
 } from "test/shared/Addresses.sol";
-import { mineV4 } from "test/shared/AirlockMiner.sol";
+import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -69,7 +69,7 @@ contract UniswapV4InitializerTest is Test, Deployers {
         vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);
         manager = new PoolManager(address(this));
         airlock = new Airlock(address(this));
-        deployer = new DopplerDeployer(address(airlock), manager);
+        deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
@@ -130,15 +130,17 @@ contract UniswapV4InitializerTest is Test, Deployers {
         );
 
         (bytes32 salt, address hook, address token) = mineV4(
-            address(airlock),
-            address(manager),
-            config.numTokensToSell,
-            config.numTokensToSell,
-            numeraire,
-            ITokenFactory(address(tokenFactory)),
-            tokenFactoryData,
-            initializer,
-            poolInitializerData
+            MineV4Params(
+                address(airlock),
+                address(manager),
+                config.numTokensToSell,
+                config.numTokensToSell,
+                numeraire,
+                ITokenFactory(address(tokenFactory)),
+                tokenFactoryData,
+                initializer,
+                poolInitializerData
+            )
         );
 
         deal(address(this), 100_000_000 ether);

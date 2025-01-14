@@ -21,7 +21,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
-import { mineV4 } from "test/shared/AirlockMiner.sol";
+import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 // TODO: Reuse these constants from the BaseTest
@@ -62,7 +62,7 @@ contract AirlockTest is Test, Deployers {
 
         airlock = new Airlock(address(this));
         tokenFactory = new TokenFactory(address(airlock));
-        deployer = new DopplerDeployer(address(airlock), manager);
+        deployer = new DopplerDeployer(manager);
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
@@ -143,15 +143,17 @@ contract AirlockTest is Test, Deployers {
         );
 
         (bytes32 salt, address hook, address asset) = mineV4(
-            address(airlock),
-            address(manager),
-            DEFAULT_INITIAL_SUPPLY,
-            DEFAULT_INITIAL_SUPPLY,
-            address(0),
-            tokenFactory,
-            tokenFactoryData,
-            uniswapV4Initializer,
-            poolInitializerData
+            MineV4Params(
+                address(airlock),
+                address(manager),
+                DEFAULT_INITIAL_SUPPLY,
+                DEFAULT_INITIAL_SUPPLY,
+                address(0),
+                tokenFactory,
+                tokenFactoryData,
+                uniswapV4Initializer,
+                poolInitializerData
+            )
         );
 
         airlock.create(
