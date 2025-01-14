@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { Governance, IVotes } from "src/Governance.sol";
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
+import { Governance, IVotes } from "src/Governance.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 
 error NotAirlock();

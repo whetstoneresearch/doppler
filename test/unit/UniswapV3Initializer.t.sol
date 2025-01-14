@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
     OnlyAirlock,

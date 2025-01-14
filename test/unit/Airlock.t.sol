@@ -2,15 +2,14 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-
 import { Deployers } from "v4-core/test/utils/Deployers.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
 import { IHooks } from "v4-core/src/interfaces/IHooks.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
@@ -21,9 +20,6 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { IDopplerDeployer } from "src/interfaces/IDopplerDeployer.sol";
-import { TickMath } from "lib/v4-core/src/libraries/TickMath.sol";
-
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4 } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";

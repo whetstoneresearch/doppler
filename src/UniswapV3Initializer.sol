@@ -4,12 +4,12 @@ pragma solidity ^0.8.13;
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { SqrtPriceMath } from "v4-core/src/libraries/SqrtPriceMath.sol";
 import { FullMath } from "v4-core/src/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "solmate/src/utils/SafeTransferLib.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 
 /// @notice Thrown when the caller is not the Airlock contract
 error OnlyAirlock();

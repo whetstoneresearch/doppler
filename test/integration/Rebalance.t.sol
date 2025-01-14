@@ -1,28 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
-import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { PoolId, PoolIdLibrary } from "v4-periphery/lib/v4-core/src/types/PoolId.sol";
-import {
-    BalanceDelta, add, BalanceDeltaLibrary, toBalanceDelta
-} from "v4-periphery/lib/v4-core/src/types/BalanceDelta.sol";
-import { PoolKey } from "v4-periphery/lib/v4-core/src/types/PoolKey.sol";
-import { StateLibrary } from "v4-periphery/lib/v4-core/src/libraries/StateLibrary.sol";
-import { LiquidityAmounts } from "v4-periphery/lib/v4-core/test/utils/LiquidityAmounts.sol";
-import { TickMath } from "v4-core/src/libraries/TickMath.sol";
-import { SlugVis } from "test/shared/SlugVis.sol";
-import { FullMath } from "v4-periphery/lib/v4-core/src/libraries/FullMath.sol";
-import { ProtocolFeeLibrary } from "v4-periphery/lib/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
-import { Position } from "../../src/Doppler.sol";
 import { stdMath } from "forge-std/StdMath.sol";
+import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+import { Hooks } from "v4-core/src/libraries/Hooks.sol";
+import { PoolId, PoolIdLibrary } from "v4-core/src/types/PoolId.sol";
+import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "v4-core/src/types/BalanceDelta.sol";
+import { PoolKey } from "v4-core/src/types/PoolKey.sol";
+import { StateLibrary } from "v4-core/src/libraries/StateLibrary.sol";
+import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
+import { TickMath } from "v4-core/src/libraries/TickMath.sol";
+import { FullMath } from "v4-core/src/libraries/FullMath.sol";
+import { ProtocolFeeLibrary } from "v4-core/src/libraries/ProtocolFeeLibrary.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";
+import { SlugVis } from "test/shared/SlugVis.sol";
+import { Position, MAX_SWAP_FEE } from "src/Doppler.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -287,9 +281,6 @@ contract RebalanceTest is BaseTest {
         // Go to starting time
         vm.warp(hook.getStartingTime());
 
-        PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
-
         // We sell some tokens to trigger the initial rebalance
         // We haven't sold any tokens in previous epochs so we shouldn't place a lower slug
         buy(1 ether);
@@ -408,7 +399,6 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.getStartingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
 
         // Compute the amount of tokens available in the upper slug
         uint256 amountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
@@ -770,8 +760,7 @@ contract RebalanceTest is BaseTest {
         // We buy 1.5x the expectedAmountSold
         buy(int256(expectedAmountSold * 3 / 2));
 
-        (uint40 lastEpoch, int256 tickAccumulator, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) =
-            hook.state();
+        (uint40 lastEpoch,, uint256 totalTokensSold,, uint256 totalTokensSoldLastEpoch,) = hook.state();
 
         assertEq(lastEpoch, 1);
         // Confirm we sold the 1.5x the expectedAmountSold
@@ -847,7 +836,7 @@ contract RebalanceTest is BaseTest {
     function test_rebalance_CollectsFeeFromAllSlugs() public {
         vm.warp(hook.getStartingTime());
 
-        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
+        (,,, uint24 lpFee) = manager.getSlot0(key.toId());
 
         (,,,,, BalanceDelta feesAccrued) = hook.state();
 

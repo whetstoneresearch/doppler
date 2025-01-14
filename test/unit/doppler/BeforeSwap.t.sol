@@ -2,13 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { IPoolManager } from "v4-periphery/lib/v4-core/src/interfaces/IPoolManager.sol";
-import { toBalanceDelta } from "v4-core/src/types/BalanceDelta.sol";
-import { BeforeSwapDelta } from "v4-core/src/types/BeforeSwapDelta.sol";
-import { Hooks } from "v4-core/src/libraries/Hooks.sol";
-import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
 import { SafeCallback } from "v4-periphery/src/base/SafeCallback.sol";
-
-import { BaseTest, TestERC20 } from "test/shared/BaseTest.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
 /// TODO: I duplicated this from the test file just to test this out for now.

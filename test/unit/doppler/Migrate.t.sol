@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
+import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "v4-core/src/libraries/StateLibrary.sol";
 import { SenderNotAirlock, CannotMigrate } from "src/Doppler.sol";
-import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract MigrateTest is BaseTest {

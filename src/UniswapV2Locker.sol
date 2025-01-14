@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SafeTransferLib, ERC20 } from "solmate/src/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "solmate/src/utils/FixedPointMathLib.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 
 /// @notice Thrown when the sender is not the migrator contract

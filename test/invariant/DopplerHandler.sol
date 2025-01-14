@@ -2,14 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { AddressSet, LibAddressSet } from "./AddressSet.sol";
-import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
-import { PoolSwapTest } from "v4-core/src/test/PoolSwapTest.sol";
-import { IPoolManager } from "v4-core/src/interfaces/IPoolManager.sol";
 import { TestERC20 } from "v4-core/src/test/TestERC20.sol";
 import { PoolKey } from "v4-core/src/types/PoolKey.sol";
 import { Currency } from "v4-core/src/types/Currency.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
+import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
+import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
 contract DopplerHandler is Test {
     using LibAddressSet for AddressSet;

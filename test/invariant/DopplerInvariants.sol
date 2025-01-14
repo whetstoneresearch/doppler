@@ -8,25 +8,6 @@ import { State } from "src/Doppler.sol";
 import { LiquidityAmounts } from "v4-core/test/utils/LiquidityAmounts.sol";
 import { TickMath } from "v4-core/src/libraries/TickMath.sol";
 
-/*
-
- ? totalTokensSold can't underflow
- ? totalProceeds can't underflow
- ? Computed ticks can't under/overflow
- X Amount of asset tokens to be supplied to liquidity positions at once <= numTokensToSell - totalTokensSold
- Likely further have to consider the actual available token balance as dust is lost due to rounding
- Does not attempt to create liquidity positions with equal upper and lower ticks
-Leads to divide by zero error (even just in computing the liquidity amount)
-Also relevant for just doing relevant math, e.g. retrieving liquidity given an amount can result in a revert
- Cannot trade the price to below the lower slug range
-Else it allows for price manipulation
-I think this is also a compliance requirement regardless
- Always places a lower slug if totalTokensSold > 0
- Selling all tokens back in to the curve must exceed the available liquidity
- Single tick ranges do not exceed max liquidity per tick
- Cannot modify the price in any way prior to the start time
- */
-
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;
 
