@@ -51,6 +51,34 @@ struct AssetData {
 }
 
 /**
+ * @notice Data used to create a new asset token
+ * @param initialSupply Total supply of the token (might be increased later on)
+ * @param numTokensToSell Amount of tokens to sell in the Doppler hook
+ * @param tokenFactory Address of the factory contract deploying the ERC20 token
+ * @param tokenFactoryData Arbitrary data to pass to the token factory
+ * @param governanceFactory Address of the factory contract deploying the governance
+ * @param governanceFactoryData Arbitrary data to pass to the governance factory
+ * @param liquidityMigrator Address of the liquidity migrator contract
+ * @param integrator Address of the front-end integrator
+ * @param salt Salt used by the different factories to deploy the contracts using CREATE2
+ */
+struct CreateData {
+    uint256 initialSupply;
+    uint256 numTokensToSell;
+    address numeraire;
+    ITokenFactory tokenFactory;
+    bytes tokenFactoryData;
+    IGovernanceFactory governanceFactory;
+    bytes governanceFactoryData;
+    IPoolInitializer poolInitializer;
+    bytes poolInitializerData;
+    ILiquidityMigrator liquidityMigrator;
+    bytes liquidityMigratorData;
+    address integrator;
+    bytes32 salt;
+}
+
+/**
  * @notice Emitted when a new asset token is created
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
@@ -97,49 +125,40 @@ contract Airlock is Ownable {
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
-     * @param initialSupply Total supply of the token (might be increased later on)
-     * @param numTokensToSell Amount of tokens to sell in the Doppler hook
-     * @param tokenFactory Address of the factory contract deploying the ERC20 token
-     * @param tokenFactoryData Arbitrary data to pass to the token factory
-     * @param governanceFactory Address of the factory contract deploying the governance
-     * @param governanceFactoryData Arbitrary data to pass to the governance factory
-     * @param liquidityMigrator Address of the liquidity migrator contract
      */
     function create(
-        uint256 initialSupply,
-        uint256 numTokensToSell,
-        address numeraire,
-        ITokenFactory tokenFactory,
-        bytes calldata tokenFactoryData,
-        IGovernanceFactory governanceFactory,
-        bytes calldata governanceFactoryData,
-        IPoolInitializer poolInitializer,
-        bytes calldata poolInitializerData,
-        ILiquidityMigrator liquidityMigrator,
-        bytes calldata liquidityMigratorData,
-        address integrator,
-        bytes32 salt
+        CreateData calldata createData
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
         require(
-            getModuleState[address(tokenFactory)] == ModuleState.TokenFactory,
-            WrongModuleState(address(tokenFactory), ModuleState.TokenFactory, getModuleState[address(tokenFactory)])
-        );
-        require(
-            getModuleState[address(governanceFactory)] == ModuleState.GovernanceFactory,
+            getModuleState[address(createData.tokenFactory)] == ModuleState.TokenFactory,
             WrongModuleState(
-                address(governanceFactory), ModuleState.GovernanceFactory, getModuleState[address(governanceFactory)]
+                address(createData.tokenFactory),
+                ModuleState.TokenFactory,
+                getModuleState[address(createData.tokenFactory)]
             )
         );
         require(
-            getModuleState[address(poolInitializer)] == ModuleState.PoolInitializer,
+            getModuleState[address(createData.governanceFactory)] == ModuleState.GovernanceFactory,
             WrongModuleState(
-                address(poolInitializer), ModuleState.PoolInitializer, getModuleState[address(poolInitializer)]
+                address(createData.governanceFactory),
+                ModuleState.GovernanceFactory,
+                getModuleState[address(createData.governanceFactory)]
             )
         );
         require(
-            getModuleState[address(liquidityMigrator)] == ModuleState.LiquidityMigrator,
+            getModuleState[address(createData.poolInitializer)] == ModuleState.PoolInitializer,
             WrongModuleState(
-                address(liquidityMigrator), ModuleState.LiquidityMigrator, getModuleState[address(liquidityMigrator)]
+                address(createData.poolInitializer),
+                ModuleState.PoolInitializer,
+                getModuleState[address(createData.poolInitializer)]
+            )
+        );
+        require(
+            getModuleState[address(createData.liquidityMigrator)] == ModuleState.LiquidityMigrator,
+            WrongModuleState(
+                address(createData.liquidityMigrator),
+                ModuleState.LiquidityMigrator,
+                getModuleState[address(createData.liquidityMigrator)]
             )
         );
 
@@ -163,29 +182,34 @@ contract Airlock is Ownable {
         );
         */
 
-        asset = tokenFactory.create(initialSupply, address(this), address(this), salt, tokenFactoryData);
+        asset = createData.tokenFactory.create(
+            createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
+        );
 
-        (governance, timelock) = governanceFactory.create(asset, governanceFactoryData);
+        (governance, timelock) = createData.governanceFactory.create(asset, createData.governanceFactoryData);
 
-        ERC20(asset).approve(address(poolInitializer), numTokensToSell);
-        pool = poolInitializer.initialize(asset, numeraire, numTokensToSell, salt, poolInitializerData);
+        ERC20(asset).approve(address(createData.poolInitializer), createData.numTokensToSell);
+        pool = createData.poolInitializer.initialize(
+            asset, createData.numeraire, createData.numTokensToSell, createData.salt, createData.poolInitializerData
+        );
 
-        migrationPool = liquidityMigrator.initialize(asset, numeraire, liquidityMigratorData);
+        migrationPool =
+            createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
 
         getAssetData[asset] = AssetData({
-            numeraire: numeraire,
+            numeraire: createData.numeraire,
             timelock: timelock,
             governance: governance,
-            liquidityMigrator: liquidityMigrator,
-            poolInitializer: poolInitializer,
+            liquidityMigrator: createData.liquidityMigrator,
+            poolInitializer: createData.poolInitializer,
             pool: pool,
             migrationPool: migrationPool,
-            numTokensToSell: numTokensToSell,
-            totalSupply: initialSupply,
-            integrator: integrator
+            numTokensToSell: createData.numTokensToSell,
+            totalSupply: createData.initialSupply,
+            integrator: createData.integrator
         });
 
-        emit Create(asset, numeraire, address(poolInitializer), pool);
+        emit Create(asset, createData.numeraire, address(createData.poolInitializer), pool);
     }
 
     /**
