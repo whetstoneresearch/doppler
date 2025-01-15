@@ -11,7 +11,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams } from "src/Airlock.sol";
+import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams, Collect } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -362,6 +362,8 @@ contract AirlockTest is Test, Deployers {
         TestERC20 token = new TestERC20(1 ether);
         token.transfer(address(airlock), 1 ether);
         airlock.setProtocolFees(address(token), 1 ether);
+        vm.expectEmit();
+        emit Collect(address(this), address(token), 1 ether);
         airlock.collectProtocolFees(address(this), address(token), 1 ether);
         assertEq(token.balanceOf(address(this)), 1 ether, "Owner balance is wrong");
         assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
@@ -371,6 +373,8 @@ contract AirlockTest is Test, Deployers {
         TestERC20 token = new TestERC20(1 ether);
         token.transfer(address(airlock), 1 ether);
         airlock.setIntegratorFees(address(this), address(token), 1 ether);
+        vm.expectEmit();
+        emit Collect(address(this), address(token), 1 ether);
         airlock.collectIntegratorFees(address(this), address(token), 1 ether);
         assertEq(token.balanceOf(address(this)), 1 ether, "Integrator balance is wrong");
         assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
