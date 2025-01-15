@@ -11,7 +11,15 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams, Collect } from "src/Airlock.sol";
+import {
+    Airlock,
+    ModuleState,
+    WrongModuleState,
+    SetModuleState,
+    CreateParams,
+    Collect,
+    ArrayLengthsMismatch
+} from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -135,6 +143,17 @@ contract AirlockTest is Test, Deployers {
 
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xb0b)));
         vm.prank(address(0xb0b));
+        airlock.setModuleState(modules, states);
+    }
+
+    function test_setModuleState_RevertsWhenArrayLengthsMismatch() public {
+        address[] memory modules = new address[](1);
+        modules[0] = address(0xbeef);
+        ModuleState[] memory states = new ModuleState[](2);
+        states[0] = ModuleState.TokenFactory;
+        states[1] = ModuleState.PoolInitializer;
+
+        vm.expectRevert(ArrayLengthsMismatch.selector);
         airlock.setModuleState(modules, states);
     }
 
