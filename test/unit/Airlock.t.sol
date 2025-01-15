@@ -10,6 +10,7 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
@@ -45,8 +46,23 @@ int24 constant DEFAULT_TICK_SPACING = 8;
 
 uint256 constant DEFAULT_PD_SLUGS = 3;
 
+/// @dev Test contract allowing us to set some specific state
+contract AirlockCheat is Airlock {
+    constructor(
+        address owner_
+    ) Airlock(owner_) { }
+
+    function setProtocolFees(address token, uint256 amount) public {
+        protocolFees[token] = amount;
+    }
+
+    function setIntegratorFees(address integrator, address token, uint256 amount) public {
+        integratorFees[integrator][token] = amount;
+    }
+}
+
 contract AirlockTest is Test, Deployers {
-    Airlock airlock;
+    AirlockCheat airlock;
     TokenFactory tokenFactory;
     UniswapV4Initializer uniswapV4Initializer;
     DopplerDeployer deployer;
@@ -60,7 +76,7 @@ contract AirlockTest is Test, Deployers {
 
         deployFreshManager();
 
-        airlock = new Airlock(address(this));
+        airlock = new AirlockCheat(address(this));
         tokenFactory = new TokenFactory(address(airlock));
         deployer = new DopplerDeployer(manager);
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -340,5 +356,14 @@ contract AirlockTest is Test, Deployers {
         vm.startPrank(address(0xb0b));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xb0b)));
         airlock.collectProtocolFees(address(0), address(0), 0);
+    }
+
+    function test_collectProtocolFees_CollectsFees() public {
+        TestERC20 token = new TestERC20(1 ether);
+        token.transfer(address(airlock), 1 ether);
+        airlock.setProtocolFees(address(token), 1 ether);
+        airlock.collectProtocolFees(address(this), address(token), 1 ether);
+        assertEq(token.balanceOf(address(this)), 1 ether, "Owner balance is wrong");
+        assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
     }
 }
