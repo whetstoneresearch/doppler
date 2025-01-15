@@ -335,4 +335,10 @@ contract AirlockTest is Test, Deployers {
             )
         );
     }
+
+    function test_collectProtocolFees_RevertsWhenCallerNotOwner() public {
+        vm.startPrank(address(0xb0b));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xb0b)));
+        airlock.collectProtocolFees(address(0), address(0), 0);
+    }
 }
