@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, stdError } from "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
@@ -374,5 +374,13 @@ contract AirlockTest is Test, Deployers {
         airlock.collectIntegratorFees(address(this), address(token), 1 ether);
         assertEq(token.balanceOf(address(this)), 1 ether, "Integrator balance is wrong");
         assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
+    }
+
+    function test_collectIntegratorFees_RevertsWhenAmountIsGreaterThanAvailableFees() public {
+        TestERC20 token = new TestERC20(1 ether);
+        token.transfer(address(airlock), 1 ether);
+        airlock.setIntegratorFees(address(this), address(token), 1 ether);
+        vm.expectRevert(stdError.arithmeticError);
+        airlock.collectIntegratorFees(address(this), address(token), 1 ether + 1);
     }
 }
