@@ -366,4 +366,13 @@ contract AirlockTest is Test, Deployers {
         assertEq(token.balanceOf(address(this)), 1 ether, "Owner balance is wrong");
         assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
     }
+
+    function test_collectIntegratorFees_CollectFees() public {
+        TestERC20 token = new TestERC20(1 ether);
+        token.transfer(address(airlock), 1 ether);
+        airlock.setIntegratorFees(address(this), address(token), 1 ether);
+        airlock.collectIntegratorFees(address(this), address(token), 1 ether);
+        assertEq(token.balanceOf(address(this)), 1 ether, "Integrator balance is wrong");
+        assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
+    }
 }
