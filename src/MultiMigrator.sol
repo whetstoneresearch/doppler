@@ -6,7 +6,7 @@ import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
 import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { Airlock } from "src/Airlock.sol";
+import { Airlock, ModuleState } from "src/Airlock.sol";
 
 /// @notice Thrown when the sender is not the Airlock contract
 error SenderNotAirlock();
@@ -22,25 +22,25 @@ contract MultiMigrator is ILiquidityMigrator {
     using FullMath for uint160;
 
     /// @notice The Airlock contract that controls this migrator
-    address public immutable airlock;
+    address payable public immutable airlock;
 
     /// @notice The WETH contract for handling ETH wrapping
     IWETH public immutable weth = IWETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2));
 
-    /// @notice List of migrators that will receive tokens proportionally
-    ILiquidityMigrator[] public migrators;
+    /// @notice Mapping of asset address to list of migrators that will receive tokens proportionally
+    mapping(address => ILiquidityMigrator[]) public assetMigrators;
 
-    /// @notice Percentage of asset tokens each migrator should receive (in basis points)
-    uint256[] public assetPercentages;
+    /// @notice Mapping of asset address to percentage of asset tokens each migrator should receive (in basis points)
+    mapping(address => uint256[]) public assetPercentages;
 
-    /// @notice Percentage of numeraire tokens each migrator should receive (in basis points) 
-    uint256[] public numerairePercentages;
+    /// @notice Mapping of asset address to percentage of numeraire tokens each migrator should receive (in basis points)
+    mapping(address => uint256[]) public numerairePercentages;
 
     /// @notice Total number of basis points allocated (should sum to 10000)
     uint256 public constant TOTAL_BASIS_POINTS = 10000;
 
     constructor(address airlock_) {
-        airlock = airlock_;
+        airlock = payable(airlock_);
     }
 
     function initialize(address asset, address numeraire, bytes calldata data) external returns (address) {
@@ -68,6 +68,8 @@ contract MultiMigrator is ILiquidityMigrator {
         uint256 totalAssetPercentage;
         uint256 totalNumerairePercentage;
         for (uint256 i = 0; i < _migrators.length; i++) {
+            require(Airlock(airlock).getModuleState(address(_migrators[i])) == ModuleState.LiquidityMigrator, "Not a migrator");
+
             require(_assetPercentages[i] > 0 || _numerairePercentages[i] > 0, "Zero percentages");
             totalAssetPercentage += _assetPercentages[i];
             totalNumerairePercentage += _numerairePercentages[i];
@@ -75,15 +77,15 @@ contract MultiMigrator is ILiquidityMigrator {
         require(totalAssetPercentage == TOTAL_BASIS_POINTS, "Asset percentages must sum to 10000");
         require(totalNumerairePercentage == TOTAL_BASIS_POINTS, "Numeraire percentages must sum to 10000");
 
-        // Store migrators and their percentages
-        migrators = _migrators;
-        assetPercentages = _assetPercentages;
-        numerairePercentages = _numerairePercentages;
+        // Store migrators and their percentages for this asset
+        assetMigrators[asset] = _migrators;
+        assetPercentages[asset] = _assetPercentages;
+        numerairePercentages[asset] = _numerairePercentages;
 
         // Initialize each migrator with its specific calldata
         address lastPool;
-        for (uint256 i = 0; i < migrators.length; i++) {
-            lastPool = migrators[i].initialize(asset, numeraire, allData[i + 1]);
+        for (uint256 i = 0; i < _migrators.length; i++) {
+            lastPool = _migrators[i].initialize(asset, numeraire, allData[i + 1]);
         }
 
         return lastPool;
@@ -110,10 +112,15 @@ contract MultiMigrator is ILiquidityMigrator {
         uint256 initialBalance0 = ERC20(token0).balanceOf(address(this));
         uint256 initialBalance1 = ERC20(token1).balanceOf(address(this));
 
+        // Get migrators and percentages for this asset
+        ILiquidityMigrator[] storage migrators = assetMigrators[token0];
+        uint256[] storage assetPcts = assetPercentages[token0];
+        uint256[] storage numerairePcts = numerairePercentages[token0];
+
         // Migrate proportionally to each migrator
         for (uint256 i = 0; i < migrators.length; i++) {
-            uint256 amount0 = (initialBalance0 * assetPercentages[i]) / TOTAL_BASIS_POINTS;
-            uint256 amount1 = (initialBalance1 * numerairePercentages[i]) / TOTAL_BASIS_POINTS;
+            uint256 amount0 = (initialBalance0 * assetPcts[i]) / TOTAL_BASIS_POINTS;
+            uint256 amount1 = (initialBalance1 * numerairePcts[i]) / TOTAL_BASIS_POINTS;
             if (amount0 > 0) {
                 ERC20(token0).safeTransfer(address(migrators[i]), amount0);
             }

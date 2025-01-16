@@ -6,15 +6,16 @@ import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
 import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { IMorpho } from "@morpho-blue/interfaces/IMorpho.sol";
-import { IMorphoVault } from "src/interfaces/IMorphoVault.sol";
+import { IMorpho, MarketParams } from "@morpho-blue/interfaces/IMorpho.sol";
+import { IMetaMorpho } from "@metamorpho/interfaces/IMetaMorpho.sol";
+import { IMetaMorphoFactory } from "@metamorpho/interfaces/IMetaMorphoFactory.sol";
 
 /// @notice Thrown when the sender is not the Airlock contract
 error SenderNotAirlock();
 
 /**
  * @author Whetstone Research
- * @notice Takes care of migrating liquidity into a Morpho market and vault
+ * @notice Takes care of migrating liquidity into a Morpho market and MetaMorpho vault
  * @custom:security-contact security@whetstone.cc
  */
 contract MorphoMigrator is ILiquidityMigrator {
@@ -31,24 +32,24 @@ contract MorphoMigrator is ILiquidityMigrator {
     /// @notice The Morpho protocol contract
     IMorpho public immutable morpho;
 
-    /// @notice The Morpho vault factory contract
-    IMorphoVaultFactory public immutable vaultFactory;
+    /// @notice The MetaMorpho factory contract
+    IMetaMorphoFactory public immutable metaMorphoFactory;
 
-    /// @notice Mapping of asset pairs to their Morpho market ID
-    mapping(address asset => mapping(address numeraire => uint256 marketId)) public getMarketId;
+    /// @notice Mapping of asset pairs to their Morpho market params
+    mapping(address asset => mapping(address numeraire => MarketParams)) public getMarketParams;
 
-    /// @notice Mapping of asset pairs to their Morpho vault
+    /// @notice Mapping of asset pairs to their MetaMorpho vault
     mapping(address asset => mapping(address numeraire => address vault)) public getVault;
 
     constructor(
         address airlock_,
         address morpho_,
-        address vaultFactory_,
+        address metaMorphoFactory_,
         address weth_
     ) {
         airlock = airlock_;
         morpho = IMorpho(morpho_);
-        vaultFactory = IMorphoVaultFactory(vaultFactory_);
+        metaMorphoFactory = IMetaMorphoFactory(metaMorphoFactory_);
         weth = IWETH(payable(weth_));
     }
 
@@ -60,25 +61,40 @@ contract MorphoMigrator is ILiquidityMigrator {
         if (numeraire == address(0)) numeraire = address(weth);
 
         // Decode initialization parameters
-        (uint256 ltv, address oracle, address timelock) = abi.decode(data, (uint256, address, address));
+        (
+            uint256 ltv,
+            address oracle,
+            address irm,
+            address initialOwner,
+            uint256 initialTimelock,
+            string memory name,
+            string memory symbol,
+            bytes32 salt
+        ) = abi.decode(data, (uint256, address, address, address, uint256, string, string, bytes32));
 
-        // Create Morpho market with numeraire as lend asset and asset as collateral
-        uint256 marketId = morpho.createMarket(
+        // Create market params for Morpho market with numeraire as lend asset and asset as collateral
+        MarketParams memory params = MarketParams({
+            loanToken: numeraire,
+            collateralToken: asset,
+            oracle: oracle,
+            irm: irm,
+            lltv: ltv
+        });
+
+        getMarketParams[asset][numeraire] = params;
+
+        // Create MetaMorpho vault with initialOwner and timelock
+        address vault = address(metaMorphoFactory.createMetaMorpho(
+            initialOwner,
+            initialTimelock,
             numeraire,
-            asset,
-            ltv,
-            oracle
-        );
-        getMarketId[asset][numeraire] = marketId;
-
-        // Create Morpho vault owned by timelock
-        address vault = vaultFactory.createVault(
-            marketId,
-            timelock
-        );
+            name,
+            symbol,
+            salt
+        ));
         getVault[asset][numeraire] = vault;
 
-        return address(vault);
+        return vault;
     }
 
     function migrate(
@@ -92,23 +108,35 @@ contract MorphoMigrator is ILiquidityMigrator {
         // Handle ETH case
         if (token0 == address(0)) {
             token0 = address(weth);
-            weth.deposit{ value: address(this).balance }();
         }
         if (token1 == address(0)) {
             token1 = address(weth);
-            weth.deposit{ value: address(this).balance }();
         }
 
-        // Get market and vault
-        uint256 marketId = getMarketId[token0][token1];
-        address vault = getVault[token0][token1];
-        require(marketId != 0 && vault != address(0), "Market not initialized");
+        // Check both orderings to determine which token is the asset
+        MarketParams memory params;
+        address vault;
+        address asset;
+        address numeraire;
+
+        vault = getVault[token0][token1];
+        if (vault != address(0)) {
+            params = getMarketParams[token0][token1];
+            asset = token0;
+            numeraire = token1;
+        } else {
+            vault = getVault[token1][token0];
+            params = getMarketParams[token1][token0];
+            asset = token1;
+            numeraire = token0;
+        }
+        require(params.loanToken != address(0) && vault != address(0), "Market not initialized");
 
         // Supply numeraire tokens to vault
-        uint256 balance = ERC20(token1).balanceOf(address(this));
+        uint256 balance = ERC20(numeraire).balanceOf(address(this));
         if (balance > 0) {
-            ERC20(token1).safeApprove(vault, balance);
-            IMorphoVault(vault).deposit(balance, recipient);
+            ERC20(numeraire).safeApprove(vault, balance);
+            IMetaMorpho(vault).deposit(balance, recipient);
             liquidity = balance;
         }
 
@@ -128,4 +156,3 @@ contract MorphoMigrator is ILiquidityMigrator {
         }
     }
 }
-
