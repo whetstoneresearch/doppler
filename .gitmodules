@@ -19,3 +19,6 @@
 [submodule "lib/morpho-blue"]
 	path = lib/morpho-blue
 	url = https://github.com/morpho-org/morpho-blue
+[submodule "lib/metamorpho"]
+	path = lib/metamorpho
+	url = https://github.com/morpho-org/metamorpho
