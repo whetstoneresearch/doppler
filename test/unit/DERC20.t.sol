@@ -13,8 +13,10 @@ import {
     PoolLocked,
     MintingNotStartedYet,
     ExceedsYearlyMintCap,
-    ReleaseAmountInvalid
+    ReleaseAmountInvalid,
+    NoMintableAmount
 } from "src/DERC20.sol";
+import { IERC20Errors } from "@openzeppelin/interfaces/draft-IERC6093.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
 uint256 constant YEARLY_MINT_CAP = 1e25;
@@ -45,7 +47,7 @@ contract DERC20Test is Test {
         assertEq(token.totalSupply(), INITIAL_SUPPLY, "Wrong total supply");
         assertEq(token.balanceOf(RECIPIENT), INITIAL_SUPPLY - amounts[0] - amounts[1], "Wrong balance of recipient");
         assertEq(token.balanceOf(address(token)), amounts[0] + amounts[1], "Wrong balance of vested tokens");
-        assertEq(token.mintStartDate(), block.timestamp + 365 days, "Wrong mint start date");
+        assertEq(token.lastMintTimestamp(), 0, "Wrong mint timestamp");
         assertEq(token.owner(), OWNER, "Wrong owner");
         assertEq(token.yearlyMintCap(), YEARLY_MINT_CAP, "Wrong yearly mint cap");
         assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
@@ -187,6 +189,7 @@ contract DERC20Test is Test {
         );
         token.unlockPool();
         assertEq(token.isPoolUnlocked(), true, "Pool should be unlocked");
+        assertEq(token.lastMintTimestamp(), block.timestamp, "Inflation should have started");
     }
 
     function test_transfer_RevertsWhenPoolLocked() public {
@@ -227,7 +230,94 @@ contract DERC20Test is Test {
         token.transferFrom(address(this), pool, 1);
     }
 
-    function test_mint_RevertsWhenInvalidOwner() public {
+    function test_mintInflation_RevertsWhenMintingNotStartedYet() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        vm.warp(block.timestamp + 365 days);
+        vm.expectRevert(MintingNotStartedYet.selector);
+        token.mintInflation();
+    }
+
+    function test_mintInflation_MintsCapEveryYear() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        token.unlockPool();
+
+        vm.warp(token.lastMintTimestamp() + 365 days);
+        uint256 initialBalance = token.balanceOf(token.owner());
+        token.mintInflation();
+        assertEq(token.balanceOf(token.owner()), initialBalance + YEARLY_MINT_CAP, "Wrong balance");
+        assertEq(token.totalSupply(), INITIAL_SUPPLY + YEARLY_MINT_CAP, "Wrong total supply");
+
+        vm.warp(token.lastMintTimestamp() + 365 days);
+        token.mintInflation();
+        assertEq(token.balanceOf(token.owner()), initialBalance + 2 * YEARLY_MINT_CAP, "Wrong balance");
+        assertEq(token.totalSupply(), INITIAL_SUPPLY + 2 * YEARLY_MINT_CAP, "Wrong total supply");
+    }
+
+    function test_mint_RevertsWhenExceedsYearlyMintCap(
+        uint256 mintTimestamp
+    ) public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        token.unlockPool();
+        vm.assume(mintTimestamp < type(uint128).max && mintTimestamp > 0);
+        vm.warp(block.timestamp + mintTimestamp);
+
+        uint256 initialBalance = token.balanceOf(token.owner());
+        token.mintInflation();
+
+        uint256 finalBalance = token.balanceOf(token.owner());
+        uint256 mintedAmount = mintTimestamp * YEARLY_MINT_CAP / 365 days;
+
+        require(finalBalance - initialBalance == mintedAmount, "Wrong minted amount");
+    }
+
+    function test_mintInflation_RevertsWhenNoMintableAmount() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_CAP,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0)
+        );
+        token.unlockPool();
+        vm.expectRevert(NoMintableAmount.selector);
+        token.mintInflation();
+    }
+
+    function test_burn_RevertsWhenInvalidOwner() public {
         token = new DERC20(
             NAME,
             SYMBOL,
@@ -241,10 +331,11 @@ contract DERC20Test is Test {
         );
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
-        token.mint(address(0xbeef), 1);
+        token.burn(0);
     }
 
-    function test_mint_RevertsWhenMintingNotStartedYet() public {
+    function test_burn_RevertsWhenBurnAmountExceedsBalance() public {
+        address pool = address(0xdeadbeef);
         token = new DERC20(
             NAME,
             SYMBOL,
@@ -256,11 +347,12 @@ contract DERC20Test is Test {
             new address[](0),
             new uint256[](0)
         );
-        vm.expectRevert(MintingNotStartedYet.selector);
-        token.mint(address(0xbeef), 1);
+        token.lockPool(pool);
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(this), 0, 1));
+        token.burn(1);
     }
 
-    function test_mint_RevertsWhenExceedsYearlyMintCap() public {
+    function test_burn_BurnsTokens() public {
         token = new DERC20(
             NAME,
             SYMBOL,
@@ -272,33 +364,20 @@ contract DERC20Test is Test {
             new address[](0),
             new uint256[](0)
         );
-        vm.warp(token.mintStartDate());
-        token.mint(address(0xbeef), YEARLY_MINT_CAP);
-        vm.expectRevert(abi.encodeWithSelector(ExceedsYearlyMintCap.selector));
-        token.mint(address(0xbeef), 1);
-    }
+        token.unlockPool();
+        vm.warp(token.lastMintTimestamp() + 365 days);
+        token.mintInflation();
 
-    function test_mint_MintsCapEveryYear() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_CAP,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0)
-        );
-        vm.warp(token.mintStartDate());
-        uint256 initialBalance = token.balanceOf(address(0xbeef));
-        token.mint(address(0xbeef), YEARLY_MINT_CAP);
-        assertEq(token.balanceOf(address(0xbeef)), initialBalance + YEARLY_MINT_CAP, "Wrong balance");
+        uint256 ownerBalance = token.balanceOf(token.owner());
         assertEq(token.totalSupply(), INITIAL_SUPPLY + YEARLY_MINT_CAP, "Wrong total supply");
-        vm.warp(token.mintStartDate() + 365 days);
-        token.mint(address(0xbeef), YEARLY_MINT_CAP);
-        assertEq(token.balanceOf(address(0xbeef)), initialBalance + 2 * YEARLY_MINT_CAP, "Wrong balance");
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + 2 * YEARLY_MINT_CAP, "Wrong total supply");
+        token.burn(ownerBalance);
+        assertEq(token.totalSupply(), INITIAL_SUPPLY, "Wrong total supply");
+        assertEq(token.balanceOf(token.owner()), 0, "Wrong balance");
+
+        vm.warp(token.lastMintTimestamp() + 1 days);
+        token.mintInflation();
+        assertGt(token.totalSupply(), INITIAL_SUPPLY, "Total supply should be greater than initial supply");
+        assertGt(token.balanceOf(token.owner()), 0, "Owner balance should be greater than 0");
     }
 
     function test_release_ReleasesAllTokensAfterVesting() public {
