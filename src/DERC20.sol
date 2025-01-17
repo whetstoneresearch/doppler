@@ -13,6 +13,9 @@ error MintingNotStartedYet();
 /// @dev Thrown when trying to mint more than the yearly cap
 error ExceedsYearlyMintCap();
 
+/// @dev Thrown when there is no amount to mint
+error NoMintableAmount();
+
 /// @dev Thrown when trying to transfer tokens into the pool while it is locked
 error PoolLocked();
 
@@ -46,12 +49,6 @@ struct VestingData {
 
 /// @custom:security-contact security@whetstone.cc
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
-    /// @notice Minting token will be possible after this timestamp
-    uint256 public immutable mintStartDate;
-
-    /// @notice Maximum amount of tokens that can be minted in a year
-    uint256 public immutable yearlyMintCap;
-
     /// @notice Timestamp of the start of the vesting period
     uint256 public immutable vestingStart;
 
@@ -64,11 +61,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Whether the pool can receive tokens (unlocked) or not
     bool public isPoolUnlocked;
 
-    /// @notice Timestamp of the start of the current yearly period
-    uint256 public currentYearStart;
+    /// @notice Maximum amount of tokens that can be minted in a year
+    uint256 public yearlyMintCap;
 
-    /// @notice Amount of tokens minted in the current year
-    uint256 public currentAnnualMint;
+    /// @notice Timestamp of the last inflation mint
+    uint256 public lastMintTimestamp;
 
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
@@ -95,7 +92,6 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         address[] memory recipients_,
         uint256[] memory amounts_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
-        mintStartDate = block.timestamp + 365 days;
         yearlyMintCap = yearlyMintCap_;
         vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
@@ -141,25 +137,46 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
+        lastMintTimestamp = block.timestamp;
     }
 
     /**
      * @notice Mints `amount` of tokens to the address `to`
-     * @param to Address receiving the minted tokens
-     * @param value Amount of tokens to mint
      */
-    function mint(address to, uint256 value) external onlyOwner {
-        require(block.timestamp >= mintStartDate, MintingNotStartedYet());
+    function mintInflation() public {
+        require(lastMintTimestamp != 0, MintingNotStartedYet());
 
-        if (block.timestamp >= currentYearStart + 365 days) {
-            currentYearStart = block.timestamp;
-            currentAnnualMint = 0;
+        uint256 mintableAmount = yearlyMintCap * (block.timestamp - lastMintTimestamp) / 365 days;
+
+        require(mintableAmount > 0, NoMintableAmount());
+
+        lastMintTimestamp = block.timestamp;
+        _mint(owner(), mintableAmount);
+    }
+
+    /**
+     * @notice Burns `amount` of tokens from the address `owner`
+     * @param amount Amount of tokens to burn
+     */
+    function burn(
+        uint256 amount
+    ) external onlyOwner {
+        _burn(owner(), amount);
+    }
+
+    /**
+     * @notice Updates the maximum amount of tokens that can be minted in a year
+     * @param newMintCap New maximum amount of tokens that can be minted in a year
+     */
+    function updateMintCap(
+        uint256 newMintCap
+    ) external onlyOwner {
+        // Can't mint more than 20% of the total supply
+        require(newMintCap * 100_000 / totalSupply() <= 20_000, ExceedsYearlyMintCap());
+        if (lastMintTimestamp != 0) {
+            mintInflation();
         }
-
-        require(currentAnnualMint + value <= yearlyMintCap, ExceedsYearlyMintCap());
-        currentAnnualMint += value;
-
-        _mint(to, value);
+        yearlyMintCap = newMintCap;
     }
 
     /**
