@@ -31,11 +31,17 @@ error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to premint more than the maximum allowed in total
 error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 
+/// @dev Thrown when trying to mint more than the maximum allowed in total
+error MaxTotalVestedExceeded(uint256 amount, uint256 limit);
+
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
 uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.1 ether;
+
+/// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
+uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
 
 /**
  * @notice Vesting data for a specific address
@@ -61,8 +67,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Whether the pool can receive tokens (unlocked) or not
     bool public isPoolUnlocked;
 
-    /// @notice Maximum amount of tokens that can be minted in a year
-    uint256 public yearlyMintCap;
+    /// @notice Maximum rate of tokens that can be minted in a year
+    uint256 public yearlyMintRate;
+
+    /// @notice Timestamp of the start of the current year
+    uint256 public currentYearStart;
 
     /// @notice Timestamp of the last inflation mint
     uint256 public lastMintTimestamp;
@@ -76,7 +85,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param initialSupply Initial supply of the token
      * @param recipient Address receiving the initial supply
      * @param owner_ Address receivin the ownership of the token
-     * @param yearlyMintCap_ Maximum amount of token that can be minted in a year
+     * @param yearlyMintRate_ Maximum amount of token that can be minted in a year
      * @param vestingDuration_ Duration of the vesting period (in seconds)
      * @param recipients_ Array of addresses receiving vested tokens
      * @param amounts_ Array of amounts of tokens to be vested
@@ -87,12 +96,13 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 initialSupply,
         address recipient,
         address owner_,
-        uint256 yearlyMintCap_,
+        uint256 yearlyMintRate_,
         uint256 vestingDuration_,
         address[] memory recipients_,
         uint256[] memory amounts_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
-        yearlyMintCap = yearlyMintCap_;
+        require(yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD, "Yearly mint rate exceeds the maximum allowed");
+        yearlyMintRate = yearlyMintRate_;
         vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
 
@@ -115,6 +125,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
         require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
+        require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
 
         if (vestedTokens > 0) {
             _mint(address(this), vestedTokens);
@@ -137,19 +148,42 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
-        lastMintTimestamp = block.timestamp;
+        currentYearStart = lastMintTimestamp = block.timestamp;
     }
 
     /**
-     * @notice Mints `amount` of tokens to the address `to`
+     * @notice Mints inflation tokens to the owner
      */
     function mintInflation() public {
-        require(lastMintTimestamp != 0, MintingNotStartedYet());
+        require(currentYearStart != 0, MintingNotStartedYet());
 
-        uint256 mintableAmount = yearlyMintCap * (block.timestamp - lastMintTimestamp) / 365 days;
+        uint256 mintableAmount;
+        uint256 yearMint;
+        uint256 timeLeftInCurrentYear;
+        uint256 supply = totalSupply();
+        uint256 currentYearStart_ = currentYearStart;
+        uint256 lastMintTimestamp_ = lastMintTimestamp;
+        uint256 yearlyMintRate_ = yearlyMintRate;
+        // Handle any outstanding full years and updates to maintain inflation rate
+        while (block.timestamp > currentYearStart_ + 365 days) {
+            timeLeftInCurrentYear = (currentYearStart_ + 365 days - lastMintTimestamp_);
+            yearMint = (supply * yearlyMintRate_ * timeLeftInCurrentYear) / (1 ether * 365 days);
+            supply += yearMint;
+            mintableAmount += yearMint;
+            currentYearStart_ += 365 days;
+            lastMintTimestamp_ = currentYearStart_;
+        }
+
+        // Handle partial current year
+        if (block.timestamp > lastMintTimestamp_) {
+            uint256 partialYearMint =
+                (supply * yearlyMintRate_ * (block.timestamp - lastMintTimestamp_)) / (1 ether * 365 days);
+            mintableAmount += partialYearMint;
+        }
 
         require(mintableAmount > 0, NoMintableAmount());
 
+        currentYearStart = currentYearStart_;
         lastMintTimestamp = block.timestamp;
         _mint(owner(), mintableAmount);
     }
@@ -165,18 +199,18 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /**
-     * @notice Updates the maximum amount of tokens that can be minted in a year
-     * @param newMintCap New maximum amount of tokens that can be minted in a year
+     * @notice Updates the maximum rate of tokens that can be minted in a year
+     * @param newMintRate New maximum rate of tokens that can be minted in a year
      */
-    function updateMintCap(
-        uint256 newMintCap
+    function updateMintRate(
+        uint256 newMintRate
     ) external onlyOwner {
-        // Can't mint more than 20% of the total supply
-        require(newMintCap * 100_000 / totalSupply() <= 20_000, ExceedsYearlyMintCap());
-        if (lastMintTimestamp != 0) {
+        if (currentYearStart != 0 && (block.timestamp - lastMintTimestamp) != 0) {
             mintInflation();
         }
-        yearlyMintCap = newMintCap;
+        // Inflation can't be more than 2% of token supply per year
+        require(newMintRate <= MAX_YEARLY_MINT_RATE_WAD, "New mint rate exceeds the maximum allowed");
+        yearlyMintRate = newMintRate;
     }
 
     /**
@@ -202,9 +236,9 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /// @inheritdoc Nonces
     function nonces(
-        address owner
+        address owner_
     ) public view override(ERC20Permit, Nonces) returns (uint256) {
-        return super.nonces(owner);
+        return super.nonces(owner_);
     }
 
     /// @inheritdoc ERC20
