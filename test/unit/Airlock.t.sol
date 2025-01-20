@@ -124,7 +124,7 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_DeploysV4() public returns (address, address) {
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
 
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
 
@@ -304,7 +304,7 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_DeploysOnUniswapV3() public {
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
         bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
         bytes memory poolInitializerData = abi.encode(
             InitData({

@@ -70,6 +70,9 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Amount of tokens minted in the current year
     uint256 public currentAnnualMint;
 
+    /// @notice Uniform Resource Identifier (URI)
+    string public tokenURI;
+
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
 
@@ -83,6 +86,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param vestingDuration_ Duration of the vesting period (in seconds)
      * @param recipients_ Array of addresses receiving vested tokens
      * @param amounts_ Array of amounts of tokens to be vested
+     * @param tokenURI_ Uniform Resource Identifier (URI)
      */
     constructor(
         string memory name_,
@@ -93,12 +97,14 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 yearlyMintCap_,
         uint256 vestingDuration_,
         address[] memory recipients_,
-        uint256[] memory amounts_
+        uint256[] memory amounts_,
+        string memory tokenURI_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
         mintStartDate = block.timestamp + 365 days;
         yearlyMintCap = yearlyMintCap_;
         vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
+        tokenURI = tokenURI_;
 
         uint256 length = recipients_.length;
         require(length == amounts_.length, ArrayLengthsMismatch());
