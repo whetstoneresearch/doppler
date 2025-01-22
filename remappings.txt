@@ -17,4 +17,5 @@ permit2/=lib/v4-periphery/lib/permit2/
 
 @v3-periphery/=lib/v3-periphery/contracts/
 @v3-core/=lib/v3-core/contracts
+@universal-router=lib/universal-router/contracts/
 @uniswap/v3-core/=lib/v3-core/
