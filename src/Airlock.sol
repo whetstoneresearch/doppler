@@ -243,7 +243,12 @@ contract Airlock is Ownable {
             total1 += assetData.totalSupply - assetData.numTokensToSell;
         }
 
-        ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        if (token0 == address(0)) {
+            SafeTransferLib.safeTransferETH(address(assetData.liquidityMigrator), total0);
+        } else {
+            ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        }
+
         ERC20(token1).safeTransfer(address(assetData.liquidityMigrator), total1);
 
         assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
