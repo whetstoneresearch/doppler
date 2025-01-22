@@ -33,6 +33,10 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
     mapping(address pool => address) public getAsset;
 
+    receive() external payable {
+        require(msg.sender == airlock, SenderNotAirlock());
+    }
+
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
