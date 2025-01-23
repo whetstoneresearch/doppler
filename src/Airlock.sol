@@ -282,7 +282,13 @@ contract Airlock is Ownable {
      */
     function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
         protocolFees[token] -= amount;
-        ERC20(token).safeTransfer(to, amount);
+
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            ERC20(token).safeTransfer(to, amount);
+        }
+
         emit Collect(to, token, amount);
     }
 
@@ -294,7 +300,13 @@ contract Airlock is Ownable {
      */
     function collectIntegratorFees(address to, address token, uint256 amount) external {
         integratorFees[msg.sender][token] -= amount;
-        ERC20(token).safeTransfer(to, amount);
+
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            ERC20(token).safeTransfer(to, amount);
+        }
+
         emit Collect(to, token, amount);
     }
 }
