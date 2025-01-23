@@ -19,6 +19,7 @@ import { UniversalRouter, RouterParameters } from "@universal-router/UniversalRo
 bytes32 constant PAIR_INIT_CODE_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
 bytes32 constant POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
 
+/// @notice This contract is used for sdk integration tests, it is not meant to be used in production or for any purpose other than testing the sdk
 contract DeployDopplerV3FactoryUnichainSepolia {
     Airlock airlock;
     TokenFactory tokenFactory;
