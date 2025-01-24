@@ -180,7 +180,7 @@ contract UniswapV4InitializerTest is Test, Deployers {
 
     function test_fuzz_v4initialize_fee_tickSpacing(uint24 fee, int24 tickSpacing) public {
         fee = uint24(bound(fee, 0, 1_000_000)); // 0.00% to 100%
-        tickSpacing = int24(bound(tickSpacing, 1, MAX_TICK_SPACING - 1));
+        tickSpacing = int24(bound(tickSpacing, 1, MAX_TICK_SPACING));
         int24 gamma = (DEFAULT_GAMMA / tickSpacing) * tickSpacing; // align gamma with tickSpacing, rounding down
 
         DopplerConfig memory config = DopplerConfig({
