@@ -56,7 +56,12 @@ contract UniswapV2Locker is Ownable {
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(Airlock airlock_, IUniswapV2Factory factory_, UniswapV2Migrator migrator_) Ownable(msg.sender) {
+    constructor(
+        Airlock airlock_,
+        IUniswapV2Factory factory_,
+        UniswapV2Migrator migrator_,
+        address owner_
+    ) Ownable(owner_) {
         airlock = airlock_;
         factory = factory_;
         migrator = migrator_;
