@@ -73,7 +73,7 @@ contract UniswapV4InitializerTest is Test, Deployers {
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router);
+        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0));
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);

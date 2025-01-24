@@ -49,7 +49,8 @@ contract V3Test is Test {
         uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET)
+            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
+            address(0)
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
