@@ -36,11 +36,11 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(address airlock_, IUniswapV2Factory factory_, IUniswapV2Router02 router) {
+    constructor(address airlock_, IUniswapV2Factory factory_, IUniswapV2Router02 router, address owner) {
         airlock = airlock_;
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
-        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this);
+        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this, owner);
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
