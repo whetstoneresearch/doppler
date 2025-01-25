@@ -176,7 +176,7 @@ contract UniswapV4InitializerTest is Test, Deployers {
         return (hook, asset);
     }
 
-    function test_v4_fee_collection() public {
+    function test_v4_fee_collection_native() public {
         (address hook, address asset) = test_v4initialize_success();
         address numeraireAddress = Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO);
         Doppler doppler = Doppler(payable(hook));
