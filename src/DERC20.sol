@@ -76,6 +76,9 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Timestamp of the last inflation mint
     uint256 public lastMintTimestamp;
 
+    /// @notice Uniform Resource Identifier (URI)
+    string public tokenURI;
+
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
 
@@ -89,6 +92,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param vestingDuration_ Duration of the vesting period (in seconds)
      * @param recipients_ Array of addresses receiving vested tokens
      * @param amounts_ Array of amounts of tokens to be vested
+     * @param tokenURI_ Uniform Resource Identifier (URI)
      */
     constructor(
         string memory name_,
@@ -99,12 +103,14 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 yearlyMintRate_,
         uint256 vestingDuration_,
         address[] memory recipients_,
-        uint256[] memory amounts_
+        uint256[] memory amounts_,
+        string memory tokenURI_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
         require(yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD, "Yearly mint rate exceeds the maximum allowed");
         yearlyMintRate = yearlyMintRate_;
         vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
+        tokenURI = tokenURI_;
 
         uint256 length = recipients_.length;
         require(length == amounts_.length, ArrayLengthsMismatch());
