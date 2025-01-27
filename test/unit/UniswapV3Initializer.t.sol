@@ -43,7 +43,8 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_initialize_success() public {
-        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.approve(address(initializer), type(uint256).max);
 
         address pool = initializer.initialize(
@@ -76,7 +77,8 @@ contract UniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsIfAlreadyInitialized() public {
-        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.approve(address(initializer), type(uint256).max);
 
         initializer.initialize(
@@ -123,9 +125,10 @@ contract UniswapV3InitializerTest is Test {
 
     function test_exitLiquidity() public returns (address pool) {
         bool isToken0;
-        DERC20 token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         while (address(token) < address(WETH_MAINNET)) {
-            token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+            token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         }
 
         isToken0 = address(token) < address(WETH_MAINNET);
@@ -221,16 +224,17 @@ contract UniswapV3InitializerTest is Test {
         // FUCK this test!
         // will be !isToken0
         DERC20 isToken0 =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         while (address(isToken0) > address(WETH_MAINNET)) {
-            isToken0 = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+            isToken0 =
+                new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         }
         // will be isToken0
         DERC20 notIsToken0 =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         while (address(notIsToken0) < address(WETH_MAINNET)) {
             notIsToken0 =
-                new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0));
+                new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         }
         isToken0.approve(address(initializer), type(uint256).max);
         notIsToken0.approve(address(initializer), type(uint256).max);

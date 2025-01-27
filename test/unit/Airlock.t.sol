@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, stdError } from "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
@@ -10,7 +10,16 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
-import { Airlock, ModuleState, WrongModuleState, SetModuleState, CreateParams } from "src/Airlock.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import {
+    Airlock,
+    ModuleState,
+    WrongModuleState,
+    SetModuleState,
+    CreateParams,
+    Collect,
+    ArrayLengthsMismatch
+} from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -45,8 +54,23 @@ int24 constant DEFAULT_TICK_SPACING = 8;
 
 uint256 constant DEFAULT_PD_SLUGS = 3;
 
+/// @dev Test contract allowing us to set some specific state
+contract AirlockCheat is Airlock {
+    constructor(
+        address owner_
+    ) Airlock(owner_) { }
+
+    function setProtocolFees(address token, uint256 amount) public {
+        protocolFees[token] = amount;
+    }
+
+    function setIntegratorFees(address integrator, address token, uint256 amount) public {
+        integratorFees[integrator][token] = amount;
+    }
+}
+
 contract AirlockTest is Test, Deployers {
-    Airlock airlock;
+    AirlockCheat airlock;
     TokenFactory tokenFactory;
     UniswapV4Initializer uniswapV4Initializer;
     DopplerDeployer deployer;
@@ -60,7 +84,7 @@ contract AirlockTest is Test, Deployers {
 
         deployFreshManager();
 
-        airlock = new Airlock(address(this));
+        airlock = new AirlockCheat(address(this));
         tokenFactory = new TokenFactory(address(airlock));
         deployer = new DopplerDeployer(manager);
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -122,9 +146,20 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(modules, states);
     }
 
+    function test_setModuleState_RevertsWhenArrayLengthsMismatch() public {
+        address[] memory modules = new address[](1);
+        modules[0] = address(0xbeef);
+        ModuleState[] memory states = new ModuleState[](2);
+        states[0] = ModuleState.TokenFactory;
+        states[1] = ModuleState.PoolInitializer;
+
+        vm.expectRevert(ArrayLengthsMismatch.selector);
+        airlock.setModuleState(modules, states);
+    }
+
     function test_create_DeploysV4() public returns (address, address) {
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
 
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
 
@@ -139,7 +174,9 @@ contract AirlockTest is Test, Deployers {
             DEFAULT_EPOCH_LENGTH,
             DEFAULT_GAMMA,
             false,
-            DEFAULT_PD_SLUGS
+            DEFAULT_PD_SLUGS,
+            DEFAULT_FEE,
+            DEFAULT_TICK_SPACING
         );
 
         (bytes32 salt, address hook, address asset) = mineV4(
@@ -304,7 +341,7 @@ contract AirlockTest is Test, Deployers {
 
     function test_create_DeploysOnUniswapV3() public {
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0));
+            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
         bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
         bytes memory poolInitializerData = abi.encode(
             InitData({
@@ -334,5 +371,41 @@ contract AirlockTest is Test, Deployers {
                 bytes32(uint256(0xbeef))
             )
         );
+    }
+
+    function test_collectProtocolFees_RevertsWhenCallerNotOwner() public {
+        vm.startPrank(address(0xb0b));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xb0b)));
+        airlock.collectProtocolFees(address(0), address(0), 0);
+    }
+
+    function test_collectProtocolFees_CollectsFees() public {
+        TestERC20 token = new TestERC20(1 ether);
+        token.transfer(address(airlock), 1 ether);
+        airlock.setProtocolFees(address(token), 1 ether);
+        vm.expectEmit();
+        emit Collect(address(this), address(token), 1 ether);
+        airlock.collectProtocolFees(address(this), address(token), 1 ether);
+        assertEq(token.balanceOf(address(this)), 1 ether, "Owner balance is wrong");
+        assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
+    }
+
+    function test_collectIntegratorFees_CollectFees() public {
+        TestERC20 token = new TestERC20(1 ether);
+        token.transfer(address(airlock), 1 ether);
+        airlock.setIntegratorFees(address(this), address(token), 1 ether);
+        vm.expectEmit();
+        emit Collect(address(this), address(token), 1 ether);
+        airlock.collectIntegratorFees(address(this), address(token), 1 ether);
+        assertEq(token.balanceOf(address(this)), 1 ether, "Integrator balance is wrong");
+        assertEq(token.balanceOf(address(airlock)), 0, "Airlock balance is wrong");
+    }
+
+    function test_collectIntegratorFees_RevertsWhenAmountIsGreaterThanAvailableFees() public {
+        TestERC20 token = new TestERC20(1 ether);
+        token.transfer(address(airlock), 1 ether);
+        airlock.setIntegratorFees(address(this), address(token), 1 ether);
+        vm.expectRevert(stdError.arithmeticError);
+        airlock.collectIntegratorFees(address(this), address(token), 1 ether + 1);
     }
 }

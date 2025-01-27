@@ -81,8 +81,9 @@ function mineV4(
         uint256 yearlyMintCap,
         uint256 vestingDuration,
         address[] memory recipients,
-        uint256[] memory amounts
-    ) = abi.decode(params.tokenFactoryData, (string, string, uint256, uint256, address[], uint256[]));
+        uint256[] memory amounts,
+        string memory tokenURI
+    ) = abi.decode(params.tokenFactoryData, (string, string, uint256, uint256, address[], uint256[], string));
 
     bytes32 tokenInitHash = keccak256(
         abi.encodePacked(
@@ -96,7 +97,8 @@ function mineV4(
                 yearlyMintCap,
                 vestingDuration,
                 recipients,
-                amounts
+                amounts,
+                tokenURI
             )
         )
     );
