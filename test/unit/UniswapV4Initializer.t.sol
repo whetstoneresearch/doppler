@@ -119,7 +119,7 @@ contract UniswapV4InitializerTest is Test, Deployers {
         address numeraire = Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO);
 
         bytes memory tokenFactoryData =
-            abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0));
+            abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0), "");
         bytes memory governanceFactoryData = abi.encode("Best Token");
 
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);

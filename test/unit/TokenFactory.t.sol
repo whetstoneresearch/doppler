@@ -32,7 +32,7 @@ contract TokenFactoryTest is Test {
             recipient,
             owner,
             salt,
-            abi.encode(name, symbol, yearlyMintCap, vestingDuration, recipients, amounts)
+            abi.encode(name, symbol, yearlyMintCap, vestingDuration, recipients, amounts, "")
         );
     }
 
