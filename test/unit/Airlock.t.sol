@@ -139,7 +139,9 @@ contract AirlockTest is Test, Deployers {
             DEFAULT_EPOCH_LENGTH,
             DEFAULT_GAMMA,
             false,
-            DEFAULT_PD_SLUGS
+            DEFAULT_PD_SLUGS,
+            DEFAULT_FEE,
+            DEFAULT_TICK_SPACING
         );
 
         (bytes32 salt, address hook, address asset) = mineV4(
