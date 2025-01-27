@@ -75,4 +75,25 @@ contract UniswapV2MigratorTest is Test {
         assertEq(liquidity - lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
         assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
     }
+
+    function test_migrate_WrapsETH() public {
+        TestERC20 token1 = new TestERC20(1000 ether);
+        address pool = migrator.initialize(address(0), address(token1), new bytes(0));
+
+        deal(address(migrator), 100 ether);
+        token1.transfer(address(migrator), 100 ether);
+
+        uint256 nativeBalanceBefore = address(migrator).balance;
+        migrator.migrate(uint160(2 ** 96), address(0), address(token1), address(0xbeef));
+        assertEq(address(migrator).balance, 0, "Migrator ETH balance is wrong");
+        assertEq(TestERC20(WETH_MAINNET).balanceOf(address(migrator)), 0, "Migrator WETH balance is wrong");
+        assertEq(TestERC20(WETH_MAINNET).balanceOf(address(pool)), nativeBalanceBefore, "Pool WETH balance is wrong");
+    }
+
+    function _initialize() public returns (address pool, TestERC20 token0, TestERC20 token1) {
+        token0 = new TestERC20(1000 ether);
+        token1 = new TestERC20(1000 ether);
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+        pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+    }
 }

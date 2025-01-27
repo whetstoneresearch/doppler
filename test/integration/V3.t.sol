@@ -75,13 +75,22 @@ contract V3Test is Test {
         string memory name = "Best Coin";
         string memory symbol = "BEST";
         bytes memory governanceData = abi.encode(name);
-        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0));
+        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
 
         // Compute the asset address that will be created
         bytes32 salt = bytes32(0);
         bytes memory creationCode = type(DERC20).creationCode;
         bytes memory create2Args = abi.encode(
-            name, symbol, initialSupply, address(airlock), address(airlock), 0, 0, new address[](0), new uint256[](0)
+            name,
+            symbol,
+            initialSupply,
+            address(airlock),
+            address(airlock),
+            0,
+            0,
+            new address[](0),
+            new uint256[](0),
+            ""
         );
         address predictedAsset = vm.computeCreate2Address(
             salt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)

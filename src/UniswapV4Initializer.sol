@@ -98,8 +98,10 @@ contract UniswapV4Initializer is IPoolInitializer {
             revert OnlyAirlock();
         }
 
-        (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,) =
-            abi.decode(data, (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256));
+        (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,, uint24 fee, int24 tickSpacing) = abi.decode(
+            data,
+            (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+        );
 
         Doppler doppler = deployer.deploy(numTokensToSell, salt, data);
 
@@ -111,8 +113,8 @@ contract UniswapV4Initializer is IPoolInitializer {
             currency0: isToken0 ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: isToken0 ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: IHooks(doppler),
-            fee: 3000,
-            tickSpacing: 8
+            fee: fee,
+            tickSpacing: tickSpacing
         });
 
         address(asset).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);

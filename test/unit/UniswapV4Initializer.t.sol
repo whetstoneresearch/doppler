@@ -19,6 +19,14 @@ import {
     UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA
 } from "test/shared/Addresses.sol";
 import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { MAX_TICK_SPACING } from "src/Doppler.sol";
+import { DopplerTickLibrary } from "../util/DopplerTickLibrary.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -28,8 +36,7 @@ uint256 constant DEFAULT_ENDING_TIME = 2 days;
 int24 constant DEFAULT_GAMMA = 800;
 uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 
-// default to feeless case for now
-uint24 constant DEFAULT_FEE = 0;
+uint24 constant DEFAULT_FEE = 3000;
 int24 constant DEFAULT_TICK_SPACING = 8;
 uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
 
@@ -55,6 +62,8 @@ struct DopplerConfig {
 }
 
 contract UniswapV4InitializerTest is Test, Deployers {
+    using StateLibrary for IPoolManager;
+
     UniswapV4Initializer public initializer;
     DopplerDeployer public deployer;
     Airlock public airlock;
@@ -107,10 +116,10 @@ contract UniswapV4InitializerTest is Test, Deployers {
             numPDSlugs: DEFAULT_NUM_PD_SLUGS
         });
 
-        address numeraire = address(0);
+        address numeraire = Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO);
 
         bytes memory tokenFactoryData =
-            abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0));
+            abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0), "");
         bytes memory governanceFactoryData = abi.encode("Best Token");
 
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
@@ -126,7 +135,9 @@ contract UniswapV4InitializerTest is Test, Deployers {
             config.epochLength,
             config.gamma,
             false, // isToken0 will always be false using native token
-            config.numPDSlugs
+            config.numPDSlugs,
+            config.fee,
+            config.tickSpacing
         );
 
         (bytes32 salt, address hook, address token) = mineV4(
@@ -165,5 +176,97 @@ contract UniswapV4InitializerTest is Test, Deployers {
 
         assertEq(pool, hook, "Wrong pool");
         assertEq(asset, token, "Wrong asset");
+    }
+
+    function test_fuzz_v4initialize_fee_tickSpacing(uint24 fee, int24 tickSpacing) public {
+        fee = uint24(bound(fee, 0, 1_000_000)); // 0.00% to 100%
+        tickSpacing = int24(bound(tickSpacing, 1, MAX_TICK_SPACING));
+        int24 gamma = (DEFAULT_GAMMA / tickSpacing) * tickSpacing; // align gamma with tickSpacing, rounding down
+
+        DopplerConfig memory config = DopplerConfig({
+            numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
+            minimumProceeds: DEFAULT_MINIMUM_PROCEEDS,
+            maximumProceeds: DEFAULT_MAXIMUM_PROCEEDS,
+            startingTime: block.timestamp + DEFAULT_STARTING_TIME,
+            endingTime: block.timestamp + DEFAULT_ENDING_TIME,
+            gamma: gamma,
+            epochLength: DEFAULT_EPOCH_LENGTH,
+            fee: fee,
+            tickSpacing: tickSpacing,
+            numPDSlugs: DEFAULT_NUM_PD_SLUGS
+        });
+
+        address numeraire = Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO);
+        bool isToken0 = false; // numeraire native Ether is address(0) so asset is always token1
+
+        bytes memory tokenFactoryData =
+            abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0));
+        bytes memory governanceFactoryData = abi.encode("Best Token");
+
+        int24 startTick = DopplerTickLibrary.alignComputedTickWithTickSpacing(isToken0, DEFAULT_START_TICK, tickSpacing);
+        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(startTick);
+        int24 endTick = DopplerTickLibrary.alignComputedTickWithTickSpacing(isToken0, DEFAULT_END_TICK, tickSpacing);
+
+        bytes memory poolInitializerData = abi.encode(
+            sqrtPrice,
+            config.minimumProceeds,
+            config.maximumProceeds,
+            config.startingTime,
+            config.endingTime,
+            startTick,
+            endTick,
+            config.epochLength,
+            config.gamma,
+            isToken0,
+            config.numPDSlugs,
+            config.fee,
+            config.tickSpacing
+        );
+
+        (bytes32 salt, address hook, address token) = mineV4(
+            MineV4Params(
+                address(airlock),
+                address(manager),
+                config.numTokensToSell,
+                config.numTokensToSell,
+                numeraire,
+                ITokenFactory(address(tokenFactory)),
+                tokenFactoryData,
+                initializer,
+                poolInitializerData
+            )
+        );
+
+        (address asset, address pool,,,) = airlock.create(
+            CreateParams(
+                config.numTokensToSell,
+                config.numTokensToSell,
+                numeraire,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceFactoryData,
+                initializer,
+                poolInitializerData,
+                migrator,
+                "",
+                address(this),
+                salt
+            )
+        );
+
+        assertEq(pool, hook, "Wrong pool");
+        assertEq(asset, token, "Wrong asset");
+
+        // confirm the pool is initialized
+        PoolKey memory poolKey = PoolKey({
+            currency0: CurrencyLibrary.ADDRESS_ZERO,
+            currency1: Currency.wrap(address(asset)),
+            fee: fee,
+            tickSpacing: tickSpacing,
+            hooks: IHooks(hook)
+        });
+        (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolKey.toId());
+        assertEq(sqrtPriceX96, sqrtPrice, "Wrong starting price");
     }
 }
