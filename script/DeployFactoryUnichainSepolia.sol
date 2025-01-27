@@ -51,6 +51,11 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
 
         vm.startBroadcast(pk);
 
+        address account = vm.addr(pk);
+
+        manager = new PoolManager(address(this));
+        console2.log("manager: ", address(manager), " as Address");
+
         RouterParameters memory params = RouterParameters({
             permit2: permit2,
             weth9: weth,
@@ -63,10 +68,7 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
             v4PositionManager: address(0)
         });
 
-        address account = vm.addr(pk);
 
-        manager = new PoolManager(address(this));
-        console2.log("manager: ", address(manager), " as Address");
         airlock = new Airlock(address(account));
         console2.log("airlock: ", address(airlock), " as Address");
         tokenFactory = new TokenFactory(address(airlock));
