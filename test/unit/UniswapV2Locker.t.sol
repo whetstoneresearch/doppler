@@ -3,7 +3,13 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { UniswapV2Locker, PoolAlreadyInitialized, NoBalanceToLock, PoolNotInitialized } from "src/UniswapV2Locker.sol";
+import {
+    UniswapV2Locker,
+    PoolAlreadyInitialized,
+    NoBalanceToLock,
+    PoolNotInitialized,
+    SenderNotMigrator
+} from "src/UniswapV2Locker.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { Airlock } from "src/Airlock.sol";
@@ -48,6 +54,12 @@ contract UniswapV2LockerTest is Test {
         locker.receiveAndLock(address(pool));
         (,, bool initialized) = locker.getState(address(pool));
         assertEq(initialized, true);
+    }
+
+    function test_receiveAndLock_RevertsWhenSenderNotMigrator() public {
+        vm.startPrank(address(0xdead));
+        vm.expectRevert(SenderNotMigrator.selector);
+        locker.receiveAndLock(address(pool));
     }
 
     function test_receiveAndLock_RevertsWhenPoolAlreadyInitialized() public {
