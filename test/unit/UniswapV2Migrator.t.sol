@@ -21,7 +21,7 @@ contract UniswapV2MigratorTest is Test {
             address(this),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0)
+            address(0xb055)
         );
     }
 

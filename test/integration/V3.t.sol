@@ -50,7 +50,7 @@ contract V3Test is Test {
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0)
+            address(0xb055)
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));

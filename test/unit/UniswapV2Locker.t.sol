@@ -33,7 +33,7 @@ contract UniswapV2LockerTest is Test {
         tokenFoo = new TestERC20(1e25);
         tokenBar = new TestERC20(1e25);
 
-        locker = new UniswapV2Locker(airlock, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), migrator, address(0));
+        locker = new UniswapV2Locker(airlock, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), migrator, address(0xb055));
 
         pool = IUniswapV2Pair(
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).createPair(address(tokenFoo), address(tokenBar))
@@ -120,6 +120,7 @@ contract UniswapV2LockerTest is Test {
                 address(0)
             )
         );
+        vm.prank(address(0xb055));
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(timelock), 0, "Timelock balance0 is wrong");
         assertGt(tokenFoo.balanceOf(timelock), 0, "Timelock balance1 is wrong");
@@ -130,6 +131,7 @@ contract UniswapV2LockerTest is Test {
 
     function test_claimFeesAndExit_RevertsWhenPoolNotInitialized() public {
         vm.expectRevert(PoolNotInitialized.selector);
+        vm.prank(address(0xb055));
         locker.claimFeesAndExit(address(0xbeef));
     }
 }

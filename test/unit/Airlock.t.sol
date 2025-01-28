@@ -95,7 +95,7 @@ contract AirlockTest is Test, Deployers {
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0)
+            address(0xb055)
         );
 
         address[] memory modules = new address[](5);
