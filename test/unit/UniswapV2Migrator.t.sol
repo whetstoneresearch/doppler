@@ -18,7 +18,10 @@ contract UniswapV2MigratorTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         migrator = new UniswapV2Migrator(
-            address(this), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET)
+            address(this),
+            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
+            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
+            address(0)
         );
     }
 

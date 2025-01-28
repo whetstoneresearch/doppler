@@ -33,7 +33,7 @@ contract UniswapV2LockerTest is Test {
         tokenFoo = new TestERC20(1e25);
         tokenBar = new TestERC20(1e25);
 
-        locker = new UniswapV2Locker(airlock, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), migrator);
+        locker = new UniswapV2Locker(airlock, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), migrator, address(0));
 
         pool = IUniswapV2Pair(
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).createPair(address(tokenFoo), address(tokenBar))
