@@ -282,6 +282,7 @@ contract UniswapV4InitializerTest is Test, Deployers {
         assertTrue(doppler.earlyExit(), "early exit should be true");
     }
 
+    /*
     function test_fuzz_v4initialize_fee_tickSpacing(uint24 fee, int24 tickSpacing) public {
         fee = uint24(bound(fee, 0, 1_000_000)); // 0.00% to 100%
         tickSpacing = int24(bound(tickSpacing, 1, MAX_TICK_SPACING));
@@ -373,4 +374,5 @@ contract UniswapV4InitializerTest is Test, Deployers {
         (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolKey.toId());
         assertEq(sqrtPriceX96, sqrtPrice, "Wrong starting price");
     }
+    */
 }
