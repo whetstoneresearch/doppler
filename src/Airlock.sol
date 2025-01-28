@@ -220,8 +220,11 @@ contract Airlock is Ownable {
         uint256 protocolLpFees0 = fees0 * 5 / 100;
         uint256 protocolLpFees1 = fees1 * 5 / 100;
 
-        uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
-        uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
+        // uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
+        // uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
+        // TODO: FIX PROTOCOL FEE CALCULATION
+        uint256 protocolProceedsFees0 = 0;
+        uint256 protocolProceedsFees1 = 0;
 
         uint256 protocolFees0 = protocolLpFees0 > protocolProceedsFees0 ? protocolLpFees0 : protocolProceedsFees0;
         uint256 protocolFees1 = protocolLpFees1 > protocolProceedsFees1 ? protocolLpFees1 : protocolProceedsFees1;
@@ -243,7 +246,12 @@ contract Airlock is Ownable {
             total1 += assetData.totalSupply - assetData.numTokensToSell;
         }
 
-        ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        if (token0 == address(0)) {
+            SafeTransferLib.safeTransferETH(address(assetData.liquidityMigrator), total0);
+        } else {
+            ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        }
+
         ERC20(token1).safeTransfer(address(assetData.liquidityMigrator), total1);
 
         assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
@@ -277,7 +285,13 @@ contract Airlock is Ownable {
      */
     function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
         protocolFees[token] -= amount;
-        ERC20(token).safeTransfer(to, amount);
+
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            ERC20(token).safeTransfer(to, amount);
+        }
+
         emit Collect(to, token, amount);
     }
 
@@ -289,7 +303,13 @@ contract Airlock is Ownable {
      */
     function collectIntegratorFees(address to, address token, uint256 amount) external {
         integratorFees[msg.sender][token] -= amount;
-        ERC20(token).safeTransfer(to, amount);
+
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            ERC20(token).safeTransfer(to, amount);
+        }
+
         emit Collect(to, token, amount);
     }
 }

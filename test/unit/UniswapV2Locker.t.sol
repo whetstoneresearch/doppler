@@ -19,7 +19,7 @@ import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 
 contract UniswapV2LockerTest is Test {
     UniswapV2Locker public locker;
-    UniswapV2Migrator public migrator = UniswapV2Migrator(address(0x88888));
+    UniswapV2Migrator public migrator = UniswapV2Migrator(payable(address(0x88888)));
     IUniswapV2Pair public pool;
 
     Airlock public airlock = Airlock(payable(address(0xdeadbeef)));

@@ -22,6 +22,20 @@ contract UniswapV2MigratorTest is Test {
         );
     }
 
+    function test_receive_ReceivesETHFromAirlock() public {
+        uint256 preBalance = address(migrator).balance;
+        deal(address(this), 1 ether);
+        payable(address(migrator)).transfer(1 ether);
+        assertEq(address(migrator).balance, preBalance + 1 ether, "Wrong balance");
+    }
+
+    function test_receive_RevertsWhenETHSenderNotAirlock() public {
+        deal(address(0xbeef), 1 ether);
+        vm.startPrank(address(0xbeef));
+        vm.expectRevert(SenderNotAirlock.selector);
+        payable(address(migrator)).transfer(1 ether);
+    }
+
     function test_initialize_CreatesPair() public {
         address token0 = address(0x1111);
         address token1 = address(0x2222);
