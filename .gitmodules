@@ -16,3 +16,9 @@
 [submodule "lib/v3-core"]
 	path = lib/v3-core
 	url = https://github.com/Uniswap/v3-core
+[submodule "lib/morpho-blue"]
+	path = lib/morpho-blue
+	url = https://github.com/morpho-org/morpho-blue
+[submodule "lib/metamorpho"]
+	path = lib/metamorpho
+	url = https://github.com/morpho-org/metamorpho
