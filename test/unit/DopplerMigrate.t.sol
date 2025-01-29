@@ -3,15 +3,13 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
 import { Doppler } from "src/Doppler.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
-import { DopplerFixtures, DEFAULT_STARTING_TIME, DEFAULT_START_TICK } from "test/shared/DopplerFixtures.sol";
+import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
+import { DopplerFixtures, DEFAULT_STARTING_TIME } from "test/shared/DopplerFixtures.sol";
 
 /// @dev Tests involving migration of liquidity FROM Doppler to ILiquidityMigrator
 contract DopplerMigrateTest is DopplerFixtures {
@@ -22,8 +20,8 @@ contract DopplerMigrateTest is DopplerFixtures {
         swapRouter = new PoolSwapTest(manager);
     }
 
-    /// @dev Integrators and Protocol can collect fees in native Ether (numeraire)
-    function test_v4_fee_collection_native() public {
+    /// @dev native Ether migrating from Doppler to v2 gets wrapped as WETH
+    function test_dopplerv4_migrate_v2_weth() public {
         address numeraireAddress = Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO);
         (address asset, PoolKey memory poolKey) = _airlockCreateNative();
         IERC20(asset).approve(address(swapRouter), type(uint256).max);
@@ -44,32 +42,21 @@ contract DopplerMigrateTest is DopplerFixtures {
         Doppler doppler = Doppler(payable(address(poolKey.hooks)));
         _mockEarlyExit(doppler);
 
+        (address token0, address token1) =
+            asset < numeraireAddress ? (asset, WETH_UNICHAIN_SEPOLIA) : (WETH_UNICHAIN_SEPOLIA, asset);
+        address v2Pool = uniswapV2Factory.getPair(token0, token1);
+        uint256 v2PoolWETHBalanceBefore = IERC20(WETH_UNICHAIN_SEPOLIA).balanceOf(address(v2Pool));
+
         airlock.migrate(asset);
 
-        // protocol collects asset fees
-        address recipient = makeAddr("protocolFeeRecipient");
-        uint256 protocolFeesAsset = airlock.protocolFees(asset);
-        airlock.collectProtocolFees(recipient, asset, protocolFeesAsset);
-        assertGt(protocolFeesAsset, 0); // protocolFeesAsset > 0
-        assertEq(IERC20(asset).balanceOf(recipient), protocolFeesAsset);
-
-        // protocol collects numeraire fees
-        uint256 protocolFeesNumeraire = airlock.protocolFees(numeraireAddress);
-        airlock.collectProtocolFees(recipient, numeraireAddress, protocolFeesNumeraire);
-        assertGt(protocolFeesNumeraire, 0); // protocolFeesNumeraire > 0
-        assertEq(recipient.balance, protocolFeesNumeraire);
-
-        // integrator collects asset fees
-        address integratorRecipient = makeAddr("integratorFeeRecipient");
-        uint256 integratorFeesAsset = airlock.integratorFees(address(this), asset);
-        airlock.collectIntegratorFees(integratorRecipient, asset, integratorFeesAsset);
-        assertGt(integratorFeesAsset, 0); // integratorFeesAsset > 0
-        assertEq(IERC20(asset).balanceOf(integratorRecipient), integratorFeesAsset);
-
-        // integrator collects numeraire fees
-        uint256 integratorFeesNumeraire = airlock.integratorFees(address(this), numeraireAddress);
-        airlock.collectIntegratorFees(integratorRecipient, numeraireAddress, integratorFeesNumeraire);
-        assertGt(integratorFeesNumeraire, 0); // integratorFeesNumeraire > 0
-        assertEq(integratorRecipient.balance, integratorFeesNumeraire);
+        // native Ether from Doppler was converted to WETH
+        assertEq(address(migrator).balance, 0, "Migrator ETH balance is wrong");
+        assertEq(IERC20(WETH_UNICHAIN_SEPOLIA).balanceOf(address(migrator)), 0, "Migrator WETH balance is wrong");
+        // TODO: figure out how to assert to exact value
+        assertGt(
+            IERC20(WETH_UNICHAIN_SEPOLIA).balanceOf(address(v2Pool)),
+            v2PoolWETHBalanceBefore,
+            "Pool WETH balance is wrong"
+        );
     }
 }
