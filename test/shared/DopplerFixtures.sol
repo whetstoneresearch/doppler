@@ -117,7 +117,7 @@ contract DopplerFixtures is Deployers {
         airlock.setModuleState(modules, states);
     }
 
-    function _defaultDopplerConfig() internal pure returns (DopplerConfig memory) {
+    function _defaultDopplerConfig() internal view returns (DopplerConfig memory) {
         return DopplerConfig({
             numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
             minimumProceeds: DEFAULT_MINIMUM_PROCEEDS,
@@ -212,6 +212,8 @@ contract DopplerFixtures is Deployers {
             tickSpacing: _tickSpacing,
             hooks: IHooks(hook)
         });
+        assertEq(_asset, token, "Wrong asset");
+        assertEq(hook, hookContract, "Wrong hook");
     }
 
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
