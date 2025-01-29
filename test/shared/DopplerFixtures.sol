@@ -58,7 +58,6 @@ struct DopplerConfig {
     uint256 maximumProceeds;
     uint256 startingTime;
     uint256 endingTime;
-    int24 gamma;
     uint256 epochLength;
     uint256 numPDSlugs;
 }
@@ -124,7 +123,6 @@ contract DopplerFixtures is Deployers {
             maximumProceeds: DEFAULT_MAXIMUM_PROCEEDS,
             startingTime: block.timestamp + DEFAULT_STARTING_TIME,
             endingTime: block.timestamp + DEFAULT_ENDING_TIME,
-            gamma: DEFAULT_GAMMA,
             epochLength: DEFAULT_EPOCH_LENGTH,
             numPDSlugs: DEFAULT_NUM_PD_SLUGS
         });
@@ -142,6 +140,15 @@ contract DopplerFixtures is Deployers {
             _airlockCreate(_numeraire, _isAssetToken0, address(this), DEFAULT_FEE, DEFAULT_TICK_SPACING, migrator, "");
     }
 
+    function _airlockCreate(
+        address _numeraire,
+        bool _isAssetToken0,
+        uint24 fee,
+        int24 tickSpacing
+    ) internal returns (address, PoolKey memory) {
+        return _airlockCreate(_numeraire, _isAssetToken0, address(this), fee, tickSpacing, migrator, "");
+    }
+
     /// @dev Create an auction with custom parameters
     function _airlockCreate(
         address _numeraire,
@@ -154,19 +161,25 @@ contract DopplerFixtures is Deployers {
     ) internal returns (address _asset, PoolKey memory _poolKey) {
         DopplerConfig memory config = _defaultDopplerConfig();
 
+        int24 startTick =
+            DopplerTickLibrary.alignComputedTickWithTickSpacing(_isAssetToken0, DEFAULT_START_TICK, _tickSpacing);
+        int24 endTick =
+            DopplerTickLibrary.alignComputedTickWithTickSpacing(_isAssetToken0, DEFAULT_END_TICK, _tickSpacing);
+        int24 gamma = (DEFAULT_GAMMA / _tickSpacing) * _tickSpacing; // align gamma with tickSpacing, rounding down
+
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
         bytes memory governanceFactoryData = _defaultGovernanceFactoryData();
 
         bytes memory poolInitializerData = abi.encode(
-            TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK),
+            TickMath.getSqrtPriceAtTick(startTick),
             config.minimumProceeds,
             config.maximumProceeds,
             config.startingTime,
             config.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
+            startTick,
+            endTick,
             config.epochLength,
-            config.gamma,
+            gamma,
             _isAssetToken0,
             config.numPDSlugs,
             _fee,
