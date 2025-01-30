@@ -1086,14 +1086,14 @@ contract Doppler is BaseHook {
         if (currency0Delta < 0) {
             poolManager.sync(key.currency0);
             key.currency0.transfer(address(poolManager), uint256(-currency0Delta));
+            poolManager.settle();
         }
 
         if (currency1Delta < 0) {
             poolManager.sync(key.currency1);
             key.currency1.transfer(address(poolManager), uint256(-currency1Delta));
+            poolManager.settle();
         }
-
-        poolManager.settle();
     }
 
     /// @dev Data passed through the `unlock` call to the PoolManager to the `_unlockCallback`
@@ -1152,8 +1152,6 @@ contract Doppler is BaseHook {
             if (currency1Delta > 0) {
                 poolManager.take(key.currency1, sender, uint256(currency1Delta));
             }
-
-            poolManager.settle();
 
             return abi.encode(totalCallerDelta, totalFeesAccrued);
         }
