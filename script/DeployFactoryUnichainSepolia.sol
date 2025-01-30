@@ -32,13 +32,13 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
     DopplerDeployer dopplerDeployer;
     UniversalRouter universalRouter;
     BasicRouter router;
+    StateView stateView;
 
     function setUp() public { }
 
     address constant uniRouterV2 = 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640;
     address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
-    address constant stateView = 0xdE04C804dc75E90D8a64e5589092a1D6692EFA45;
     address constant uniRouter = 0x9e5A52f57b3038F1B8EeE45F28b3C1967e22799C;
     address constant weth = 0x4200000000000000000000000000000000000006;
     address constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -87,6 +87,8 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
         console2.log("stateView: ", address(stateView), " as Address");
         universalRouter = new UniversalRouter(params);
         router = new BasicRouter(address(universalRouter));
+        stateView = new StateView(IPoolManager(manager));
+        console2.log("stateView: ", address(stateView), " as Address");
         console2.log("universalRouter: ", address(universalRouter), " as Address");
         console2.log("basicRouter: ", address(router), " as Address");
 
