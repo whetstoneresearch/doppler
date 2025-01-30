@@ -167,7 +167,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         mintPositions(asset, numeraire, fee, pool, lbpPositions, numPositions);
 
-        emit Create(pool);
+        emit Create(pool, asset, numeraire);
     }
 
     /// @inheritdoc IPoolInitializer

@@ -49,8 +49,10 @@ interface IPoolInitializer {
     /**
      * @notice Emitted when a pool or hook is created
      * @param poolOrHook Address of the pool or hook
+     * @param asset Address of the asset
+     * @param numeraire Address of the numeraire
      */
-    event Create(address poolOrHook);
+    event Create(address indexed poolOrHook, address indexed asset, address indexed numeraire);
 }
 
 interface IHook {
