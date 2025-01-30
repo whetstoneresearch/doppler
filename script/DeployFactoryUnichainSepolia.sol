@@ -29,7 +29,6 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
     UniswapV2Migrator uniswapV2LiquidityMigrator;
     DopplerDeployer dopplerDeployer;
     UniversalRouter universalRouter;
-    BasicRouter router;
     StateView stateView;
 
     function setUp() public { }
@@ -77,30 +76,15 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
         uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(v3CoreFactory));
         console2.log("v3Initializer: ", address(uniswapV3Initializer), " as Address");
         governanceFactory = new GovernanceFactory(address(airlock));
-<<<<<<< HEAD
-        console2.log("GovernanceFactory: ", address(governanceFactory));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2), address(0xb055)
-        );
-        console2.log("Migrator: ", address(uniswapV2LiquidityMigrator));
-        console2.log("StateView: ", address(stateView));
-        console2.log("Quoter: ", address(quoter));
-        router = new CustomRouter2(PoolSwapTest(uniRouter), V4Quoter(quoter));
-        console2.log("CustomRouter: ", address(router));
-        console2.log(airlock.owner());
-=======
         console2.log("governanceFactory: ", address(governanceFactory), " as Address");
-        uniswapV2LiquidityMigrator =
-            new UniswapV2Migrator(address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+            address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2), address(account)
+        );
         console2.log("migrator: ", address(uniswapV2LiquidityMigrator), " as Address");
-        console2.log("stateView: ", address(stateView), " as Address");
         universalRouter = new UniversalRouter(params);
-        router = new BasicRouter(address(universalRouter));
+        console2.log("universalRouter: ", address(universalRouter), " as Address");
         stateView = new StateView(IPoolManager(manager));
         console2.log("stateView: ", address(stateView), " as Address");
-        console2.log("universalRouter: ", address(universalRouter), " as Address");
-        console2.log("basicRouter: ", address(router), " as Address");
->>>>>>> 9de48b2 (fix: initializer create event for indexing, add universal-router dep, updated unichain deploy script)
 
         address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
