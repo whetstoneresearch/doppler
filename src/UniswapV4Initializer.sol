@@ -121,6 +121,8 @@ contract UniswapV4Initializer is IPoolInitializer {
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
+        emit Create(address(doppler));
+
         return address(doppler);
     }
 

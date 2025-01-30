@@ -45,6 +45,12 @@ interface IPoolInitializer {
             uint128 fees1,
             uint128 balance1
         );
+
+    /**
+     * @notice Emitted when a pool or hook is created
+     * @param poolOrHook Address of the pool or hook
+     */
+    event Create(address poolOrHook);
 }
 
 interface IHook {
