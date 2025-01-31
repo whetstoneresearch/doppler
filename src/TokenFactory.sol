@@ -41,12 +41,22 @@ contract TokenFactory is ITokenFactory {
             uint256 yearlyMintCap,
             uint256 vestingDuration,
             address[] memory recipients,
-            uint256[] memory amounts
-        ) = abi.decode(data, (string, string, uint256, uint256, address[], uint256[]));
+            uint256[] memory amounts,
+            string memory tokenURI
+        ) = abi.decode(data, (string, string, uint256, uint256, address[], uint256[], string));
 
         return address(
             new DERC20{ salt: salt }(
-                name, symbol, initialSupply, recipient, owner, yearlyMintCap, vestingDuration, recipients, amounts
+                name,
+                symbol,
+                initialSupply,
+                recipient,
+                owner,
+                yearlyMintCap,
+                vestingDuration,
+                recipients,
+                amounts,
+                tokenURI
             )
         );
     }
