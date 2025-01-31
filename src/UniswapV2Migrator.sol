@@ -121,7 +121,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         uint256 liquidityToLock = liquidity / 20;
         IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
         IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
-        locker.receiveAndLock(pool);
+        locker.receiveAndLock(pool, recipient);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
