@@ -30,9 +30,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     address public immutable airlock;
     UniswapV2Locker public locker;
 
-    mapping(address token0 => mapping(address token1 => address pool)) public getPool;
-    mapping(address pool => address) public getAsset;
-
     receive() external payable {
         require(msg.sender == airlock, SenderNotAirlock());
     }
@@ -60,10 +57,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         if (pool == address(0)) {
             pool = factory.createPair(token0, token1);
         }
-
-        // todo: can we remove this check for the pool?
-        getPool[token0][token1] = pool;
-        getAsset[pool] = asset;
 
         return pool;
     }
