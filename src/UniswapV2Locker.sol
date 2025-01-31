@@ -8,6 +8,7 @@ import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /// @notice Thrown when the sender is not the migrator contract
 error SenderNotMigrator();
@@ -36,16 +37,13 @@ struct PoolState {
     bool initialized;
 }
 
-contract UniswapV2Locker is Ownable {
+contract UniswapV2Locker is Ownable, ImmutableAirlock {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
 
     /// @notice Address of the Uniswap V2 factory
     IUniswapV2Factory public immutable factory;
-
-    /// @notice Address of the Airlock contract
-    Airlock public immutable airlock;
 
     /// @notice Address of the Uniswap V2 migrator
     UniswapV2Migrator public immutable migrator;
@@ -57,12 +55,11 @@ contract UniswapV2Locker is Ownable {
      * @param factory_ Address of the Uniswap V2 factory
      */
     constructor(
-        Airlock airlock_,
+        address airlock_,
         IUniswapV2Factory factory_,
         UniswapV2Migrator migrator_,
         address owner_
-    ) Ownable(owner_) {
-        airlock = airlock_;
+    ) Ownable(owner_) ImmutableAirlock(airlock_) {
         factory = factory_;
         migrator = migrator_;
     }

@@ -10,6 +10,7 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { MAX_TICK_SPACING } from "src/Doppler.sol";
 import { DopplerTickLibrary } from "../util/DopplerTickLibrary.sol";
 import { DopplerFixtures, DEFAULT_START_TICK } from "test/shared/DopplerFixtures.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 
 contract UniswapV4InitializerTest is DopplerFixtures {
     using StateLibrary for IPoolManager;
@@ -43,5 +44,29 @@ contract UniswapV4InitializerTest is DopplerFixtures {
         int24 startTick =
             DopplerTickLibrary.alignComputedTickWithTickSpacing(isAssetToken0, DEFAULT_START_TICK, tickSpacing);
         assertEq(sqrtPriceX96, TickMath.getSqrtPriceAtTick(startTick), "Wrong starting price");
+    }
+
+    // access tests
+    function test_fuzz_initialize_revertSenderNotAirlock(
+        address caller,
+        address asset,
+        address numeraire,
+        uint256 numTokensToSell,
+        bytes32 salt,
+        bytes calldata data
+    ) public {
+        vm.assume(caller != address(airlock));
+
+        vm.expectRevert(SenderNotAirlock.selector);
+        vm.prank(caller);
+        initializer.initialize(asset, numeraire, numTokensToSell, salt, data);
+    }
+
+    function test_fuzz_exitLiquidity_revertSenderNotAirlock(address caller, address hook) public {
+        vm.assume(caller != address(airlock));
+
+        vm.expectRevert(SenderNotAirlock.selector);
+        vm.prank(caller);
+        initializer.exitLiquidity(hook);
     }
 }

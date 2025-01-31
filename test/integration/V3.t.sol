@@ -9,13 +9,13 @@ import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
-    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
     CallbackData,
     InitData
 } from "src/UniswapV3Initializer.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { DERC20 } from "src/DERC20.sol";

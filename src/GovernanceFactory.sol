@@ -4,25 +4,19 @@ pragma solidity ^0.8.24;
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { Governance, IVotes } from "src/Governance.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
-
-/// @notice Thrown when the caller is not the Airlock contract
-error SenderNotAirlock();
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /// @custom:security-contact security@whetstone.cc
-contract GovernanceFactory is IGovernanceFactory {
+contract GovernanceFactory is IGovernanceFactory, ImmutableAirlock {
     TimelockFactory public immutable timelockFactory;
-    address public immutable airlock;
 
     constructor(
         address airlock_
-    ) {
-        airlock = airlock_;
+    ) ImmutableAirlock(airlock_) {
         timelockFactory = new TimelockFactory();
     }
 
-    function create(address asset, bytes calldata data) external returns (address, address) {
-        require(msg.sender == airlock, SenderNotAirlock());
-
+    function create(address asset, bytes calldata data) external onlyAirlock returns (address, address) {
         (string memory name) = abi.decode(data, (string));
 
         TimelockController timelockController = timelockFactory.create();

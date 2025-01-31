@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { TokenFactory, SenderNotAirlock } from "src/TokenFactory.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 
 contract TokenFactoryTest is Test {
     TokenFactory public factory;
@@ -12,7 +13,7 @@ contract TokenFactoryTest is Test {
     }
 
     function test_constructor() public view {
-        assertEq(factory.airlock(), address(this));
+        assertEq(address(factory.airlock()), address(this));
     }
 
     function test_create() public {
