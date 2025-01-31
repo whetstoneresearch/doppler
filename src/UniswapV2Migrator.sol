@@ -44,7 +44,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         airlock = airlock_;
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
-        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this, owner);
+        locker = new UniswapV2Locker(factory, this, owner);
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
