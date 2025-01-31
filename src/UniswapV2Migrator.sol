@@ -30,9 +30,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
     address public immutable airlock;
     UniswapV2Locker public locker;
 
-    mapping(address token0 => mapping(address token1 => address pool)) public getPool;
-    mapping(address pool => address) public getAsset;
-
     receive() external payable {
         require(msg.sender == airlock, SenderNotAirlock());
     }
@@ -44,7 +41,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         airlock = airlock_;
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
-        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this, owner);
+        locker = new UniswapV2Locker(factory, this, owner);
     }
 
     function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
@@ -60,10 +57,6 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         if (pool == address(0)) {
             pool = factory.createPair(token0, token1);
         }
-
-        // todo: can we remove this check for the pool?
-        getPool[token0][token1] = pool;
-        getAsset[pool] = asset;
 
         return pool;
     }
@@ -121,7 +114,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         uint256 liquidityToLock = liquidity / 20;
         IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
         IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
-        locker.receiveAndLock(pool);
+        locker.receiveAndLock(pool, recipient);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
