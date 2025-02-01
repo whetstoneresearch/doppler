@@ -7,12 +7,16 @@ import { Doppler } from "src/Doppler.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import { DopplerFixtures, DEFAULT_STARTING_TIME } from "test/shared/DopplerFixtures.sol";
 
 /// @dev Tests involving migration of liquidity FROM Doppler to ILiquidityMigrator
 contract DopplerMigrateTest is DopplerFixtures {
+    using StateLibrary for IPoolManager;
+
     function setUp() public {
         vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);
         _deployAirlockAndModules();
@@ -61,11 +65,14 @@ contract DopplerMigrateTest is DopplerFixtures {
     }
 
     function test_dopplerv4_migrate_all_tokens() public {
-        (address asset, PoolKey memory poolKey) = _airlockCreate();
+        Currency currencyNumeraire = CurrencyLibrary.ADDRESS_ZERO;
+        (address asset, PoolKey memory poolKey) = _airlockCreateNative();
+        Currency currencyAsset = Currency.wrap(asset);
         IERC20(asset).approve(address(swapRouter), type(uint256).max);
+        Doppler doppler = Doppler(payable(address(poolKey.hooks)));
 
         // warp to starting time
-        vm.warp(block.timestamp + DEFAULT_STARTING_TIME);
+        vm.warp(vm.getBlockTimestamp() + DEFAULT_STARTING_TIME);
 
         // swap to generate fees in native ether
         Deployers.swap(poolKey, true, -0.1e18, ZERO_BYTES);
@@ -73,15 +80,30 @@ contract DopplerMigrateTest is DopplerFixtures {
         Deployers.swap(poolKey, true, -0.1e18, ZERO_BYTES);
         Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
 
-        // mock out an early exit to test migration
-        Doppler doppler = Doppler(payable(address(poolKey.hooks)));
-        _mockEarlyExit(doppler);
+        // trigger a rebalance by skipping time
+        skip(doppler.epochLength());
 
-        uint256 assetBalanceBefore = IERC20(asset).balanceOf(address(migrator));
+        Deployers.swap(poolKey, true, -0.2e18, ZERO_BYTES);
+        Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+
+        assertGt(manager.getLiquidity(poolKey.toId()), 0); // pool has liquidity
+        assertEq(currencyAsset.balanceOf(address(airlock)), 0, "airlock holds asset before migration");
+        assertEq(currencyNumeraire.balanceOf(address(airlock)), 0, "airlock holds numeraire before migration");
+
+        // mock out an early exit to test migration
+        _mockEarlyExit(doppler);
         airlock.migrate(asset);
 
         // all tokens from Doppler were migrated
-        assertEq(IERC20(asset).balanceOf(address(migrator), "Migrator token balance is wrong"));
-        assertEq(IERC20(asset).balanceOf(address(poolKey.hooks), 0, "Pool token balance is wrong"));
+        assertEq(manager.getLiquidity(poolKey.toId()), 0); // all liquidity removed from the hooked pool
+        assertEq(currencyAsset.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds asset");
+        assertEq(currencyNumeraire.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds numeraire");
+
+        _collectAllProtocolFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));
+        _collectAllIntegratorFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));
+
+        // airlock holds no balance after fees are collected
+        assertEq(currencyAsset.balanceOf(address(airlock)), 0, "airlock holds asset after migration");
+        assertEq(currencyNumeraire.balanceOf(address(airlock)), 0, "airlock holds numeraire after migration");
     }
 }

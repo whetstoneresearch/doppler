@@ -147,7 +147,7 @@ contract Doppler is BaseHook {
     uint256 internal endingTime; // sale end time
     int24 internal startingTick; // dutch auction starting tick
     int24 internal endingTick; // dutch auction ending tick
-    uint256 internal epochLength; // length of each epoch (seconds)
+    uint256 public epochLength; // length of each epoch (seconds)
     int24 internal gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
     bool internal isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 internal numPDSlugs; // number of price discovery slugs

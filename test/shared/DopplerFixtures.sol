@@ -6,7 +6,7 @@ import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
+import { Airlock, ModuleState, CreateParams, AssetData } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
@@ -103,18 +103,21 @@ contract DopplerFixtures is Deployers {
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
+        mockMigrator = new MockLiquidityMigrator();
 
-        address[] memory modules = new address[](4);
+        address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
         modules[1] = address(governanceFactory);
         modules[2] = address(initializer);
         modules[3] = address(migrator);
+        modules[4] = address(mockMigrator);
 
-        ModuleState[] memory states = new ModuleState[](4);
+        ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.GovernanceFactory;
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
+        states[4] = ModuleState.LiquidityMigrator;
         airlock.setModuleState(modules, states);
     }
 
@@ -237,6 +240,39 @@ contract DopplerFixtures is Deployers {
 
     function _defaultGovernanceFactoryData() internal pure returns (bytes memory) {
         return abi.encode("Best Token");
+    }
+
+    function _collectAllProtocolFees(
+        address numeraire,
+        address asset,
+        address recipient
+    ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
+        numeraireAmount = airlock.protocolFees(numeraire);
+        assetAmount = airlock.protocolFees(asset);
+        vm.startPrank(airlock.owner());
+        airlock.collectProtocolFees(recipient, numeraire, numeraireAmount);
+        airlock.collectProtocolFees(recipient, asset, assetAmount);
+        vm.stopPrank();
+
+        assertEq(airlock.protocolFees(numeraire), 0);
+        assertEq(airlock.protocolFees(asset), 0);
+    }
+
+    function _collectAllIntegratorFees(
+        address numeraire,
+        address asset,
+        address recipient
+    ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
+        (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
+        numeraireAmount = airlock.integratorFees(integrator, numeraire);
+        assetAmount = airlock.integratorFees(integrator, asset);
+        vm.startPrank(integrator);
+        airlock.collectIntegratorFees(recipient, numeraire, numeraireAmount);
+        airlock.collectIntegratorFees(recipient, asset, assetAmount);
+        vm.stopPrank();
+
+        assertEq(airlock.integratorFees(integrator, numeraire), 0);
+        assertEq(airlock.integratorFees(integrator, asset), 0);
     }
 
     function _mockEarlyExit(
