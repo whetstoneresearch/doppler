@@ -46,7 +46,6 @@ struct InitData {
     int24 tickUpper;
     uint16 numPositions;
     uint256 maxShareToBeSold;
-    uint256 maxShareToBond;
 }
 
 struct CallbackData {
@@ -64,7 +63,7 @@ struct PoolState {
     bool isInitialized;
     bool isExited;
     uint256 maxShareToBeSold;
-    uint256 maxShareToBond;
+    uint256 totalTokensOnBondingCurve;
 }
 
 struct LpPosition {
@@ -99,28 +98,15 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
     function initialize(
         address asset,
         address numeraire,
-        uint256,
+        uint256 totalTokensOnBondingCurve,
         bytes32,
         bytes calldata data
     ) external returns (address pool) {
         require(msg.sender == airlock, SenderNotAirlock());
 
         InitData memory initData = abi.decode(data, (InitData));
-        (
-            uint24 fee,
-            int24 tickLower,
-            int24 tickUpper,
-            uint16 numPositions,
-            uint256 maxShareToBeSold,
-            uint256 maxShareToBond
-        ) = (
-            initData.fee,
-            initData.tickLower,
-            initData.tickUpper,
-            initData.numPositions,
-            initData.maxShareToBeSold,
-            initData.maxShareToBond
-        );
+        (uint24 fee, int24 tickLower, int24 tickUpper, uint16 numPositions, uint256 maxShareToBeSold) =
+            (initData.fee, initData.tickLower, initData.tickUpper, initData.numPositions, initData.maxShareToBeSold);
 
         require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
 
@@ -132,8 +118,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
-        uint256 numTokensToSell = FullMath.mulDiv(ERC20(asset).totalSupply(), maxShareToBeSold, WAD);
-        uint256 numTokensToBond = FullMath.mulDiv(ERC20(asset).totalSupply(), maxShareToBond, WAD);
+        uint256 numTokensToSell = FullMath.mulDiv(totalTokensOnBondingCurve, maxShareToBeSold, WAD);
+        uint256 numTokensToBond = totalTokensOnBondingCurve - numTokensToSell;
 
         pool = factory.getPool(token0, token1, fee);
         require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
@@ -156,7 +142,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             isExited: false,
             numPositions: numPositions,
             maxShareToBeSold: maxShareToBeSold,
-            maxShareToBond: maxShareToBond
+            totalTokensOnBondingCurve: totalTokensOnBondingCurve
         });
 
         (LpPosition[] memory lbpPositions, uint256 reserves) =
@@ -202,8 +188,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         uint16 numPositions = getState[pool].numPositions;
 
-        uint256 numTokensToSell = FullMath.mulDiv(ERC20(asset).totalSupply(), getState[pool].maxShareToBeSold, WAD);
-        uint256 numTokensToBond = FullMath.mulDiv(ERC20(asset).totalSupply(), getState[pool].maxShareToBond, WAD);
+        uint256 numTokensToSell =
+            FullMath.mulDiv(getState[pool].totalTokensOnBondingCurve, getState[pool].maxShareToBeSold, WAD);
+        uint256 numTokensToBond = getState[pool].totalTokensOnBondingCurve - numTokensToSell;
 
         (LpPosition[] memory lbpPositions, uint256 reserves) = calculateLogNormalDistribution(
             getState[pool].tickLower, getState[pool].tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell
@@ -245,6 +232,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             if (tick < 0) {
                 // If the tick is negative, we round up (negatively) the negative result to round down
                 return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+                // tick = -10004
+                // tickSpacing = 200
+                // -10004 - 200 + 1 = -10203 / 200 = -51 * 200 = -10200
             } else {
                 // Else if positive, we simply round down
                 return tick / tickSpacing * tickSpacing;
