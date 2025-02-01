@@ -31,6 +31,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { MAX_TICK_SPACING } from "src/Doppler.sol";
 import { DopplerTickLibrary } from "../util/DopplerTickLibrary.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
+import { MockLiquidityMigrator } from "test/shared/mock/MockLiquidityMigrator.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -77,6 +78,7 @@ contract DopplerFixtures is Deployers {
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     UniswapV2Migrator public migrator;
+    MockLiquidityMigrator public mockMigrator;
 
     IUniswapV2Factory public uniswapV2Factory = IUniswapV2Factory(UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA);
     IUniswapV2Router02 public uniswapV2Router = IUniswapV2Router02(UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA);

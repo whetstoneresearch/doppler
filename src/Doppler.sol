@@ -1119,8 +1119,8 @@ contract Doppler is BaseHook {
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
         if (isMigration) {
-            BalanceDelta totalCallerDelta;
-            BalanceDelta totalFeesAccrued;
+            BalanceDelta slugsCallerDelta;
+            BalanceDelta slugsFeesAccrued;
 
             for (uint256 i = 1; i < NUM_DEFAULT_SLUGS + numPDSlugs; ++i) {
                 Position memory position = positions[bytes32(i)];
@@ -1137,8 +1137,8 @@ contract Doppler is BaseHook {
                         ""
                     );
 
-                    totalCallerDelta = add(totalCallerDelta, callerDelta);
-                    totalFeesAccrued = add(totalFeesAccrued, feesAccrued);
+                    slugsCallerDelta = slugsCallerDelta + callerDelta;
+                    slugsFeesAccrued = slugsFeesAccrued + feesAccrued;
                 }
             }
 
@@ -1153,7 +1153,7 @@ contract Doppler is BaseHook {
                 poolManager.take(key.currency1, sender, uint256(currency1Delta));
             }
 
-            return abi.encode(totalCallerDelta, totalFeesAccrued);
+            return abi.encode(slugsCallerDelta, slugsFeesAccrued);
         }
 
         state.lastEpoch = 1;
@@ -1281,11 +1281,12 @@ contract Doppler is BaseHook {
             revert CannotMigrate();
         }
 
+        // close out the remaining slugs
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true }))
         );
-
-        (BalanceDelta totalCallerDelta, BalanceDelta totalFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
+        (BalanceDelta slugCallerDelta, BalanceDelta slugsFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
+        BalanceDelta totalFeesAccrued = state.feesAccrued + slugsFeesAccrued;
 
         // In case some dust tokens are still left in the contract
         poolKey.currency0.transfer(recipient, poolKey.currency0.balanceOfSelf());
@@ -1297,8 +1298,8 @@ contract Doppler is BaseHook {
 
         // No need to safe cast since these amounts will always be positive
         fees0 = uint128(totalFeesAccrued.amount0());
-        balance0 = uint128(totalCallerDelta.amount0());
+        balance0 = uint128(slugCallerDelta.amount0());
         fees1 = uint128(totalFeesAccrued.amount1());
-        balance1 = uint128(totalCallerDelta.amount1());
+        balance1 = uint128(slugCallerDelta.amount1());
     }
 }

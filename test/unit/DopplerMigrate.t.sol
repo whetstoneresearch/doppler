@@ -59,4 +59,29 @@ contract DopplerMigrateTest is DopplerFixtures {
             "Pool WETH balance is wrong"
         );
     }
+
+    function test_dopplerv4_migrate_all_tokens() public {
+        (address asset, PoolKey memory poolKey) = _airlockCreate();
+        IERC20(asset).approve(address(swapRouter), type(uint256).max);
+
+        // warp to starting time
+        vm.warp(block.timestamp + DEFAULT_STARTING_TIME);
+
+        // swap to generate fees in native ether
+        Deployers.swap(poolKey, true, -0.1e18, ZERO_BYTES);
+        Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+        Deployers.swap(poolKey, true, -0.1e18, ZERO_BYTES);
+        Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+
+        // mock out an early exit to test migration
+        Doppler doppler = Doppler(payable(address(poolKey.hooks)));
+        _mockEarlyExit(doppler);
+
+        uint256 assetBalanceBefore = IERC20(asset).balanceOf(address(migrator));
+        airlock.migrate(asset);
+
+        // all tokens from Doppler were migrated
+        assertEq(IERC20(asset).balanceOf(address(migrator), "Migrator token balance is wrong"));
+        assertEq(IERC20(asset).balanceOf(address(poolKey.hooks), 0, "Pool token balance is wrong"));
+    }
 }
