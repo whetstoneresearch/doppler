@@ -232,9 +232,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             if (tick < 0) {
                 // If the tick is negative, we round up (negatively) the negative result to round down
                 return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
-                // tick = -10004
-                // tickSpacing = 200
-                // -10004 - 200 + 1 = -10203 / 200 = -51 * 200 = -10200
             } else {
                 // Else if positive, we simply round down
                 return tick / tickSpacing * tickSpacing;
