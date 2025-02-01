@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { Math } from "@openzeppelin/utils/math/Math.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -223,11 +224,20 @@ contract Airlock is Ownable {
         uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
         uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
 
-        uint256 protocolFees0 = protocolLpFees0 > protocolProceedsFees0 ? protocolLpFees0 : protocolProceedsFees0;
-        uint256 protocolFees1 = protocolLpFees1 > protocolProceedsFees1 ? protocolLpFees1 : protocolProceedsFees1;
+        uint256 protocolFees0 = Math.max(protocolLpFees0, protocolProceedsFees0);
+        uint256 protocolFees1 = Math.max(protocolLpFees1, protocolProceedsFees1);
 
-        uint256 integratorFees0 = fees0 - protocolFees0;
-        uint256 integratorFees1 = fees1 - protocolFees1;
+        uint256 maxProtocolFees0 = fees0 * 20 / 100;
+        uint256 integratorFees0;
+        (integratorFees0, protocolFees0) = protocolFees0 > maxProtocolFees0
+            ? (fees0 - maxProtocolFees0, maxProtocolFees0)
+            : (fees0 - protocolFees0, protocolFees0);
+
+        uint256 maxProtocolFees1 = fees1 * 20 / 100;
+        uint256 integratorFees1;
+        (integratorFees1, protocolFees1) = protocolFees1 > maxProtocolFees1
+            ? (fees1 - maxProtocolFees1, maxProtocolFees1)
+            : (fees1 - protocolFees1, protocolFees1);
 
         protocolFees[token0] += protocolFees0;
         protocolFees[token1] += protocolFees1;
