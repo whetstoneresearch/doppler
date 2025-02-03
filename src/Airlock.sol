@@ -132,38 +132,10 @@ contract Airlock is Ownable {
     function create(
         CreateParams calldata createData
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
-        require(
-            getModuleState[address(createData.tokenFactory)] == ModuleState.TokenFactory,
-            WrongModuleState(
-                address(createData.tokenFactory),
-                ModuleState.TokenFactory,
-                getModuleState[address(createData.tokenFactory)]
-            )
-        );
-        require(
-            getModuleState[address(createData.governanceFactory)] == ModuleState.GovernanceFactory,
-            WrongModuleState(
-                address(createData.governanceFactory),
-                ModuleState.GovernanceFactory,
-                getModuleState[address(createData.governanceFactory)]
-            )
-        );
-        require(
-            getModuleState[address(createData.poolInitializer)] == ModuleState.PoolInitializer,
-            WrongModuleState(
-                address(createData.poolInitializer),
-                ModuleState.PoolInitializer,
-                getModuleState[address(createData.poolInitializer)]
-            )
-        );
-        require(
-            getModuleState[address(createData.liquidityMigrator)] == ModuleState.LiquidityMigrator,
-            WrongModuleState(
-                address(createData.liquidityMigrator),
-                ModuleState.LiquidityMigrator,
-                getModuleState[address(createData.liquidityMigrator)]
-            )
-        );
+        _validateModuleState(address(createData.tokenFactory), ModuleState.TokenFactory);
+        _validateModuleState(address(createData.governanceFactory), ModuleState.GovernanceFactory);
+        _validateModuleState(address(createData.poolInitializer), ModuleState.PoolInitializer);
+        _validateModuleState(address(createData.liquidityMigrator), ModuleState.LiquidityMigrator);
 
         asset = createData.tokenFactory.create(
             createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
@@ -311,5 +283,9 @@ contract Airlock is Ownable {
         }
 
         emit Collect(to, token, amount);
+    }
+
+    function _validateModuleState(address module, ModuleState state) internal view {
+        require(getModuleState[address(module)] == state, WrongModuleState(module, state, getModuleState[module]));
     }
 }
