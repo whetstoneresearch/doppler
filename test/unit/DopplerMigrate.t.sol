@@ -6,6 +6,7 @@ import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { Doppler } from "src/Doppler.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -84,14 +85,21 @@ contract DopplerMigrateTest is DopplerFixtures {
         skip(doppler.epochLength());
 
         Deployers.swap(poolKey, true, -0.2e18, ZERO_BYTES);
+
+        // first swap in the new epoch should increment feesAccrued
+        (,,,,, BalanceDelta feesAccrued) = doppler.state();
+        assertGt(feesAccrued.amount0(), 0);
+        assertGt(feesAccrued.amount1(), 0);
+
         Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+
+        _buyAssetsToEarlyExit(doppler, poolKey, true);
 
         assertGt(manager.getLiquidity(poolKey.toId()), 0); // pool has liquidity
         assertEq(currencyAsset.balanceOf(address(airlock)), 0, "airlock holds asset before migration");
         assertEq(currencyNumeraire.balanceOf(address(airlock)), 0, "airlock holds numeraire before migration");
 
         // mock out an early exit to test migration
-        _mockEarlyExit(doppler);
         airlock.migrate(asset);
 
         // all tokens from Doppler were migrated

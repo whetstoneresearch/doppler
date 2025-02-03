@@ -294,4 +294,21 @@ contract DopplerFixtures is Deployers {
 
         assertTrue(doppler.earlyExit(), "early exit should be true");
     }
+
+    /// @dev buys out enough assets to trigger an early exit
+    function _buyAssetsToEarlyExit(Doppler doppler, PoolKey memory poolKey, bool zeroForOne) internal {
+        (,,, uint256 totalProceeds,,) = doppler.state();
+        uint256 maximumProceeds = doppler.maximumProceeds();
+
+        uint256 proceedsToSpend = maximumProceeds - totalProceeds;
+
+        // account for fees, which arent counted towards totalProceeds
+        // proceedsToSpend += proceedsToSpend * poolKey.fee / 1e6;
+        proceedsToSpend *= 2;
+
+        Deployers.swap(poolKey, zeroForOne, -int256(proceedsToSpend), ZERO_BYTES);
+
+        // triggered early exit succesfully
+        assertEq(doppler.earlyExit(), true, "early exit should be true");
+    }
 }

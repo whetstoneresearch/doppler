@@ -21,6 +21,8 @@ import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 
+import "forge-std/console2.sol";
+
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
 /// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
@@ -142,7 +144,7 @@ contract Doppler is BaseHook {
 
     uint256 internal numTokensToSell; // total amount of tokens to be sold
     uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 internal maximumProceeds; // proceeds amount that will trigger early exit condition
+    uint256 public maximumProceeds; // proceeds amount that will trigger early exit condition
     uint256 internal startingTime; // sale start time
     uint256 internal endingTime; // sale end time
     int24 internal startingTick; // dutch auction starting tick
@@ -419,6 +421,7 @@ contract Doppler is BaseHook {
                 state.totalProceeds -= uint128(amount1);
             } else {
                 uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount1), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                console2.log(proceedsLessFee);
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
@@ -437,9 +440,13 @@ contract Doppler is BaseHook {
                 state.totalProceeds -= uint128(amount0);
             } else {
                 uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount0), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
+                console2.log("NEW PROCEEDS", proceedsLessFee);
                 state.totalProceeds += proceedsLessFee;
             }
         }
+
+        console2.log(state.totalProceeds);
+        console2.log(maximumProceeds);
 
         // If we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
