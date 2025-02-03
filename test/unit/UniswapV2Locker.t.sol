@@ -105,6 +105,7 @@ contract UniswapV2LockerTest is Test {
                 address(0),
                 uint256(0),
                 uint256(0),
+                uint256(0),
                 address(0)
             )
         );

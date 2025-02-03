@@ -25,8 +25,8 @@ int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
 int24 constant DEFAULT_TARGET_TICK = 167_520 + 12_000;
 int24 constant DEFAULT_TARGET_TICK_DELTA = 12_000;
-uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.15 ether;
-uint256 constant DEFAULT_MAX_SHARE_TO_BOND = 0.5 ether;
+uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
+// uint256 constant DEFAULT_MAX_SHARE_TO_BOND = 0.5 ether;
 uint16 constant DEFAULT_NUM_POSITIONS = 10;
 
 contract UniswapV3InitializerTest is Test {
@@ -57,8 +57,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -90,8 +89,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -108,8 +106,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -146,8 +143,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: tickLower,
                     tickUpper: tickUpper,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -250,8 +246,7 @@ contract UniswapV3InitializerTest is Test {
                         tickLower: -DEFAULT_UPPER_TICK,
                         tickUpper: -DEFAULT_LOWER_TICK,
                         numPositions: DEFAULT_NUM_POSITIONS,
-                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                        maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                     })
                 )
             )
@@ -268,8 +263,7 @@ contract UniswapV3InitializerTest is Test {
                         tickLower: DEFAULT_LOWER_TICK,
                         tickUpper: DEFAULT_UPPER_TICK,
                         numPositions: DEFAULT_NUM_POSITIONS,
-                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                        maxShareToBond: DEFAULT_MAX_SHARE_TO_BOND
+                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                     })
                 )
             )
