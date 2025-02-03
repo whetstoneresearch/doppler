@@ -127,7 +127,7 @@ contract UniswapV2Locker is Ownable {
         uint256 principal0 = fees0 > 0 ? amount0 - fees0 : amount0;
         uint256 principal1 = fees1 > 0 ? amount1 - fees1 : amount1;
 
-        (, address timelock,,,,,,,,) = airlock.getAssetData(migrator.getAsset(pool));
+        (, address timelock,,,,,,,,,) = airlock.getAssetData(migrator.getAsset(pool));
         if (principal0 > 0) {
             SafeTransferLib.safeTransfer(ERC20(token0), timelock, principal0);
         }

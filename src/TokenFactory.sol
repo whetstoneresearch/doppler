@@ -28,7 +28,6 @@ contract TokenFactory is ITokenFactory {
      */
     function create(
         uint256 initialSupply,
-        uint256 vestedTotalAmount,
         address recipient,
         address owner,
         bytes32 salt,
@@ -47,16 +46,7 @@ contract TokenFactory is ITokenFactory {
 
         return address(
             new DERC20{ salt: salt }(
-                name,
-                symbol,
-                initialSupply,
-                vestedTotalAmount,
-                recipient,
-                owner,
-                yearlyMintCap,
-                vestingDuration,
-                recipients,
-                amounts
+                name, symbol, initialSupply, recipient, owner, yearlyMintCap, vestingDuration, recipients, amounts
             )
         );
     }

@@ -9,7 +9,6 @@ interface ITokenFactory {
     /**
      * @notice Deploys a new asset token.
      * @param initialSupply Initial supply that will be minted
-     * @param vestedTotalAmount Total amount of vested tokens
      * @param recipient Address receiving the initial supply
      * @param owner Address receiving the ownership of the token
      * @param tokenData Extra data to be used by the factory
@@ -18,7 +17,6 @@ interface ITokenFactory {
      */
     function create(
         uint256 initialSupply,
-        uint256 vestedTotalAmount,
         address recipient,
         address owner,
         bytes32 salt,

@@ -65,7 +65,6 @@ struct AssetData {
 struct CreateParams {
     uint256 initialSupply;
     uint256 numTokensToSell;
-    uint256 vestedTotalAmount;
     address numeraire;
     ITokenFactory tokenFactory;
     bytes tokenFactoryData;
@@ -168,13 +167,9 @@ contract Airlock is Ownable {
         );
 
         asset = createData.tokenFactory.create(
-            createData.initialSupply,
-            createData.vestedTotalAmount,
-            address(this),
-            address(this),
-            createData.salt,
-            createData.tokenFactoryData
+            createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
         );
+        uint256 vestedTotalAmount = DERC20(asset).vestedTotalAmount();
 
         (governance, timelock) = createData.governanceFactory.create(asset, createData.governanceFactoryData);
 
@@ -196,7 +191,7 @@ contract Airlock is Ownable {
             migrationPool: migrationPool,
             numTokensToSell: createData.numTokensToSell,
             totalSupply: createData.initialSupply,
-            vestedTotalAmount: createData.vestedTotalAmount,
+            vestedTotalAmount: vestedTotalAmount,
             integrator: createData.integrator
         });
 

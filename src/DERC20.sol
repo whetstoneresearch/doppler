@@ -28,9 +28,6 @@ error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to premint more than the maximum allowed in total
 error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 
-/// @dev Thrown when the total amount of vested tokens does not match the expected amount
-error VestedAmountMismatch(uint256 expected, uint256 actual);
-
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 
@@ -60,6 +57,9 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /// @notice Duration of the vesting period (in seconds)
     uint256 public immutable vestingDuration;
+
+    /// @notice Total amount of vested tokens
+    uint256 public immutable vestedTotalAmount;
 
     /// @notice Address of the liquidity pool
     address public pool;
@@ -91,7 +91,6 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         string memory name_,
         string memory symbol_,
         uint256 initialSupply,
-        uint256 vestedTotalAmount_,
         address recipient,
         address owner_,
         uint256 yearlyMintCap_,
@@ -123,7 +122,8 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
         require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
-        require(vestedTotalAmount_ == vestedTokens, VestedAmountMismatch(vestedTotalAmount_, vestedTokens));
+
+        vestedTotalAmount = vestedTokens;
 
         if (vestedTokens > 0) {
             _mint(address(this), vestedTokens);
