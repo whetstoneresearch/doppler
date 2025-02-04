@@ -3,20 +3,13 @@ pragma solidity ^0.8.24;
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
-
-/// @dev Thrown when the sender is not the Airlock contract
-error SenderNotAirlock();
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /// @custom:security-contact security@whetstone.cc
-contract TokenFactory is ITokenFactory {
-    /// @notice Address of the Airlock contract
-    address public immutable airlock;
-
+contract TokenFactory is ITokenFactory, ImmutableAirlock {
     constructor(
         address airlock_
-    ) {
-        airlock = airlock_;
-    }
+    ) ImmutableAirlock(airlock_) { }
 
     /**
      * @notice Creates a new DERC20 token
@@ -32,9 +25,7 @@ contract TokenFactory is ITokenFactory {
         address owner,
         bytes32 salt,
         bytes calldata data
-    ) external returns (address) {
-        require(msg.sender == airlock, SenderNotAirlock());
-
+    ) external onlyAirlock returns (address) {
         (
             string memory name,
             string memory symbol,
