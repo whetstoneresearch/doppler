@@ -111,6 +111,18 @@ contract DopplerMigrateTest is DopplerFixtures {
         assertEq(currencyAsset.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds asset");
         assertEq(currencyNumeraire.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds numeraire");
 
+        // airlock holds uncollected fees
+        (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
+        assertEq(
+            currencyAsset.balanceOf(address(airlock)),
+            airlock.protocolFees(asset) + airlock.integratorFees(integrator, asset)
+        );
+        assertEq(
+            currencyNumeraire.balanceOf(address(airlock)),
+            airlock.protocolFees(Currency.unwrap(currencyNumeraire))
+                + airlock.integratorFees(integrator, Currency.unwrap(currencyNumeraire))
+        );
+
         _collectAllProtocolFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));
         _collectAllIntegratorFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));
 
