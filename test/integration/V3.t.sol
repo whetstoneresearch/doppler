@@ -139,8 +139,6 @@ contract V3Test is Test {
 
         uint256 balancePool = DERC20(asset).balanceOf(pool);
 
-        console.log("balancePool", balancePool);
-
         (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick : targetTick);
@@ -190,5 +188,12 @@ contract V3Test is Test {
         // Allow for some dust
         assertApproxEqAbs(poolBalanceAssetAfter, 0, 1000, "Pool balance of asset is not 0");
         assertApproxEqAbs(poolBalanceWETHAfter, 0, 1000, "Pool balance of WETH is not 0");
+
+        // Asset fees are zero because swap was only done in one direction
+        assertEq(airlock.protocolFees(asset), 0, "Protocol fees are 0");
+        assertEq(airlock.integratorFees(address(this), asset), 0, "Integrator fees are 0");
+
+        assertGt(airlock.protocolFees(WETH_MAINNET), 0, "Protocol fees are 0");
+        assertGt(airlock.integratorFees(address(this), WETH_MAINNET), 0, "Integrator fees are 0");
     }
 }
