@@ -6,7 +6,7 @@ import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { Airlock, ModuleState, CreateParams, AssetData } from "src/Airlock.sol";
+import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
@@ -31,7 +31,6 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { MAX_TICK_SPACING } from "src/Doppler.sol";
 import { DopplerTickLibrary } from "../util/DopplerTickLibrary.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
-import { MockLiquidityMigrator } from "test/shared/mock/MockLiquidityMigrator.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -78,7 +77,6 @@ contract DopplerFixtures is Deployers {
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     UniswapV2Migrator public migrator;
-    MockLiquidityMigrator public mockMigrator;
 
     IUniswapV2Factory public uniswapV2Factory = IUniswapV2Factory(UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA);
     IUniswapV2Router02 public uniswapV2Router = IUniswapV2Router02(UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA);
@@ -103,21 +101,18 @@ contract DopplerFixtures is Deployers {
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
-        mockMigrator = new MockLiquidityMigrator();
 
-        address[] memory modules = new address[](5);
+        address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(governanceFactory);
         modules[2] = address(initializer);
         modules[3] = address(migrator);
-        modules[4] = address(mockMigrator);
 
-        ModuleState[] memory states = new ModuleState[](5);
+        ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.GovernanceFactory;
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
-        states[4] = ModuleState.LiquidityMigrator;
         airlock.setModuleState(modules, states);
     }
 

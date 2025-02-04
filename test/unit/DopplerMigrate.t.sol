@@ -12,7 +12,12 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
-import { DopplerFixtures, DEFAULT_STARTING_TIME, DEFAULT_ENDING_TIME } from "test/shared/DopplerFixtures.sol";
+import {
+    DopplerFixtures,
+    DEFAULT_STARTING_TIME,
+    DEFAULT_ENDING_TIME,
+    DEFAULT_EPOCH_LENGTH
+} from "test/shared/DopplerFixtures.sol";
 
 /// @dev Tests involving migration of liquidity FROM Doppler to ILiquidityMigrator
 contract DopplerMigrateTest is DopplerFixtures {
@@ -82,7 +87,7 @@ contract DopplerMigrateTest is DopplerFixtures {
         Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
 
         // trigger a rebalance by skipping time
-        skip(doppler.epochLength());
+        skip(DEFAULT_EPOCH_LENGTH);
 
         Deployers.swap(poolKey, true, -0.2e18, ZERO_BYTES);
 
