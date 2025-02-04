@@ -48,7 +48,7 @@ contract DERC20Test is Test {
         assertEq(token.mintStartDate(), block.timestamp + 365 days, "Wrong mint start date");
         assertEq(token.owner(), OWNER, "Wrong owner");
         assertEq(token.yearlyMintCap(), YEARLY_MINT_CAP, "Wrong yearly mint cap");
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
+        assertEq(token.vestingStart(), 0, "Wrong vesting start");
         assertEq(token.vestingDuration(), VESTING_DURATION, "Wrong vesting duration");
     }
 
@@ -330,6 +330,9 @@ contract DERC20Test is Test {
             ""
         );
 
+        token.unlockPool();
+        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
+
         vm.warp(token.vestingStart() + VESTING_DURATION);
         vm.prank(address(0xa));
         token.release(amounts[0]);
@@ -354,6 +357,9 @@ contract DERC20Test is Test {
             amounts,
             ""
         );
+
+        token.unlockPool();
+        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);
@@ -382,6 +388,9 @@ contract DERC20Test is Test {
             amounts,
             ""
         );
+
+        token.unlockPool();
+        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);

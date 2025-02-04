@@ -25,7 +25,8 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
-    UniswapV2Locker public locker;
+    address public immutable airlock;
+    UniswapV2Locker public immutable locker;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
     mapping(address pool => address) public getAsset;
@@ -52,7 +53,6 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
-        if (token0 > token1) (token0, token1) = (token1, token0);
 
         address pool = factory.getPair(token0, token1);
 
