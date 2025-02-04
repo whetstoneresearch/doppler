@@ -25,7 +25,6 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
-    address public immutable airlock;
     UniswapV2Locker public immutable locker;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
@@ -59,10 +58,6 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         if (pool == address(0)) {
             pool = factory.createPair(token0, token1);
         }
-
-        // todo: can we remove this check for the pool?
-        getPool[token0][token1] = pool;
-        getAsset[pool] = asset;
 
         return pool;
     }
@@ -118,7 +113,7 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         uint256 liquidityToLock = liquidity / 20;
         IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
         IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
-        locker.receiveAndLock(pool);
+        locker.receiveAndLock(pool, recipient);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);

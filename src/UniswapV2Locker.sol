@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
-import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { Airlock } from "src/Airlock.sol";
 
 /// @notice Thrown when the sender is not the migrator contract
 error SenderNotMigrator();
@@ -35,6 +35,7 @@ struct PoolState {
     uint112 amount0;
     uint112 amount1;
     bool initialized;
+    address timelock;
 }
 
 contract UniswapV2Locker is Ownable, ImmutableAirlock {
@@ -66,11 +67,10 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
 
     /**
      * @notice Locks the LP tokens held by this contract
-     * @param pool Address of the pool
+     * @param pool Address of the Uniswap V2 pool
+     * @param timelock Address of the timelock contract
      */
-    function receiveAndLock(
-        address pool
-    ) external {
+    function receiveAndLock(address pool, address timelock) external {
         require(msg.sender == address(migrator), SenderNotMigrator());
         require(getState[pool].initialized == false, PoolAlreadyInitialized());
 
@@ -84,11 +84,11 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
         uint112 amount0 = uint112((balance * reserve0) / supply);
         uint112 amount1 = uint112((balance * reserve1) / supply);
 
-        getState[pool] = PoolState({ amount0: amount0, amount1: amount1, initialized: true });
+        getState[pool] = PoolState({ amount0: amount0, amount1: amount1, initialized: true, timelock: timelock });
     }
 
     /**
-     * @notice Unlocks the LP tokens by burning them, fees are sent to the Airlock owner
+     * @notice Unlocks the LP tokens by burning them, fees are sent to the owner
      * and the principal tokens to the timelock contract
      * @param pool Address of the pool
      */
@@ -118,23 +118,21 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
         address token0 = IUniswapV2Pair(pool).token0();
         address token1 = IUniswapV2Pair(pool).token1();
 
-        address owner = airlock.owner();
         if (fees0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), owner, fees0);
+            SafeTransferLib.safeTransfer(ERC20(token0), owner(), fees0);
         }
         if (fees1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), owner, fees1);
+            SafeTransferLib.safeTransfer(ERC20(token1), owner(), fees1);
         }
 
         uint256 principal0 = fees0 > 0 ? amount0 - fees0 : amount0;
         uint256 principal1 = fees1 > 0 ? amount1 - fees1 : amount1;
 
-        (, address timelock,,,,,,,,) = airlock.getAssetData(migrator.getAsset(pool));
         if (principal0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), timelock, principal0);
+            SafeTransferLib.safeTransfer(ERC20(token0), state.timelock, principal0);
         }
         if (principal1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), timelock, principal1);
+            SafeTransferLib.safeTransfer(ERC20(token1), state.timelock, principal1);
         }
     }
 }
