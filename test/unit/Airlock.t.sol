@@ -36,7 +36,6 @@ int24 constant DEFAULT_GAMMA = 800;
 uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 address constant DEFAULT_OWNER = address(0xdeadbeef);
 uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
-// uint256 constant DEFAULT_MAX_SHARE_TO_BOND = 0.5 ether;
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;

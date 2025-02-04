@@ -33,7 +33,6 @@ int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
 int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - 16_260;
 uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
-// uint256 constant DEFAULT_MAX_SHARE_TO_BOND = 0.77 ether;
 
 contract V3Test is Test {
     UniswapV3Initializer public initializer;
