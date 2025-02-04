@@ -25,7 +25,6 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
-    address public immutable airlock;
     UniswapV2Locker public immutable locker;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
