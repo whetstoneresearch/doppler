@@ -202,7 +202,7 @@ contract AirlockTest is Test, Deployers {
                 tokenFactory,
                 tokenFactoryData,
                 governanceFactory,
-                abi.encode(DEFAULT_TOKEN_NAME),
+                abi.encode(DEFAULT_TOKEN_NAME, 7200, 50_400, 0),
                 uniswapV4Initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
@@ -343,7 +343,7 @@ contract AirlockTest is Test, Deployers {
     function test_create_DeploysOnUniswapV3() public {
         bytes memory tokenFactoryData =
             abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
-        bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME);
+        bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME, 7200, 50_400, 0);
         bytes memory poolInitializerData = abi.encode(
             InitData({
                 fee: uint24(3000),

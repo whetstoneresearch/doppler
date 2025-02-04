@@ -17,11 +17,20 @@ contract GovernanceFactory is IGovernanceFactory, ImmutableAirlock {
     }
 
     function create(address asset, bytes calldata data) external onlyAirlock returns (address, address) {
-        (string memory name) = abi.decode(data, (string));
+        (string memory name, uint48 initialVotingDelay, uint32 initialVotingPeriod, uint256 initialProposalThreshold) =
+            abi.decode(data, (string, uint48, uint32, uint256));
 
         TimelockController timelockController = timelockFactory.create();
-        address governance =
-            address(new Governance(string.concat(name, " Governance"), IVotes(asset), timelockController));
+        address governance = address(
+            new Governance(
+                string.concat(name, " Governance"),
+                IVotes(asset),
+                timelockController,
+                initialVotingDelay,
+                initialVotingPeriod,
+                initialProposalThreshold
+            )
+        );
         timelockController.grantRole(keccak256("PROPOSER_ROLE"), governance);
         timelockController.grantRole(keccak256("CANCELLER_ROLE"), governance);
         timelockController.grantRole(keccak256("EXECUTOR_ROLE"), address(0));

@@ -74,7 +74,7 @@ contract V3Test is Test {
         uint256 initialSupply = 100_000_000 ether;
         string memory name = "Best Coin";
         string memory symbol = "BEST";
-        bytes memory governanceData = abi.encode(name);
+        bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
         bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
 
         // Compute the asset address that will be created

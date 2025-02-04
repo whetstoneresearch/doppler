@@ -27,10 +27,13 @@ contract Governance is
     constructor(
         string memory name_,
         IVotes _token,
-        TimelockController _timelock
+        TimelockController _timelock,
+        uint48 initialVotingDelay,
+        uint32 initialVotingPeriod,
+        uint256 initialProposalThreshold
     )
         Governor(name_)
-        GovernorSettings(7200, 50_400, 0)
+        GovernorSettings(initialVotingDelay, initialVotingPeriod, initialProposalThreshold)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(4)
         GovernorTimelockControl(_timelock)
