@@ -22,20 +22,23 @@ error PoolNotInitialized();
 /// @notice Thrown when the Locker contract doesn't hold any LP tokens
 error NoBalanceToLock();
 
-// todo: think about minUnlockDate
-// 2106 problem?
+/// @notice Thrown when the minimum unlock date has not been reached
+error MinUnlockDateNotReached();
 
 /**
  * @notice State of a pool
  * @param amount0 Reserve of token0
  * @param amount1 Reserve of token1
+ * @param minUnlockDate Minimum unlock date
+ * @param timelock Address of the governance timelock
  * @param initialized Whether the pool has been initialized
  */
 struct PoolState {
     uint112 amount0;
     uint112 amount1;
-    bool initialized;
+    uint32 minUnlockDate;
     address timelock;
+    bool initialized;
 }
 
 contract UniswapV2Locker is Ownable, ImmutableAirlock {
@@ -84,7 +87,13 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
         uint112 amount0 = uint112((balance * reserve0) / supply);
         uint112 amount1 = uint112((balance * reserve1) / supply);
 
-        getState[pool] = PoolState({ amount0: amount0, amount1: amount1, initialized: true, timelock: timelock });
+        getState[pool] = PoolState({
+            amount0: amount0,
+            amount1: amount1,
+            minUnlockDate: uint32(block.timestamp + 365 days),
+            initialized: true,
+            timelock: timelock
+        });
     }
 
     /**
@@ -94,10 +103,11 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
      */
     function claimFeesAndExit(
         address pool
-    ) external onlyOwner {
+    ) external {
         PoolState memory state = getState[pool];
 
         require(state.initialized, PoolNotInitialized());
+        require(block.timestamp >= state.minUnlockDate, MinUnlockDateNotReached());
 
         // get previous reserves and share of invariant
         uint256 kLast = uint256(state.amount0) * uint256(state.amount1);
