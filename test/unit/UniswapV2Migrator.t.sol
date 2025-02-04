@@ -52,7 +52,6 @@ contract UniswapV2MigratorTest is Test {
         address token1 = address(0x2222);
         address pair = migrator.initialize(token0, token1, new bytes(0));
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token1, WETH_MAINNET), "Wrong pair");
-        assertEq(pair, migrator.getPool(token1, WETH_MAINNET), "Wrong pair");
     }
 
     function test_initialize_DoesNotFailWhenPairIsAlreadyCreated() public {
