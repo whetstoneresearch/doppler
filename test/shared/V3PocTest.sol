@@ -6,13 +6,13 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import {
     UniswapV3Initializer,
-    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
     CallbackData,
     InitData
 } from "src/UniswapV3Initializer.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";

@@ -7,6 +7,7 @@ import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /// @notice Thrown when the sender is not the migrator contract
 error SenderNotMigrator();
@@ -36,7 +37,7 @@ struct PoolState {
     address timelock;
 }
 
-contract UniswapV2Locker is Ownable {
+contract UniswapV2Locker is Ownable, ImmutableAirlock {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
@@ -53,7 +54,12 @@ contract UniswapV2Locker is Ownable {
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(IUniswapV2Factory factory_, UniswapV2Migrator migrator_, address owner_) Ownable(owner_) {
+    constructor(
+        address airlock_,
+        IUniswapV2Factory factory_,
+        UniswapV2Migrator migrator_,
+        address owner_
+    ) Ownable(owner_) ImmutableAirlock(airlock_) {
         factory = factory_;
         migrator = migrator_;
     }

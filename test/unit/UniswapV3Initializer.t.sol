@@ -11,13 +11,13 @@ import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
-    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
     CallbackData,
     InitData
 } from "src/UniswapV3Initializer.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
