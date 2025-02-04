@@ -21,8 +21,6 @@ import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 
-import "forge-std/console2.sol";
-
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
 /// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
@@ -143,10 +141,10 @@ contract Doppler is BaseHook {
     address public initializer;
 
     uint256 internal numTokensToSell; // total amount of tokens to be sold
-    uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 public minimumProceeds; // minimum proceeds required to avoid refund phase
     uint256 public maximumProceeds; // proceeds amount that will trigger early exit condition
     uint256 internal startingTime; // sale start time
-    uint256 internal endingTime; // sale end time
+    uint256 public endingTime; // sale end time
     int24 internal startingTick; // dutch auction starting tick
     int24 internal endingTick; // dutch auction ending tick
     uint256 public epochLength; // length of each epoch (seconds)
@@ -421,7 +419,6 @@ contract Doppler is BaseHook {
                 state.totalProceeds -= uint128(amount1);
             } else {
                 uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount1), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                console2.log(proceedsLessFee);
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
@@ -440,13 +437,9 @@ contract Doppler is BaseHook {
                 state.totalProceeds -= uint128(amount0);
             } else {
                 uint256 proceedsLessFee = FullMath.mulDiv(uint128(-amount0), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
-                console2.log("NEW PROCEEDS", proceedsLessFee);
                 state.totalProceeds += proceedsLessFee;
             }
         }
-
-        console2.log(state.totalProceeds);
-        console2.log(maximumProceeds);
 
         // If we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
@@ -1296,8 +1289,10 @@ contract Doppler is BaseHook {
         BalanceDelta totalFeesAccrued = state.feesAccrued + slugsFeesAccrued;
 
         // In case some dust tokens are still left in the contract
-        poolKey.currency0.transfer(recipient, poolKey.currency0.balanceOfSelf());
-        poolKey.currency1.transfer(recipient, poolKey.currency1.balanceOfSelf());
+        uint256 extraBalance0 = poolKey.currency0.balanceOfSelf();
+        uint256 extraBalance1 = poolKey.currency1.balanceOfSelf();
+        poolKey.currency0.transfer(recipient, extraBalance0);
+        poolKey.currency1.transfer(recipient, extraBalance1);
 
         (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
         token0 = Currency.unwrap(poolKey.currency0);
@@ -1305,8 +1300,8 @@ contract Doppler is BaseHook {
 
         // No need to safe cast since these amounts will always be positive
         fees0 = uint128(totalFeesAccrued.amount0());
-        balance0 = uint128(slugCallerDelta.amount0());
+        balance0 = uint128(slugCallerDelta.amount0()) + uint128(extraBalance0);
         fees1 = uint128(totalFeesAccrued.amount1());
-        balance1 = uint128(slugCallerDelta.amount1());
+        balance1 = uint128(slugCallerDelta.amount1()) + uint128(extraBalance1);
     }
 }

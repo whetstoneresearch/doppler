@@ -12,7 +12,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
-import { DopplerFixtures, DEFAULT_STARTING_TIME } from "test/shared/DopplerFixtures.sol";
+import { DopplerFixtures, DEFAULT_STARTING_TIME, DEFAULT_ENDING_TIME } from "test/shared/DopplerFixtures.sol";
 
 /// @dev Tests involving migration of liquidity FROM Doppler to ILiquidityMigrator
 contract DopplerMigrateTest is DopplerFixtures {
@@ -91,19 +91,18 @@ contract DopplerMigrateTest is DopplerFixtures {
         assertGt(feesAccrued.amount0(), 0);
         assertGt(feesAccrued.amount1(), 0);
 
-        Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+        // buy out tokens and end the token sale
+        Deployers.swap(poolKey, true, -1000e18, ZERO_BYTES);
+        vm.warp(vm.getBlockTimestamp() + DEFAULT_ENDING_TIME);
 
-        _buyAssetsToEarlyExit(doppler, poolKey, true);
-
-        assertGt(manager.getLiquidity(poolKey.toId()), 0); // pool has liquidity
         assertEq(currencyAsset.balanceOf(address(airlock)), 0, "airlock holds asset before migration");
         assertEq(currencyNumeraire.balanceOf(address(airlock)), 0, "airlock holds numeraire before migration");
 
-        // mock out an early exit to test migration
+        // migrate liquidity from Doppler from V2
         airlock.migrate(asset);
 
         // all tokens from Doppler were migrated
-        assertEq(manager.getLiquidity(poolKey.toId()), 0); // all liquidity removed from the hooked pool
+        assertEq(manager.getLiquidity(poolKey.toId()), 0, "pool still has liquidity"); // all liquidity removed from the hooked pool
         assertEq(currencyAsset.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds asset");
         assertEq(currencyNumeraire.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds numeraire");
 

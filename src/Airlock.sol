@@ -9,8 +9,6 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
 
-import "forge-std/console2.sol";
-
 enum ModuleState {
     NotWhitelisted,
     TokenFactory,
@@ -209,8 +207,6 @@ contract Airlock is Ownable {
         DERC20(asset).unlockPool();
         Ownable(asset).transferOwnership(assetData.timelock);
 
-        console2.log("BEFORE MIG", DERC20(asset).balanceOf(address(this)));
-
         (
             uint160 sqrtPriceX96,
             address token0,
@@ -220,9 +216,6 @@ contract Airlock is Ownable {
             uint128 fees1,
             uint128 balance1
         ) = assetData.poolInitializer.exitLiquidity(assetData.pool);
-
-        console2.log("AFTER MIG", DERC20(asset).balanceOf(address(this)));
-        console2.log("RETURN", DERC20(token1).balanceOf(address(this)));
 
         uint256 protocolLpFees0 = fees0 * 5 / 100;
         uint256 protocolLpFees1 = fees1 * 5 / 100;
@@ -239,9 +232,6 @@ contract Airlock is Ownable {
         uint256 integratorFees0 = fees0 - protocolFees0;
         uint256 integratorFees1 = fees1 - protocolFees1;
 
-        console2.log("PROTOCOL FEES", protocolFees1);
-        console2.log("INTEGRATOR FEES", integratorFees1);
-
         protocolFees[token0] += protocolFees0;
         protocolFees[token1] += protocolFees1;
         integratorFees[assetData.integrator][token0] += integratorFees0;
@@ -249,15 +239,12 @@ contract Airlock is Ownable {
 
         uint256 total0 = balance0 - fees0;
         uint256 total1 = balance1 - fees1;
-        console2.log("PRINCIPAL", total1);
 
         if (token0 == asset) {
             total0 += assetData.totalSupply - assetData.numTokensToSell;
         } else {
             total1 += assetData.totalSupply - assetData.numTokensToSell;
         }
-        console2.log("WITH SUPPLY", total1);
-        console2.log("numTokensToSell", assetData.numTokensToSell);
 
         if (token0 == address(0)) {
             SafeTransferLib.safeTransferETH(address(assetData.liquidityMigrator), total0);
