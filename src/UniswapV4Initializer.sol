@@ -6,9 +6,7 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
-
-/// @notice Thrown when the caller is not the Airlock contract
-error OnlyAirlock();
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 error InvalidTokenOrder();
 
@@ -62,12 +60,9 @@ contract DopplerDeployer {
  * @notice Initializes a Uniswap V4 pool with an associated Doppler contract as a hook
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV4Initializer is IPoolInitializer {
+contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
     using CurrencyLibrary for Currency;
     using SafeTransferLib for address;
-
-    /// @notice Address of the Airlock contract
-    address public immutable airlock;
 
     /// @notice Address of the Uniswap V4 PoolManager
     IPoolManager public immutable poolManager;
@@ -80,8 +75,7 @@ contract UniswapV4Initializer is IPoolInitializer {
      * @param poolManager_ Address of the Uniswap V4 PoolManager
      * @param deployer_ Address of the DopplerDeployer contract
      */
-    constructor(address airlock_, IPoolManager poolManager_, DopplerDeployer deployer_) {
-        airlock = airlock_;
+    constructor(address airlock_, IPoolManager poolManager_, DopplerDeployer deployer_) ImmutableAirlock(airlock_) {
         poolManager = poolManager_;
         deployer = deployer_;
     }
@@ -93,11 +87,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         uint256 numTokensToSell,
         bytes32 salt,
         bytes calldata data
-    ) external returns (address) {
-        if (msg.sender != airlock) {
-            revert OnlyAirlock();
-        }
-
+    ) external onlyAirlock returns (address) {
         (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,, uint24 fee, int24 tickSpacing) = abi.decode(
             data,
             (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
@@ -129,6 +119,7 @@ contract UniswapV4Initializer is IPoolInitializer {
         address hook
     )
         external
+        onlyAirlock
         returns (
             uint160 sqrtPriceX96,
             address token0,
@@ -139,10 +130,7 @@ contract UniswapV4Initializer is IPoolInitializer {
             uint128 balance1
         )
     {
-        if (msg.sender != airlock) {
-            revert OnlyAirlock();
-        }
-
-        (sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1) = Doppler(payable(hook)).migrate(airlock);
+        (sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1) =
+            Doppler(payable(hook)).migrate(address(airlock));
     }
 }

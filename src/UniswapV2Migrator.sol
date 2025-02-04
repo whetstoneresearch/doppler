@@ -11,59 +11,53 @@ import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
-
-/// @notice Thrown when the sender is not the Airlock contract
-error SenderNotAirlock();
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV2Migrator is ILiquidityMigrator {
+contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
     using FullMath for uint160;
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
-    address public immutable airlock;
-    UniswapV2Locker public locker;
+    UniswapV2Locker public immutable locker;
 
     mapping(address token0 => mapping(address token1 => address pool)) public getPool;
     mapping(address pool => address) public getAsset;
 
-    receive() external payable {
-        require(msg.sender == airlock, SenderNotAirlock());
+    receive() external payable onlyAirlock {
+        // require(msg.sender == airlock, SenderNotAirlock());
     }
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
-    constructor(address airlock_, IUniswapV2Factory factory_, IUniswapV2Router02 router, address owner) {
-        airlock = airlock_;
+    constructor(
+        address airlock_,
+        IUniswapV2Factory factory_,
+        IUniswapV2Router02 router,
+        address owner
+    ) ImmutableAirlock(airlock_) {
         factory = factory_;
         weth = IWETH(payable(router.WETH()));
-        locker = new UniswapV2Locker(Airlock(payable(airlock)), factory, this, owner);
+        locker = new UniswapV2Locker(airlock_, factory, this, owner);
     }
 
-    function initialize(address asset, address numeraire, bytes calldata) external returns (address) {
-        require(msg.sender == airlock, SenderNotAirlock());
-
+    function initialize(address asset, address numeraire, bytes calldata) external onlyAirlock returns (address) {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
-        if (token0 > token1) (token0, token1) = (token1, token0);
 
         address pool = factory.getPair(token0, token1);
 
         if (pool == address(0)) {
             pool = factory.createPair(token0, token1);
         }
-
-        // todo: can we remove this check for the pool?
-        getPool[token0][token1] = pool;
-        getAsset[pool] = asset;
 
         return pool;
     }
@@ -79,9 +73,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         address token0,
         address token1,
         address recipient
-    ) external payable returns (uint256 liquidity) {
-        require(msg.sender == airlock, SenderNotAirlock());
-
+    ) external payable onlyAirlock returns (uint256 liquidity) {
         uint256 balance0;
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
@@ -121,7 +113,7 @@ contract UniswapV2Migrator is ILiquidityMigrator {
         uint256 liquidityToLock = liquidity / 20;
         IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
         IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
-        locker.receiveAndLock(pool);
+        locker.receiveAndLock(pool, recipient);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);

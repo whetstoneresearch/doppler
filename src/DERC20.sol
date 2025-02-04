@@ -28,6 +28,9 @@ error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to premint more than the maximum allowed in total
 error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 
+/// @dev Thrown when trying to release tokens before the vesting period has started
+error VestingNotStartedYet();
+
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 
@@ -52,11 +55,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Maximum amount of tokens that can be minted in a year
     uint256 public immutable yearlyMintCap;
 
-    /// @notice Timestamp of the start of the vesting period
-    uint256 public immutable vestingStart;
-
     /// @notice Duration of the vesting period (in seconds)
     uint256 public immutable vestingDuration;
+
+    /// @notice Timestamp of the start of the vesting period
+    uint256 public vestingStart;
 
     /// @notice Address of the liquidity pool
     address public pool;
@@ -75,6 +78,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
+
+    modifier hasVestingStarted() {
+        require(vestingStart > 0, VestingNotStartedYet());
+        _;
+    }
 
     /**
      * @param name_ Name of the token
@@ -102,7 +110,6 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
         mintStartDate = block.timestamp + 365 days;
         yearlyMintCap = yearlyMintCap_;
-        vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
         tokenURI = tokenURI_;
 
@@ -147,6 +154,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
+        vestingStart = block.timestamp;
     }
 
     /**
@@ -174,7 +182,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      */
     function release(
         uint256 amount
-    ) external {
+    ) external hasVestingStarted {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {

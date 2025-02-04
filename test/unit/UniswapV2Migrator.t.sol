@@ -3,13 +3,8 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import {
-    UniswapV2Migrator,
-    IUniswapV2Factory,
-    IUniswapV2Router02,
-    SenderNotAirlock,
-    IUniswapV2Pair
-} from "src/UniswapV2Migrator.sol";
+import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2MigratorTest is Test {
@@ -44,7 +39,6 @@ contract UniswapV2MigratorTest is Test {
         address token1 = address(0x2222);
         address pair = migrator.initialize(token0, token1, new bytes(0));
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token0, token1), "Wrong pair");
-        assertEq(pair, migrator.getPool(token0, token1), "Wrong pair");
     }
 
     function test_initialize_UsesWETHWhenToken0IsZero() public {
@@ -52,7 +46,6 @@ contract UniswapV2MigratorTest is Test {
         address token1 = address(0x2222);
         address pair = migrator.initialize(token0, token1, new bytes(0));
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token1, WETH_MAINNET), "Wrong pair");
-        assertEq(pair, migrator.getPool(token1, WETH_MAINNET), "Wrong pair");
     }
 
     function test_initialize_DoesNotFailWhenPairIsAlreadyCreated() public {
