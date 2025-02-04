@@ -1300,8 +1300,8 @@ contract Doppler is BaseHook {
 
         // No need to safe cast since these amounts will always be positive
         fees0 = uint128(totalFeesAccrued.amount0());
-        balance0 = uint128(slugCallerDelta.amount0()) + uint128(extraBalance0);
+        balance0 = uint128(slugCallerDelta.amount0()) + extraBalance0.toUint128();
         fees1 = uint128(totalFeesAccrued.amount1());
-        balance1 = uint128(slugCallerDelta.amount1()) + uint128(extraBalance1);
+        balance1 = uint128(slugCallerDelta.amount1()) + extraBalance1.toUint128();
     }
 }
