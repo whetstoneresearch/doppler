@@ -317,7 +317,8 @@ contract Doppler is BaseHook {
                 insufficientProceeds = true;
                 emit InsufficientProceeds();
                 PoolId poolId = key.toId();
-                (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+                (uint160 sqrtPrice,,,) = poolManager.getSlot0(poolId);
+                int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPrice); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
                 Position[] memory prevPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
                 prevPositions[0] = positions[LOWER_SLUG_SALT];
@@ -397,7 +398,9 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4, int128) {
         // Get current tick
         PoolId poolId = key.toId();
-        (, int24 currentTick, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
@@ -486,7 +489,8 @@ contract Doppler is BaseHook {
         Position memory upperSlugPosition = positions[UPPER_SLUG_SALT];
 
         PoolId poolId = key.toId();
-        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
         int256 accumulatorDelta;
         int256 newAccumulator;
@@ -736,7 +740,8 @@ contract Doppler is BaseHook {
     ///         Returns an 18 decimal fixed point value
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
         PoolId poolId = poolKey.toId();
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
         int24 effectiveStartingTick;
         if (isToken0) {
