@@ -34,6 +34,9 @@ error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to mint more than the maximum allowed in total
 error MaxTotalVestedExceeded(uint256 amount, uint256 limit);
 
+/// @dev Thrown when trying to release tokens before the vesting period has started
+error VestingNotStartedYet();
+
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 
@@ -58,6 +61,12 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Timestamp of the start of the vesting period
     uint256 public immutable vestingStart;
 
+    /// @notice Minting token will be possible after this timestamp
+    uint256 public immutable mintStartDate;
+
+    /// @notice Maximum amount of tokens that can be minted in a year
+    uint256 public immutable yearlyMintCap;
+
     /// @notice Duration of the vesting period (in seconds)
     uint256 public immutable vestingDuration;
 
@@ -81,6 +90,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
+
+    modifier hasVestingStarted() {
+        require(vestingStart > 0, VestingNotStartedYet());
+        _;
+    }
 
     /**
      * @param name_ Name of the token
@@ -225,7 +239,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      */
     function release(
         uint256 amount
-    ) external {
+    ) external hasVestingStarted {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {

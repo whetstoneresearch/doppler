@@ -10,9 +10,7 @@ import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-
-/// @notice Thrown when the caller is not the Airlock contract
-error SenderNotAirlock();
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
@@ -74,11 +72,8 @@ struct LpPosition {
     uint16 id;
 }
 
-contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
+contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, ImmutableAirlock {
     using SafeTransferLib for ERC20;
-
-    /// @notice Address of the Airlock contract
-    address public immutable airlock;
 
     /// @notice Address of the Uniswap V3 factory
     IUniswapV3Factory public immutable factory;
@@ -90,8 +85,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
      * @param airlock_ Address of the Airlock contract
      * @param factory_ Address of the Uniswap V3 factory
      */
-    constructor(address airlock_, IUniswapV3Factory factory_) {
-        airlock = airlock_;
+    constructor(address airlock_, IUniswapV3Factory factory_) ImmutableAirlock(airlock_) {
         factory = factory_;
     }
 
@@ -102,9 +96,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         uint256,
         bytes32,
         bytes calldata data
-    ) external returns (address pool) {
-        require(msg.sender == airlock, SenderNotAirlock());
-
+    ) external onlyAirlock returns (address pool) {
         InitData memory initData = abi.decode(data, (InitData));
         (
             uint24 fee,
@@ -166,6 +158,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             calculateLpTail(numPositions, tickLower, tickUpper, isToken0, reserves, numTokensToBond, tickSpacing);
 
         mintPositions(asset, numeraire, fee, pool, lbpPositions, numPositions);
+
+        emit Create(pool, asset, numeraire);
     }
 
     /// @inheritdoc IPoolInitializer
@@ -173,6 +167,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
         address pool
     )
         external
+        onlyAirlock
         returns (
             uint160 sqrtPriceX96,
             address token0,
@@ -183,7 +178,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
             uint128 balance1
         )
     {
-        require(msg.sender == airlock, SenderNotAirlock());
         require(getState[pool].isExited == false, PoolAlreadyExited());
         getState[pool].isExited = true;
 
@@ -236,7 +230,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback {
 
         require(msg.sender == pool, OnlyPool());
 
-        ERC20(callbackData.asset).safeTransferFrom(airlock, pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
+        ERC20(callbackData.asset).safeTransferFrom(address(airlock), pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
 
     function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
