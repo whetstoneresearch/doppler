@@ -3,20 +3,13 @@ pragma solidity ^0.8.24;
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
-
-/// @dev Thrown when the sender is not the Airlock contract
-error SenderNotAirlock();
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /// @custom:security-contact security@whetstone.cc
-contract TokenFactory is ITokenFactory {
-    /// @notice Address of the Airlock contract
-    address public immutable airlock;
-
+contract TokenFactory is ITokenFactory, ImmutableAirlock {
     constructor(
         address airlock_
-    ) {
-        airlock = airlock_;
-    }
+    ) ImmutableAirlock(airlock_) { }
 
     /**
      * @notice Creates a new DERC20 token
@@ -32,21 +25,29 @@ contract TokenFactory is ITokenFactory {
         address owner,
         bytes32 salt,
         bytes calldata data
-    ) external returns (address) {
-        require(msg.sender == airlock, SenderNotAirlock());
-
+    ) external onlyAirlock returns (address) {
         (
             string memory name,
             string memory symbol,
             uint256 yearlyMintCap,
             uint256 vestingDuration,
             address[] memory recipients,
-            uint256[] memory amounts
-        ) = abi.decode(data, (string, string, uint256, uint256, address[], uint256[]));
+            uint256[] memory amounts,
+            string memory tokenURI
+        ) = abi.decode(data, (string, string, uint256, uint256, address[], uint256[], string));
 
         return address(
             new DERC20{ salt: salt }(
-                name, symbol, initialSupply, recipient, owner, yearlyMintCap, vestingDuration, recipients, amounts
+                name,
+                symbol,
+                initialSupply,
+                recipient,
+                owner,
+                yearlyMintCap,
+                vestingDuration,
+                recipients,
+                amounts,
+                tokenURI
             )
         );
     }

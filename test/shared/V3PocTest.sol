@@ -6,13 +6,13 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import {
     UniswapV3Initializer,
-    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
     CallbackData,
     InitData
 } from "src/UniswapV3Initializer.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -40,7 +40,8 @@ contract V3PocTest is Test {
         uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET)
+            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
+            address(0xb055)
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));

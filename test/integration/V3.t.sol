@@ -9,13 +9,13 @@ import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import {
     UniswapV3Initializer,
-    SenderNotAirlock,
     PoolAlreadyInitialized,
     PoolAlreadyExited,
     OnlyPool,
     CallbackData,
     InitData
 } from "src/UniswapV3Initializer.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { DERC20 } from "src/DERC20.sol";
@@ -48,7 +48,8 @@ contract V3Test is Test {
         uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET)
+            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
+            address(0xb055)
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
@@ -73,13 +74,22 @@ contract V3Test is Test {
         string memory name = "Best Coin";
         string memory symbol = "BEST";
         bytes memory governanceData = abi.encode(name);
-        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0));
+        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
 
         // Compute the asset address that will be created
         bytes32 salt = bytes32(0);
         bytes memory creationCode = type(DERC20).creationCode;
         bytes memory create2Args = abi.encode(
-            name, symbol, initialSupply, address(airlock), address(airlock), 0, 0, new address[](0), new uint256[](0)
+            name,
+            symbol,
+            initialSupply,
+            address(airlock),
+            address(airlock),
+            0,
+            0,
+            new address[](0),
+            new uint256[](0),
+            ""
         );
         address predictedAsset = vm.computeCreate2Address(
             salt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
@@ -126,8 +136,6 @@ contract V3Test is Test {
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
         uint256 balancePool = DERC20(asset).balanceOf(pool);
-
-        console.log("balancePool", balancePool);
 
         (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
@@ -178,5 +186,12 @@ contract V3Test is Test {
         // Allow for some dust
         assertApproxEqAbs(poolBalanceAssetAfter, 0, 1000, "Pool balance of asset is not 0");
         assertApproxEqAbs(poolBalanceWETHAfter, 0, 1000, "Pool balance of WETH is not 0");
+
+        // Asset fees are zero because swap was only done in one direction
+        assertEq(airlock.protocolFees(asset), 0, "Protocol fees are 0");
+        assertEq(airlock.integratorFees(address(this), asset), 0, "Integrator fees are 0");
+
+        assertGt(airlock.protocolFees(WETH_MAINNET), 0, "Protocol fees are 0");
+        assertGt(airlock.integratorFees(address(this), WETH_MAINNET), 0, "Integrator fees are 0");
     }
 }

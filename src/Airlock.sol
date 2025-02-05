@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { Math } from "@openzeppelin/utils/math/Math.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -133,38 +134,10 @@ contract Airlock is Ownable {
     function create(
         CreateParams calldata createData
     ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
-        require(
-            getModuleState[address(createData.tokenFactory)] == ModuleState.TokenFactory,
-            WrongModuleState(
-                address(createData.tokenFactory),
-                ModuleState.TokenFactory,
-                getModuleState[address(createData.tokenFactory)]
-            )
-        );
-        require(
-            getModuleState[address(createData.governanceFactory)] == ModuleState.GovernanceFactory,
-            WrongModuleState(
-                address(createData.governanceFactory),
-                ModuleState.GovernanceFactory,
-                getModuleState[address(createData.governanceFactory)]
-            )
-        );
-        require(
-            getModuleState[address(createData.poolInitializer)] == ModuleState.PoolInitializer,
-            WrongModuleState(
-                address(createData.poolInitializer),
-                ModuleState.PoolInitializer,
-                getModuleState[address(createData.poolInitializer)]
-            )
-        );
-        require(
-            getModuleState[address(createData.liquidityMigrator)] == ModuleState.LiquidityMigrator,
-            WrongModuleState(
-                address(createData.liquidityMigrator),
-                ModuleState.LiquidityMigrator,
-                getModuleState[address(createData.liquidityMigrator)]
-            )
-        );
+        _validateModuleState(address(createData.tokenFactory), ModuleState.TokenFactory);
+        _validateModuleState(address(createData.governanceFactory), ModuleState.GovernanceFactory);
+        _validateModuleState(address(createData.poolInitializer), ModuleState.PoolInitializer);
+        _validateModuleState(address(createData.liquidityMigrator), ModuleState.LiquidityMigrator);
 
         asset = createData.tokenFactory.create(
             createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
@@ -228,14 +201,26 @@ contract Airlock is Ownable {
         uint256 protocolLpFees0 = fees0 * 5 / 100;
         uint256 protocolLpFees1 = fees1 * 5 / 100;
 
-        uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
-        uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
+        // uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
+        // uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
+        // TODO: FIX PROTOCOL FEE CALCULATION
+        uint256 protocolProceedsFees0 = 0;
+        uint256 protocolProceedsFees1 = 0;
 
-        uint256 protocolFees0 = protocolLpFees0 > protocolProceedsFees0 ? protocolLpFees0 : protocolProceedsFees0;
-        uint256 protocolFees1 = protocolLpFees1 > protocolProceedsFees1 ? protocolLpFees1 : protocolProceedsFees1;
+        uint256 protocolFees0 = Math.max(protocolLpFees0, protocolProceedsFees0);
+        uint256 protocolFees1 = Math.max(protocolLpFees1, protocolProceedsFees1);
 
-        uint256 integratorFees0 = fees0 - protocolFees0;
-        uint256 integratorFees1 = fees1 - protocolFees1;
+        uint256 maxProtocolFees0 = fees0 * 20 / 100;
+        uint256 integratorFees0;
+        (integratorFees0, protocolFees0) = protocolFees0 > maxProtocolFees0
+            ? (fees0 - maxProtocolFees0, maxProtocolFees0)
+            : (fees0 - protocolFees0, protocolFees0);
+
+        uint256 maxProtocolFees1 = fees1 * 20 / 100;
+        uint256 integratorFees1;
+        (integratorFees1, protocolFees1) = protocolFees1 > maxProtocolFees1
+            ? (fees1 - maxProtocolFees1, maxProtocolFees1)
+            : (fees1 - protocolFees1, protocolFees1);
 
         protocolFees[token0] += protocolFees0;
         protocolFees[token1] += protocolFees1;
@@ -245,7 +230,12 @@ contract Airlock is Ownable {
         uint256 total0 = balance0 - fees0;
         uint256 total1 = balance1 - fees1;
 
-        ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        if (token0 == address(0)) {
+            SafeTransferLib.safeTransferETH(address(assetData.liquidityMigrator), total0);
+        } else {
+            ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+        }
+
         ERC20(token1).safeTransfer(address(assetData.liquidityMigrator), total1);
 
         assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
@@ -279,7 +269,13 @@ contract Airlock is Ownable {
      */
     function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
         protocolFees[token] -= amount;
-        ERC20(token).safeTransfer(to, amount);
+
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            ERC20(token).safeTransfer(to, amount);
+        }
+
         emit Collect(to, token, amount);
     }
 
@@ -291,7 +287,17 @@ contract Airlock is Ownable {
      */
     function collectIntegratorFees(address to, address token, uint256 amount) external {
         integratorFees[msg.sender][token] -= amount;
-        ERC20(token).safeTransfer(to, amount);
+
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            ERC20(token).safeTransfer(to, amount);
+        }
+
         emit Collect(to, token, amount);
+    }
+
+    function _validateModuleState(address module, ModuleState state) internal view {
+        require(getModuleState[address(module)] == state, WrongModuleState(module, state, getModuleState[module]));
     }
 }

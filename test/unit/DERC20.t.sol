@@ -37,7 +37,7 @@ contract DERC20Test is Test {
         amounts[1] = 2e23;
 
         token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts
+            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts, ""
         );
 
         assertEq(token.name(), NAME, "Wrong name");
@@ -48,7 +48,7 @@ contract DERC20Test is Test {
         assertEq(token.mintStartDate(), block.timestamp + 365 days, "Wrong mint start date");
         assertEq(token.owner(), OWNER, "Wrong owner");
         assertEq(token.yearlyMintCap(), YEARLY_MINT_CAP, "Wrong yearly mint cap");
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
+        assertEq(token.vestingStart(), 0, "Wrong vesting start");
         assertEq(token.vestingDuration(), VESTING_DURATION, "Wrong vesting duration");
     }
 
@@ -62,7 +62,7 @@ contract DERC20Test is Test {
 
         vm.expectRevert(ArrayLengthsMismatch.selector);
         token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts
+            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts, ""
         );
     }
 
@@ -79,7 +79,7 @@ contract DERC20Test is Test {
             )
         );
         token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts
+            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts, ""
         );
     }
 
@@ -94,7 +94,7 @@ contract DERC20Test is Test {
 
         vm.expectRevert(abi.encodeWithSelector(MaxPreMintPerAddressExceeded.selector, amounts[0] * 2, amounts[0]));
         token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts
+            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts, ""
         );
     }
 
@@ -116,7 +116,7 @@ contract DERC20Test is Test {
             )
         );
         token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts
+            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_CAP, VESTING_DURATION, recipients, amounts, ""
         );
     }
 
@@ -131,7 +131,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         token.lockPool(pool);
         assertEq(token.pool(), pool, "Wrong pool");
@@ -149,7 +150,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
@@ -166,7 +168,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
@@ -183,7 +186,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         token.unlockPool();
         assertEq(token.isPoolUnlocked(), true, "Pool should be unlocked");
@@ -200,7 +204,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         token.lockPool(pool);
         vm.expectRevert(PoolLocked.selector);
@@ -218,7 +223,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         token.lockPool(pool);
         token.approve(address(0xbeef), 1);
@@ -237,7 +243,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
@@ -254,7 +261,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         vm.expectRevert(MintingNotStartedYet.selector);
         token.mint(address(0xbeef), 1);
@@ -270,7 +278,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         vm.warp(token.mintStartDate());
         token.mint(address(0xbeef), YEARLY_MINT_CAP);
@@ -288,7 +297,8 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             new address[](0),
-            new uint256[](0)
+            new uint256[](0),
+            ""
         );
         vm.warp(token.mintStartDate());
         uint256 initialBalance = token.balanceOf(address(0xbeef));
@@ -316,8 +326,12 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             recipients,
-            amounts
+            amounts,
+            ""
         );
+
+        token.unlockPool();
+        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
 
         vm.warp(token.vestingStart() + VESTING_DURATION);
         vm.prank(address(0xa));
@@ -340,8 +354,12 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             recipients,
-            amounts
+            amounts,
+            ""
         );
+
+        token.unlockPool();
+        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);
@@ -367,8 +385,12 @@ contract DERC20Test is Test {
             YEARLY_MINT_CAP,
             VESTING_DURATION,
             recipients,
-            amounts
+            amounts,
+            ""
         );
+
+        token.unlockPool();
+        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);

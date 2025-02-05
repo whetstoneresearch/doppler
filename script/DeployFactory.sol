@@ -61,7 +61,8 @@ contract DeployFactoriesWorldChain is Script {
         uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
             IUniswapV2Factory(uniFactoryV2),
-            IUniswapV2Router02(0x541aB7c31A119441eF3575F6973277DE0eF460bd)
+            IUniswapV2Router02(0x541aB7c31A119441eF3575F6973277DE0eF460bd),
+            address(0xb055)
         );
         console2.log("Migrator: ", address(uniswapV2LiquidityMigrator));
         console2.log(airlock.owner());
