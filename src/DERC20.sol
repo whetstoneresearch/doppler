@@ -102,7 +102,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param initialSupply Initial supply of the token
      * @param recipient Address receiving the initial supply
      * @param owner_ Address receivin the ownership of the token
-     * @param yearlyMintRate_ Maximum amount of token that can be minted in a year
+     * @param yearlyMintRate_ Maximum inflation rate of token in a year
      * @param vestingDuration_ Duration of the vesting period (in seconds)
      * @param recipients_ Array of addresses receiving vested tokens
      * @param amounts_ Array of amounts of tokens to be vested
