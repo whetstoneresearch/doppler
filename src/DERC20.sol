@@ -228,11 +228,13 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     function updateMintRate(
         uint256 newMintRate
     ) external onlyOwner {
+        // Inflation can't be more than 2% of token supply per year
+        require(newMintRate <= MAX_YEARLY_MINT_RATE_WAD, "New mint rate exceeds the maximum allowed");
+
         if (currentYearStart != 0 && (block.timestamp - lastMintTimestamp) != 0) {
             mintInflation();
         }
-        // Inflation can't be more than 2% of token supply per year
-        require(newMintRate <= MAX_YEARLY_MINT_RATE_WAD, "New mint rate exceeds the maximum allowed");
+
         yearlyMintRate = newMintRate;
     }
 
