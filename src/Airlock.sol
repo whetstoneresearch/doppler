@@ -153,6 +153,12 @@ contract Airlock is Ownable {
             createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
         DERC20(asset).lockPool(migrationPool);
 
+        uint256 excessAsset = ERC20(asset).balanceOf(address(this));
+
+        if (excessAsset > 0) {
+            ERC20(asset).safeTransfer(timelock, excessAsset);
+        }
+
         getAssetData[asset] = AssetData({
             numeraire: createData.numeraire,
             timelock: timelock,
@@ -222,12 +228,6 @@ contract Airlock is Ownable {
 
         uint256 total0 = balance0 - fees0;
         uint256 total1 = balance1 - fees1;
-
-        if (token0 == asset) {
-            total0 += assetData.totalSupply - assetData.numTokensToSell;
-        } else {
-            total1 += assetData.totalSupply - assetData.numTokensToSell;
-        }
 
         if (token0 == address(0)) {
             SafeTransferLib.safeTransferETH(address(assetData.liquidityMigrator), total0);

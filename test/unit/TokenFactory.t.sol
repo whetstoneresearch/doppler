@@ -23,7 +23,7 @@ contract TokenFactoryTest is Test {
         bytes32 salt = hex"beef";
         string memory name = "Test Token";
         string memory symbol = "TT";
-        uint256 yearlyMintCap = 1e25;
+        uint256 yearlyMintRate = 1e16;
         uint256 vestingDuration = 365 days;
         address[] memory recipients = new address[](0);
         uint256[] memory amounts = new uint256[](0);
@@ -33,7 +33,7 @@ contract TokenFactoryTest is Test {
             recipient,
             owner,
             salt,
-            abi.encode(name, symbol, yearlyMintCap, vestingDuration, recipients, amounts, "")
+            abi.encode(name, symbol, yearlyMintRate, vestingDuration, recipients, amounts, "")
         );
     }
 
@@ -44,7 +44,7 @@ contract TokenFactoryTest is Test {
         bytes32 salt = hex"beef";
         string memory name = "Test Token";
         string memory symbol = "TT";
-        uint256 yearlyMintCap = 1e25;
+        uint256 yearlyMintRate = 1e25;
         uint256 vestingDuration = 365 days;
         address[] memory recipients = new address[](0);
         uint256[] memory amounts = new uint256[](0);
@@ -56,7 +56,7 @@ contract TokenFactoryTest is Test {
             recipient,
             owner,
             salt,
-            abi.encode(name, symbol, yearlyMintCap, vestingDuration, recipients, amounts)
+            abi.encode(name, symbol, yearlyMintRate, vestingDuration, recipients, amounts)
         );
     }
 }

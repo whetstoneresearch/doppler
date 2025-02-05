@@ -6,13 +6,23 @@ import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { Doppler } from "src/Doppler.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
-import { DopplerFixtures, DEFAULT_STARTING_TIME } from "test/shared/DopplerFixtures.sol";
+import {
+    DopplerFixtures,
+    DEFAULT_STARTING_TIME,
+    DEFAULT_ENDING_TIME,
+    DEFAULT_EPOCH_LENGTH
+} from "test/shared/DopplerFixtures.sol";
 
 /// @dev Tests involving migration of liquidity FROM Doppler to ILiquidityMigrator
 contract DopplerMigrateTest is DopplerFixtures {
+    using StateLibrary for IPoolManager;
+
     function setUp() public {
         vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);
         _deployAirlockAndModules();
@@ -58,5 +68,66 @@ contract DopplerMigrateTest is DopplerFixtures {
             v2PoolWETHBalanceBefore,
             "Pool WETH balance is wrong"
         );
+    }
+
+    function test_dopplerv4_migrate_all_tokens() public {
+        Currency currencyNumeraire = CurrencyLibrary.ADDRESS_ZERO;
+        (address asset, PoolKey memory poolKey) = _airlockCreateNative();
+        Currency currencyAsset = Currency.wrap(asset);
+        IERC20(asset).approve(address(swapRouter), type(uint256).max);
+        Doppler doppler = Doppler(payable(address(poolKey.hooks)));
+
+        // warp to starting time
+        vm.warp(vm.getBlockTimestamp() + DEFAULT_STARTING_TIME);
+
+        // swap to generate fees in native ether
+        Deployers.swap(poolKey, true, -0.1e18, ZERO_BYTES);
+        Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+        Deployers.swap(poolKey, true, -0.1e18, ZERO_BYTES);
+        Deployers.swap(poolKey, false, -0.1e18, ZERO_BYTES);
+
+        // trigger a rebalance by skipping time
+        skip(DEFAULT_EPOCH_LENGTH);
+
+        Deployers.swap(poolKey, true, -0.2e18, ZERO_BYTES);
+
+        // first swap in the new epoch should increment feesAccrued
+        (,,,,, BalanceDelta feesAccrued) = doppler.state();
+        assertGt(feesAccrued.amount0(), 0);
+        assertGt(feesAccrued.amount1(), 0);
+
+        // buy out tokens and end the token sale
+        Deployers.swap(poolKey, true, -1000e18, ZERO_BYTES);
+        vm.warp(vm.getBlockTimestamp() + DEFAULT_ENDING_TIME);
+
+        assertEq(currencyAsset.balanceOf(address(airlock)), 0, "airlock holds asset before migration");
+        assertEq(currencyNumeraire.balanceOf(address(airlock)), 0, "airlock holds numeraire before migration");
+
+        // migrate liquidity from Doppler from V2
+        airlock.migrate(asset);
+
+        // all tokens from Doppler were migrated
+        assertEq(manager.getLiquidity(poolKey.toId()), 0, "pool still has liquidity"); // all liquidity removed from the hooked pool
+        assertEq(currencyAsset.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds asset");
+        assertEq(currencyNumeraire.balanceOf(address(poolKey.hooks)), 0, "hook incorrectly holds numeraire");
+
+        // airlock holds uncollected fees
+        (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
+        assertEq(
+            currencyAsset.balanceOf(address(airlock)),
+            airlock.protocolFees(asset) + airlock.integratorFees(integrator, asset)
+        );
+        assertEq(
+            currencyNumeraire.balanceOf(address(airlock)),
+            airlock.protocolFees(Currency.unwrap(currencyNumeraire))
+                + airlock.integratorFees(integrator, Currency.unwrap(currencyNumeraire))
+        );
+
+        _collectAllProtocolFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));
+        _collectAllIntegratorFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));
+
+        // airlock holds no balance after fees are collected
+        assertEq(currencyAsset.balanceOf(address(airlock)), 0, "airlock holds asset after migration");
+        assertEq(currencyNumeraire.balanceOf(address(airlock)), 0, "airlock holds numeraire after migration");
     }
 }
