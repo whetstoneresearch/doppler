@@ -230,7 +230,7 @@ contract DopplerFixtures is Deployers {
     }
 
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
-        return abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0), "");
+        return abi.encode("Best Token", "BEST", 1e16, 365 days, new address[](0), new uint256[](0), "");
     }
 
     function _defaultGovernanceFactoryData() internal pure returns (bytes memory) {
