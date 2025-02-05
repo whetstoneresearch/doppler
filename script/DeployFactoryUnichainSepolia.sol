@@ -6,8 +6,6 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolManager } from "@v4-core/PoolManager.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { StateView } from "@v4-periphery/lens/StateView.sol";
-import { V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -15,10 +13,6 @@ import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/Un
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
-import { RouterParameters } from "@universal-router/types/RouterParameters.sol";
-
-bytes32 constant PAIR_INIT_CODE_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
-bytes32 constant POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
 
 contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
     Airlock airlock;
@@ -31,16 +25,10 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
     UniversalRouter universalRouter;
     StateView stateView;
 
-    function setUp() public { }
-
     address constant uniRouterV2 = 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640;
     address constant uniFactoryV2 = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-
-    address constant uniRouter = 0x9e5A52f57b3038F1B8EeE45F28b3C1967e22799C;
-    address constant weth = 0x4200000000000000000000000000000000000006;
-    address constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-
     address v3CoreFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+
     string public constant ENV_PRIVATE_KEY = "PRIVATE_KEY";
 
     function run() public {
@@ -50,20 +38,8 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
 
         address account = vm.addr(pk);
 
-        manager = new PoolManager(address(this));
+        manager = PoolManager(0x00B036B58a818B1BC34d502D3fE730Db729e62AC);
         console2.log("manager: ", address(manager), " as Address");
-
-        RouterParameters memory params = RouterParameters({
-            permit2: permit2,
-            weth9: weth,
-            v2Factory: address(uniFactoryV2),
-            v3Factory: address(v3CoreFactory),
-            pairInitCodeHash: PAIR_INIT_CODE_HASH,
-            poolInitCodeHash: POOL_INIT_CODE_HASH,
-            v4PoolManager: address(manager),
-            v3NFTPositionManager: address(0),
-            v4PositionManager: address(0)
-        });
 
         airlock = new Airlock(address(account));
         console2.log("airlock: ", address(airlock), " as Address");
@@ -81,9 +57,9 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
             address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2), address(account)
         );
         console2.log("migrator: ", address(uniswapV2LiquidityMigrator), " as Address");
-        universalRouter = new UniversalRouter(params);
+        universalRouter = UniversalRouter(0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D);
         console2.log("universalRouter: ", address(universalRouter), " as Address");
-        stateView = new StateView(IPoolManager(manager));
+        stateView = StateView(0xc199F1072a74D4e905ABa1A84d9a45E2546B6222);
         console2.log("stateView: ", address(stateView), " as Address");
 
         address[] memory modules = new address[](5);
