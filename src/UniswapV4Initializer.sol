@@ -111,6 +111,8 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
+        emit Create(address(doppler), asset, numeraire);
+
         return address(doppler);
     }
 

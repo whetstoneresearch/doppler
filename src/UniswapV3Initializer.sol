@@ -158,6 +158,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
             calculateLpTail(numPositions, tickLower, tickUpper, isToken0, reserves, numTokensToBond, tickSpacing);
 
         mintPositions(asset, numeraire, fee, pool, lbpPositions, numPositions);
+
+        emit Create(pool, asset, numeraire);
     }
 
     /// @inheritdoc IPoolInitializer
