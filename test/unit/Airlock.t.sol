@@ -44,6 +44,7 @@ uint256 constant DEFAULT_ENDING_TIME = 3 days;
 int24 constant DEFAULT_GAMMA = 800;
 uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 address constant DEFAULT_OWNER = address(0xdeadbeef);
+uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;
@@ -350,8 +351,7 @@ contract AirlockTest is Test, Deployers {
                 tickLower: DEFAULT_START_TICK,
                 tickUpper: DEFAULT_END_TICK,
                 numPositions: 1,
-                maxShareToBeSold: 0.15 ether,
-                maxShareToBond: 0.5 ether
+                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
             })
         );
 

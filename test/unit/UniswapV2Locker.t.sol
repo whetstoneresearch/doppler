@@ -98,9 +98,32 @@ contract UniswapV2LockerTest is Test {
             1 ether, 0, path, address(this), block.timestamp
         );
 
-        address timelock = address(0xbeef);
+        address tokenOwner = address(0xb0b);
+        vm.mockCall(address(airlock), abi.encodeWithSelector(this.owner.selector), abi.encode(tokenOwner));
+        vm.mockCall(
+            address(migrator),
+            abi.encodeWithSelector(this.getAsset.selector, address(pool)),
+            abi.encode(address(tokenBar))
+        );
+        address timelock = address(0x999);
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSelector(this.getAssetData.selector, address(tokenBar)),
+            abi.encode(
+                address(0),
+                timelock,
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                uint256(0),
+                uint256(0),
+                uint256(0),
+                address(0)
+            )
+        );
 
-        vm.prank(address(0xb055));
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(timelock), 0, "Timelock balance0 is wrong");
         assertGt(tokenFoo.balanceOf(timelock), 0, "Timelock balance1 is wrong");

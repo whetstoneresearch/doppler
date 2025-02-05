@@ -64,11 +64,11 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Timestamp of the start of the vesting period
     uint256 public immutable vestingStart;
 
-    /// @notice Minting token will be possible after this timestamp
-    uint256 public immutable mintStartDate;
-
     /// @notice Duration of the vesting period (in seconds)
     uint256 public immutable vestingDuration;
+
+    /// @notice Total amount of vested tokens
+    uint256 public immutable vestedTotalAmount;
 
     /// @notice Address of the liquidity pool
     address public pool;
@@ -149,6 +149,8 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
         require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
         require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
+
+        vestedTotalAmount = vestedTokens;
 
         if (vestedTokens > 0) {
             _mint(address(this), vestedTokens);
