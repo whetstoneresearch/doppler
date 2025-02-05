@@ -37,6 +37,9 @@ error MaxTotalVestedExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to release tokens before the vesting period has started
 error VestingNotStartedYet();
 
+/// @dev Thrown when trying to set the mint rate to a value higher than the maximum allowed
+error MaxYearlyMintRateExceeded(uint256 amount, uint256 limit);
+
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 
@@ -120,7 +123,10 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256[] memory amounts_,
         string memory tokenURI_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
-        require(yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD, "Yearly mint rate exceeds the maximum allowed");
+        require(
+            yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD,
+            MaxYearlyMintRateExceeded(yearlyMintRate_, MAX_YEARLY_MINT_RATE_WAD)
+        );
         yearlyMintRate = yearlyMintRate_;
         vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
