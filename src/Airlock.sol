@@ -163,7 +163,7 @@ contract Airlock is Ownable {
             migrationPool: migrationPool,
             numTokensToSell: createData.numTokensToSell,
             totalSupply: createData.initialSupply,
-            integrator: createData.integrator
+            integrator: createData.integrator == address(0) ? owner() : createData.integrator
         });
 
         emit Create(asset, createData.numeraire, address(createData.poolInitializer), pool);
