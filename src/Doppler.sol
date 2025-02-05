@@ -317,7 +317,8 @@ contract Doppler is BaseHook {
                 insufficientProceeds = true;
                 emit InsufficientProceeds();
                 PoolId poolId = key.toId();
-                (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+                (uint160 sqrtPrice,,,) = poolManager.getSlot0(poolId);
+                int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPrice); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
                 Position[] memory prevPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
                 prevPositions[0] = positions[LOWER_SLUG_SALT];
@@ -397,7 +398,9 @@ contract Doppler is BaseHook {
     ) external override onlyPoolManager returns (bytes4, int128) {
         // Get current tick
         PoolId poolId = key.toId();
-        (, int24 currentTick, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
@@ -486,7 +489,8 @@ contract Doppler is BaseHook {
         Position memory upperSlugPosition = positions[UPPER_SLUG_SALT];
 
         PoolId poolId = key.toId();
-        (uint160 sqrtPriceX96, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
         int256 accumulatorDelta;
         int256 newAccumulator;
@@ -736,7 +740,8 @@ contract Doppler is BaseHook {
     ///         Returns an 18 decimal fixed point value
     function _getMaxTickDeltaPerEpoch() internal view returns (int256) {
         PoolId poolId = poolKey.toId();
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
         int24 effectiveStartingTick;
         if (isToken0) {
@@ -1119,8 +1124,8 @@ contract Doppler is BaseHook {
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
         if (isMigration) {
-            BalanceDelta totalCallerDelta;
-            BalanceDelta totalFeesAccrued;
+            BalanceDelta slugsCallerDelta;
+            BalanceDelta slugsFeesAccrued;
 
             for (uint256 i = 1; i < NUM_DEFAULT_SLUGS + numPDSlugs; ++i) {
                 Position memory position = positions[bytes32(i)];
@@ -1137,8 +1142,8 @@ contract Doppler is BaseHook {
                         ""
                     );
 
-                    totalCallerDelta = add(totalCallerDelta, callerDelta);
-                    totalFeesAccrued = add(totalFeesAccrued, feesAccrued);
+                    slugsCallerDelta = slugsCallerDelta + callerDelta;
+                    slugsFeesAccrued = slugsFeesAccrued + feesAccrued;
                 }
             }
 
@@ -1153,7 +1158,7 @@ contract Doppler is BaseHook {
                 poolManager.take(key.currency1, sender, uint256(currency1Delta));
             }
 
-            return abi.encode(totalCallerDelta, totalFeesAccrued);
+            return abi.encode(slugsCallerDelta, slugsFeesAccrued);
         }
 
         state.lastEpoch = 1;
@@ -1281,15 +1286,18 @@ contract Doppler is BaseHook {
             revert CannotMigrate();
         }
 
+        // close out the remaining slugs
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true }))
         );
-
-        (BalanceDelta totalCallerDelta, BalanceDelta totalFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
+        (BalanceDelta slugCallerDelta, BalanceDelta slugsFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
+        BalanceDelta totalFeesAccrued = state.feesAccrued + slugsFeesAccrued;
 
         // In case some dust tokens are still left in the contract
-        poolKey.currency0.transfer(recipient, poolKey.currency0.balanceOfSelf());
-        poolKey.currency1.transfer(recipient, poolKey.currency1.balanceOfSelf());
+        uint256 extraBalance0 = poolKey.currency0.balanceOfSelf();
+        uint256 extraBalance1 = poolKey.currency1.balanceOfSelf();
+        poolKey.currency0.transfer(recipient, extraBalance0);
+        poolKey.currency1.transfer(recipient, extraBalance1);
 
         (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
         token0 = Currency.unwrap(poolKey.currency0);
@@ -1297,8 +1305,12 @@ contract Doppler is BaseHook {
 
         // No need to safe cast since these amounts will always be positive
         fees0 = uint128(totalFeesAccrued.amount0());
-        balance0 = uint128(totalCallerDelta.amount0());
         fees1 = uint128(totalFeesAccrued.amount1());
-        balance1 = uint128(totalCallerDelta.amount1());
+
+        // In case balances were to overflow uint128, we should at least migrate uint128.max and avoid hard-revert
+        uint256 _bal0 = uint256(uint128(slugCallerDelta.amount0())) + extraBalance0;
+        uint256 _bal1 = uint256(uint128(slugCallerDelta.amount1())) + extraBalance1;
+        balance0 = _bal0 > uint256(type(uint128).max) ? type(uint128).max : uint128(_bal0);
+        balance1 = _bal1 > uint256(type(uint128).max) ? type(uint128).max : uint128(_bal1);
     }
 }

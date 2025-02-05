@@ -13,6 +13,9 @@ error MintingNotStartedYet();
 /// @dev Thrown when trying to mint more than the yearly cap
 error ExceedsYearlyMintCap();
 
+/// @dev Thrown when there is no amount to mint
+error NoMintableAmount();
+
 /// @dev Thrown when trying to transfer tokens into the pool while it is locked
 error PoolLocked();
 
@@ -28,14 +31,23 @@ error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to premint more than the maximum allowed in total
 error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 
+/// @dev Thrown when trying to mint more than the maximum allowed in total
+error MaxTotalVestedExceeded(uint256 amount, uint256 limit);
+
 /// @dev Thrown when trying to release tokens before the vesting period has started
 error VestingNotStartedYet();
+
+/// @dev Thrown when trying to set the mint rate to a value higher than the maximum allowed
+error MaxYearlyMintRateExceeded(uint256 amount, uint256 limit);
 
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
 
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
 uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.1 ether;
+
+/// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
+uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
 
 /**
  * @notice Vesting data for a specific address
@@ -49,11 +61,11 @@ struct VestingData {
 
 /// @custom:security-contact security@whetstone.cc
 contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
+    /// @notice Timestamp of the start of the vesting period
+    uint256 public immutable vestingStart;
+
     /// @notice Minting token will be possible after this timestamp
     uint256 public immutable mintStartDate;
-
-    /// @notice Maximum amount of tokens that can be minted in a year
-    uint256 public immutable yearlyMintCap;
 
     /// @notice Duration of the vesting period (in seconds)
     uint256 public immutable vestingDuration;
@@ -70,11 +82,14 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Whether the pool can receive tokens (unlocked) or not
     bool public isPoolUnlocked;
 
-    /// @notice Timestamp of the start of the current yearly period
+    /// @notice Maximum rate of tokens that can be minted in a year
+    uint256 public yearlyMintRate;
+
+    /// @notice Timestamp of the start of the current year
     uint256 public currentYearStart;
 
-    /// @notice Amount of tokens minted in the current year
-    uint256 public currentAnnualMint;
+    /// @notice Timestamp of the last inflation mint
+    uint256 public lastMintTimestamp;
 
     /// @notice Uniform Resource Identifier (URI)
     string public tokenURI;
@@ -93,7 +108,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param initialSupply Initial supply of the token
      * @param recipient Address receiving the initial supply
      * @param owner_ Address receivin the ownership of the token
-     * @param yearlyMintCap_ Maximum amount of token that can be minted in a year
+     * @param yearlyMintRate_ Maximum inflation rate of token in a year
      * @param vestingDuration_ Duration of the vesting period (in seconds)
      * @param recipients_ Array of addresses receiving vested tokens
      * @param amounts_ Array of amounts of tokens to be vested
@@ -105,14 +120,18 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 initialSupply,
         address recipient,
         address owner_,
-        uint256 yearlyMintCap_,
+        uint256 yearlyMintRate_,
         uint256 vestingDuration_,
         address[] memory recipients_,
         uint256[] memory amounts_,
         string memory tokenURI_
     ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
-        mintStartDate = block.timestamp + 365 days;
-        yearlyMintCap = yearlyMintCap_;
+        require(
+            yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD,
+            MaxYearlyMintRateExceeded(yearlyMintRate_, MAX_YEARLY_MINT_RATE_WAD)
+        );
+        yearlyMintRate = yearlyMintRate_;
+        vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
         tokenURI = tokenURI_;
 
@@ -135,6 +154,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
         require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
+        require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
 
         vestedTotalAmount = vestedTokens;
 
@@ -159,26 +179,71 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
         isPoolUnlocked = true;
-        vestingStart = block.timestamp;
+        currentYearStart = lastMintTimestamp = block.timestamp;
     }
 
     /**
-     * @notice Mints `amount` of tokens to the address `to`
-     * @param to Address receiving the minted tokens
-     * @param value Amount of tokens to mint
+     * @notice Mints inflation tokens to the owner
      */
-    function mint(address to, uint256 value) external onlyOwner {
-        require(block.timestamp >= mintStartDate, MintingNotStartedYet());
+    function mintInflation() public {
+        require(currentYearStart != 0, MintingNotStartedYet());
 
-        if (block.timestamp >= currentYearStart + 365 days) {
-            currentYearStart = block.timestamp;
-            currentAnnualMint = 0;
+        uint256 mintableAmount;
+        uint256 yearMint;
+        uint256 timeLeftInCurrentYear;
+        uint256 supply = totalSupply();
+        uint256 currentYearStart_ = currentYearStart;
+        uint256 lastMintTimestamp_ = lastMintTimestamp;
+        uint256 yearlyMintRate_ = yearlyMintRate;
+        // Handle any outstanding full years and updates to maintain inflation rate
+        while (block.timestamp > currentYearStart_ + 365 days) {
+            timeLeftInCurrentYear = (currentYearStart_ + 365 days - lastMintTimestamp_);
+            yearMint = (supply * yearlyMintRate_ * timeLeftInCurrentYear) / (1 ether * 365 days);
+            supply += yearMint;
+            mintableAmount += yearMint;
+            currentYearStart_ += 365 days;
+            lastMintTimestamp_ = currentYearStart_;
         }
 
-        require(currentAnnualMint + value <= yearlyMintCap, ExceedsYearlyMintCap());
-        currentAnnualMint += value;
+        // Handle partial current year
+        if (block.timestamp > lastMintTimestamp_) {
+            uint256 partialYearMint =
+                (supply * yearlyMintRate_ * (block.timestamp - lastMintTimestamp_)) / (1 ether * 365 days);
+            mintableAmount += partialYearMint;
+        }
 
-        _mint(to, value);
+        require(mintableAmount > 0, NoMintableAmount());
+
+        currentYearStart = currentYearStart_;
+        lastMintTimestamp = block.timestamp;
+        _mint(owner(), mintableAmount);
+    }
+
+    /**
+     * @notice Burns `amount` of tokens from the address `owner`
+     * @param amount Amount of tokens to burn
+     */
+    function burn(
+        uint256 amount
+    ) external onlyOwner {
+        _burn(owner(), amount);
+    }
+
+    /**
+     * @notice Updates the maximum rate of tokens that can be minted in a year
+     * @param newMintRate New maximum rate of tokens that can be minted in a year
+     */
+    function updateMintRate(
+        uint256 newMintRate
+    ) external onlyOwner {
+        // Inflation can't be more than 2% of token supply per year
+        require(newMintRate <= MAX_YEARLY_MINT_RATE_WAD, "New mint rate exceeds the maximum allowed");
+
+        if (currentYearStart != 0 && (block.timestamp - lastMintTimestamp) != 0) {
+            mintInflation();
+        }
+
+        yearlyMintRate = newMintRate;
     }
 
     /**
@@ -204,9 +269,9 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /// @inheritdoc Nonces
     function nonces(
-        address owner
+        address owner_
     ) public view override(ERC20Permit, Nonces) returns (uint256) {
-        return super.nonces(owner);
+        return super.nonces(owner_);
     }
 
     /// @inheritdoc ERC20

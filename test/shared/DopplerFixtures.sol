@@ -230,11 +230,44 @@ contract DopplerFixtures is Deployers {
     }
 
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
-        return abi.encode("Best Token", "BEST", 1e18, 365 days, new address[](0), new uint256[](0), "");
+        return abi.encode("Best Token", "BEST", 1e16, 365 days, new address[](0), new uint256[](0), "");
     }
 
     function _defaultGovernanceFactoryData() internal pure returns (bytes memory) {
         return abi.encode("Best Token");
+    }
+
+    function _collectAllProtocolFees(
+        address numeraire,
+        address asset,
+        address recipient
+    ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
+        numeraireAmount = airlock.protocolFees(numeraire);
+        assetAmount = airlock.protocolFees(asset);
+        vm.startPrank(airlock.owner());
+        airlock.collectProtocolFees(recipient, numeraire, numeraireAmount);
+        airlock.collectProtocolFees(recipient, asset, assetAmount);
+        vm.stopPrank();
+
+        assertEq(airlock.protocolFees(numeraire), 0);
+        assertEq(airlock.protocolFees(asset), 0);
+    }
+
+    function _collectAllIntegratorFees(
+        address numeraire,
+        address asset,
+        address recipient
+    ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
+        (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
+        numeraireAmount = airlock.integratorFees(integrator, numeraire);
+        assetAmount = airlock.integratorFees(integrator, asset);
+        vm.startPrank(integrator);
+        airlock.collectIntegratorFees(recipient, numeraire, numeraireAmount);
+        airlock.collectIntegratorFees(recipient, asset, assetAmount);
+        vm.stopPrank();
+
+        assertEq(airlock.integratorFees(integrator, numeraire), 0);
+        assertEq(airlock.integratorFees(integrator, asset), 0);
     }
 
     function _mockEarlyExit(
