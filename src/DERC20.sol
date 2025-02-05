@@ -67,9 +67,6 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Minting token will be possible after this timestamp
     uint256 public immutable mintStartDate;
 
-    /// @notice Maximum amount of tokens that can be minted in a year
-    uint256 public immutable yearlyMintCap;
-
     /// @notice Duration of the vesting period (in seconds)
     uint256 public immutable vestingDuration;
 
