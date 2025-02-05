@@ -73,9 +73,6 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Total amount of vested tokens
     uint256 public immutable vestedTotalAmount;
 
-    /// @notice Timestamp of the start of the vesting period
-    uint256 public vestingStart;
-
     /// @notice Address of the liquidity pool
     address public pool;
 
