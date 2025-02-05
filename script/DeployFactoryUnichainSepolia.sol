@@ -57,7 +57,7 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
             address(airlock), IUniswapV2Factory(uniFactoryV2), IUniswapV2Router02(uniRouterV2), address(account)
         );
         console2.log("migrator: ", address(uniswapV2LiquidityMigrator), " as Address");
-        universalRouter = UniversalRouter(0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D);
+        universalRouter = UniversalRouter(payable(0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D));
         console2.log("universalRouter: ", address(universalRouter), " as Address");
         stateView = StateView(0xc199F1072a74D4e905ABa1A84d9a45E2546B6222);
         console2.log("stateView: ", address(stateView), " as Address");
