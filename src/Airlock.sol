@@ -151,6 +151,7 @@ contract Airlock is Ownable {
 
         migrationPool =
             createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
+        DERC20(asset).lockPool(migrationPool);
 
         getAssetData[asset] = AssetData({
             numeraire: createData.numeraire,
