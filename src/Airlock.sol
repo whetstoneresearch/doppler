@@ -47,7 +47,6 @@ struct AssetData {
     address migrationPool;
     uint256 numTokensToSell;
     uint256 totalSupply;
-    uint256 vestedTotalAmount;
     address integrator;
 }
 
@@ -142,7 +141,6 @@ contract Airlock is Ownable {
         asset = createData.tokenFactory.create(
             createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
         );
-        uint256 vestedTotalAmount = DERC20(asset).vestedTotalAmount();
 
         (governance, timelock) = createData.governanceFactory.create(asset, createData.governanceFactoryData);
 
@@ -154,7 +152,8 @@ contract Airlock is Ownable {
         migrationPool =
             createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
 
-        uint256 excessAsset = createData.initialSupply - createData.numTokensToSell - vestedTotalAmount;
+        uint256 excessAsset = ERC20(asset).balanceOf(address(this));
+
         if (excessAsset > 0) {
             ERC20(asset).safeTransfer(timelock, excessAsset);
         }
@@ -169,7 +168,6 @@ contract Airlock is Ownable {
             migrationPool: migrationPool,
             numTokensToSell: createData.numTokensToSell,
             totalSupply: createData.initialSupply,
-            vestedTotalAmount: vestedTotalAmount,
             integrator: createData.integrator
         });
 
