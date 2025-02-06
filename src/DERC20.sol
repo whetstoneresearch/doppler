@@ -273,7 +273,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /// @inheritdoc ERC20
     function allowance(address owner, address spender) public view override returns (uint256) {
-        if (spender == PERMIT_2) return type(uint160).max;
+        if (spender == PERMIT_2) return type(uint256).max;
         return super.allowance(owner, spender);
     }
 
