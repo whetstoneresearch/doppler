@@ -200,11 +200,8 @@ contract Airlock is Ownable {
         uint256 protocolLpFees0 = fees0 * 5 / 100;
         uint256 protocolLpFees1 = fees1 * 5 / 100;
 
-        // uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
-        // uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
-        // TODO: FIX PROTOCOL FEE CALCULATION
-        uint256 protocolProceedsFees0 = 0;
-        uint256 protocolProceedsFees1 = 0;
+        uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
+        uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
 
         uint256 protocolFees0 = Math.max(protocolLpFees0, protocolProceedsFees0);
         uint256 protocolFees1 = Math.max(protocolLpFees1, protocolProceedsFees1);
