@@ -313,11 +313,11 @@ contract AirlockTest is Test, Deployers {
     ) internal {
         uint160 sqrtPriceX96 = uint160(2 ** 96);
 
-        address asset = address(0xa000);
-        address timelock = address(0xa001);
-        address poolInitializer = address(0xa002);
-        address pool = address(0xa003);
-        address liquidityMigrator = address(0xa004);
+        address asset = makeAddr("Asset");
+        address timelock = makeAddr("Timelock");
+        address poolInitializer = makeAddr("PoolInitializer");
+        address pool = makeAddr("Pool");
+        address liquidityMigrator = makeAddr("LiquidityMigrator");
 
         AssetData memory assetData = AssetData({
             numeraire: address(0),
