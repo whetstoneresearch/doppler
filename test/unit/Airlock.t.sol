@@ -18,9 +18,11 @@ import {
     SetModuleState,
     CreateParams,
     Collect,
-    ArrayLengthsMismatch
+    ArrayLengthsMismatch,
+    AssetData
 } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
+import { DERC20, ERC20 } from "src/DERC20.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
@@ -32,6 +34,8 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
+
+import { console } from "forge-std/console.sol";
 
 // TODO: Reuse these constants from the BaseTest
 string constant DEFAULT_TOKEN_NAME = "Test";
@@ -67,6 +71,25 @@ contract AirlockCheat is Airlock {
 
     function setIntegratorFees(address integrator, address token, uint256 amount) public {
         integratorFees[integrator][token] = amount;
+    }
+
+    function setAssetData(address asset, AssetData memory data) public {
+        getAssetData[asset] = data;
+    }
+}
+
+contract MockLiquidityMigrator is ILiquidityMigrator {
+    function initialize(address asset, address numeraire, bytes calldata) external override returns (address) {
+        return address(0);
+    }
+
+    function migrate(
+        uint160 sqrtPriceX96,
+        address token0,
+        address token1,
+        address timelock
+    ) external payable override returns (uint256) {
+        // Do nothing
     }
 }
 
@@ -216,29 +239,78 @@ contract AirlockTest is Test, Deployers {
         return (hook, asset);
     }
 
-    // TODO: This test should not be here
     function test_migrate() public {
-        vm.skip(true);
-        (address hook, address asset) = test_create_DeploysV4();
+        address asset = address(0xa000);
+        address timelock = address(0xa001);
+        address poolInitializer = address(0xa002);
+        address pool = address(0xa003);
+        address liquidityMigrator = address(0xa004);
+        address token0 = address(0xa005);
+        address token1 = address(0xa006);
+        address integrator = address(0xa007);
 
-        PoolKey memory poolKey = PoolKey({
-            currency0: Currency.wrap(address(0)),
-            currency1: Currency.wrap(asset),
-            fee: DEFAULT_FEE,
-            tickSpacing: DEFAULT_TICK_SPACING,
-            hooks: IHooks(hook)
+        uint160 sqrtPriceX96 = uint160(2 ** 96);
+        uint128 fees0 = 0.01 ether;
+        uint128 balance0 = 1 ether;
+        uint128 fees1 = 0.01 ether;
+        uint128 balance1 = 1 ether;
+
+        uint256 protocolFees0 = 990_000_000_000_000;
+        uint256 protocolFees1 = 990_000_000_000_000;
+        uint256 integratorFees0 = fees0 - protocolFees0;
+        uint256 integratorFees1 = fees1 - protocolFees1;
+
+        AssetData memory assetData = AssetData({
+            numeraire: address(0),
+            timelock: timelock,
+            governance: address(0),
+            liquidityMigrator: ILiquidityMigrator(liquidityMigrator),
+            poolInitializer: IPoolInitializer(poolInitializer),
+            pool: pool,
+            migrationPool: address(0),
+            numTokensToSell: 0,
+            totalSupply: 0,
+            integrator: integrator
         });
 
-        // Deploy swapRouter
-        swapRouter = new PoolSwapTest(manager);
-        V4Quoter quoter = new V4Quoter(manager);
-        CustomRouter router = new CustomRouter(swapRouter, quoter, poolKey, false, true);
-        uint256 amountIn = router.computeBuyExactOut(DEFAULT_MIN_PROCEEDS);
+        airlock.setAssetData(asset, assetData);
 
-        deal(address(this), amountIn);
-        router.buyExactOut{ value: amountIn }(DEFAULT_MIN_PROCEEDS);
-        vm.warp(DEFAULT_ENDING_TIME);
+        (,,, ILiquidityMigrator liquidityMigrator_,,,,,,) = airlock.getAssetData(asset);
+
+        assertEq(address(liquidityMigrator_), liquidityMigrator, "Wrong liquidity migrator");
+
+        vm.expectCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector));
+        vm.mockCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector), new bytes(0));
+        vm.expectCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock));
+        vm.mockCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock), new bytes(0));
+
+        vm.mockCall(
+            poolInitializer,
+            abi.encodeWithSelector(IPoolInitializer.exitLiquidity.selector, pool),
+            abi.encode(sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1)
+        );
+
+        vm.mockCall(
+            token0, abi.encodeWithSelector(ERC20.transfer.selector, liquidityMigrator, balance0 - fees0), new bytes(0)
+        );
+        vm.mockCall(
+            token1, abi.encodeWithSelector(ERC20.transfer.selector, liquidityMigrator, balance1 - fees1), new bytes(0)
+        );
+
+        bytes memory call =
+            abi.encodeWithSelector(ILiquidityMigrator.migrate.selector, sqrtPriceX96, token0, token1, timelock);
+        vm.expectCall(liquidityMigrator, call);
+        // TODO: I wanted to use mockCall here but for some reason it doesn't work
+        // vm.mockCall(liquidityMigrator, call, new bytes(0));
+        MockLiquidityMigrator lm = new MockLiquidityMigrator();
+        vm.etch(liquidityMigrator, address(lm).code);
+
         airlock.migrate(asset);
+
+        assertEq(airlock.protocolFees(token0), protocolFees0, "Wrong protocolFees0");
+        assertEq(airlock.protocolFees(token1), protocolFees1, "Wrong protocolFees1");
+        assertEq(airlock.integratorFees(integrator, token0), integratorFees0, "Wrong integratorFees0");
+        assertEq(airlock.integratorFees(integrator, token1), integratorFees1, "Wrong integratorFees1");
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {
