@@ -242,15 +242,15 @@ contract DopplerFixtures is Deployers {
         address asset,
         address recipient
     ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
-        numeraireAmount = airlock.protocolFees(numeraire);
-        assetAmount = airlock.protocolFees(asset);
+        numeraireAmount = airlock.getProtocolFees(numeraire);
+        assetAmount = airlock.getProtocolFees(asset);
         vm.startPrank(airlock.owner());
         airlock.collectProtocolFees(recipient, numeraire, numeraireAmount);
         airlock.collectProtocolFees(recipient, asset, assetAmount);
         vm.stopPrank();
 
-        assertEq(airlock.protocolFees(numeraire), 0);
-        assertEq(airlock.protocolFees(asset), 0);
+        assertEq(airlock.getProtocolFees(numeraire), 0);
+        assertEq(airlock.getProtocolFees(asset), 0);
     }
 
     function _collectAllIntegratorFees(
@@ -259,15 +259,15 @@ contract DopplerFixtures is Deployers {
         address recipient
     ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
         (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
-        numeraireAmount = airlock.integratorFees(integrator, numeraire);
-        assetAmount = airlock.integratorFees(integrator, asset);
+        numeraireAmount = airlock.getIntegratorFees(integrator, numeraire);
+        assetAmount = airlock.getIntegratorFees(integrator, asset);
         vm.startPrank(integrator);
         airlock.collectIntegratorFees(recipient, numeraire, numeraireAmount);
         airlock.collectIntegratorFees(recipient, asset, assetAmount);
         vm.stopPrank();
 
-        assertEq(airlock.integratorFees(integrator, numeraire), 0);
-        assertEq(airlock.integratorFees(integrator, asset), 0);
+        assertEq(airlock.getIntegratorFees(integrator, numeraire), 0);
+        assertEq(airlock.getIntegratorFees(integrator, asset), 0);
     }
 
     function _mockEarlyExit(

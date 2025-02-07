@@ -115,12 +115,12 @@ contract DopplerMigrateTest is DopplerFixtures {
         (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
         assertEq(
             currencyAsset.balanceOf(address(airlock)),
-            airlock.protocolFees(asset) + airlock.integratorFees(integrator, asset)
+            airlock.getProtocolFees(asset) + airlock.getIntegratorFees(integrator, asset)
         );
         assertEq(
             currencyNumeraire.balanceOf(address(airlock)),
-            airlock.protocolFees(Currency.unwrap(currencyNumeraire))
-                + airlock.integratorFees(integrator, Currency.unwrap(currencyNumeraire))
+            airlock.getProtocolFees(Currency.unwrap(currencyNumeraire))
+                + airlock.getIntegratorFees(integrator, Currency.unwrap(currencyNumeraire))
         );
 
         _collectAllProtocolFees(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), asset, address(this));

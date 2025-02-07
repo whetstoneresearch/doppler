@@ -45,26 +45,26 @@ contract DopplerFeesTest is DopplerFixtures {
 
         // protocol collects asset fees
         address recipient = makeAddr("protocolFeeRecipient");
-        uint256 protocolFeesAsset = airlock.protocolFees(asset);
+        uint256 protocolFeesAsset = airlock.getProtocolFees(asset);
         airlock.collectProtocolFees(recipient, asset, protocolFeesAsset);
         assertGt(protocolFeesAsset, 0); // protocolFeesAsset > 0
         assertEq(IERC20(asset).balanceOf(recipient), protocolFeesAsset);
 
         // protocol collects numeraire fees
-        uint256 protocolFeesNumeraire = airlock.protocolFees(numeraireAddress);
+        uint256 protocolFeesNumeraire = airlock.getProtocolFees(numeraireAddress);
         airlock.collectProtocolFees(recipient, numeraireAddress, protocolFeesNumeraire);
         assertGt(protocolFeesNumeraire, 0); // protocolFeesNumeraire > 0
         assertEq(recipient.balance, protocolFeesNumeraire);
 
         // integrator collects asset fees
         address integratorRecipient = makeAddr("integratorFeeRecipient");
-        uint256 integratorFeesAsset = airlock.integratorFees(address(this), asset);
+        uint256 integratorFeesAsset = airlock.getIntegratorFees(address(this), asset);
         airlock.collectIntegratorFees(integratorRecipient, asset, integratorFeesAsset);
         assertGt(integratorFeesAsset, 0); // integratorFeesAsset > 0
         assertEq(IERC20(asset).balanceOf(integratorRecipient), integratorFeesAsset);
 
         // integrator collects numeraire fees
-        uint256 integratorFeesNumeraire = airlock.integratorFees(address(this), numeraireAddress);
+        uint256 integratorFeesNumeraire = airlock.getIntegratorFees(address(this), numeraireAddress);
         airlock.collectIntegratorFees(integratorRecipient, numeraireAddress, integratorFeesNumeraire);
         assertGt(integratorFeesNumeraire, 0); // integratorFeesNumeraire > 0
         assertEq(integratorRecipient.balance, integratorFeesNumeraire);

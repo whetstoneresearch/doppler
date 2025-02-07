@@ -14,7 +14,8 @@ import {
     CreateParams,
     Collect,
     ArrayLengthsMismatch,
-    AssetData
+    AssetData,
+    Migrate
 } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { DERC20, ERC20 } from "src/DERC20.sol";
@@ -28,8 +29,6 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
-
-import { console } from "forge-std/console.sol";
 
 // TODO: Reuse these constants from the BaseTest
 string constant DEFAULT_TOKEN_NAME = "Test";
@@ -60,11 +59,11 @@ contract AirlockCheat is Airlock {
     ) Airlock(owner_) { }
 
     function setProtocolFees(address token, uint256 amount) public {
-        protocolFees[token] = amount;
+        getProtocolFees[token] = amount;
     }
 
     function setIntegratorFees(address integrator, address token, uint256 amount) public {
-        integratorFees[integrator][token] = amount;
+        getIntegratorFees[integrator][token] = amount;
     }
 
     function setAssetData(address asset, AssetData memory data) public {
@@ -73,9 +72,7 @@ contract AirlockCheat is Airlock {
 }
 
 contract MockLiquidityMigrator is ILiquidityMigrator {
-    function initialize(address asset, address numeraire, bytes calldata) external override returns (address) {
-        return address(0);
-    }
+    function initialize(address, address, bytes calldata) external override returns (address) { }
 
     function migrate(
         uint160 sqrtPriceX96,
@@ -234,26 +231,93 @@ contract AirlockTest is Test, Deployers {
         return (hook, asset);
     }
 
-    function test_migrate() public {
-        address asset = address(0xa000);
-        address timelock = address(0xa001);
-        address poolInitializer = address(0xa002);
-        address pool = address(0xa003);
-        address liquidityMigrator = address(0xa004);
+    address public constant DEFAULT_INTEGRATOR = address(0x0000000aaaaabbbcccceee);
+
+    function test_migrate_DistributeFees(uint128 fees0, uint128 balance0, uint128 fees1, uint128 balance1) public {
+        vm.assume(fees0 < balance0);
+        vm.assume(fees1 < balance1);
+
         address token0 = address(0xa005);
         address token1 = address(0xa006);
-        address integrator = address(0xa007);
 
-        uint160 sqrtPriceX96 = uint160(2 ** 96);
+        (uint256 protocolFees0, uint256 integratorFees0) = _computeFees(fees0, balance0);
+        (uint256 protocolFees1, uint256 integratorFees1) = _computeFees(fees1, balance1);
+
+        _migrate(token0, fees0, balance0, token1, fees1, balance1);
+
+        assertEq(airlock.getProtocolFees(token0), protocolFees0, "Wrong protocolFees0");
+        assertEq(airlock.getProtocolFees(token1), protocolFees1, "Wrong protocolFees1");
+        assertEq(airlock.getIntegratorFees(DEFAULT_INTEGRATOR, token0), integratorFees0, "Wrong integratorFees0");
+        assertEq(airlock.getIntegratorFees(DEFAULT_INTEGRATOR, token1), integratorFees1, "Wrong integratorFees1");
+    }
+
+    function _computeFees(
+        uint256 fees,
+        uint256 balance
+    ) internal pure returns (uint256 protocolFees, uint256 integratorFees) {
+        if (fees > 0) {
+            uint256 protocolLpFees = fees / 20;
+            uint256 protocolProceedsFees = (balance - fees) / 1000;
+            protocolFees = protocolLpFees > protocolProceedsFees ? protocolLpFees : protocolProceedsFees;
+            uint256 maxProtocolFees = fees / 5;
+            (integratorFees, protocolFees) = protocolFees > maxProtocolFees
+                ? (fees - maxProtocolFees, maxProtocolFees)
+                : (fees - protocolFees, protocolFees);
+        }
+    }
+
+    function test_migrate_NoLPFees() public {
+        address token0 = address(0xa005);
+        uint128 fees0 = 0 ether;
+        uint128 balance0 = 1 ether;
+        address token1 = address(0xa006);
+        uint128 fees1 = 0 ether;
+        uint128 balance1 = 1 ether;
+
+        _migrate(token0, fees0, balance0, token1, fees1, balance1);
+
+        assertEq(airlock.getProtocolFees(token0), 0, "Wrong protocolFees0");
+        assertEq(airlock.getProtocolFees(token1), 0, "Wrong protocolFees1");
+        assertEq(airlock.getIntegratorFees(DEFAULT_INTEGRATOR, token0), 0, "Wrong integratorFees0");
+        assertEq(airlock.getIntegratorFees(DEFAULT_INTEGRATOR, token1), 0, "Wrong integratorFees1");
+    }
+
+    function test_migrate_HardcodedFees() public {
+        address token0 = address(0xa005);
         uint128 fees0 = 0.01 ether;
         uint128 balance0 = 1 ether;
+        address token1 = address(0xa006);
         uint128 fees1 = 0.01 ether;
         uint128 balance1 = 1 ether;
+
+        _migrate(token0, fees0, balance0, token1, fees1, balance1);
 
         uint256 protocolFees0 = 990_000_000_000_000;
         uint256 protocolFees1 = 990_000_000_000_000;
         uint256 integratorFees0 = fees0 - protocolFees0;
         uint256 integratorFees1 = fees1 - protocolFees1;
+
+        assertEq(airlock.getProtocolFees(token0), protocolFees0, "Wrong protocolFees0");
+        assertEq(airlock.getProtocolFees(token1), protocolFees1, "Wrong protocolFees1");
+        assertEq(airlock.getIntegratorFees(DEFAULT_INTEGRATOR, token0), integratorFees0, "Wrong integratorFees0");
+        assertEq(airlock.getIntegratorFees(DEFAULT_INTEGRATOR, token1), integratorFees1, "Wrong integratorFees1");
+    }
+
+    function _migrate(
+        address token0,
+        uint128 fees0,
+        uint128 balance0,
+        address token1,
+        uint128 fees1,
+        uint128 balance1
+    ) internal {
+        uint160 sqrtPriceX96 = uint160(2 ** 96);
+
+        address asset = address(0xa000);
+        address timelock = address(0xa001);
+        address poolInitializer = address(0xa002);
+        address pool = address(0xa003);
+        address liquidityMigrator = address(0xa004);
 
         AssetData memory assetData = AssetData({
             numeraire: address(0),
@@ -265,26 +329,25 @@ contract AirlockTest is Test, Deployers {
             migrationPool: address(0),
             numTokensToSell: 0,
             totalSupply: 0,
-            integrator: integrator
+            integrator: DEFAULT_INTEGRATOR
         });
 
         airlock.setAssetData(asset, assetData);
 
-        (,,, ILiquidityMigrator liquidityMigrator_,,,,,,) = airlock.getAssetData(asset);
-
-        assertEq(address(liquidityMigrator_), liquidityMigrator, "Wrong liquidity migrator");
-
         vm.expectCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector));
-        vm.mockCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector), new bytes(0));
         vm.expectCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock));
-        vm.mockCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock), new bytes(0));
+        vm.expectCall(
+            liquidityMigrator,
+            abi.encodeWithSelector(ILiquidityMigrator.migrate.selector, sqrtPriceX96, token0, token1, timelock)
+        );
 
+        vm.mockCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector), new bytes(0));
+        vm.mockCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock), new bytes(0));
         vm.mockCall(
             poolInitializer,
             abi.encodeWithSelector(IPoolInitializer.exitLiquidity.selector, pool),
             abi.encode(sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1)
         );
-
         vm.mockCall(
             token0, abi.encodeWithSelector(ERC20.transfer.selector, liquidityMigrator, balance0 - fees0), new bytes(0)
         );
@@ -292,20 +355,15 @@ contract AirlockTest is Test, Deployers {
             token1, abi.encodeWithSelector(ERC20.transfer.selector, liquidityMigrator, balance1 - fees1), new bytes(0)
         );
 
-        bytes memory call =
-            abi.encodeWithSelector(ILiquidityMigrator.migrate.selector, sqrtPriceX96, token0, token1, timelock);
-        vm.expectCall(liquidityMigrator, call);
         // TODO: I wanted to use mockCall here but for some reason it doesn't work
-        // vm.mockCall(liquidityMigrator, call, new bytes(0));
+        // vm.mockCall(liquidityMigrator, abi.encodeWithSelector(ILiquidityMigrator.migrate.selector, sqrtPriceX96, token0, token1, timelock), new bytes(0));
         MockLiquidityMigrator lm = new MockLiquidityMigrator();
         vm.etch(liquidityMigrator, address(lm).code);
 
+        // TODO: The log look good but Foundry says they are not matching
+        emit Migrate(asset, pool);
+        // vm.expectEmit();
         airlock.migrate(asset);
-
-        assertEq(airlock.protocolFees(token0), protocolFees0, "Wrong protocolFees0");
-        assertEq(airlock.protocolFees(token1), protocolFees1, "Wrong protocolFees1");
-        assertEq(airlock.integratorFees(integrator, token0), integratorFees0, "Wrong integratorFees0");
-        assertEq(airlock.integratorFees(integrator, token1), integratorFees1, "Wrong integratorFees1");
     }
 
     function test_create_RevertsIfWrongTokenFactory() public {

@@ -188,10 +188,10 @@ contract V3Test is Test {
         assertApproxEqAbs(poolBalanceWETHAfter, 0, 1000, "Pool balance of WETH is not 0");
 
         // Asset fees are zero because swap was only done in one direction
-        assertEq(airlock.protocolFees(asset), 0, "Protocol fees are 0");
-        assertEq(airlock.integratorFees(address(this), asset), 0, "Integrator fees are 0");
+        assertEq(airlock.getProtocolFees(asset), 0, "Protocol fees are 0");
+        assertEq(airlock.getIntegratorFees(address(this), asset), 0, "Integrator fees are 0");
 
-        assertGt(airlock.protocolFees(WETH_MAINNET), 0, "Protocol fees are 0");
-        assertGt(airlock.integratorFees(address(this), WETH_MAINNET), 0, "Integrator fees are 0");
+        assertGt(airlock.getProtocolFees(WETH_MAINNET), 0, "Protocol fees are 0");
+        assertGt(airlock.getIntegratorFees(address(this), WETH_MAINNET), 0, "Integrator fees are 0");
     }
 }
