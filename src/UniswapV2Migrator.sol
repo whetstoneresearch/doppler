@@ -92,10 +92,8 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         if (depositAmount1 > balance1) {
             depositAmount1 = balance1;
-            depositAmount0 = depositAmount0;
         } else if (depositAmount0 > balance0) {
             depositAmount0 = balance0;
-            depositAmount1 = depositAmount1;
         }
 
         if (token0 > token1) {
