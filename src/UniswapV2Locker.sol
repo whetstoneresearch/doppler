@@ -8,7 +8,6 @@ import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { Airlock } from "src/Airlock.sol";
 
 /// @notice Thrown when the sender is not the migrator contract
 error SenderNotMigrator();
