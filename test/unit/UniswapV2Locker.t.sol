@@ -106,7 +106,7 @@ contract UniswapV2LockerTest is Test {
             abi.encodeWithSelector(this.getAsset.selector, address(pool)),
             abi.encode(address(tokenBar))
         );
-        address timelock = address(0x999);
+        address timelock = address(0xbeef);
         vm.mockCall(
             address(airlock),
             abi.encodeWithSelector(this.getAssetData.selector, address(tokenBar)),
