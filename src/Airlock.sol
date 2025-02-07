@@ -176,7 +176,9 @@ contract Airlock is Ownable {
     }
 
     /**
-     * @notice Triggers the migration from one liquidity pool to another
+     * @notice Triggers the migration from the initial liquidity pool to the next one
+     * @dev Since anyone can call this function, the conditions for the migration are checked by the
+     * `poolInitializer` contract
      * @param asset Address of the token to migrate
      */
     function migrate(
