@@ -35,6 +35,9 @@ error InvalidTickRangeMisordered(int24 tickLower, int24 tickUpper);
 /// @notice Thrown when a tick is not aligned with the tick spacing
 error InvalidTickRange(int24 tick, int24 tickSpacing);
 
+/// @notice Thrown when the max share to be sold exceeds the maximum unit
+error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
+
 /// @dev Constant used to increase precision during calculations
 uint256 constant WAD = 1e18;
 
@@ -100,6 +103,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         (uint24 fee, int24 tickLower, int24 tickUpper, uint16 numPositions, uint256 maxShareToBeSold) =
             (initData.fee, initData.tickLower, initData.tickUpper, initData.numPositions, initData.maxShareToBeSold);
 
+        require(maxShareToBeSold <= WAD, MaxShareToBeSoldExceeded(maxShareToBeSold, WAD));
         require(tickLower < tickUpper, InvalidTickRangeMisordered(tickLower, tickUpper));
 
         int24 tickSpacing = factory.feeAmountTickSpacing(fee);
