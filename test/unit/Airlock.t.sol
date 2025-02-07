@@ -5,11 +5,6 @@ import { Test, stdError } from "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { V4Quoter } from "v4-periphery/src/lens/V4Quoter.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import {
     Airlock,
@@ -31,7 +26,6 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
@@ -182,6 +176,7 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(modules, states);
     }
 
+    // TODO: It would be better to move this into an integration test
     function test_create_DeploysV4() public returns (address, address) {
         bytes memory tokenFactoryData =
             abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
@@ -413,6 +408,7 @@ contract AirlockTest is Test, Deployers {
         );
     }
 
+    // TODO: It would be better to move this into an integration test
     function test_create_DeploysOnUniswapV3() public {
         bytes memory tokenFactoryData =
             abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
