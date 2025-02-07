@@ -295,6 +295,11 @@ contract Airlock is Ownable {
         emit Collect(to, token, amount);
     }
 
+    /**
+     * @dev Validates the state of a module
+     * @param module Address of the module
+     * @param state Expected state of the module
+     */
     function _validateModuleState(address module, ModuleState state) internal view {
         require(getModuleState[address(module)] == state, WrongModuleState(module, state, getModuleState[module]));
     }
