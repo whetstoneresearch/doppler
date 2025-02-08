@@ -372,23 +372,30 @@ contract V3Test is Test {
         assertEq(WETH(payable(WETH_MAINNET)).balanceOf(address(airlock)), 0);
 
         // liquidity migrated to V2
-        (,,,,,, address migrationPool,,,) = airlock.getAssetData(asset);
+        (, address timelock,,,,, address migrationPool,,,) = airlock.getAssetData(asset);
         IUniswapV2Pair pair = IUniswapV2Pair(migrationPool);
         (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
         uint256 wethV2 = uint256(isToken0 ? reserve1 : reserve0);
         uint256 assetV2 = uint256(isToken0 ? reserve0 : reserve1);
 
-        assertApproxEqRel(
-            wethV2,
-            wethBalBeforeMigration - numeraireProtocolAmount - numeraireIntegratorAmount,
-            0.01e18,
-            "unaccounted for WETH"
-        );
-        assertApproxEqRel(
-            assetV2,
-            assetBalBeforeMigration - assetProtocolAmount - assetIntegratorAmount,
-            0.01e18,
-            "unaccounted for asset"
-        );
+        // the balance delta between v2 deposits and pre-migration v3 balances
+        uint256 expectedWethV2 = wethBalBeforeMigration - numeraireProtocolAmount - numeraireIntegratorAmount;
+        uint256 expectedAssetV2 = assetBalBeforeMigration - assetProtocolAmount - assetIntegratorAmount;
+        uint256 wethDelta = expectedWethV2 - wethV2;
+
+        // if the descrepancy between v3 and v2 is large, confirm its in the timelock
+        uint256 wethDeltaPercent = wethDelta * 1e18 / expectedWethV2;
+        if (wethDeltaPercent > 0.01e18) {
+            assertApproxEqAbs(
+                WETH(payable(WETH_MAINNET)).balanceOf(timelock),
+                wethDelta,
+                0.01e18,
+                "unaccounted for WETH is NOT in the timelock"
+            );
+        } else {
+            assertApproxEqRel(wethV2, expectedWethV2, 0.01e18, "unaccounted for WETH");
+        }
+
+        assertApproxEqRel(assetV2, expectedAssetV2, 0.01e18, "unaccounted for asset");
     }
 }
