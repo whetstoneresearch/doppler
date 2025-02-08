@@ -326,8 +326,8 @@ contract V3Test is Test {
             ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(swapParams);
         }
 
-        uint256 wethBalBeforeMigration = WETH(payable(WETH_MAINNET)).balanceOf(address(this));
-        uint256 assetBalBeforeMigration = DERC20(asset).balanceOf(address(this));
+        uint256 wethBalBeforeMigration = WETH(payable(WETH_MAINNET)).balanceOf(pool);
+        uint256 assetBalBeforeMigration = DERC20(asset).balanceOf(pool);
 
         (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
         (,, int24 _tickLower, int24 _tickUpper,,,,,) = initializer.getState(pool);
@@ -344,7 +344,7 @@ contract V3Test is Test {
         }
 
         uint256 poolBalanceAssetAfter = DERC20(asset).balanceOf(pool);
-        uint256 poolBalanceWETHAfter = DERC20(WETH_MAINNET).balanceOf(pool);
+        uint256 poolBalanceWETHAfter = WETH(payable(WETH_MAINNET)).balanceOf(pool);
 
         // Allow for some dust
         assertApproxEqAbs(poolBalanceAssetAfter, 0, 1000, "Pool balance of asset is not 0");
@@ -378,7 +378,17 @@ contract V3Test is Test {
         uint256 wethV2 = uint256(isToken0 ? reserve1 : reserve0);
         uint256 assetV2 = uint256(isToken0 ? reserve0 : reserve1);
 
-        assertApproxEqRel(wethV2, wethBalBeforeMigration - numeraireProtocolAmount - numeraireIntegratorAmount, 0.01e18);
-        assertApproxEqRel(assetV2, assetBalBeforeMigration - assetProtocolAmount - assetIntegratorAmount, 0.01e18);
+        assertApproxEqRel(
+            wethV2,
+            wethBalBeforeMigration - numeraireProtocolAmount - numeraireIntegratorAmount,
+            0.01e18,
+            "unaccounted for WETH"
+        );
+        assertApproxEqRel(
+            assetV2,
+            assetBalBeforeMigration - assetProtocolAmount - assetIntegratorAmount,
+            0.01e18,
+            "unaccounted for asset"
+        );
     }
 }
