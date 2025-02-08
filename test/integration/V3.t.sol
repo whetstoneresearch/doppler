@@ -204,7 +204,8 @@ contract V3Test is Test {
         uint16 numPositions,
         uint256 maxShareToBeSold,
         uint8 numSwaps,
-        uint256 zeroForOneSeed
+        uint256 zeroForOneSeed,
+        bytes32 tokenSalt
     ) public {
         initialSupply = bound(initialSupply, 1000e18, 10_000_000_000e18);
         numPositions = uint16(bound(numPositions, 1, 16));
@@ -219,7 +220,6 @@ contract V3Test is Test {
         bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
 
         // Compute the asset address that will be created
-        bytes32 salt = bytes32(0);
         bytes memory creationCode = type(DERC20).creationCode;
         bytes memory create2Args = abi.encode(
             name,
@@ -234,7 +234,7 @@ contract V3Test is Test {
             ""
         );
         address predictedAsset = vm.computeCreate2Address(
-            salt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
+            tokenSalt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
         );
         isToken0 = predictedAsset < address(WETH_MAINNET);
 
@@ -266,7 +266,7 @@ contract V3Test is Test {
                 uniswapV2LiquidityMigrator,
                 "",
                 address(this),
-                salt
+                tokenSalt
             )
         );
 
