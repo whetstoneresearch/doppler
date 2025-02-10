@@ -83,15 +83,14 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
             balance0 = ERC20(token0).balanceOf(address(this));
         }
 
-        uint256 price = sqrtPriceX96.mulDiv(sqrtPriceX96, FixedPoint96.Q96);
-
-        uint256 depositAmount0 = balance1.mulDiv(FixedPoint96.Q96, price);
-        uint256 depositAmount1 = balance0.mulDiv(price, FixedPoint96.Q96);
+        uint256 ratioX128 = sqrtPriceX96.mulDiv(sqrtPriceX96, 1 << 64);
+        uint256 depositAmount0 = balance1.mulDiv(1 << 128, ratioX128);
+        uint256 depositAmount1 = balance0.mulDiv(ratioX128, 1 << 128);
 
         if (depositAmount1 > balance1) {
-            depositAmount1 = balance1;
-        } else if (depositAmount0 > balance0) {
-            depositAmount0 = balance0;
+            depositAmount1 = depositAmount0.mulDiv(ratioX128, 1 << 128);
+        } else {
+            depositAmount0 = depositAmount1.mulDiv(1 << 128, ratioX128);
         }
 
         if (token0 > token1) {
