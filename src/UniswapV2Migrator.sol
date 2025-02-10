@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
-import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
@@ -13,6 +12,36 @@ import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
+library MigrationMath {
+    using FullMath for uint256;
+    using FullMath for uint160;
+
+    /**
+     * @dev Computes the amounts for an initial Uniswap V2 pool deposit.
+     * @param balance0 Current balance of token0
+     * @param balance1 Current balance of token1
+     * @param sqrtPriceX96 Square root price of the pool as a Q64.96 value
+     * @return depositAmount0 Amount of token0 to deposit
+     * @return depositAmount1 Amount of token1 to deposit
+     */
+    function computeDepositAmounts(
+        uint256 balance0,
+        uint256 balance1,
+        uint160 sqrtPriceX96
+    ) internal pure returns (uint256 depositAmount0, uint256 depositAmount1) {
+        // Stolen from https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol#L57
+        if (sqrtPriceX96 <= type(uint128).max) {
+            uint256 ratioX192 = uint256(sqrtPriceX96) * sqrtPriceX96;
+            depositAmount0 = balance1.mulDiv(1 << 192, ratioX192);
+            depositAmount1 = balance0.mulDiv(ratioX192, 1 << 192);
+        } else {
+            uint256 ratioX128 = sqrtPriceX96.mulDiv(sqrtPriceX96, 1 << 64);
+            depositAmount0 = balance1.mulDiv(1 << 128, ratioX128);
+            depositAmount1 = balance0.mulDiv(ratioX128, 1 << 128);
+        }
+    }
+}
+
 /**
  * @author Whetstone Research
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
@@ -20,8 +49,6 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
  */
 contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
     using SafeTransferLib for ERC20;
-    using FullMath for uint256;
-    using FullMath for uint160;
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
@@ -83,14 +110,13 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
             balance0 = ERC20(token0).balanceOf(address(this));
         }
 
-        uint256 ratioX128 = sqrtPriceX96.mulDiv(sqrtPriceX96, 1 << 64);
-        uint256 depositAmount0 = balance1.mulDiv(1 << 128, ratioX128);
-        uint256 depositAmount1 = balance0.mulDiv(ratioX128, 1 << 128);
+        (uint256 depositAmount0, uint256 depositAmount1) =
+            MigrationMath.computeDepositAmounts(balance0, balance1, sqrtPriceX96);
 
         if (depositAmount1 > balance1) {
-            depositAmount1 = depositAmount0.mulDiv(ratioX128, 1 << 128);
+            (, depositAmount1) = MigrationMath.computeDepositAmounts(depositAmount0, balance1, sqrtPriceX96);
         } else {
-            depositAmount0 = depositAmount1.mulDiv(1 << 128, ratioX128);
+            (depositAmount0,) = MigrationMath.computeDepositAmounts(balance0, depositAmount1, sqrtPriceX96);
         }
 
         if (token0 > token1) {
