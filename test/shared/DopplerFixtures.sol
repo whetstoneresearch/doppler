@@ -105,15 +105,15 @@ contract DopplerFixtures is Deployers {
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(governanceFactory);
-        modules[4] = address(migrator);
+        modules[1] = address(initializer);
+        modules[2] = address(governanceFactory);
+        modules[3] = address(migrator);
 
         ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.GovernanceFactory;
-        states[4] = ModuleState.LiquidityMigrator;
+        states[1] = ModuleState.PoolInitializer;
+        states[2] = ModuleState.GovernanceFactory;
+        states[3] = ModuleState.LiquidityMigrator;
 
         airlock.setModuleState(modules, states);
     }
