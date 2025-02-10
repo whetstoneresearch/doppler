@@ -43,6 +43,18 @@ contract V3Test is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+
+        airlock = new Airlock(address(this));
+        initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+            address(airlock),
+            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
+            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
+            address(0xb055)
+        );
+        tokenFactory = new TokenFactory(address(airlock));
+        governanceFactory = new GovernanceFactory(address(airlock));
+
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(governanceFactory);
@@ -55,17 +67,6 @@ contract V3Test is Test {
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
         airlock.setModuleState(modules, states);
-
-        airlock = new Airlock(address(this), modules, states);
-        initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
-        );
-        tokenFactory = new TokenFactory(address(airlock));
-        governanceFactory = new GovernanceFactory(address(airlock));
     }
 
     function test_exitLiquidity_WorksWhenInvokedByAirlock() public {

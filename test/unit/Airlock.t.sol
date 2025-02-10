@@ -55,10 +55,8 @@ uint256 constant DEFAULT_PD_SLUGS = 3;
 /// @dev Test contract allowing us to set some specific state
 contract AirlockCheat is Airlock {
     constructor(
-        address owner_,
-        address[] memory modules,
-        ModuleState[] memory states
-    ) Airlock(owner_, modules, states) { }
+        address owner_
+    ) Airlock(owner_) { }
 
     function setProtocolFees(address token, uint256 amount) public {
         getProtocolFees[token] = amount;
@@ -101,6 +99,20 @@ contract AirlockTest is Test, Deployers {
 
         deployFreshManager();
 
+        airlock = new AirlockCheat(address(this));
+        tokenFactory = new TokenFactory(address(airlock));
+        deployer = new DopplerDeployer(manager);
+        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
+        uniswapV3Initializer =
+            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
+        governanceFactory = new GovernanceFactory(address(airlock));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+            address(airlock),
+            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
+            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
+            address(0xb055)
+        );
+
         address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
@@ -115,19 +127,7 @@ contract AirlockTest is Test, Deployers {
         states[3] = ModuleState.GovernanceFactory;
         states[4] = ModuleState.LiquidityMigrator;
 
-        airlock = new AirlockCheat(address(this), modules, states);
-        tokenFactory = new TokenFactory(address(airlock));
-        deployer = new DopplerDeployer(manager);
-        uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
-        uniswapV3Initializer =
-            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
-        governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
-        );
+        airlock.setModuleState(modules, states);
     }
 
     function test_setModuleState_SetsState() public {

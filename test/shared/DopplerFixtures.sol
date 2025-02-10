@@ -96,24 +96,26 @@ contract DopplerFixtures is Deployers {
     function _deployAirlockAndModules() internal {
         manager = new PoolManager(address(this));
 
-        address[] memory modules = new address[](4);
-        modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(migrator);
-
-        ModuleState[] memory states = new ModuleState[](4);
-        states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.LiquidityMigrator;
-
-        airlock = new Airlock(address(this), modules, states);
+        airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
+
+        address[] memory modules = new address[](4);
+        modules[0] = address(tokenFactory);
+        modules[2] = address(initializer);
+        modules[3] = address(governanceFactory);
+        modules[4] = address(migrator);
+
+        ModuleState[] memory states = new ModuleState[](4);
+        states[0] = ModuleState.TokenFactory;
+        states[2] = ModuleState.PoolInitializer;
+        states[3] = ModuleState.GovernanceFactory;
+        states[4] = ModuleState.LiquidityMigrator;
+
+        airlock.setModuleState(modules, states);
     }
 
     function _defaultDopplerConfig() internal view returns (DopplerConfig memory) {

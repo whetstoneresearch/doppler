@@ -27,6 +27,18 @@ contract V1DeploymentScript is Script {
         vm.startBroadcast();
         console.log(unicode"🚀 Deploying contracts...");
 
+        airlock = new Airlock(owner);
+        tokenFactory = new TokenFactory(address(airlock));
+        uniswapV3Initializer =
+            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNICHAIN_SEPOLIA_UNISWAP_v3_FACTORY));
+        governanceFactory = new GovernanceFactory(address(airlock));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+            address(airlock),
+            IUniswapV2Factory(UNICHAIN_SEPOLIA_UNISWAP_V2_FACTORY),
+            IUniswapV2Router02(UNICHAIN_SEPOLIA_UNISWAP_V2_ROUTER_02),
+            owner
+        );
+
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
@@ -39,17 +51,7 @@ contract V1DeploymentScript is Script {
         states[2] = ModuleState.GovernanceFactory;
         states[3] = ModuleState.LiquidityMigrator;
 
-        airlock = new Airlock(owner, modules, states);
-        tokenFactory = new TokenFactory(address(airlock));
-        uniswapV3Initializer =
-            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNICHAIN_SEPOLIA_UNISWAP_v3_FACTORY));
-        governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(UNICHAIN_SEPOLIA_UNISWAP_V2_FACTORY),
-            IUniswapV2Router02(UNICHAIN_SEPOLIA_UNISWAP_V2_ROUTER_02),
-            owner
-        );
+        airlock.setModuleState(modules, states);
 
         console.log(unicode"✨ Contracts were successfully deployed:");
         console.log("+----------------------------+--------------------------------------------+");
