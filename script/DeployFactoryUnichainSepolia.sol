@@ -41,7 +41,7 @@ contract DeployDopplerV3FactoryUnichainSepolia is Script, Deployers {
         manager = PoolManager(0x00B036B58a818B1BC34d502D3fE730Db729e62AC);
         console2.log("manager: ", address(manager), " as Address");
 
-        airlock = new Airlock(address(account));
+        airlock = new Airlock(address(account), new address[](0), new ModuleState[](0));
         console2.log("airlock: ", address(airlock), " as Address");
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("tokenFactory: ", address(tokenFactory), " as Address");

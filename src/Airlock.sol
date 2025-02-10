@@ -123,9 +123,18 @@ contract Airlock is Ownable {
     /**
      * @param owner_ Address receiving the ownership of the Airlock contract
      */
-    constructor(
-        address owner_
-    ) Ownable(owner_) { }
+    constructor(address owner_, address[] memory modules, ModuleState[] memory states) Ownable(owner_) {
+        uint256 length = modules.length;
+
+        if (length != states.length) {
+            revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i; i < length; ++i) {
+            getModuleState[modules[i]] = states[i];
+            emit SetModuleState(modules[i], states[i]);
+        }
+    }
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts

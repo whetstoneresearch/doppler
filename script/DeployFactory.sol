@@ -47,7 +47,7 @@ contract DeployFactoriesWorldChain is Script {
         // router = new CustomRouter2(PoolSwapTest(uniRouter), Quoter(quoter));
         // console2.log("CustomRouter: ", address(router));
         // console2.log("StateView: ", address(stateView));
-        airlock = new Airlock(address(account));
+        airlock = new Airlock(address(account), new address[](0), new ModuleState[](0));
         console2.log("Airlock: ", address(airlock));
         tokenFactory = new TokenFactory(address(airlock));
         console2.log("TokenFactory: ", address(tokenFactory));

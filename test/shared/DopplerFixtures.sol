@@ -95,12 +95,6 @@ contract DopplerFixtures is Deployers {
     /// @dev a Unichain fork should be activated with `vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);`
     function _deployAirlockAndModules() internal {
         manager = new PoolManager(address(this));
-        airlock = new Airlock(address(this));
-        deployer = new DopplerDeployer(manager);
-        initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
-        tokenFactory = new TokenFactory(address(airlock));
-        governanceFactory = new GovernanceFactory(address(airlock));
-        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
@@ -113,7 +107,13 @@ contract DopplerFixtures is Deployers {
         states[1] = ModuleState.GovernanceFactory;
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
-        airlock.setModuleState(modules, states);
+
+        airlock = new Airlock(address(this), modules, states);
+        deployer = new DopplerDeployer(manager);
+        initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
+        tokenFactory = new TokenFactory(address(airlock));
+        governanceFactory = new GovernanceFactory(address(airlock));
+        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
     }
 
     function _defaultDopplerConfig() internal view returns (DopplerConfig memory) {
