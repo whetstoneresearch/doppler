@@ -64,6 +64,7 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     /**
      * @notice Migrates the liquidity into a Uniswap V2 pool
+     * @param sqrtPriceX96 Square root price of the pool as a Q64.96 value
      * @param token0 Smaller address of the two tokens
      * @param token1 Larger address of the two tokens
      * @param recipient Address receiving the liquidity pool tokens
