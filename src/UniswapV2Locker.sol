@@ -30,14 +30,12 @@ error MinUnlockDateNotReached();
  * @param amount1 Reserve of token1
  * @param minUnlockDate Minimum unlock date
  * @param timelock Address of the governance timelock
- * @param initialized Whether the pool has been initialized
  */
 struct PoolState {
     uint112 amount0;
     uint112 amount1;
     uint32 minUnlockDate;
     address timelock;
-    bool initialized;
 }
 
 contract UniswapV2Locker is Ownable, ImmutableAirlock {
@@ -74,7 +72,7 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
      */
     function receiveAndLock(address pool, address timelock) external {
         require(msg.sender == address(migrator), SenderNotMigrator());
-        require(getState[pool].initialized == false, PoolAlreadyInitialized());
+        require(getState[pool].minUnlockDate == 0, PoolAlreadyInitialized());
 
         uint256 balance = IUniswapV2Pair(pool).balanceOf(address(this));
         require(balance > 0, NoBalanceToLock());
@@ -90,7 +88,6 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
             amount0: amount0,
             amount1: amount1,
             minUnlockDate: uint32(block.timestamp + 365 days),
-            initialized: true,
             timelock: timelock
         });
     }
@@ -105,7 +102,7 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
     ) external {
         PoolState memory state = getState[pool];
 
-        require(state.initialized, PoolNotInitialized());
+        require(state.minUnlockDate > 0, PoolNotInitialized());
         require(block.timestamp >= state.minUnlockDate, MinUnlockDateNotReached());
 
         // get previous reserves and share of invariant

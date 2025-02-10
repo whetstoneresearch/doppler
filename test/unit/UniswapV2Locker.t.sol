@@ -54,8 +54,6 @@ contract UniswapV2LockerTest is Test {
         pool.mint(address(locker));
         vm.prank(address(migrator));
         locker.receiveAndLock(address(pool), address(0xbeef));
-        (,,,, bool initialized) = locker.getState(address(pool));
-        assertEq(initialized, true);
     }
 
     function test_receiveAndLock_RevertsWhenPoolAlreadyInitialized() public {
