@@ -38,15 +38,10 @@ error ArrayLengthsMismatch();
  * @param integrator Address of the front-end integrator
  */
 struct AssetData {
-    address numeraire;
     address timelock;
-    address governance;
     ILiquidityMigrator liquidityMigrator;
     IPoolInitializer poolInitializer;
     address pool;
-    address migrationPool;
-    uint256 numTokensToSell;
-    uint256 totalSupply;
     address integrator;
 }
 
@@ -160,15 +155,10 @@ contract Airlock is Ownable {
         }
 
         getAssetData[asset] = AssetData({
-            numeraire: createData.numeraire,
             timelock: timelock,
-            governance: governance,
             liquidityMigrator: createData.liquidityMigrator,
             poolInitializer: createData.poolInitializer,
             pool: pool,
-            migrationPool: migrationPool,
-            numTokensToSell: createData.numTokensToSell,
-            totalSupply: createData.initialSupply,
             integrator: createData.integrator == address(0) ? owner() : createData.integrator
         });
 

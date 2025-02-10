@@ -320,15 +320,10 @@ contract AirlockTest is Test, Deployers {
         address liquidityMigrator = makeAddr("LiquidityMigrator");
 
         AssetData memory assetData = AssetData({
-            numeraire: address(0),
             timelock: timelock,
-            governance: address(0),
             liquidityMigrator: ILiquidityMigrator(liquidityMigrator),
             poolInitializer: IPoolInitializer(poolInitializer),
             pool: pool,
-            migrationPool: address(0),
-            numTokensToSell: 0,
-            totalSupply: 0,
             integrator: DEFAULT_INTEGRATOR
         });
 

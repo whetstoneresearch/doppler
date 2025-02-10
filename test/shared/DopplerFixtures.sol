@@ -258,7 +258,7 @@ contract DopplerFixtures is Deployers {
         address asset,
         address recipient
     ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
-        (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
+        (,,,, address integrator) = airlock.getAssetData(asset);
         numeraireAmount = airlock.getIntegratorFees(integrator, numeraire);
         assetAmount = airlock.getIntegratorFees(integrator, asset);
         vm.startPrank(integrator);
