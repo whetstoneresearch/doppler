@@ -217,7 +217,7 @@ contract V3Test is Test {
         bool isToken0;
         string memory name = "Best Coin";
         string memory symbol = "BEST";
-        bytes memory governanceData = abi.encode(name);
+        bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
         bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
 
         // Compute the asset address that will be created
@@ -353,16 +353,16 @@ contract V3Test is Test {
 
         // collect fees
         // TODO: figure out how to use DopplerFixtures._collectAllProtocolFees
-        uint256 numeraireProtocolAmount = airlock.protocolFees(WETH_MAINNET);
-        uint256 assetProtocolAmount = airlock.protocolFees(asset);
+        uint256 numeraireProtocolAmount = airlock.getProtocolFees(WETH_MAINNET);
+        uint256 assetProtocolAmount = airlock.getProtocolFees(asset);
         vm.startPrank(airlock.owner());
         airlock.collectProtocolFees(address(this), WETH_MAINNET, numeraireProtocolAmount);
         airlock.collectProtocolFees(address(this), asset, assetProtocolAmount);
         vm.stopPrank();
 
         address integrator = address(this);
-        uint256 numeraireIntegratorAmount = airlock.integratorFees(integrator, WETH_MAINNET);
-        uint256 assetIntegratorAmount = airlock.integratorFees(integrator, asset);
+        uint256 numeraireIntegratorAmount = airlock.getIntegratorFees(integrator, WETH_MAINNET);
+        uint256 assetIntegratorAmount = airlock.getIntegratorFees(integrator, asset);
         vm.startPrank(integrator);
         airlock.collectIntegratorFees(address(this), WETH_MAINNET, numeraireIntegratorAmount);
         airlock.collectIntegratorFees(address(this), asset, assetIntegratorAmount);
