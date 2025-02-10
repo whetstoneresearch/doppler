@@ -27,9 +27,6 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
     IWETH public immutable weth;
     UniswapV2Locker public immutable locker;
 
-    mapping(address token0 => mapping(address token1 => address pool)) public getPool;
-    mapping(address pool => address) public getAsset;
-
     receive() external payable onlyAirlock {
         // require(msg.sender == airlock, SenderNotAirlock());
     }
