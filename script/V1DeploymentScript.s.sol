@@ -30,10 +30,6 @@ contract V1DeploymentScript is Script {
         bytes memory data = vm.parseJson(json, string.concat(".", vm.toString(block.chainid)));
         Addresses memory addresses = abi.decode(data, (Addresses));
 
-        console.log("uniswapV2Router02 %s", addresses.uniswapV2Router02);
-        console.log("uniswapV2Factory %s", addresses.uniswapV2Factory);
-        console.log("uniswapV3Factory %s", addresses.uniswapV3Factory);
-
         address owner = vm.envOr("PROTOCOL_OWNER", address(0));
         require(owner != address(0), "PROTOCOL_OWNER not set! Please edit your .env file.");
         console.log(unicode"👑 PROTOCOL_OWNER set as %s", owner);
