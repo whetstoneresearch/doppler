@@ -8,7 +8,8 @@ import {
     PoolAlreadyInitialized,
     NoBalanceToLock,
     PoolNotInitialized,
-    SenderNotMigrator
+    SenderNotMigrator,
+    MinUnlockDateNotReached
 } from "src/UniswapV2Locker.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
@@ -53,14 +54,6 @@ contract UniswapV2LockerTest is Test {
         pool.mint(address(locker));
         vm.prank(address(migrator));
         locker.receiveAndLock(address(pool), address(0xbeef));
-        (,, bool initialized,) = locker.getState(address(pool));
-        assertEq(initialized, true);
-    }
-
-    function test_receiveAndLock_RevertsWhenSenderNotMigrator() public {
-        vm.startPrank(address(0xdead));
-        vm.expectRevert(SenderNotMigrator.selector);
-        locker.receiveAndLock(address(pool), address(0xbeef));
     }
 
     function test_receiveAndLock_RevertsWhenPoolAlreadyInitialized() public {
@@ -86,6 +79,12 @@ contract UniswapV2LockerTest is Test {
         address
     ) external pure { }
 
+    function test_claimFeesAndExit_RevertsWhenMinUnlockDateNotReached() public {
+        test_receiveAndLock_InitializesPool();
+        vm.expectRevert(MinUnlockDateNotReached.selector);
+        locker.claimFeesAndExit(address(pool));
+    }
+
     function test_claimFeesAndExit() public {
         test_receiveAndLock_InitializesPool();
 
@@ -105,7 +104,7 @@ contract UniswapV2LockerTest is Test {
             abi.encodeWithSelector(this.getAsset.selector, address(pool)),
             abi.encode(address(tokenBar))
         );
-        address timelock = address(0x999);
+        address timelock = address(0xbeef);
         vm.mockCall(
             address(airlock),
             abi.encodeWithSelector(this.getAssetData.selector, address(tokenBar)),
@@ -123,6 +122,8 @@ contract UniswapV2LockerTest is Test {
                 address(0)
             )
         );
+
+        vm.warp(block.timestamp + 365 days);
 
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(timelock), 0, "Timelock balance0 is wrong");

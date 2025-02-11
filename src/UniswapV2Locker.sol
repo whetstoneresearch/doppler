@@ -8,7 +8,6 @@ import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { Airlock } from "src/Airlock.sol";
 
 /// @notice Thrown when the sender is not the migrator contract
 error SenderNotMigrator();
@@ -22,19 +21,20 @@ error PoolNotInitialized();
 /// @notice Thrown when the Locker contract doesn't hold any LP tokens
 error NoBalanceToLock();
 
-// todo: think about minUnlockDate
-// 2106 problem?
+/// @notice Thrown when the minimum unlock date has not been reached
+error MinUnlockDateNotReached();
 
 /**
  * @notice State of a pool
  * @param amount0 Reserve of token0
  * @param amount1 Reserve of token1
- * @param initialized Whether the pool has been initialized
+ * @param minUnlockDate Minimum unlock date
+ * @param timelock Address of the governance timelock
  */
 struct PoolState {
     uint112 amount0;
     uint112 amount1;
-    bool initialized;
+    uint32 minUnlockDate;
     address timelock;
 }
 
@@ -72,7 +72,7 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
      */
     function receiveAndLock(address pool, address timelock) external {
         require(msg.sender == address(migrator), SenderNotMigrator());
-        require(getState[pool].initialized == false, PoolAlreadyInitialized());
+        require(getState[pool].minUnlockDate == 0, PoolAlreadyInitialized());
 
         uint256 balance = IUniswapV2Pair(pool).balanceOf(address(this));
         require(balance > 0, NoBalanceToLock());
@@ -84,7 +84,12 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
         uint112 amount0 = uint112((balance * reserve0) / supply);
         uint112 amount1 = uint112((balance * reserve1) / supply);
 
-        getState[pool] = PoolState({ amount0: amount0, amount1: amount1, initialized: true, timelock: timelock });
+        getState[pool] = PoolState({
+            amount0: amount0,
+            amount1: amount1,
+            minUnlockDate: uint32(block.timestamp + 365 days),
+            timelock: timelock
+        });
     }
 
     /**
@@ -94,10 +99,11 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
      */
     function claimFeesAndExit(
         address pool
-    ) external onlyOwner {
+    ) external {
         PoolState memory state = getState[pool];
 
-        require(state.initialized, PoolNotInitialized());
+        require(state.minUnlockDate > 0, PoolNotInitialized());
+        require(block.timestamp >= state.minUnlockDate, MinUnlockDateNotReached());
 
         // get previous reserves and share of invariant
         uint256 kLast = uint256(state.amount0) * uint256(state.amount1);

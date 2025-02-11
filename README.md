@@ -35,3 +35,13 @@ IS_TOKEN_0=FALSE
 USING_ETH=FALSE
 FEE=30
 ```
+
+### Deploy
+
+First be sure to set the `PROTOCOL_OWNER` variable in your .env file. V1 contracts running on Uniswap V3 can be deployed using the following command:
+
+```shell
+# --rpc-url is the chain you want to deploy to
+# --private-key is the deployer wallet (not the owner)
+forge script ./script/V1DeploymentScript.s.sol --rpc-url https://... --private-key 0x... --broadcast
+```

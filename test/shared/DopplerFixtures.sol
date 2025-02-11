@@ -95,6 +95,7 @@ contract DopplerFixtures is Deployers {
     /// @dev a Unichain fork should be activated with `vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);`
     function _deployAirlockAndModules() internal {
         manager = new PoolManager(address(this));
+
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -104,15 +105,16 @@ contract DopplerFixtures is Deployers {
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
+        modules[1] = address(initializer);
+        modules[2] = address(governanceFactory);
         modules[3] = address(migrator);
 
         ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
+        states[1] = ModuleState.PoolInitializer;
+        states[2] = ModuleState.GovernanceFactory;
         states[3] = ModuleState.LiquidityMigrator;
+
         airlock.setModuleState(modules, states);
     }
 
@@ -234,7 +236,7 @@ contract DopplerFixtures is Deployers {
     }
 
     function _defaultGovernanceFactoryData() internal pure returns (bytes memory) {
-        return abi.encode("Best Token");
+        return abi.encode("Best Token", 7200, 50_400, 0);
     }
 
     function _collectAllProtocolFees(
@@ -242,15 +244,15 @@ contract DopplerFixtures is Deployers {
         address asset,
         address recipient
     ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
-        numeraireAmount = airlock.protocolFees(numeraire);
-        assetAmount = airlock.protocolFees(asset);
+        numeraireAmount = airlock.getProtocolFees(numeraire);
+        assetAmount = airlock.getProtocolFees(asset);
         vm.startPrank(airlock.owner());
         airlock.collectProtocolFees(recipient, numeraire, numeraireAmount);
         airlock.collectProtocolFees(recipient, asset, assetAmount);
         vm.stopPrank();
 
-        assertEq(airlock.protocolFees(numeraire), 0);
-        assertEq(airlock.protocolFees(asset), 0);
+        assertEq(airlock.getProtocolFees(numeraire), 0);
+        assertEq(airlock.getProtocolFees(asset), 0);
     }
 
     function _collectAllIntegratorFees(
@@ -259,15 +261,15 @@ contract DopplerFixtures is Deployers {
         address recipient
     ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
         (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
-        numeraireAmount = airlock.integratorFees(integrator, numeraire);
-        assetAmount = airlock.integratorFees(integrator, asset);
+        numeraireAmount = airlock.getIntegratorFees(integrator, numeraire);
+        assetAmount = airlock.getIntegratorFees(integrator, asset);
         vm.startPrank(integrator);
         airlock.collectIntegratorFees(recipient, numeraire, numeraireAmount);
         airlock.collectIntegratorFees(recipient, asset, assetAmount);
         vm.stopPrank();
 
-        assertEq(airlock.integratorFees(integrator, numeraire), 0);
-        assertEq(airlock.integratorFees(integrator, asset), 0);
+        assertEq(airlock.getIntegratorFees(integrator, numeraire), 0);
+        assertEq(airlock.getIntegratorFees(integrator, asset), 0);
     }
 
     function _mockEarlyExit(

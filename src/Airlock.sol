@@ -115,8 +115,8 @@ contract Airlock is Ownable {
 
     mapping(address module => ModuleState state) public getModuleState;
     mapping(address asset => AssetData data) public getAssetData;
-    mapping(address token => uint256 amount) public protocolFees;
-    mapping(address integrator => mapping(address token => uint256 amount)) public integratorFees;
+    mapping(address token => uint256 amount) public getProtocolFees;
+    mapping(address integrator => mapping(address token => uint256 amount)) public getIntegratorFees;
 
     receive() external payable { }
 
@@ -151,6 +151,7 @@ contract Airlock is Ownable {
 
         migrationPool =
             createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
+        DERC20(asset).lockPool(migrationPool);
 
         uint256 excessAsset = ERC20(asset).balanceOf(address(this));
 
@@ -168,14 +169,16 @@ contract Airlock is Ownable {
             migrationPool: migrationPool,
             numTokensToSell: createData.numTokensToSell,
             totalSupply: createData.initialSupply,
-            integrator: createData.integrator
+            integrator: createData.integrator == address(0) ? owner() : createData.integrator
         });
 
         emit Create(asset, createData.numeraire, address(createData.poolInitializer), pool);
     }
 
     /**
-     * @notice Triggers the migration from one liquidity pool to another
+     * @notice Triggers the migration from the initial liquidity pool to the next one
+     * @dev Since anyone can call this function, the conditions for the migration are checked by the
+     * `poolInitializer` contract
      * @param asset Address of the token to migrate
      */
     function migrate(
@@ -196,49 +199,48 @@ contract Airlock is Ownable {
             uint128 balance1
         ) = assetData.poolInitializer.exitLiquidity(assetData.pool);
 
-        uint256 protocolLpFees0 = fees0 * 5 / 100;
-        uint256 protocolLpFees1 = fees1 * 5 / 100;
+        _handleFees(token0, assetData.integrator, balance0, fees0);
+        _handleFees(token1, assetData.integrator, balance1, fees1);
 
-        // uint256 protocolProceedsFees0 = fees0 > 0 ? (balance0 - fees0) / 1000 : 0;
-        // uint256 protocolProceedsFees1 = fees1 > 0 ? (balance1 - fees1) / 1000 : 0;
-        // TODO: FIX PROTOCOL FEE CALCULATION
-        uint256 protocolProceedsFees0 = 0;
-        uint256 protocolProceedsFees1 = 0;
-
-        uint256 protocolFees0 = Math.max(protocolLpFees0, protocolProceedsFees0);
-        uint256 protocolFees1 = Math.max(protocolLpFees1, protocolProceedsFees1);
-
-        uint256 maxProtocolFees0 = fees0 * 20 / 100;
-        uint256 integratorFees0;
-        (integratorFees0, protocolFees0) = protocolFees0 > maxProtocolFees0
-            ? (fees0 - maxProtocolFees0, maxProtocolFees0)
-            : (fees0 - protocolFees0, protocolFees0);
-
-        uint256 maxProtocolFees1 = fees1 * 20 / 100;
-        uint256 integratorFees1;
-        (integratorFees1, protocolFees1) = protocolFees1 > maxProtocolFees1
-            ? (fees1 - maxProtocolFees1, maxProtocolFees1)
-            : (fees1 - protocolFees1, protocolFees1);
-
-        protocolFees[token0] += protocolFees0;
-        protocolFees[token1] += protocolFees1;
-        integratorFees[assetData.integrator][token0] += integratorFees0;
-        integratorFees[assetData.integrator][token1] += integratorFees1;
-
-        uint256 total0 = balance0 - fees0;
-        uint256 total1 = balance1 - fees1;
+        address liquidityMigrator = address(assetData.liquidityMigrator);
 
         if (token0 == address(0)) {
-            SafeTransferLib.safeTransferETH(address(assetData.liquidityMigrator), total0);
+            SafeTransferLib.safeTransferETH(liquidityMigrator, balance0 - fees0);
         } else {
-            ERC20(token0).safeTransfer(address(assetData.liquidityMigrator), total0);
+            ERC20(token0).safeTransfer(liquidityMigrator, balance0 - fees0);
         }
 
-        ERC20(token1).safeTransfer(address(assetData.liquidityMigrator), total1);
+        ERC20(token1).safeTransfer(liquidityMigrator, balance1 - fees1);
 
         assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
 
         emit Migrate(asset, assetData.pool);
+    }
+
+    /**
+     * @dev Computes and stores the protocol and integrators fees. Protocol fees are either 5% of the
+     * trading fees or 0.1% of the proceeds (token balance excluding fees) capped at a maximum of 20%
+     * of the trading fees
+     * @param token Address of the token to handle fees from
+     * @param integrator Address of the integrator to handle fees from
+     * @param balance Balance of the token including fees
+     * @param fees Trading fees
+     */
+    function _handleFees(address token, address integrator, uint256 balance, uint256 fees) internal {
+        if (fees > 0) {
+            uint256 protocolLpFees = fees / 20;
+            uint256 protocolProceedsFees = (balance - fees) / 1000;
+            uint256 protocolFees = Math.max(protocolLpFees, protocolProceedsFees);
+            uint256 maxProtocolFees = fees / 5;
+            uint256 integratorFees;
+
+            (integratorFees, protocolFees) = protocolFees > maxProtocolFees
+                ? (fees - maxProtocolFees, maxProtocolFees)
+                : (fees - protocolFees, protocolFees);
+
+            getProtocolFees[token] += protocolFees;
+            getIntegratorFees[integrator][token] += integratorFees;
+        }
     }
 
     /**
@@ -266,7 +268,7 @@ contract Airlock is Ownable {
      * @param amount Amount of fees to collect
      */
     function collectProtocolFees(address to, address token, uint256 amount) external onlyOwner {
-        protocolFees[token] -= amount;
+        getProtocolFees[token] -= amount;
 
         if (token == address(0)) {
             SafeTransferLib.safeTransferETH(to, amount);
@@ -284,7 +286,7 @@ contract Airlock is Ownable {
      * @param amount Amount of fees to collect
      */
     function collectIntegratorFees(address to, address token, uint256 amount) external {
-        integratorFees[msg.sender][token] -= amount;
+        getIntegratorFees[msg.sender][token] -= amount;
 
         if (token == address(0)) {
             SafeTransferLib.safeTransferETH(to, amount);
@@ -295,6 +297,11 @@ contract Airlock is Ownable {
         emit Collect(to, token, amount);
     }
 
+    /**
+     * @dev Validates the state of a module
+     * @param module Address of the module
+     * @param state Expected state of the module
+     */
     function _validateModuleState(address module, ModuleState state) internal view {
         require(getModuleState[address(module)] == state, WrongModuleState(module, state, getModuleState[module]));
     }

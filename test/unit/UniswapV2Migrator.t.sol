@@ -3,8 +3,11 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { MigrationMath } from "src/UniswapV2Migrator.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2MigratorTest is Test {
@@ -18,6 +21,29 @@ contract UniswapV2MigratorTest is Test {
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
             address(0xb055)
         );
+    }
+
+    function test_computeDepositAmounts(uint256 balance0, uint256 balance1, uint160 sqrtPriceX96) public {
+        vm.skip(true);
+        uint256 max = uint256(int256(type(int128).max));
+
+        vm.assume(balance0 > 0 && balance0 <= max);
+        vm.assume(balance1 > 0 && balance1 <= max);
+        vm.assume(sqrtPriceX96 > TickMath.MIN_SQRT_PRICE && sqrtPriceX96 <= TickMath.MAX_SQRT_PRICE);
+
+        (uint256 depositAmount0, uint256 depositAmount1) =
+            MigrationMath.computeDepositAmounts(balance0, balance1, sqrtPriceX96);
+
+        if (depositAmount1 > balance1) {
+            (, depositAmount1) = MigrationMath.computeDepositAmounts(depositAmount0, balance1, sqrtPriceX96);
+        } else {
+            (depositAmount0,) = MigrationMath.computeDepositAmounts(balance0, depositAmount1, sqrtPriceX96);
+        }
+
+        assertLe(depositAmount0, balance0, "depositAmount0 > balance0");
+        assertLe(depositAmount1, balance1, "depositAmount1 > balance1");
+        assertGt(depositAmount0, 0, "depositAmount is zero");
+        assertGt(depositAmount1, 0, "depositAmount is zero");
     }
 
     function test_receive_ReceivesETHFromAirlock() public {
@@ -82,6 +108,70 @@ contract UniswapV2MigratorTest is Test {
         assertEq(liquidity - lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
         assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
     }
+
+    function test_migrate(uint256 balance0, uint256 balance1, uint160 sqrtPriceX96) public {
+        vm.skip(true);
+        uint256 max = uint256(int256(type(int128).max));
+
+        vm.assume(balance0 > 0 && balance0 <= max);
+        vm.assume(balance1 > 0 && balance1 <= max);
+        vm.assume(sqrtPriceX96 > TickMath.MIN_SQRT_PRICE && sqrtPriceX96 <= TickMath.MAX_SQRT_PRICE);
+
+        TestERC20 token0 = new TestERC20(balance0);
+        TestERC20 token1 = new TestERC20(balance1);
+
+        address pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+
+        token0.transfer(address(migrator), balance0);
+        token1.transfer(address(migrator), balance1);
+        uint256 liquidity = migrator.migrate(sqrtPriceX96, address(token0), address(token1), address(0xbeef));
+
+        assertEq(token0.balanceOf(address(migrator)), 0, "Wrong migrator token0 balance");
+        assertEq(token1.balanceOf(address(migrator)), 0, "Wrong migrator token1 balance");
+
+        assertEq(token0.balanceOf(pool), balance0, "Wrong pool token0 balance");
+        assertEq(token1.balanceOf(pool), balance1, "Wrong pool token1 balance");
+
+        uint256 lockedLiquidity = liquidity / 20;
+        assertEq(liquidity - lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
+        assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
+    }
+
+    /*
+    function test_migrate_MockedCalls() public {
+        address token0 = makeAddr("token0");
+        address token1 = makeAddr("token1");
+        address pool = makeAddr("pool");
+
+        vm.mockCall(
+            address(migrator.factory()),
+            abi.encodeWithSelector(IUniswapV2Factory.getPair.selector, token0, token1),
+            abi.encode(pool)
+        );
+
+        migrator.initialize(token0, token1, new bytes(0));
+
+        vm.mockCall(token0, abi.encodeWithSelector(ERC20.balanceOf.selector, address(migrator)), abi.encode(1000 ether));
+
+        vm.mockCall(
+            token0, abi.encodeWithSelector(ERC20.transfer.selector, address(pool), 1000 ether), abi.encode(true)
+        );
+
+        vm.mockCall(token1, abi.encodeWithSelector(ERC20.balanceOf.selector, address(migrator)), abi.encode(1000 ether));
+
+        vm.mockCall(
+            token1, abi.encodeWithSelector(ERC20.transfer.selector, address(pool), 1000 ether), abi.encode(true)
+        );
+
+        vm.mockCall(
+            address(pool),
+            abi.encodeWithSelector(IUniswapV2Pair.mint.selector, address(migrator)),
+            abi.encode(1000 ether)
+        );
+
+        uint256 liquidity = migrator.migrate(uint160(2 ** 96), address(token0), address(token1), address(0xbeef));
+    }
+    */
 
     function test_migrate_WrapsETH() public {
         TestERC20 token1 = new TestERC20(1000 ether);

@@ -6,7 +6,7 @@ import { Airlock } from "../Airlock.sol";
 /// @notice Thrown when the caller is not the Airlock contract
 error SenderNotAirlock();
 
-contract ImmutableAirlock {
+abstract contract ImmutableAirlock {
     Airlock public immutable airlock;
 
     constructor(

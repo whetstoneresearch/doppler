@@ -35,6 +35,7 @@ contract V3PocTest is Test {
     // HAVE MAINNET_RPC_URL SET IN .env
     function setUp() public {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
         uniswapV2LiquidityMigrator = new UniswapV2Migrator(
