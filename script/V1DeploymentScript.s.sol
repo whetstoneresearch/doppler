@@ -15,21 +15,16 @@ struct Addresses {
 }
 
 contract V1DeploymentScript is Script {
-    Airlock airlock;
-    TokenFactory tokenFactory;
-    UniswapV3Initializer uniswapV3Initializer;
-    GovernanceFactory governanceFactory;
-    UniswapV2Migrator uniswapV2LiquidityMigrator;
-
     function run() public {
+        // Let's validate that we have the correct addresses for the chain we're targeting
         string memory path = "./script/addresses.json";
         string memory json = vm.readFile(path);
         bool exists = vm.keyExistsJson(json, string.concat(".", vm.toString(block.chainid)));
         require(exists, string.concat("Missing Uniswap addresses for chain with id ", vm.toString(block.chainid)));
-
         bytes memory data = vm.parseJson(json, string.concat(".", vm.toString(block.chainid)));
         Addresses memory addresses = abi.decode(data, (Addresses));
 
+        // Let's check that a valid protocol owner is set
         address owner = vm.envOr("PROTOCOL_OWNER", address(0));
         require(owner != address(0), "PROTOCOL_OWNER not set! Please edit your .env file.");
         console.log(unicode"👑 PROTOCOL_OWNER set as %s", owner);
@@ -37,19 +32,21 @@ contract V1DeploymentScript is Script {
         vm.startBroadcast();
         console.log(unicode"🚀 Deploying contracts...");
 
-        // Owner of the protocol is set as the deployer to allow the whitelisting of modules, ownership
-        // is then transferred
-        airlock = new Airlock(msg.sender);
-        tokenFactory = new TokenFactory(address(airlock));
-        uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(addresses.uniswapV3Factory));
-        governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        // Owner of the protocol is first set as the deployer to allow the whitelisting of modules,
+        // ownership is then transferred to the address defined as the PROTOCOL_OWNER
+        Airlock airlock = new Airlock(msg.sender);
+        TokenFactory tokenFactory = new TokenFactory(address(airlock));
+        UniswapV3Initializer uniswapV3Initializer =
+            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(addresses.uniswapV3Factory));
+        GovernanceFactory governanceFactory = new GovernanceFactory(address(airlock));
+        UniswapV2Migrator uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
             IUniswapV2Factory(addresses.uniswapV2Factory),
             IUniswapV2Router02(addresses.uniswapV2Router02),
             owner
         );
 
+        // Whitelisting the initial modules
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
@@ -64,6 +61,7 @@ contract V1DeploymentScript is Script {
 
         airlock.setModuleState(modules, states);
 
+        // Transfer ownership to the actual PROTOCOL_OWNER
         airlock.transferOwnership(owner);
 
         console.log(unicode"✨ Contracts were successfully deployed:");
