@@ -5,7 +5,10 @@ libs = ["lib"]
 evm_version = "cancun"
 via_ir = true
 solc = '0.8.26'
-fs_permissions = [{ access = "read", path = "./lib" }]
+fs_permissions = [
+  { access = "read", path = "./lib" },
+  { access = "read", path = "./script" },
+]
 optimizer_runs = 0
 bytecode_hash = "none"
 optimizer = true

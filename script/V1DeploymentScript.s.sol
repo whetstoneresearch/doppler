@@ -8,9 +8,11 @@ import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 
-address constant UNICHAIN_SEPOLIA_UNISWAP_V2_ROUTER_02 = 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640;
-address constant UNICHAIN_SEPOLIA_UNISWAP_V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-address constant UNICHAIN_SEPOLIA_UNISWAP_v3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+struct Addresses {
+    address uniswapV2Factory;
+    address uniswapV2Router02;
+    address uniswapV3Factory;
+}
 
 contract V1DeploymentScript is Script {
     Airlock airlock;
@@ -20,6 +22,18 @@ contract V1DeploymentScript is Script {
     UniswapV2Migrator uniswapV2LiquidityMigrator;
 
     function run() public {
+        string memory path = "./script/addresses.json";
+        string memory json = vm.readFile(path);
+        bool exists = vm.keyExistsJson(json, string.concat(".", vm.toString(block.chainid)));
+        require(exists, string.concat("Missing Uniswap addresses for chain with id ", vm.toString(block.chainid)));
+
+        bytes memory data = vm.parseJson(json, string.concat(".", vm.toString(block.chainid)));
+        Addresses memory addresses = abi.decode(data, (Addresses));
+
+        console.log("uniswapV2Router02 %s", addresses.uniswapV2Router02);
+        console.log("uniswapV2Factory %s", addresses.uniswapV2Factory);
+        console.log("uniswapV3Factory %s", addresses.uniswapV3Factory);
+
         address owner = vm.envOr("PROTOCOL_OWNER", address(0));
         require(owner != address(0), "PROTOCOL_OWNER not set! Please edit your .env file.");
         console.log(unicode"👑 PROTOCOL_OWNER set as %s", owner);
@@ -27,15 +41,16 @@ contract V1DeploymentScript is Script {
         vm.startBroadcast();
         console.log(unicode"🚀 Deploying contracts...");
 
-        airlock = new Airlock(owner);
+        // Owner of the protocol is set as the deployer to allow the whitelisting of modules, ownership
+        // is then transferred
+        airlock = new Airlock(msg.sender);
         tokenFactory = new TokenFactory(address(airlock));
-        uniswapV3Initializer =
-            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNICHAIN_SEPOLIA_UNISWAP_v3_FACTORY));
+        uniswapV3Initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(addresses.uniswapV3Factory));
         governanceFactory = new GovernanceFactory(address(airlock));
         uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
-            IUniswapV2Factory(UNICHAIN_SEPOLIA_UNISWAP_V2_FACTORY),
-            IUniswapV2Router02(UNICHAIN_SEPOLIA_UNISWAP_V2_ROUTER_02),
+            IUniswapV2Factory(addresses.uniswapV2Factory),
+            IUniswapV2Router02(addresses.uniswapV2Router02),
             owner
         );
 
@@ -53,6 +68,8 @@ contract V1DeploymentScript is Script {
 
         airlock.setModuleState(modules, states);
 
+        airlock.transferOwnership(owner);
+
         console.log(unicode"✨ Contracts were successfully deployed:");
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| Contract Name              | Address                                    |");
@@ -69,5 +86,18 @@ contract V1DeploymentScript is Script {
         console.log("+----------------------------+--------------------------------------------+");
 
         vm.stopBroadcast();
+
+        // Some checks to ensure that the deployment was successful
+        for (uint256 i; i < modules.length; i++) {
+            require(airlock.getModuleState(modules[i]) == states[i], "Module state not set correctly");
+        }
+        require(address(tokenFactory.airlock()) == address(airlock), "TokenFactory not set correctly");
+        require(address(uniswapV3Initializer.airlock()) == address(airlock), "UniswapV3Initializer not set correctly");
+        require(address(governanceFactory.airlock()) == address(airlock), "GovernanceFactory not set correctly");
+        require(
+            address(uniswapV2LiquidityMigrator.airlock()) == address(airlock),
+            "UniswapV2LiquidityMigrator not set correctly"
+        );
+        require(airlock.owner() == owner, "Ownership not transferred to PROTOCOL_OWNER");
     }
 }
