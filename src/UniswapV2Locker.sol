@@ -80,7 +80,6 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(pool).getReserves();
         uint256 supply = IUniswapV2Pair(pool).totalSupply();
 
-        // todo: check this type cast
         uint112 amount0 = uint112((balance * reserve0) / supply);
         uint112 amount1 = uint112((balance * reserve1) / supply);
 
