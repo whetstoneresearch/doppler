@@ -54,10 +54,13 @@ struct AssetData {
  * @notice Data used to create a new asset token
  * @param initialSupply Total supply of the token (might be increased later on)
  * @param numTokensToSell Amount of tokens to sell in the Doppler hook
+ * @param numeraire Address of the numeraire token
  * @param tokenFactory Address of the factory contract deploying the ERC20 token
  * @param tokenFactoryData Arbitrary data to pass to the token factory
  * @param governanceFactory Address of the factory contract deploying the governance
  * @param governanceFactoryData Arbitrary data to pass to the governance factory
+ * @param poolInitializer Address of the pool initializer contract
+ * @param poolInitializerData Arbitrary data to pass to the pool initializer
  * @param liquidityMigrator Address of the liquidity migrator contract
  * @param integrator Address of the front-end integrator
  * @param salt Salt used by the different factories to deploy the contracts using CREATE2
@@ -129,6 +132,12 @@ contract Airlock is Ownable {
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
+     * @param createData Data used to create the new token (see `CreateParams` struct)
+     * @return asset Address of the deployed asset token
+     * @return pool Address of the created liquidity pool
+     * @return governance Address of the deployed governance contract
+     * @return timelock Address of the deployed timelock contract
+     * @return migrationPool Address of the created migration pool
      */
     function create(
         CreateParams calldata createData

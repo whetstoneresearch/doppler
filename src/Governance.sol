@@ -22,6 +22,7 @@ contract Governance is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl
 {
+    /// @notice Timestamp at which the proposal period starts
     uint32 public immutable proposalPeriodStart;
 
     constructor(
