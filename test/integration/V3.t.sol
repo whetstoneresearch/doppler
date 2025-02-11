@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
@@ -16,7 +16,6 @@ import {
     InitData,
     CannotMigrateInsufficientTick
 } from "src/UniswapV3Initializer.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
 import { DERC20 } from "src/DERC20.sol";
@@ -30,12 +29,14 @@ import {
     UNISWAP_V2_ROUTER_MAINNET
 } from "test/shared/Addresses.sol";
 
-import "forge-std/console2.sol";
-
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
 int24 constant DEFAULT_TARGET_TICK = DEFAULT_UPPER_TICK - 16_260;
 uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
+
+function adjustTick(int24 tick, int24 tickSpacing) pure returns (int24) {
+    return tick - (tick % tickSpacing);
+}
 
 contract V3Test is Test {
     UniswapV3Initializer public initializer;
@@ -101,13 +102,17 @@ contract V3Test is Test {
 
         isToken0 = predictedAsset < address(WETH_MAINNET);
 
-        int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
-        int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
-        int24 targetTick = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK;
+        int24 tickSpacing = IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET).feeAmountTickSpacing(
+            uint24(vm.envOr("V3_FEE", uint256(3000)))
+        );
+
+        int24 tickLower = adjustTick(isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK, tickSpacing);
+        int24 tickUpper = adjustTick(isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK, tickSpacing);
+        int24 targetTick = adjustTick(isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK, tickSpacing);
 
         bytes memory poolInitializerData = abi.encode(
             InitData({
-                fee: 3000,
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 numPositions: 10,
@@ -149,7 +154,7 @@ contract V3Test is Test {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
                 tokenOut: address(asset),
-                fee: 3000,
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: 1000 ether,
@@ -163,7 +168,7 @@ contract V3Test is Test {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
                 tokenOut: address(asset),
-                fee: 3000,
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: 1000 ether,
@@ -239,13 +244,17 @@ contract V3Test is Test {
         );
         isToken0 = predictedAsset < address(WETH_MAINNET);
 
-        int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
-        int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
-        int24 targetTick = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK;
+        int24 tickSpacing = IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET).feeAmountTickSpacing(
+            uint24(vm.envOr("V3_FEE", uint256(3000)))
+        );
+
+        int24 tickLower = adjustTick(isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK, tickSpacing);
+        int24 tickUpper = adjustTick(isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK, tickSpacing);
+        int24 targetTick = adjustTick(isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_LOWER_TICK, tickSpacing);
 
         bytes memory poolInitializerData = abi.encode(
             InitData({
-                fee: 3000,
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 numPositions: numPositions,
@@ -291,7 +300,7 @@ contract V3Test is Test {
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH_MAINNET,
                 tokenOut: address(asset),
-                fee: 3000,
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: 1 ether,
@@ -316,7 +325,7 @@ contract V3Test is Test {
             swapParams = ISwapRouter.ExactInputSingleParams({
                 tokenIn: tokenIn,
                 tokenOut: tokenIn == WETH_MAINNET ? asset : WETH_MAINNET,
-                fee: 3000,
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: amountIn,
@@ -332,9 +341,9 @@ contract V3Test is Test {
 
         (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
         (,, int24 _tickLower, int24 _tickUpper,,,,,) = initializer.getState(pool);
-        console2.log(currentTick);
-        console2.log(_tickLower);
-        console2.log(_tickUpper);
+        // console2.log(currentTick);
+        // console2.log(_tickLower);
+        // console2.log(_tickUpper);
         int24 farTick = isToken0 ? _tickUpper : _tickLower;
         if ((isToken0 && currentTick < farTick) || (!isToken0 && currentTick > farTick)) {
             vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, farTick, currentTick));
