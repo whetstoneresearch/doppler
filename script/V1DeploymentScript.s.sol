@@ -40,7 +40,7 @@ contract V1DeploymentScript is Script {
         console.log(unicode"👑 PROTOCOL_OWNER set as %s", owner);
 
         vm.startBroadcast();
-        console.log(unicode"🚀 Deploying contracts...");
+        console.log(unicode"🚀 Deploying contracts with sender %s...", msg.sender);
 
         // Owner of the protocol is first set as the deployer to allow the whitelisting of modules,
         // ownership is then transferred to the address defined as the PROTOCOL_OWNER
@@ -125,17 +125,19 @@ contract V1DeploymentScript is Script {
     ) internal {
         int24 DEFAULT_LOWER_TICK = 167_520;
         int24 DEFAULT_UPPER_TICK = 200_040;
-        uint256 DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
+        uint256 DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.9 ether;
 
         bool isToken0;
-        uint256 initialSupply = 100_000_000 ether;
-        string memory name = "Best Coin";
-        string memory symbol = "BEST";
+        uint256 initialSupply = 1_000_000_000 ether;
+        string memory name = "a";
+        string memory symbol = "a";
+        string memory tokenURI = "ipfs://QmPXxsEGfHHnCa8VuPoMS7n1pAhJVw1BnnfSx83sioE65y";
         bytes memory governanceData = abi.encode(name, 7200, 50_400, initialSupply / 1000);
-        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
+        bytes memory tokenFactoryData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), tokenURI);
 
         // Compute the asset address that will be created
         bytes32 salt;
+
         bytes memory creationCode = type(DERC20).creationCode;
         bytes memory create2Args = abi.encode(
             name,
@@ -147,7 +149,7 @@ contract V1DeploymentScript is Script {
             0,
             new address[](0),
             new uint256[](0),
-            ""
+            tokenURI
         );
         address predictedAsset = vm.computeCreate2Address(
             salt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
@@ -171,7 +173,7 @@ contract V1DeploymentScript is Script {
         (address asset,,,,) = airlock.create(
             CreateParams(
                 initialSupply,
-                initialSupply,
+                900_000_000 ether,
                 weth,
                 tokenFactory,
                 tokenFactoryData,
@@ -180,11 +182,14 @@ contract V1DeploymentScript is Script {
                 poolInitializer,
                 poolInitializerData,
                 liquidityMigrator,
-                "",
-                address(this),
+                new bytes(0),
+                address(0),
                 salt
             )
         );
+
+        console.log("| Asset Token                | %s |", asset);
+        console.log("+----------------------------+--------------------------------------------+");
 
         require(asset == predictedAsset, "Predicted asset address doesn't match actual");
     }
