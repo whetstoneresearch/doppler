@@ -8,5 +8,35 @@
         "uniswap_v2_factory": "0x1F98400000000000000000000000000000000002",
         "uniswap_v2_router_02": "0x284F11109359a7e1306C3e447ef14D38400063FF",
         "uniswap_v3_factory": "0x1F98400000000000000000000000000000000003"
-    }
+    },
+    "10": {
+        "uniswap_v2_factory": "0x0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf",
+        "uniswap_v2_router_02": "0x4a7b5da61326a6379179b40d00f57e5bbdc962c2",
+        "uniswap_v3_factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+    },
+    "42161": {
+        "uniswap_v2_factory": "0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9",
+        "uniswap_v2_router_02": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+        "uniswap_v3_factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+    },
+    "8453": {
+        "uniswap_v2_factory": "0x8909dc15e40173ff4699343b6eb8132c65e18ec6",
+        "uniswap_v2_router_02": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+        "uniswap_v3_factory": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
+    },
+    "57073": {
+        "uniswap_v2_factory": "",
+        "uniswap_v2_router_02": "",
+        "uniswap_v3_factory": ""
+    },
+    "480": {
+        "uniswap_v2_factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+        "uniswap_v2_router_02": "0x541aB7c31A119441eF3575F6973277DE0eF460bd",
+        "uniswap_v3_factory": "0x7a5028BDa40e7B173C278C5342087826455ea25a"
+    },
+    "56": {
+        "uniswap_v2_factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+        "uniswap_v2_router_02": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+        "uniswap_v3_factory": "0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7"
+    }    
 }
