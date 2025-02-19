@@ -318,6 +318,7 @@ contract AirlockTest is Test, Deployers {
         address poolInitializer = makeAddr("PoolInitializer");
         address pool = makeAddr("Pool");
         address liquidityMigrator = makeAddr("LiquidityMigrator");
+        address migrationPool = makeAddr("MigrationPool");
 
         AssetData memory assetData = AssetData({
             numeraire: address(0),
@@ -326,7 +327,7 @@ contract AirlockTest is Test, Deployers {
             liquidityMigrator: ILiquidityMigrator(liquidityMigrator),
             poolInitializer: IPoolInitializer(poolInitializer),
             pool: pool,
-            migrationPool: address(0),
+            migrationPool: migrationPool,
             numTokensToSell: 0,
             totalSupply: 0,
             integrator: DEFAULT_INTEGRATOR
@@ -360,9 +361,8 @@ contract AirlockTest is Test, Deployers {
         MockLiquidityMigrator lm = new MockLiquidityMigrator();
         vm.etch(liquidityMigrator, address(lm).code);
 
-        // TODO: The log look good but Foundry says they are not matching
-        emit Migrate(asset, pool);
-        // vm.expectEmit();
+        vm.expectEmit();
+        emit Migrate(asset, migrationPool);
         airlock.migrate(asset);
     }
 
