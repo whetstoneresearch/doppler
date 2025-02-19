@@ -15,7 +15,9 @@ contract DeployUniswapScript is Script {
         console2.log("account", account);
 
         address uniswapV2Factory = _deployCode(
-            abi.encodePacked(vm.readFileBinary("./script/utils/uniwsapV2Factory.bytecode"), abi.encode(address(0)))
+            abi.encodePacked(
+                vm.parseBytes(vm.readFile("./script/utils/uniswapV2Factory.bytecode")), abi.encode(address(0))
+            )
         );
 
         console2.log("uniswapV2Factory", uniswapV2Factory);
@@ -24,14 +26,15 @@ contract DeployUniswapScript is Script {
 
         address uniswapV2Router02 = _deployCode(
             abi.encodePacked(
-                vm.readFileBinary("./script/utils/uniwsapV2Router02.bytecode"), abi.encode(uniswapV2Factory, weth)
+                vm.parseBytes(vm.readFile("./script/utils/uniswapV2Router02.bytecode")),
+                abi.encode(uniswapV2Factory, weth)
             )
         );
 
         console2.log("uniswapV2Router02", uniswapV2Router02);
 
         address uniswapV3Factory =
-            _deployCode(abi.encodePacked(vm.readFileBinary("./script/utils/uniwsapV3Factory.bytecode")));
+            _deployCode(abi.encodePacked(vm.parseBytes(vm.readFile("./script/utils/uniswapV3Factory.bytecode"))));
 
         console2.log("uniswapV3Factory", uniswapV3Factory);
 
