@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { MigrationMath } from "src/UniswapV2Migrator.sol";

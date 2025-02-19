@@ -7,7 +7,8 @@ permit2/=lib/v4-periphery/lib/permit2/
 
 @solmate/=lib/v4-core/lib/solmate/src
 @solady/=lib/solady/src/
-@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
+src:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
+test:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
 
 @v4-periphery/=lib/v4-periphery/src/
 
