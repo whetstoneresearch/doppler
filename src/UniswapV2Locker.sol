@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
