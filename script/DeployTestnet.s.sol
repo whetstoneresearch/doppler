@@ -30,14 +30,14 @@ contract DeployTestnetScript is Script {
         vm.startBroadcast();
 
         // Let's validate that we have the correct addresses for the chain we're targeting
-        string memory path = "./script/addresses.json";
-        string memory json = vm.readFile(path);
-        bool exists = vm.keyExistsJson(json, string.concat(".", vm.toString(block.chainid)));
+        string memory path = "./script/addresses.toml";
+        string memory raw = vm.readFile(path);
+        bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
 
         Addresses memory addresses;
 
         if (exists) {
-            bytes memory data = vm.parseJson(json, string.concat(".", vm.toString(block.chainid)));
+            bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
             addresses = abi.decode(data, (Addresses));
         } else {
             console.log(unicode"🧃 No Uniswap addresses found, deploying new contracts...");
