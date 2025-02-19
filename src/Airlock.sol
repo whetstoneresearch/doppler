@@ -223,7 +223,7 @@ contract Airlock is Ownable {
 
         assetData.liquidityMigrator.migrate(sqrtPriceX96, token0, token1, assetData.timelock);
 
-        emit Migrate(asset, assetData.pool);
+        emit Migrate(asset, assetData.migrationPool);
     }
 
     /**
