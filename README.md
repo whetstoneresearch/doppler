@@ -45,3 +45,25 @@ First be sure to set the `PROTOCOL_OWNER` variable in your .env file. V1 contrac
 # --private-key is the deployer wallet (not the owner)
 forge script ./script/V1DeploymentScript.s.sol --rpc-url https://... --private-key 0x... --broadcast
 ```
+
+```shell
+# First load the environment variables
+source .env
+
+# Then use any of the following commands to deploy the contracts on the desired network
+
+# Base Sepolia
+forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $BASE_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $BASE_SEPOLIA_VERIFIER_URL --broadcast --slow
+
+# World Sepolia
+forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $WORLD_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $WORLD_SEPOLIA_VERIFIER_URL --broadcast --slow
+
+# Ink Sepolia
+forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $INK_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $INK_SEPOLIA_VERIFIER_URL --broadcast --slow
+
+# Arbitrum Sepolia
+forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $ARBITRUM_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $ARBITRUM_SEPOLIA_VERIFIER_URL --broadcast --slow
+
+# Monad Testnet
+forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $MONAD_TESTNET_RPC_URL --verify --verifier sourcify --verifier-url $MONAD_TESTNET_VERIFIER_URL --broadcast --slow
+```
