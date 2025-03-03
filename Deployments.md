@@ -1,6 +1,12 @@
 # Deployments
 
-## Base Sepolia
+Our contracts are deployed on the following networks:
+
+## Unichain Mainnet (v1.0.0)
+
+## Unichain Sepolia (v1.0.0)
+
+## Base Sepolia (v1.0.1)
 
 | Contract Name              | Address                                    |
 | -------------------------- | ------------------------------------------ |
@@ -14,7 +20,7 @@
 | UniswapV3Factory           | 0xb4deE32EB70A5E55f3D2d861F49Fb3D79f7a14d9 |
 | WETH                       | 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12 |
 
-## World Sepolia
+## World Sepolia (v1.0.1)
 
 | Contract Name              | Address                                    |
 | -------------------------- | ------------------------------------------ |
@@ -28,7 +34,7 @@
 | UniswapV3Factory           | 0xb4deE32EB70A5E55f3D2d861F49Fb3D79f7a14d9 |
 | WETH                       | 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12 |
 
-## Ink Sepolia
+## Ink Sepolia (v1.0.1)
 
 (Not verified yet)
 
@@ -44,9 +50,9 @@
 | UniswapV3Factory           | 0x094D926A969B3024ca46D2186BF13FD5CDBA9CE2 |
 | WETH                       | 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B |
 
-## Arbitrum Sepolia
+## Arbitrum Sepolia (v1.0.1)
 
-## Monad Testnet
+## Monad Testnet (v1.0.1)
 
 (Not verified yet)
 
