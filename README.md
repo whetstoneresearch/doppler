@@ -52,6 +52,9 @@ source .env
 
 # Then use any of the following commands to deploy the contracts on the desired network
 
+# Unichain Sepolia
+forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $UNICHAIN_SEPOLIA_VERIFIER_URL --broadcast --slow
+
 # Base Sepolia
 forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $BASE_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $BASE_SEPOLIA_VERIFIER_URL --broadcast --slow
 
