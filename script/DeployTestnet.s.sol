@@ -21,6 +21,7 @@ struct Addresses {
     address uniswapV2Factory;
     address uniswapV2Router02;
     address uniswapV3Factory;
+    address weth;
 }
 
 contract DeployTestnetScript is Script {
@@ -29,7 +30,7 @@ contract DeployTestnetScript is Script {
 
         vm.startBroadcast();
 
-        // Let's validate that we have the correct addresses for the chain we're targeting
+        // Let's check if we have any addresses for the Uniswap contracts
         string memory path = "./script/addresses.toml";
         string memory raw = vm.readFile(path);
         bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
@@ -39,10 +40,9 @@ contract DeployTestnetScript is Script {
         if (exists) {
             bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
             addresses = abi.decode(data, (Addresses));
-        } else {
-            console.log(unicode"🧃 No Uniswap addresses found, deploying new contracts...");
-            addresses = _deployUniswap();
         }
+
+        addresses = _validateOrDeployUniswap(addresses);
 
         (
             address airlock,
@@ -127,27 +127,47 @@ contract DeployTestnetScript is Script {
         );
     }
 
-    function _deployUniswap() internal returns (Addresses memory) {
-        address weth = address(new WETH());
-        address uniswapV2Factory = _deployCode(
-            abi.encodePacked(
-                vm.parseBytes(vm.readFile("./script/utils/uniswapV2Factory.bytecode")), abi.encode(address(0))
-            )
-        );
-        address uniswapV2Router02 = _deployCode(
-            abi.encodePacked(
-                vm.parseBytes(vm.readFile("./script/utils/uniswapV2Router02.bytecode")),
-                abi.encode(uniswapV2Factory, weth)
-            )
-        );
-        address uniswapV3Factory =
-            _deployCode(abi.encodePacked(vm.parseBytes(vm.readFile("./script/utils/uniswapV3Factory.bytecode"))));
+    function _validateOrDeployUniswap(
+        Addresses memory addresses
+    ) internal returns (Addresses memory deployedAddresses) {
+        console.log(addresses.weth);
 
-        return Addresses({
-            uniswapV2Factory: uniswapV2Factory,
-            uniswapV2Router02: uniswapV2Router02,
-            uniswapV3Factory: uniswapV3Factory
-        });
+        if (addresses.weth == address(0)) {
+            deployedAddresses.weth = address(new WETH());
+        } else {
+            deployedAddresses.weth = addresses.weth;
+        }
+
+        if (addresses.uniswapV2Factory == address(0)) {
+            deployedAddresses.uniswapV2Factory = _deployCode(
+                abi.encodePacked(
+                    vm.parseBytes(vm.readFile("./script/utils/uniswapV2Factory.bytecode")), abi.encode(address(0))
+                )
+            );
+        } else {
+            deployedAddresses.uniswapV2Factory = addresses.uniswapV2Factory;
+        }
+
+        if (
+            addresses.uniswapV2Router02 == address(0) || addresses.weth != deployedAddresses.weth
+                || addresses.uniswapV2Factory != deployedAddresses.uniswapV2Factory
+        ) {
+            deployedAddresses.uniswapV2Router02 = _deployCode(
+                abi.encodePacked(
+                    vm.parseBytes(vm.readFile("./script/utils/uniswapV2Router02.bytecode")),
+                    abi.encode(deployedAddresses.uniswapV2Factory, deployedAddresses.weth)
+                )
+            );
+        } else {
+            deployedAddresses.uniswapV2Router02 = addresses.uniswapV2Router02;
+        }
+
+        if (addresses.uniswapV3Factory == address(0)) {
+            deployedAddresses.uniswapV3Factory =
+                _deployCode(abi.encodePacked(vm.parseBytes(vm.readFile("./script/utils/uniswapV3Factory.bytecode"))));
+        } else {
+            deployedAddresses.uniswapV3Factory = addresses.uniswapV3Factory;
+        }
     }
 
     function _deployCode(
