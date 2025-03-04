@@ -939,8 +939,6 @@ contract Doppler is BaseHook {
         uint256 epochT1toT2Delta;
         if (epochEndTime != nextEpochEndTime) {
             epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
-        } else {
-            epochT1toT2Delta = 0;
         }
 
         uint256 pdSlugsToLp = numPDSlugs;
