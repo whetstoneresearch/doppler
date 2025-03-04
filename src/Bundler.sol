@@ -3,40 +3,66 @@ pragma solidity ^0.8.24;
 
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { Airlock, CreateParams } from "src/Airlock.sol";
+import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
+import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 
 error InvalidBundleData();
+error InvalidAddresses();
 
 /**
  * @author Whetstone
  * @custom:security-contact security@whetstone.cc
  */
 contract Bundler {
+    Airlock airlock;
+    UniversalRouter router;
+    IQuoterV2 quoter;
+
+    constructor(address payable _airlock, address payable _router, address _quoter) {
+        if (_airlock == address(0) || _router == address(0)) {
+            revert InvalidAddresses();
+        }
+        airlock = Airlock(_airlock);
+        router = UniversalRouter(_router);
+        quoter = IQuoterV2(_quoter);
+    }
+
+    function simulateBundleExactOut(
+        CreateParams calldata createData,
+        bytes memory path,
+        uint256 amountOut
+    ) public returns (uint256 amountIn) {
+        (address asset,,,,) = airlock.create(createData);
+        (amountIn,,,) = quoter.quoteExactOutput(path, amountOut);
+    }
+
+    function simulateBundleExactIn(
+        CreateParams calldata createData,
+        bytes memory path,
+        uint256 amountIn 
+    ) public returns (uint256 amountOut) {
+        (address asset,,,,) = airlock.create(createData);
+        (amountOut,,,) = quoter.quoteExactInput(path, amountIn);
+    }
+
     /**
-     * @notice Bundles the creation of an asset via the Airlock contract and a buy operation via a router
-     * @param airlock Address of the Airlock contract
+     * @notice Bundles the creation of an asset via the Airlock contract and a buy operation via the universal router
      * @param createData Creation data to pass to the Airlock contract
-     * @param router Address of the router to use for the buy operation
-     * @param routerData Arbitrary data to pass to the router
+     * @param commands encoded universal router commands
+     * @param inputs universal router vm calldata
      */
     function bundle(
-        Airlock airlock,
         CreateParams calldata createData,
-        address router,
-        bytes calldata routerData
+        bytes calldata commands,
+        bytes[] calldata inputs
     ) external payable {
-        if (address(airlock) == address(0) || address(router) == address(0) || routerData.length == 0) {
+        if (address(airlock) == address(0) || address(router) == address(0)) {
             revert InvalidBundleData();
         }
 
         (address asset,,,,) = airlock.create(createData);
-        (bool success, bytes memory result) = router.call{ value: msg.value }(routerData);
+        router.execute(commands, inputs);
 
-        if (!success) {
-            if (result.length == 0) revert();
-            assembly {
-                revert(add(32, result), mload(result))
-            }
-        }
 
         uint256 ethBalance = address(this).balance;
         if (ethBalance > 0) SafeTransferLib.safeTransferETH(msg.sender, ethBalance);
