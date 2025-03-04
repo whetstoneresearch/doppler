@@ -8,6 +8,7 @@ import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 
 error InvalidBundleData();
 error InvalidAddresses();
+error InvalidOutputToken();
 
 /**
  * @author Whetstone
@@ -29,20 +30,24 @@ contract Bundler {
 
     function simulateBundleExactOut(
         CreateParams calldata createData,
-        bytes memory path,
-        uint256 amountOut
+        IQuoterV2.QuoteExactOutputSingleParams calldata params
     ) public returns (uint256 amountIn) {
         (address asset,,,,) = airlock.create(createData);
-        (amountIn,,,) = quoter.quoteExactOutput(path, amountOut);
+        if (asset != params.tokenOut) {
+            revert InvalidOutputToken();
+        }
+        (amountIn,,,) = quoter.quoteExactOutputSingle(params);
     }
 
     function simulateBundleExactIn(
         CreateParams calldata createData,
-        bytes memory path,
-        uint256 amountIn 
+        IQuoterV2.QuoteExactInputSingleParams calldata params
     ) public returns (uint256 amountOut) {
         (address asset,,,,) = airlock.create(createData);
-        (amountOut,,,) = quoter.quoteExactInput(path, amountIn);
+        if (asset != params.tokenOut) {
+            revert InvalidOutputToken();
+        }
+        (amountOut,,,) = quoter.quoteExactInputSingle(params);
     }
 
     /**
