@@ -34,14 +34,14 @@ Our contracts are deployed on the following networks:
 
 | Contract Name              | Address                                    |
 | -------------------------- | ------------------------------------------ |
-| Airlock                    | 0x094D926A969B3024ca46D2186BF13FD5CDBA9CE2 |
-| TokenFactory               | 0x5CadB034267751a364dDD4d321C99E07A307f915 |
-| UniswapV3Initializer       | 0x77EbfBAE15AD200758E9E2E61597c0B07d731254 |
-| GovernanceFactory          | 0x43d0D97EC9241A8F05A264f94B82A1d2E600f2B3 |
-| UniswapV2LiquidityMigrator | 0x9F4e56be80f08ba1A2445645EFa6d231E27b43ec |
-| UniswapV2Factory           | 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B |
-| UniswapV2Router02          | 0x014E1c0bd34f3B10546E554CB33B3293fECDD056 |
-| UniswapV3Factory           | 0x8AF018e28c273826e6b2d5a99e81c8fB63729b07 |
+| Airlock                    | 0xe7dfbd5b0A2C3B4464653A9beCdc489229eF090E |
+| TokenFactory               | 0xe93882f395B0b24180855c68Ab19B2d78573ceBc |
+| UniswapV3Initializer       | 0x63f8C8F9beFaab2FaCD7Ece0b0242f78B920Ee90 |
+| GovernanceFactory          | 0x44bf742e57cd8cF23ABbc8dab2c44e2a3228356E |
+| UniswapV2LiquidityMigrator | 0x0A00775D71a42cd33D62780003035e7F5b47bD3A |
+| UniswapV2Factory           | 0x7Ae58f10f7849cA6F5fB71b7f45CB416c9204b1e |
+| UniswapV2Router02          | 0x7A8AF5bfC89FFe4c6DC15fADBCDc7640c796fA88 |
+| UniswapV3Factory           | 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24 |
 | WETH                       | 0x4200000000000000000000000000000000000006 |
 
 ## World Sepolia (v1.0.1)
