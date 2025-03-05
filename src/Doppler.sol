@@ -343,10 +343,8 @@ contract Doppler is BaseHook {
                 });
 
                 // Include tickSpacing so we're at least at a higher price than the lower slug upper tick
-                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
-                    _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
-                        + (isToken0 ? key.tickSpacing : -key.tickSpacing)
-                );
+                uint160 sqrtPriceX96Next =
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper + (isToken0 ? key.tickSpacing : -key.tickSpacing));
 
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
