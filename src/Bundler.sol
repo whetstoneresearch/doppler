@@ -64,9 +64,10 @@ contract Bundler {
         if (address(airlock) == address(0) || address(router) == address(0)) {
             revert InvalidBundleData();
         }
-
+        
         (address asset,,,,) = airlock.create(createData);
-        router.execute(commands, inputs);
+        uint256 balance = address(this).balance;
+        router.execute{value: balance}(commands, inputs);
 
 
         uint256 ethBalance = address(this).balance;
