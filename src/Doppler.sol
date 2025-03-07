@@ -152,6 +152,8 @@ contract Doppler is BaseHook {
     bool internal isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 internal numPDSlugs; // number of price discovery slugs
 
+    uint24 internal initialLpFee;
+
     uint256 internal totalEpochs; // total number of epochs
     uint256 internal normalizedEpochDelta; // normalized delta between two epochs
     int24 internal upperSlugRange; // range of the upper slug
@@ -174,6 +176,7 @@ contract Doppler is BaseHook {
     /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
     /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
     /// @param _numPDSlugs Number of price discovery slugs to use
+    /// @param initialLpFee_ Initial swap fee
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -187,8 +190,11 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0,
         uint256 _numPDSlugs,
-        address initializer_
+        address initializer_,
+        uint24 initialLpFee_
     ) BaseHook(_poolManager) {
+        initialLpFee = initialLpFee_;
+
         // Check that the current time is before the starting time
         if (block.timestamp > _startingTime) revert InvalidStartTime();
         /* Tick checks */
@@ -272,6 +278,7 @@ contract Doppler is BaseHook {
         uint160,
         int24 tick
     ) external override onlyPoolManager returns (bytes4) {
+        poolManager.updateDynamicLPFee(key, initialLpFee);
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
     }
