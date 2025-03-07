@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { IPoolManager, PoolKey, IHooks } from "@v4-core/PoolManager.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
@@ -32,8 +33,12 @@ contract DopplerDeployer {
             uint256 epochLength,
             int24 gamma,
             bool isToken0,
-            uint256 numPDSlugs
-        ) = abi.decode(data, (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256));
+            uint256 numPDSlugs,
+            uint24 lpFee,
+        ) = abi.decode(
+            data,
+            (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+        );
 
         Doppler doppler = new Doppler{ salt: salt }(
             poolManager,
@@ -48,7 +53,8 @@ contract DopplerDeployer {
             gamma,
             isToken0,
             numPDSlugs,
-            msg.sender
+            msg.sender,
+            lpFee
         );
 
         return doppler;
@@ -88,7 +94,7 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
         bytes32 salt,
         bytes calldata data
     ) external onlyAirlock returns (address) {
-        (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,, uint24 fee, int24 tickSpacing) = abi.decode(
+        (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,,, int24 tickSpacing) = abi.decode(
             data,
             (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
@@ -103,7 +109,7 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
             currency0: isToken0 ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: isToken0 ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: IHooks(doppler),
-            fee: fee,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
             tickSpacing: tickSpacing
         });
 
