@@ -101,20 +101,18 @@ contract DERC20Test is Test {
     }
 
     function test_constructor_RevertsWhenMaxTotalPreMintExceeded() public {
-        uint256 maxTotalPreMint = INITIAL_SUPPLY * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
-        uint256 length = MAX_TOTAL_PRE_MINT_WAD / MAX_PRE_MINT_PER_ADDRESS_WAD + 1;
+        address[] memory recipients = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
 
-        address[] memory recipients = new address[](length);
-        uint256[] memory amounts = new uint256[](length);
-
-        for (uint256 i; i != length; ++i) {
-            recipients[i] = address(uint160(i));
-            amounts[i] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
-        }
+        recipients[0] = address(0xa);
+        recipients[1] = address(0xb);
+        amounts[0] = amounts[1] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                MaxTotalPreMintExceeded.selector, maxTotalPreMint * 1.1 ether / 1e18, maxTotalPreMint
+                MaxTotalPreMintExceeded.selector,
+                INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18 * 2,
+                INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18
             )
         );
         token = new DERC20(
