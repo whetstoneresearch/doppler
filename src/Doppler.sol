@@ -8,6 +8,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { BalanceDelta, add, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
@@ -316,6 +317,8 @@ contract Doppler is BaseHook {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
+        uint24 fee;
+
         // Only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp >= endingTime && !insufficientProceeds) {
             // If we haven't raised the minimum proceeds, we allow for all asset tokens to be sold back into
@@ -374,18 +377,14 @@ contract Doppler is BaseHook {
             _rebalance(key);
         } else {
             // If we have insufficient proceeds, only allow swaps from asset -> numeraire
-            if (isToken0) {
-                if (swapParams.zeroForOne == false) {
-                    revert InvalidSwapAfterMaturityInsufficientProceeds();
-                }
-            } else {
-                if (swapParams.zeroForOne == true) {
-                    revert InvalidSwapAfterMaturityInsufficientProceeds();
-                }
+            if ((isToken0 && swapParams.zeroForOne == false) || (!isToken0 && swapParams.zeroForOne)) {
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
             }
+
+            fee = 0 | LPFeeLibrary.OVERRIDE_FEE_FLAG;
         }
 
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee);
     }
 
     /// @notice Called by the poolManager immediately after a swap is executed
