@@ -364,7 +364,7 @@ contract Doppler is BaseHook {
 
         // If startTime < block.timestamp < endTime and !earlyExit and !insufficientProceeds, we rebalance
         if (!insufficientProceeds) {
-            _rebalance(key);
+            _rebalance();
         } else {
             // If we have insufficient proceeds, only allow swaps from asset -> numeraire
             if (isToken0) {
@@ -473,10 +473,7 @@ contract Doppler is BaseHook {
     /// @notice Executed before swaps in new epochs to rebalance the bonding curve
     ///         We adjust the bonding curve according to the amount tokens sold relative to the expected amount
     /// @dev Called during beforeSwap when entering a new epoch
-    /// @param key The pool key
-    function _rebalance(
-        PoolKey calldata key
-    ) internal {
+    function _rebalance() internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
@@ -488,7 +485,8 @@ contract Doppler is BaseHook {
 
         Position memory upperSlugPosition = positions[UPPER_SLUG_SALT];
 
-        PoolId poolId = key.toId();
+        PoolId poolId = poolKey.toId();
+        PoolKey memory key = poolKey;
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
