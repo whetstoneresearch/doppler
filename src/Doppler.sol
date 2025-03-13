@@ -554,15 +554,15 @@ contract Doppler is BaseHook {
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
-        // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold <= 0) {
-            adjustmentTick = upperSlugPosition.tickLower;
-            accumulatorDelta += _getMaxTickDeltaPerEpoch();
-        } else if (totalTokensSold_ <= expectedAmountSold) {
+        if (totalTokensSold_ <= expectedAmountSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             adjustmentTick = currentTick;
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
+        } else if (netSold <= 0) {
+            // Possible if no tokens purchased or tokens are sold back into the pool
+            adjustmentTick = upperSlugPosition.tickLower;
+            accumulatorDelta += _getMaxTickDeltaPerEpoch();
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
