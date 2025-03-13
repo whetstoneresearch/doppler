@@ -1122,6 +1122,8 @@ contract Doppler is BaseHook {
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
 
         if (isMigration) {
+            _rebalance();
+
             BalanceDelta slugsCallerDelta;
             BalanceDelta slugsFeesAccrued;
 
