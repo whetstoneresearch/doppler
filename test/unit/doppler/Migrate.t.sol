@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { SenderNotInitializer, CannotMigrate } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
@@ -58,5 +60,20 @@ contract MigrateTest is BaseTest {
         }
 
         assertEq(ERC20(token1).balanceOf(address(hook)), 0, "hook should have no token1");
+    }
+
+    function test_migrate_CorrectPrice() public {
+        vm.warp(hook.getStartingTime());
+
+        buyExactIn(hook.getMinimumProceeds() + 1 ether);
+
+        int24 currentTick = hook.getCurrentTick(poolId);
+
+        vm.warp(hook.getEndingTime() + DEFAULT_EPOCH_LENGTH * 5);
+        vm.prank(hook.initializer());
+        (uint160 sqrtPriceX96,,,,,,) = hook.migrate(address(0xbeef));
+        int24 migrationTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+
+        assertTrue(isToken0 ? currentTick > migrationTick : currentTick < migrationTick, "Migration tick is wrong");
     }
 }
