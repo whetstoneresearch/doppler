@@ -19,3 +19,6 @@
 [submodule "lib/universal-router"]
 	path = lib/universal-router
 	url = https://github.com/Uniswap/universal-router
+[submodule "lib/zora-protocol"]
+	path = lib/zora-protocol
+	url = https://github.com/ourzora/zora-protocol
