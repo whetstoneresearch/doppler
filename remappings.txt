@@ -23,3 +23,6 @@ test:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
 
 
 @uniswap/v2-core/contracts/interfaces/=src/interfaces/
+@zora-protocol/coins/=lib/zora-protocol/packages/coins/
+lib/zora-protocol:@openzeppelin/contracts/=lib/v4-core/lib/openzeppelin-contracts/contracts/
+lib/zora-protocol:@openzeppelin/contracts-upgradeable/=lib/v4-core/lib/openzeppelin-contracts/contracts-upgradeable/
