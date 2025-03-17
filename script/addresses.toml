@@ -1,0 +1,39 @@
+# We're listing in this file the different deployment
+
+# Unichain Mainnet
+[130]
+"uniswap_v2_factory" = "0x1F98400000000000000000000000000000000002"
+"uniswap_v2_router_02" = "0x284F11109359a7e1306C3e447ef14D38400063FF"
+"uniswap_v3_factory" = "0x1F98400000000000000000000000000000000003"
+
+# Unichain Sepolia
+[1301]
+"uniswap_v2_factory" = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
+"uniswap_v2_router_02" = "0x920b806E40A00E02E7D2b94fFc89860fDaEd3640"
+"uniswap_v3_factory" = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+"weth" = "0x4200000000000000000000000000000000000006"
+
+# Base Sepolia
+[84532]
+"uniswap_v2_factory" = "0x7Ae58f10f7849cA6F5fB71b7f45CB416c9204b1e"
+"uniswap_v2_router_02" = "0x0000000000000000000000000000000000000000"
+"uniswap_v3_factory" = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
+"weth" = "0x4200000000000000000000000000000000000006"
+
+# World Sepolia
+[4801]
+"uniswap_v2_factory" = "0xFAafdE6a5b658684cC5eb0C5c2c755B00A246F45"
+"uniswap_v2_router_02" = "0xaA47D2977d622DBdFD33eeF6a8276727c52EB4e5"
+"uniswap_v3_factory" = "0xb4deE32EB70A5E55f3D2d861F49Fb3D79f7a14d9"
+
+# Ink Sepolia
+[763373]
+"uniswap_v2_factory" = "0x014E1c0bd34f3B10546E554CB33B3293fECDD056"
+"uniswap_v2_router_02" = "0x8AF018e28c273826e6b2d5a99e81c8fB63729b07"
+"uniswap_v3_factory" = "0x094D926A969B3024ca46D2186BF13FD5CDBA9CE2"
+
+# Monad Testnet
+[10143]
+"uniswap_v2_factory" = "0xFAafdE6a5b658684cC5eb0C5c2c755B00A246F45"
+"uniswap_v2_router_02" = "0xaA47D2977d622DBdFD33eeF6a8276727c52EB4e5"
+"uniswap_v3_factory" = "0xb4deE32EB70A5E55f3D2d861F49Fb3D79f7a14d9"
