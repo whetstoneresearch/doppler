@@ -7,7 +7,6 @@ import { ICoin } from "@zora-protocol/coins/src/interfaces/ICoin.sol";
 import { ICoinComments } from "@zora-protocol/coins/src/interfaces/ICoinComments.sol";
 import { IERC7572 } from "@zora-protocol/coins/src/interfaces/IERC7572.sol";
 import { INonfungiblePositionManager } from "@zora-protocol/coins/src/interfaces/INonfungiblePositionManager.sol";
-import { IUniswapV3Pool } from "@zora-protocol/coins/src/interfaces/IUniswapV3Pool.sol";
 import { ISwapRouter } from "@zora-protocol/coins/src/interfaces/ISwapRouter.sol";
 import { IProtocolRewards } from "@zora-protocol/coins/src/interfaces/IProtocolRewards.sol";
 import { IWETH } from "@zora-protocol/coins/src/interfaces/IWETH.sol";
@@ -22,8 +21,13 @@ import { CoinConstants } from "@zora-protocol/coins/src/utils/CoinConstants.sol"
 import { MultiOwnable } from "@zora-protocol/coins/src/utils/MultiOwnable.sol";
 import { TickMath } from "@zora-protocol/coins/src/utils/TickMath.sol";
 import { ImmutableAirlock } from "../base/ImmutableAirlock.sol";
-import "forge-std/console.sol";
-
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { Airlock, AssetData } from "src/Airlock.sol";
+import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { ZoraUniswapV3Migrator } from "src/zora/ZoraUniswapV3Migrator.sol";
 /*
      $$$$$$\   $$$$$$\  $$$$$$\ $$\   $$\ 
     $$  __$$\ $$  __$$\ \_$$  _|$$$\  $$ |
@@ -34,6 +38,7 @@ import "forge-std/console.sol";
     \$$$$$$  | $$$$$$  |$$$$$$\ $$ | \$$ |
      \______/  \______/ \______|\__|  \__|
 */
+
 contract ZoraCoin is
     ICoin,
     CoinConstants,
@@ -44,6 +49,8 @@ contract ZoraCoin is
 {
     using SafeERC20 for IERC20;
 
+    IUniswapV3Factory public immutable factory;
+    Airlock public immutable airlock;
     address public immutable WETH;
     address public immutable nonfungiblePositionManager;
     address public immutable swapRouter;
@@ -51,8 +58,8 @@ contract ZoraCoin is
     address public immutable protocolRewardRecipient;
 
     address public payoutRecipient;
-    address public platformReferrer;
     address public poolAddress;
+    address public platformReferrer;
     address public currency;
     uint256 public lpTokenId;
     string public tokenURI;
@@ -62,7 +69,9 @@ contract ZoraCoin is
         address _protocolRewards,
         address _weth,
         address _nonfungiblePositionManager,
-        address _swapRouter
+        address _swapRouter,
+        address _factory,
+        address _airlock
     ) initializer {
         if (_protocolRewardRecipient == address(0)) {
             revert AddressZero();
@@ -85,6 +94,8 @@ contract ZoraCoin is
         WETH = _weth;
         nonfungiblePositionManager = _nonfungiblePositionManager;
         swapRouter = _swapRouter;
+        factory = IUniswapV3Factory(_factory);
+        airlock = Airlock(payable(_airlock));
     }
 
     /// @notice Initializes a new coin
@@ -94,7 +105,6 @@ contract ZoraCoin is
     /// @param symbol_ The coin symbol
     /// @param platformReferrer_ The address of the platform referrer
     /// @param currency_ The address of the currency
-    /// @param airlock The address of the airlock
     function initializeDoppler(
         address payoutRecipient_,
         address[] memory owners_,
@@ -102,25 +112,18 @@ contract ZoraCoin is
         string memory name_,
         string memory symbol_,
         address platformReferrer_,
-        address currency_,
-        address airlock
+        address currency_
     ) public initializer {
-        console.log("here0");
         // Validate the creation parameters
         if (payoutRecipient_ == address(0)) {
             revert AddressZero();
         }
-        console.log("here0");
 
         // Set base contract state
         __ERC20_init(name_, symbol_);
-        console.log("here1");
         __ERC20Permit_init(name_);
-        console.log("here2");
         __MultiOwnable_init(owners_);
-        console.log("here3");
         __ReentrancyGuard_init();
-        console.log("initialize2");
 
         // Set mutable state
         _setPayoutRecipient(payoutRecipient_);
@@ -137,13 +140,7 @@ contract ZoraCoin is
         // Distribute the creator launch reward
         _transfer(address(this), payoutRecipient, CREATOR_LAUNCH_REWARD);
         // send the launch supply to the airlock
-        _transfer(address(this), airlock, POOL_LAUNCH_SUPPLY);
-
-        // Approve the transfer of the remaining supply to the pool
-        // IERC20(address(this)).safeIncreaseAllowance(address(nonfungiblePositionManager), POOL_LAUNCH_SUPPLY);
-
-        // Deploy the pool
-        // _deployPool(tickLower_);
+        _transfer(address(this), address(airlock), POOL_LAUNCH_SUPPLY);
     }
 
     /// @notice Initializes a new coin
@@ -213,34 +210,73 @@ contract ZoraCoin is
             revert AddressZero();
         }
 
-        // Calculate the trade reward
-        uint256 tradeReward = _calculateReward(orderSize, TOTAL_FEE_BPS);
+        uint256 amountOut;
 
-        // Calculate the remaining size
-        uint256 trueOrderSize = orderSize - tradeReward;
+        (address numeraire,,, ILiquidityMigrator liquidityMigrator, IPoolInitializer poolInitializer,,,,,) =
+            airlock.getAssetData(address(this));
+        address pool = getPoolAddress();
+        (,, int24 tickLower, int24 tickUpper,,, bool isExited,,) =
+            UniswapV3Initializer(address(poolInitializer)).getState(pool);
+        if (!isExited) {
+            // Handle incoming currency
+            _handleIncomingCurrency(orderSize, orderSize);
 
-        // Handle incoming currency
-        _handleIncomingCurrency(orderSize, trueOrderSize);
+            // Set up the swap parameters
+            ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+                tokenIn: currency,
+                tokenOut: address(this),
+                fee: LP_FEE,
+                recipient: recipient,
+                amountIn: orderSize,
+                amountOutMinimum: minAmountOut,
+                sqrtPriceLimitX96: sqrtPriceLimitX96
+            });
 
-        // Set up the swap parameters
-        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: currency,
-            tokenOut: address(this),
-            fee: LP_FEE,
-            recipient: recipient,
-            amountIn: trueOrderSize,
-            amountOutMinimum: minAmountOut,
-            sqrtPriceLimitX96: sqrtPriceLimitX96
-        });
+            // Execute the swap
+            amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
 
-        // Execute the swap
-        uint256 amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
+            bool isToken0 = address(this) < numeraire;
+            (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
-        _handleTradeRewards(tradeReward, tradeReferrer);
+            int24 farTick = isToken0 ? tickUpper : tickLower;
+            bool canMigrate = isToken0 ? tick >= farTick : tick <= farTick;
 
-        _handleMarketRewards();
+            if (canMigrate) {
+                airlock.migrate(address(this));
+                lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
+            }
 
-        emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, tradeReward, trueOrderSize);
+            emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, 0, orderSize);
+        } else {
+            // Calculate the trade reward
+            uint256 tradeReward = _calculateReward(orderSize, TOTAL_FEE_BPS);
+
+            // Calculate the remaining size
+            uint256 trueOrderSize = orderSize - tradeReward;
+
+            // Handle incoming currency
+            _handleIncomingCurrency(orderSize, trueOrderSize);
+
+            // Set up the swap parameters
+            ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+                tokenIn: currency,
+                tokenOut: address(this),
+                fee: LP_FEE,
+                recipient: recipient,
+                amountIn: trueOrderSize,
+                amountOutMinimum: minAmountOut,
+                sqrtPriceLimitX96: sqrtPriceLimitX96
+            });
+
+            // Execute the swap
+            amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
+
+            _handleTradeRewards(tradeReward, tradeReferrer);
+
+            _handleMarketRewards();
+
+            emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, tradeReward, trueOrderSize);
+        }
 
         return (orderSize, amountOut);
     }
@@ -388,11 +424,6 @@ contract ZoraCoin is
         if (msg.sender != poolAddress) revert OnlyPool();
 
         return this.onERC721Received.selector;
-    }
-
-    /// @dev No-op to allow a swap on the pool to set the correct initial price, if needed
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external {
-        // TODO: check migration condition here?
     }
 
     /// @dev Overrides ERC20's _update function to
@@ -589,6 +620,12 @@ contract ZoraCoin is
         address pool_
     ) external onlyOwner { }
 
+    function unlockPool() external onlyOwner { }
+
+    function transferOwnership(
+        address newOwner
+    ) external onlyOwner { }
+
     function _handleMarketRewards() internal returns (MarketRewards memory) {
         INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
             tokenId: lpTokenId,
@@ -674,5 +711,9 @@ contract ZoraCoin is
     /// @dev Utility for computing amounts in basis points.
     function _calculateReward(uint256 amount, uint256 bps) internal pure returns (uint256) {
         return (amount * bps) / 10_000;
+    }
+
+    function getPoolAddress() public view returns (address) {
+        return factory.getPool(address(this), currency, 10_000);
     }
 }

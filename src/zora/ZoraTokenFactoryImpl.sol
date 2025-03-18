@@ -12,7 +12,6 @@ import { SafeERC20 } from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import { IZoraFactory } from "@zora-protocol/coins/src/interfaces/IZoraFactory.sol";
 import { ZoraCoin } from "./ZoraCoin.sol";
 import { ImmutableAirlock } from "../base/ImmutableAirlock.sol";
-import "forge-std/console.sol";
 
 contract ZoraTokenFactoryImpl is
     IZoraFactory,
@@ -53,7 +52,7 @@ contract ZoraTokenFactoryImpl is
 
         ZoraCoin coin = ZoraCoin(payable(Clones.cloneDeterministic(coinImpl, salt)));
 
-        coin.initializeDoppler(payoutRecipient, owners, uri, name, symbol, platformReferrer, currency, owner);
+        coin.initializeDoppler(payoutRecipient, owners, uri, name, symbol, platformReferrer, currency);
 
         emit CoinCreated(
             msg.sender,

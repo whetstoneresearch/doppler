@@ -15,6 +15,7 @@ import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswa
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { INonfungiblePositionManager } from "@zora-protocol/coins/src/interfaces/INonfungiblePositionManager.sol";
 
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
@@ -38,6 +39,9 @@ contract ZoraUniswapV3Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     /// @notice Address of the Uniswap V3 factory
     IUniswapV3Factory public immutable factory;
+
+    INonfungiblePositionManager public nonfungiblePositionManager;
+    uint256 public lpTokenId;
     address internal asset;
     address internal numeraire;
     address internal pool;
@@ -56,11 +60,11 @@ contract ZoraUniswapV3Migrator is ILiquidityMigrator, ImmutableAirlock {
         address numeraire_,
         bytes calldata data
     ) external onlyAirlock returns (address) {
-        (uint24 fee_) = abi.decode(data, (uint24));
+        (uint24 fee_, address nonfungiblePositionManager_) = abi.decode(data, (uint24, address));
         asset = asset_;
         numeraire = numeraire_;
         fee = fee_;
-
+        nonfungiblePositionManager = INonfungiblePositionManager(nonfungiblePositionManager_);
         (address token0, address token1) = asset_ < numeraire_ ? (asset_, numeraire_) : (numeraire_, asset_);
         pool = factory.getPool(token0, token1, fee);
 
@@ -74,35 +78,45 @@ contract ZoraUniswapV3Migrator is ILiquidityMigrator, ImmutableAirlock {
      * @param recipient Address receiving the liquidity pool tokens
      */
     function migrate(
-        uint160 sqrtPriceX96,
+        uint160,
         address token0,
         address token1,
         address recipient
     ) external payable onlyAirlock returns (uint256 liquidity) {
-        uint256 balance0;
+        uint256 balance0 = ERC20(token0).balanceOf(address(this));
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         }
 
-        uint256 dust0 = ERC20(token0).balanceOf(address(this));
-        if (dust0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), recipient, dust0);
-        }
+        int24 tickLower = -887_200;
+        int24 tickUpper = 887_200;
 
-        uint256 dust1 = ERC20(token1).balanceOf(address(this));
-        if (dust1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), recipient, dust1);
-        }
+        ERC20(token0).approve(address(nonfungiblePositionManager), balance0);
+        ERC20(token1).approve(address(nonfungiblePositionManager), balance1);
 
-        int24 tickSpacing = factory.feeAmountTickSpacing(fee);
+        // uint128 liquidityAmount = computeLiquidity(sqrtPriceX96, balance0, balance1, tickSpacing);
+        // mintPosition(tickLower, tickUpper, liquidityAmount);
+        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: fee,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            amount0Desired: balance0,
+            amount1Desired: balance1,
+            amount0Min: 0,
+            amount1Min: 0,
+            recipient: address(asset),
+            deadline: block.timestamp
+        });
 
-        int24 tickLower = alignTickToTickSpacing(TickMath.MIN_TICK, tickSpacing);
-        int24 tickUpper = alignTickToTickSpacing(TickMath.MAX_TICK, tickSpacing);
+        (uint256 tokenId, uint128 liquidityAmount,,) =
+            INonfungiblePositionManager(nonfungiblePositionManager).mint(params);
 
-        uint128 liquidityAmount = computeLiquidity(sqrtPriceX96, balance0, balance1, tickSpacing);
-        mintPosition(tickLower, tickUpper, liquidityAmount);
+        lpTokenId = tokenId;
+
         return liquidityAmount;
     }
 
@@ -111,46 +125,32 @@ contract ZoraUniswapV3Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         require(msg.sender == pool, OnlyPool());
 
-        ERC20(callbackData.asset).safeTransferFrom(address(airlock), pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
+        address token0 = callbackData.asset < callbackData.numeraire ? callbackData.asset : callbackData.numeraire;
+        address token1 = callbackData.asset < callbackData.numeraire ? callbackData.numeraire : callbackData.asset;
+
+        ERC20(token0).safeTransfer(pool, amount0Owed);
+        ERC20(token1).safeTransfer(pool, amount1Owed);
     }
 
-    function mintPosition(int24 tickLower, int24 tickUpper, uint128 liquidity) internal {
-        IUniswapV3Pool(pool).mint(
-            address(this),
-            tickLower,
-            tickUpper,
-            liquidity,
-            abi.encode(CallbackData({ asset: asset, numeraire: numeraire, fee: fee }))
-        );
-    }
-
-    /// @notice Calculates the final LP position that extends from the far tick to the pool's min/max tick
-    /// @dev This position ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
-    function computeLiquidity(
-        uint160 sqrtPriceX96,
-        uint256 amount0,
-        uint256 amount1,
-        int24 tickSpacing
-    ) internal pure returns (uint128 liquidity) {
-        liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtPriceX96, TickMath.MIN_SQRT_PRICE, TickMath.MAX_SQRT_PRICE, amount0, amount1
-        );
-
-        int24 posTickLower = alignTickToTickSpacing(TickMath.MIN_TICK, tickSpacing);
-        int24 posTickUpper = alignTickToTickSpacing(TickMath.MAX_TICK, tickSpacing);
-
-        require(posTickLower < posTickUpper, InvalidTickRangeMisordered(posTickLower, posTickUpper));
-
-        return liquidity;
-    }
-
-    function alignTickToTickSpacing(int24 tick, int24 tickSpacing) internal pure returns (int24) {
-        if (tick < 0) {
-            // If the tick is negative, we round up (negatively) the negative result to round down
-            return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+    function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
+        if (isToken0) {
+            // Round down if isToken0
+            if (tick < 0) {
+                // If the tick is negative, we round up (negatively) the negative result to round down
+                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+            } else {
+                // Else if positive, we simply round down
+                return tick / tickSpacing * tickSpacing;
+            }
         } else {
-            // Else if positive, we simply round down
-            return tick / tickSpacing * tickSpacing;
+            // Round up if isToken1
+            if (tick < 0) {
+                // If the tick is negative, we round down the negative result to round up
+                return tick / tickSpacing * tickSpacing;
+            } else {
+                // Else if positive, we simply round up
+                return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+            }
         }
     }
 }
