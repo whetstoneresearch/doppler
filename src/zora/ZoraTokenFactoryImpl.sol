@@ -190,4 +190,16 @@ contract ZoraTokenFactoryImpl is
     function _authorizeUpgrade(
         address newImpl
     ) internal override onlyOwner { }
+
+    function handleIntegratorFees(
+        address integrator,
+        address currency,
+        uint256 amountAsset,
+        uint256 amountNumeraire
+    ) external {
+        require(msg.sender == integrator, "Only integrator can call this function");
+
+        airlock.collectIntegratorFees(integrator, integrator, amountAsset);
+        airlock.collectIntegratorFees(integrator, currency, amountNumeraire);
+    }
 }
