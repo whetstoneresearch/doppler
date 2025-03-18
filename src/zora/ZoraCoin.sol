@@ -212,12 +212,8 @@ contract ZoraCoin is
 
         uint256 amountOut;
 
-        (address numeraire,,, ILiquidityMigrator liquidityMigrator, IPoolInitializer poolInitializer,,,,,) =
-            airlock.getAssetData(address(this));
-        address pool = getPoolAddress();
-        (,, int24 tickLower, int24 tickUpper,,, bool isExited,,) =
-            UniswapV3Initializer(address(poolInitializer)).getState(pool);
-        if (!isExited) {
+        address liquidityMigrator = getLiquidityMigrator();
+        if (!isExited()) {
             // Handle incoming currency
             _handleIncomingCurrency(orderSize, orderSize);
 
@@ -235,13 +231,7 @@ contract ZoraCoin is
             // Execute the swap
             amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
 
-            bool isToken0 = address(this) < numeraire;
-            (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
-
-            int24 farTick = isToken0 ? tickUpper : tickLower;
-            bool canMigrate = isToken0 ? tick >= farTick : tick <= farTick;
-
-            if (canMigrate) {
+            if (canMigrate()) {
                 airlock.migrate(address(this));
                 lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
             }
@@ -342,19 +332,30 @@ contract ZoraCoin is
             IWETH(WETH).withdraw(amountOut);
         }
 
-        // Calculate the trade reward
-        uint256 tradeReward = _calculateReward(amountOut, TOTAL_FEE_BPS);
+        // check if we can migrate on sells because we might cross
+        // graduation threshold on swaps outside of this router context
+        uint256 payoutSize;
+        if (!isExited()) {
+            if (canMigrate()) {
+                airlock.migrate(address(this));
+                address liquidityMigrator = getLiquidityMigrator();
+                lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
+            }
+        } else {
+            // Calculate the trade reward
+            uint256 tradeReward = _calculateReward(amountOut, TOTAL_FEE_BPS);
 
-        // Calculate the payout after the fee
-        uint256 payoutSize = amountOut - tradeReward;
+            // Calculate the payout after the fee
+            payoutSize = amountOut - tradeReward;
 
-        _handlePayout(payoutSize, recipient);
+            _handlePayout(payoutSize, recipient);
 
-        _handleTradeRewards(tradeReward, tradeReferrer);
+            _handleTradeRewards(tradeReward, tradeReferrer);
 
-        _handleMarketRewards();
+            _handleMarketRewards();
+        }
 
-        emit CoinSell(msg.sender, recipient, tradeReferrer, orderSize, currency, tradeReward, payoutSize);
+        emit CoinSell(msg.sender, recipient, tradeReferrer, orderSize, currency, 0, 0);
 
         return (orderSize, payoutSize);
     }
@@ -715,5 +716,30 @@ contract ZoraCoin is
 
     function getPoolAddress() public view returns (address) {
         return factory.getPool(address(this), currency, 10_000);
+    }
+
+    function getLiquidityMigrator() public view returns (address) {
+        (,,, ILiquidityMigrator liquidityMigrator,,,,,,) = airlock.getAssetData(address(this));
+        return address(liquidityMigrator);
+    }
+
+    function isExited() public view returns (bool) {
+        (,,,, IPoolInitializer poolInitializer,,,,,) = airlock.getAssetData(address(this));
+        address pool = getPoolAddress();
+        (,,,,,, bool exited,,) = UniswapV3Initializer(address(poolInitializer)).getState(pool);
+
+        return exited;
+    }
+
+    function canMigrate() public view returns (bool) {
+        (address numeraire,,,, IPoolInitializer poolInitializer,,,,,) = airlock.getAssetData(address(this));
+        address pool = getPoolAddress();
+        (,, int24 tickLower, int24 tickUpper,,,,,) = UniswapV3Initializer(address(poolInitializer)).getState(pool);
+
+        bool isToken0 = address(this) < numeraire;
+        (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
+
+        int24 farTick = isToken0 ? tickUpper : tickLower;
+        return isToken0 ? tick >= farTick : tick <= farTick;
     }
 }

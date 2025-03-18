@@ -77,6 +77,7 @@ contract ZoraBaseTest is Test, CoinConstants {
     ZoraCoin internal coinImpl;
     ZoraCoin internal coin;
     IUniswapV3Pool internal pool;
+    address public asset;
 
     UniswapV3Initializer public initializer;
     Airlock public airlock;
@@ -174,7 +175,7 @@ contract ZoraBaseTest is Test, CoinConstants {
             })
         );
 
-        (address asset, address pool,,,) = airlock.create(
+        (address _asset, address _pool,,,) = airlock.create(
             CreateParams(
                 initialSupply,
                 initialSupply,
@@ -191,157 +192,82 @@ contract ZoraBaseTest is Test, CoinConstants {
                 bytes32(0)
             )
         );
+
+        pool = IUniswapV3Pool(_pool);
+        asset = _asset;
+
+        assertNotEq(address(pool), address(0));
+        assertNotEq(address(asset), address(0));
+
+        assertEq(address(pool), IUniswapV3Factory(UNISWAP_V3_FACTORY).getPool(address(weth), address(asset), fee));
     }
 
     function test_ZoraTokenFactoryImpl_buy_NoMigrate() public {
-        uint256 initialSupply = 100_000_000 ether;
-        uint24 fee = 10_000;
-        address payoutRecipient = address(0xb055);
-        string memory uri = "test.com";
-        string memory name = "Best Coin";
-        string memory symbol = "BEST";
-        address platformReferrer = address(0xb055);
-        address currency = address(weth);
+        initializePool();
 
-        bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency);
-        bytes memory liquidityMigratorData = abi.encode(fee, NONFUNGIBLE_POSITION_MANAGER);
-
-        bytes memory poolInitializerData = abi.encode(
-            InitData({
-                fee: fee,
-                tickLower: DEFAULT_LOWER_TICK,
-                tickUpper: DEFAULT_UPPER_TICK,
-                numPositions: 10,
-                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
-            })
-        );
-
-        (address asset, address pool,,,) = airlock.create(
-            CreateParams(
-                initialSupply,
-                initialSupply,
-                WETH_ADDRESS,
-                ITokenFactory(address(tokenFactory)),
-                tokenFactoryData,
-                IGovernanceFactory(governanceFactory),
-                governanceData,
-                initializer,
-                poolInitializerData,
-                uniswapV3Migrator,
-                liquidityMigratorData,
-                address(this),
-                bytes32(0)
-            )
-        );
-
-        deal(address(this), 100_000_000 ether);
-        weth.deposit{ value: 1_000_000 ether }();
-        weth.approve(address(asset), type(uint256).max);
         ZoraCoin(payable(asset)).approve(address(asset), type(uint256).max);
         ZoraCoin(payable(asset)).buy{ value: 0.01 ether }(address(this), 0.01 ether, 0, 0, address(users.tradeReferrer));
     }
 
+    function test_ZoraTokenFactoryImpl_sell_NoMigrate() public {
+        initializePool();
+
+        uint256 balanceCoinBefore = ZoraCoin(payable(asset)).balanceOf(address(this));
+
+        ZoraCoin(payable(asset)).approve(address(asset), type(uint256).max);
+        ZoraCoin(payable(asset)).buy{ value: 0.01 ether }(address(this), 0.01 ether, 0, 0, address(users.tradeReferrer));
+
+        uint256 balanceCoinAfter = ZoraCoin(payable(asset)).balanceOf(address(this));
+
+        assertGt(balanceCoinAfter, balanceCoinBefore);
+
+        ZoraCoin(payable(asset)).sell(
+            address(this), balanceCoinAfter - balanceCoinBefore, 0, 0, address(users.tradeReferrer)
+        );
+    }
+
     function test_ZoraTokenFactoryImpl_buyAndMigrate() public {
-        uint256 initialSupply = 100_000_000 ether;
-        uint24 fee = 10_000;
-        address payoutRecipient = address(0xb055);
-        string memory uri = "test.com";
-        string memory name = "Best Coin";
-        string memory symbol = "BEST";
-        address platformReferrer = address(0xb055);
-        address currency = address(weth);
+        initializePool();
 
-        bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency);
-        bytes memory liquidityMigratorData = abi.encode(fee, NONFUNGIBLE_POSITION_MANAGER);
-
-        bytes memory poolInitializerData = abi.encode(
-            InitData({
-                fee: fee,
-                tickLower: DEFAULT_LOWER_TICK,
-                tickUpper: DEFAULT_UPPER_TICK,
-                numPositions: 10,
-                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
-            })
-        );
-
-        (address asset, address pool,,,) = airlock.create(
-            CreateParams(
-                initialSupply,
-                initialSupply,
-                WETH_ADDRESS,
-                ITokenFactory(address(tokenFactory)),
-                tokenFactoryData,
-                IGovernanceFactory(governanceFactory),
-                governanceData,
-                initializer,
-                poolInitializerData,
-                uniswapV3Migrator,
-                liquidityMigratorData,
-                address(this),
-                bytes32(0)
-            )
-        );
-
-        deal(address(this), 100_000_000 ether);
-        weth.deposit{ value: 1_000_000 ether }();
-        weth.approve(address(asset), type(uint256).max);
         ZoraCoin(payable(asset)).approve(address(asset), type(uint256).max);
         ZoraCoin(payable(asset)).buy{ value: 10 ether }(address(this), 10 ether, 0, 0, address(users.tradeReferrer));
     }
 
     function test_ZoraTokenFactoryImpl_buy_CollectsRewardsPostMigration() public {
-        uint256 initialSupply = 100_000_000 ether;
-        uint24 fee = 10_000;
-        address payoutRecipient = address(0xb055);
-        string memory uri = "test.com";
-        string memory name = "Best Coin";
-        string memory symbol = "BEST";
-        address platformReferrer = address(0xb055);
-        address currency = address(weth);
+        initializePool();
 
-        bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency);
-        bytes memory liquidityMigratorData = abi.encode(fee, NONFUNGIBLE_POSITION_MANAGER);
-
-        bytes memory poolInitializerData = abi.encode(
-            InitData({
-                fee: fee,
-                tickLower: DEFAULT_LOWER_TICK,
-                tickUpper: DEFAULT_UPPER_TICK,
-                numPositions: 10,
-                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
-            })
-        );
-
-        (address asset, address pool,,,) = airlock.create(
-            CreateParams(
-                initialSupply,
-                initialSupply,
-                WETH_ADDRESS,
-                ITokenFactory(address(tokenFactory)),
-                tokenFactoryData,
-                IGovernanceFactory(governanceFactory),
-                governanceData,
-                initializer,
-                poolInitializerData,
-                uniswapV3Migrator,
-                liquidityMigratorData,
-                address(this),
-                bytes32(0)
-            )
-        );
-
-        deal(address(this), 100_000_000 ether);
-        weth.deposit{ value: 1_000_000 ether }();
-        weth.approve(address(asset), type(uint256).max);
         ZoraCoin(payable(asset)).approve(address(asset), type(uint256).max);
         ZoraCoin(payable(asset)).buy{ value: 10 ether }(address(this), 10 ether, 0, 0, address(users.tradeReferrer));
 
         vm.warp(block.timestamp + 1000);
         ZoraCoin(payable(asset)).buy{ value: 0.1 ether }(address(this), 0.1 ether, 0, 0, address(users.tradeReferrer));
     }
+
+    function test_ZoraTokenFactoryImpl_sell_CollectsRewardsPostMigration() public {
+        initializePool();
+
+        uint256 balanceCoinBefore = ZoraCoin(payable(asset)).balanceOf(address(this));
+
+        // migrate the pool
+        ZoraCoin(payable(asset)).approve(address(asset), type(uint256).max);
+        ZoraCoin(payable(asset)).buy{ value: 10 ether }(address(this), 10 ether, 0, 0, address(users.tradeReferrer));
+
+        uint256 balanceCoinAfter = ZoraCoin(payable(asset)).balanceOf(address(this));
+
+        assertGt(balanceCoinAfter, balanceCoinBefore);
+
+        uint256 balanceEthBefore = address(this).balance;
+
+        vm.warp(block.timestamp + 1000);
+        ZoraCoin(payable(asset)).sell(
+            address(this), balanceCoinAfter - balanceCoinBefore, 0, 0, address(users.tradeReferrer)
+        );
+
+        uint256 balanceEthAfter = address(this).balance;
+        assertGt(balanceEthAfter, balanceEthBefore);
+    }
+
+    receive() external payable { }
 
     struct TradeRewards {
         uint256 creator;
@@ -439,4 +365,54 @@ contract ZoraBaseTest is Test, CoinConstants {
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external { }
+
+    function initializePool() internal {
+        uint256 initialSupply = 100_000_000 ether;
+        uint24 fee = 10_000;
+        address payoutRecipient = address(0xb055);
+        string memory uri = "test.com";
+        string memory name = "Best Coin";
+        string memory symbol = "BEST";
+        address platformReferrer = address(0xb055);
+        address currency = address(weth);
+
+        bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
+        bytes memory tokenFactoryData = abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency);
+        bytes memory liquidityMigratorData = abi.encode(fee, NONFUNGIBLE_POSITION_MANAGER);
+
+        bytes memory poolInitializerData = abi.encode(
+            InitData({
+                fee: fee,
+                tickLower: DEFAULT_LOWER_TICK,
+                tickUpper: DEFAULT_UPPER_TICK,
+                numPositions: 10,
+                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
+            })
+        );
+
+        (address _asset, address _pool,,,) = airlock.create(
+            CreateParams(
+                initialSupply,
+                initialSupply,
+                WETH_ADDRESS,
+                ITokenFactory(address(tokenFactory)),
+                tokenFactoryData,
+                IGovernanceFactory(governanceFactory),
+                governanceData,
+                initializer,
+                poolInitializerData,
+                uniswapV3Migrator,
+                liquidityMigratorData,
+                address(this),
+                bytes32(0)
+            )
+        );
+
+        pool = IUniswapV3Pool(_pool);
+        asset = _asset;
+
+        deal(address(this), 100_000_000 ether);
+        weth.deposit{ value: 1_000_000 ether }();
+        weth.approve(address(asset), type(uint256).max);
+    }
 }
