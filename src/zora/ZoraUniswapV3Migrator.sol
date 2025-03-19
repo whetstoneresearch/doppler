@@ -89,7 +89,7 @@ contract ZoraUniswapV3Migrator is ILiquidityMigrator, ImmutableAirlock {
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
         }
-
+        // TODO: use min/max tick and round based on tickspacing
         int24 tickLower = -887_200;
         int24 tickUpper = 887_200;
 

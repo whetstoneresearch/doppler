@@ -376,11 +376,26 @@ contract ZoraCoin is
                 address liquidityMigrator = getLiquidityMigrator();
                 lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
                 // collect the fees
+                uint256 beforeBalanceThis = balanceOf(address(this));
+                uint256 beforeBalanceCurrency = IERC20(currency).balanceOf(address(this));
+
                 uint256 thisFees = airlock.getIntegratorFees(address(this), address(this));
                 uint256 currencyFees = airlock.getIntegratorFees(address(this), currency);
                 ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(
                     address(this), currency, thisFees, currencyFees
                 );
+
+                uint256 afterBalanceThis = balanceOf(address(this));
+                uint256 afterBalanceCurrency = IERC20(currency).balanceOf(address(this));
+
+                if (afterBalanceThis - beforeBalanceThis != thisFees) {
+                    revert ThisFeesMismatch();
+                }
+
+                if (afterBalanceCurrency - beforeBalanceCurrency != currencyFees) {
+                    revert CurrencyFeesMismatch();
+                }
+
                 // handle paying out the fees
                 MarketRewards memory rewards;
                 _transferMarketRewards(address(this), thisFees, rewards);
