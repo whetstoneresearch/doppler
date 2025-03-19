@@ -244,39 +244,9 @@ contract ZoraCoin is
 
         _handleTradeRewards(tradeReward, tradeReferrer);
 
-        address liquidityMigrator = getLiquidityMigrator();
         if (!isExited()) {
             if (canMigrate()) {
-                // migrate the pool
-                airlock.migrate(address(this));
-                lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
-                // collect the fees
-                uint256 beforeBalanceThis = balanceOf(address(this));
-                uint256 beforeBalanceCurrency = IERC20(currency).balanceOf(address(this));
-
-                uint256 thisFees = airlock.getIntegratorFees(coinFactory, address(this));
-                uint256 currencyFees = airlock.getIntegratorFees(coinFactory, currency);
-                ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(
-                    address(this), currency, thisFees, currencyFees
-                );
-                console.log("thisFees", thisFees);
-                console.log("currencyFees", currencyFees);
-
-                uint256 afterBalanceThis = balanceOf(address(this));
-                uint256 afterBalanceCurrency = IERC20(currency).balanceOf(address(this));
-
-                if (afterBalanceThis - beforeBalanceThis != thisFees) {
-                    revert ThisFeesMismatch();
-                }
-
-                if (afterBalanceCurrency - beforeBalanceCurrency != currencyFees) {
-                    revert CurrencyFeesMismatch();
-                }
-
-                // handle paying out the fees
-                MarketRewards memory rewards;
-                _transferMarketRewards(address(this), thisFees, rewards);
-                _transferMarketRewards(currency, currencyFees, rewards);
+                _migrateAndCollect();
             }
 
             emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, 0, trueOrderSize);
@@ -364,35 +334,7 @@ contract ZoraCoin is
         // graduation threshold on swaps outside of this router context
         if (!isExited()) {
             if (canMigrate()) {
-                // migrate the pool
-                airlock.migrate(address(this));
-                address liquidityMigrator = getLiquidityMigrator();
-                lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
-                // collect the fees
-                uint256 beforeBalanceThis = balanceOf(address(this));
-                uint256 beforeBalanceCurrency = IERC20(currency).balanceOf(address(this));
-
-                uint256 thisFees = airlock.getIntegratorFees(address(this), address(this));
-                uint256 currencyFees = airlock.getIntegratorFees(address(this), currency);
-                ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(
-                    address(this), currency, thisFees, currencyFees
-                );
-
-                uint256 afterBalanceThis = balanceOf(address(this));
-                uint256 afterBalanceCurrency = IERC20(currency).balanceOf(address(this));
-
-                if (afterBalanceThis - beforeBalanceThis != thisFees) {
-                    revert ThisFeesMismatch();
-                }
-
-                if (afterBalanceCurrency - beforeBalanceCurrency != currencyFees) {
-                    revert CurrencyFeesMismatch();
-                }
-
-                // handle paying out the fees
-                MarketRewards memory rewards;
-                _transferMarketRewards(address(this), thisFees, rewards);
-                _transferMarketRewards(currency, currencyFees, rewards);
+                _migrateAndCollect();
             }
         } else {
             _handleMarketRewards();
@@ -784,5 +726,29 @@ contract ZoraCoin is
 
         int24 farTick = isToken0 ? tickUpper : tickLower;
         return isToken0 ? tick >= farTick : tick <= farTick;
+    }
+
+    function _migrateAndCollect() internal {
+        address liquidityMigrator = getLiquidityMigrator();
+        // migrate the pool
+        uint256 integratorFeesThisBefore = airlock.getIntegratorFees(coinFactory, address(this));
+        uint256 integratorFeesCurrencyBefore = airlock.getIntegratorFees(coinFactory, currency);
+
+        airlock.migrate(address(this));
+        lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
+
+        uint256 integratorFeesThisAfter = airlock.getIntegratorFees(coinFactory, address(this));
+        uint256 integratorFeesCurrencyAfter = airlock.getIntegratorFees(coinFactory, currency);
+
+        uint256 thisFees = integratorFeesThisAfter - integratorFeesThisBefore;
+        uint256 currencyFees = integratorFeesCurrencyAfter - integratorFeesCurrencyBefore;
+
+        // collect the fees
+        ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(address(this), currency, thisFees, currencyFees);
+
+        // handle paying out the fees
+        MarketRewards memory rewards;
+        _transferMarketRewards(address(this), thisFees, rewards);
+        _transferMarketRewards(currency, currencyFees, rewards);
     }
 }

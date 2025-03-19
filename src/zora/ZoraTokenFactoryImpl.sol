@@ -52,6 +52,8 @@ contract ZoraTokenFactoryImpl is
 
         ZoraCoin coin = ZoraCoin(payable(Clones.cloneDeterministic(coinImpl, salt)));
 
+        // require(address(coin) == predictedCoinAddress, "Coin address does not match predicted address");
+
         coin.initializeDoppler(payoutRecipient, owners, uri, name, symbol, platformReferrer, currency);
 
         emit CoinCreated(
@@ -192,14 +194,14 @@ contract ZoraTokenFactoryImpl is
     ) internal override onlyOwner { }
 
     function handleIntegratorFees(
-        address integrator,
+        address coin,
         address currency,
         uint256 amountAsset,
         uint256 amountNumeraire
     ) external {
-        require(msg.sender == integrator, "Only integrator can call this function");
+        require(msg.sender == coin, "Only coin can call this function");
 
-        airlock.collectIntegratorFees(integrator, integrator, amountAsset);
-        airlock.collectIntegratorFees(integrator, currency, amountNumeraire);
+        airlock.collectIntegratorFees(coin, coin, amountAsset);
+        airlock.collectIntegratorFees(coin, currency, amountNumeraire);
     }
 }
