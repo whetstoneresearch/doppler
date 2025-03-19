@@ -29,6 +29,7 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ZoraUniswapV3Migrator } from "src/zora/ZoraUniswapV3Migrator.sol";
 import { ZoraTokenFactoryImpl } from "src/zora/ZoraTokenFactoryImpl.sol";
+import "forge-std/console.sol";
 
 /*
      $$$$$$\   $$$$$$\  $$$$$$\ $$\   $$\ 
@@ -218,27 +219,33 @@ contract ZoraCoin is
             revert AddressZero();
         }
 
-        uint256 amountOut;
+        // Calculate the trade reward
+        uint256 tradeReward = _calculateReward(orderSize, TOTAL_FEE_BPS);
+
+        // Calculate the remaining size
+        uint256 trueOrderSize = orderSize - tradeReward;
+
+        // Handle incoming currency
+        _handleIncomingCurrency(orderSize, trueOrderSize);
+
+        // Set up the swap parameters
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: currency,
+            tokenOut: address(this),
+            fee: LP_FEE,
+            recipient: recipient,
+            amountIn: trueOrderSize,
+            amountOutMinimum: minAmountOut,
+            sqrtPriceLimitX96: sqrtPriceLimitX96
+        });
+
+        // Execute the swap
+        uint256 amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
+
+        _handleTradeRewards(tradeReward, tradeReferrer);
 
         address liquidityMigrator = getLiquidityMigrator();
         if (!isExited()) {
-            // Handle incoming currency
-            _handleIncomingCurrency(orderSize, orderSize);
-
-            // Set up the swap parameters
-            ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-                tokenIn: currency,
-                tokenOut: address(this),
-                fee: LP_FEE,
-                recipient: recipient,
-                amountIn: orderSize,
-                amountOutMinimum: minAmountOut,
-                sqrtPriceLimitX96: sqrtPriceLimitX96
-            });
-
-            // Execute the swap
-            amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
-
             if (canMigrate()) {
                 // migrate the pool
                 airlock.migrate(address(this));
@@ -247,11 +254,13 @@ contract ZoraCoin is
                 uint256 beforeBalanceThis = balanceOf(address(this));
                 uint256 beforeBalanceCurrency = IERC20(currency).balanceOf(address(this));
 
-                uint256 thisFees = airlock.getIntegratorFees(address(this), address(this));
-                uint256 currencyFees = airlock.getIntegratorFees(address(this), currency);
+                uint256 thisFees = airlock.getIntegratorFees(coinFactory, address(this));
+                uint256 currencyFees = airlock.getIntegratorFees(coinFactory, currency);
                 ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(
                     address(this), currency, thisFees, currencyFees
                 );
+                console.log("thisFees", thisFees);
+                console.log("currencyFees", currencyFees);
 
                 uint256 afterBalanceThis = balanceOf(address(this));
                 uint256 afterBalanceCurrency = IERC20(currency).balanceOf(address(this));
@@ -270,33 +279,8 @@ contract ZoraCoin is
                 _transferMarketRewards(currency, currencyFees, rewards);
             }
 
-            emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, 0, orderSize);
+            emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, 0, trueOrderSize);
         } else {
-            // Calculate the trade reward
-            uint256 tradeReward = _calculateReward(orderSize, TOTAL_FEE_BPS);
-
-            // Calculate the remaining size
-            uint256 trueOrderSize = orderSize - tradeReward;
-
-            // Handle incoming currency
-            _handleIncomingCurrency(orderSize, trueOrderSize);
-
-            // Set up the swap parameters
-            ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-                tokenIn: currency,
-                tokenOut: address(this),
-                fee: LP_FEE,
-                recipient: recipient,
-                amountIn: trueOrderSize,
-                amountOutMinimum: minAmountOut,
-                sqrtPriceLimitX96: sqrtPriceLimitX96
-            });
-
-            // Execute the swap
-            amountOut = ISwapRouter(swapRouter).exactInputSingle(params);
-
-            _handleTradeRewards(tradeReward, tradeReferrer);
-
             _handleMarketRewards();
 
             emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, tradeReward, trueOrderSize);
@@ -366,9 +350,18 @@ contract ZoraCoin is
             IWETH(WETH).withdraw(amountOut);
         }
 
+        // Calculate the trade reward
+        uint256 tradeReward = _calculateReward(amountOut, TOTAL_FEE_BPS);
+
+        // Calculate the payout after the fee
+        uint256 payoutSize = amountOut - tradeReward;
+
+        _handlePayout(payoutSize, recipient);
+
+        _handleTradeRewards(tradeReward, tradeReferrer);
+
         // check if we can migrate on sells because we might cross
         // graduation threshold on swaps outside of this router context
-        uint256 payoutSize;
         if (!isExited()) {
             if (canMigrate()) {
                 // migrate the pool
@@ -402,16 +395,6 @@ contract ZoraCoin is
                 _transferMarketRewards(currency, currencyFees, rewards);
             }
         } else {
-            // Calculate the trade reward
-            uint256 tradeReward = _calculateReward(amountOut, TOTAL_FEE_BPS);
-
-            // Calculate the payout after the fee
-            payoutSize = amountOut - tradeReward;
-
-            _handlePayout(payoutSize, recipient);
-
-            _handleTradeRewards(tradeReward, tradeReferrer);
-
             _handleMarketRewards();
         }
 
