@@ -247,23 +247,34 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
     /**
      * @notice Releases `amount` of vested tokens
-     * @param amount Amount of tokens to release
+     * @param requestedAmount Amount of tokens to release
      */
     function release(
-        uint256 amount
+        uint256 requestedAmount
     ) external hasVestingStarted {
+        uint256 availableAmount = computeAvailableVestedAmount(msg.sender);
+        require(requestedAmount > availableAmount, ReleaseAmountInvalid());
+        getVestingDataOf[msg.sender].releasedAmount += requestedAmount;
+        _transfer(address(this), msg.sender, requestedAmount);
+    }
+
+    /**
+     * @notice Computes the amount of vested tokens available for a specific address
+     * @param account Recipient of the vested tokens
+     * @return Amount of vested tokens available
+     */
+    function computeAvailableVestedAmount(
+        address account
+    ) public view returns (uint256) {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {
-            vestedAmount = getVestingDataOf[msg.sender].totalAmount * (block.timestamp - vestingStart) / vestingDuration;
+            vestedAmount = getVestingDataOf[account].totalAmount * (block.timestamp - vestingStart) / vestingDuration;
         } else {
-            vestedAmount = getVestingDataOf[msg.sender].totalAmount;
+            vestedAmount = getVestingDataOf[account].totalAmount;
         }
 
-        getVestingDataOf[msg.sender].releasedAmount += amount;
-        require(getVestingDataOf[msg.sender].releasedAmount <= vestedAmount, ReleaseAmountInvalid());
-
-        _transfer(address(this), msg.sender, amount);
+        return vestedAmount - getVestingDataOf[account].releasedAmount;
     }
 
     /// @inheritdoc Nonces
