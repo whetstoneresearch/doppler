@@ -477,7 +477,7 @@ contract DERC20Test is Test {
 
         vm.warp(token.vestingStart() + VESTING_DURATION);
         vm.prank(address(0xa));
-        token.release(amounts[0]);
+        token.release();
         assertEq(token.balanceOf(address(0xa)), amounts[0], "Wrong balance");
     }
 
@@ -505,38 +505,10 @@ contract DERC20Test is Test {
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        token.release(amounts[0] / 4);
+        token.release();
         assertEq(token.balanceOf(address(0xa)), amounts[0] / 4, "Wrong balance");
 
         vm.warp(token.vestingStart() + VESTING_DURATION / 2);
-        token.release(amounts[0] / 4);
-    }
-
-    function test_release_RevertsWhenReleaseAmountInvalid() public {
-        address[] memory recipients = new address[](1);
-        recipients[0] = address(0xa);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1e23;
-
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            recipients,
-            amounts,
-            ""
-        );
-
-        token.unlockPool();
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
-
-        vm.startPrank(address(0xa));
-        vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        vm.expectRevert(ReleaseAmountInvalid.selector);
-        token.release(amounts[0] / 4 + 1);
+        token.release();
     }
 }
