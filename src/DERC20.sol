@@ -246,16 +246,12 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /**
-     * @notice Releases `amount` of vested tokens
-     * @param requestedAmount Amount of tokens to release
+     * @notice Releases all available vested tokens
      */
-    function release(
-        uint256 requestedAmount
-    ) external hasVestingStarted {
+    function release() external hasVestingStarted {
         uint256 availableAmount = computeAvailableVestedAmount(msg.sender);
-        require(availableAmount >= requestedAmount, ReleaseAmountInvalid());
-        getVestingDataOf[msg.sender].releasedAmount += requestedAmount;
-        _transfer(address(this), msg.sender, requestedAmount);
+        getVestingDataOf[msg.sender].releasedAmount += availableAmount;
+        _transfer(address(this), msg.sender, availableAmount);
     }
 
     /**
