@@ -1134,7 +1134,7 @@ contract Doppler is BaseHook {
                         IPoolManager.ModifyLiquidityParams({
                             tickLower: isToken0 ? position.tickLower : position.tickUpper,
                             tickUpper: isToken0 ? position.tickUpper : position.tickLower,
-                            liquidityDelta: -int128(position.liquidity),
+                            liquidityDelta: -position.liquidity.toInt128(),
                             salt: bytes32(uint256(position.salt))
                         }),
                         ""
