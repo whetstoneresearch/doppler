@@ -253,7 +253,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         uint256 requestedAmount
     ) external hasVestingStarted {
         uint256 availableAmount = computeAvailableVestedAmount(msg.sender);
-        require(requestedAmount > availableAmount, ReleaseAmountInvalid());
+        require(availableAmount >= requestedAmount, ReleaseAmountInvalid());
         getVestingDataOf[msg.sender].releasedAmount += requestedAmount;
         _transfer(address(this), msg.sender, requestedAmount);
     }
