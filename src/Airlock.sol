@@ -329,7 +329,7 @@ contract Airlock is Ownable {
             "Airlock: syncInitializerFees: numeraire failed"
         );
         numeraireProtocolFee = numeraireFees / 20;
-        numeraireInterFaceFee = numeraireFees - protocolFee;
+        numeraireInterFaceFee = numeraireFees - numeraireProtocolFee;
 
         getProtocolFees[numeraire] += numeraireProtocolFee;
         getIntegratorFees[integrator][numeraire] += numeraireInterFaceFee;
