@@ -276,22 +276,57 @@ contract Airlock is Ownable {
      * @param amount Amount of fees to distribute
      */
 
-    function syncRemoteFees(address integrator, address token, uint256 amount) external {
-        // is this a LBP?
-        // do we care if people send us free money?
-        _validateModuleState(msg.sender, ModuleState.PoolInitializer);
+    function syncInitializerFees(
+        address asset
+    )
+        external
+        returns (
+            uint256 assetInterfaceFee,
+            uint256 assetProtocolFee,
+            uint256 numeraireInterfaceFee,
+            uint256 numeraireProtocolFee
+        )
+    {
+        AssetData memory assetData = getAssetData[asset];
 
-        balanceBefore = ERC20(token).balanceOf(address(this));
-        ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        balanceAfter = ERC20(token).balanceOf(address(this));
+        uint256 assetBalanceBefore = ERC20(token).balanceOf(asset);
 
-        require(balanceAfter - balanceBefore == amount, "Airlock: syncRemoteFees: transfer failed");
+        address numeraire = assetData.numeraire;
+        if (numeraire == address(0)) {
+            uint256 numeraireBalanceBefore = address(this).balance;
+        } else {
+            uint256 numeraireBalanceBefore = ERC20(token).balanceOf(address(this));
+        }
 
-        uint256 protocolFee = amount / 20;
-        uint256 interFaceFee = amount - protocolFee;
+        (fees0, fees1) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
 
-        getProtocolFees[token] += protocolFee;
-        getIntegratorFees[integrator][token] += interfaceFee;
+        uint256 assetBalanceAfter = ERC20(token).balanceOf(asset);
+        if (numeraire == address(0)) {
+            uint256 numeraireBalanceAfter = address(this).balance;
+        } else {
+            uint256 numeraireBalanceAfter = ERC20(token).balanceOf(address(this));
+        }
+
+        // todo: should we swap syncAndPushFees to asset/numeraire fees?
+        (address assetFees, address numeraireFees) = asset < numeraire ? (fees0, fees1) : (fees1, fees0);
+
+        // todo: change this to a custom error message
+        require(assetBalanceAfter - assetBalanceBefore == assetFees, "Airlock: syncInitializerFees: asset failed");
+        assetProtocolFee = assetFees / 20;
+        assetInterfaceFee = assetFees - assetProtocolFee;
+
+        getProtocolFees[asset] += assetProtocolFee;
+        getIntegratorFees[integrator][asset] += assetInterFaceFee;
+
+        require(
+            numeraireBalanceAfter - numeraireBalanceBefore == numeraireFees,
+            "Airlock: syncInitializerFees: numeraire failed"
+        );
+        numeraireProtocolFee = numeraireFees / 20;
+        numeraireInterFaceFee = numeraireFees - protocolFee;
+
+        getProtocolFees[numeraire] += numeraireProtocolFee;
+        getIntegratorFees[integrator][numeraire] += numeraireInterFaceFee;
     }
 
     /**

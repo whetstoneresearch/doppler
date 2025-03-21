@@ -216,9 +216,10 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
     }
 
     /// @inheritdoc IPoolInitializer
-    function syncAndPushFees(
+    // todo: make this actually exist in the poolinitializer
+    function collectAndPushFees(
         address pool
-    ) external returns (uint256 fees0, uint256 fees1) {
+    ) external onlyAirlock returns (uint256 fees0, uint256 fees1) {
         token0 = IUniswapV3Pool(pool).token0();
         token1 = IUniswapV3Pool(pool).token1();
 
@@ -247,13 +248,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         (fees0, fees1) = collectPositionsMultiple(pool, lbpPositions, numPositions);
 
         if (fees0 != 0) {
-             ERC20(token0).approve(address(airlock), fees0);
-             Airlock(airlock).pushFees(token0, fees0);
+            ERC20(token0).safeTransfer(airlock, fees0);
         }
 
         if (fees1 != 0) {
-             ERC20(token1).approve(address(airlock), fees1);
-             Airlock(airlock).pushFees(token1, fees1);
+            ERC20(token1).safeTransfer(airlock, fees1);
         }
     }
 

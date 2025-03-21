@@ -729,9 +729,10 @@ contract ZoraCoin is
         int24 farTick = isToken0 ? tickUpper : tickLower;
         return isToken0 ? tick >= farTick : tick <= farTick;
     }
+
     function _collect(uint256 thisFees, uint256 currencyFees) internal {
         ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(address(this), currency, thisFees, currencyFees);
-        
+
         // handle paying out the fees
         MarketRewards memory rewards;
         _transferMarketRewards(address(this), thisFees, rewards);
@@ -742,22 +743,12 @@ contract ZoraCoin is
         address pool = getPoolAddress();
         address liquidityMigrator = getLiquidityMigrator(pool);
 
-        uint256 fees0;
-        uint256 fees1;
-        (fees0, fees1) = ILiquidityMigrator(liquidityMigrator).syncAndPushFees();
-
-        // Sort the token addresses
-        address token0 = address(this) < currency ? address(this) : currency;
-      
-        // If the coin is token0
-        bool isCoinToken0 = token0 == address(this);
-
-        // Map from token0 and token1 to coin and currency
-        thisFees = isCoinToken0 ? fees0 : fees1;
-        currencyFees = isCoinToken0 ? fees1 : fees0;
+        // todo: currently we only pull available to collect tokens and sync them
+        // we need to check if someone else migrated the tokens at that point
+        (uint256 assetInterfaceFee,,uint256 numeraireInterfaceFee,) = airlock.syncInitializerFees(address(this));
 
         // collect the fees
-        _collect(thisFees, currencyFees);
+        _collect(assetInterfaceFee, numeraireInterfaceFee);
     }
 
     function _migrateAndCollect() internal {
