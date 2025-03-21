@@ -734,8 +734,8 @@ contract ZoraCoin is
     }
 
     function _collect(uint256 thisFees, uint256 currencyFees) internal {
-        airlock.collectIntegratorFees(coin, address(this), thisFees);
-        airlock.collectIntegratorFees(coin, currency, currencyFees);
+        airlock.collectIntegratorFees(address(this), address(this), thisFees);
+        airlock.collectIntegratorFees(address(this), currency, currencyFees);
 
         // handle paying out the fees
         MarketRewards memory rewards;
