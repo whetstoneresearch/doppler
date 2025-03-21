@@ -112,6 +112,14 @@ event SetModuleState(address indexed module, ModuleState indexed state);
  */
 event Collect(address indexed to, address indexed token, uint256 amount);
 
+/**
+ * @notice Emitted when integrator address changes
+ * @param asset Address of asset changed
+ * @param newIntegrator Address of the new integrator
+ * @param oldIntegrator Address of previous integrator
+ */
+event SetIntegrator(address indexed asset, address indexed newIntegrator, address indexed oldIntegrator);
+
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
     using SafeTransferLib for ERC20;
@@ -269,13 +277,11 @@ contract Airlock is Ownable {
             emit SetModuleState(modules[i], states[i]);
         }
     }
+
     /**
      * @notice Syncs fees from remote
-     * @param integrator Address of the integrator to distribute fees
-     * @param token Address of the token to collect fees in
-     * @param amount Amount of fees to distribute
+     * @param asset Address of the token sync fees for
      */
-
     function syncInitializerFees(
         address asset
     )
@@ -289,22 +295,22 @@ contract Airlock is Ownable {
     {
         AssetData memory assetData = getAssetData[asset];
 
-        uint256 assetBalanceBefore = ERC20(token).balanceOf(asset);
+        uint256 assetBalanceBefore = ERC20(asset).balanceOf(asset);
 
         address numeraire = assetData.numeraire;
         if (numeraire == address(0)) {
             uint256 numeraireBalanceBefore = address(this).balance;
         } else {
-            uint256 numeraireBalanceBefore = ERC20(token).balanceOf(address(this));
+            uint256 numeraireBalanceBefore = ERC20(asset).balanceOf(address(this));
         }
 
         (fees0, fees1) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
 
-        uint256 assetBalanceAfter = ERC20(token).balanceOf(asset);
+        uint256 assetBalanceAfter = ERC20(asset).balanceOf(asset);
         if (numeraire == address(0)) {
             uint256 numeraireBalanceAfter = address(this).balance;
         } else {
-            uint256 numeraireBalanceAfter = ERC20(token).balanceOf(address(this));
+            uint256 numeraireBalanceAfter = ERC20(asset).balanceOf(address(this));
         }
 
         // todo: should we swap syncAndPushFees to asset/numeraire fees?
@@ -327,6 +333,22 @@ contract Airlock is Ownable {
 
         getProtocolFees[numeraire] += numeraireProtocolFee;
         getIntegratorFees[integrator][numeraire] += numeraireInterFaceFee;
+    }
+
+    /**
+     * @notice Change integrator address
+     * @param to Address receiving the fees
+     * @param token Address of the token to collect fees from
+     * @param amount Amount of fees to collect
+     */
+    function setIntegrator(address asset, address newIntegrator) external {
+        AssetData memory assetData = getAssetData[asset];
+        address oldIntegrator = assetData.integrator;
+        require(msg.sender == oldIntegrator, "Airlock: setIntegrator: only integrator can call this function");
+
+        getAssetData[asset].integrator = integrator;
+
+        emit SetIntegrator(asset, newIntegrator, oldIntegrator);
     }
 
     /**

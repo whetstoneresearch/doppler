@@ -142,6 +142,9 @@ contract ZoraCoin is
         platformReferrer = platformReferrer_ == address(0) ? protocolRewardRecipient : platformReferrer_;
         currency = currency_ == address(0) ? WETH : currency_;
 
+        // move the integrator to the coin itself
+        ZoraTokenFactoryImpl(payable(coinFactory)).migrateIntegrator(address(this));
+
         // Mint the total supply
         // mint total supply to this contract
         _mint(address(this), MAX_TOTAL_SUPPLY);
@@ -731,7 +734,8 @@ contract ZoraCoin is
     }
 
     function _collect(uint256 thisFees, uint256 currencyFees) internal {
-        ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(address(this), currency, thisFees, currencyFees);
+        airlock.collectIntegratorFees(coin, address(this), thisFees);
+        airlock.collectIntegratorFees(coin, currency, currencyFees);
 
         // handle paying out the fees
         MarketRewards memory rewards;
@@ -754,19 +758,15 @@ contract ZoraCoin is
     function _migrateAndCollect() internal {
         address liquidityMigrator = getLiquidityMigrator();
         // migrate the pool
-        uint256 integratorFeesThisBefore = airlock.getIntegratorFees(coinFactory, address(this));
+        uint256 integratorFeesThisBefore = airlock.getIntegratorFees(address(this), address(this));
         uint256 integratorFeesCurrencyBefore = airlock.getIntegratorFees(coinFactory, currency);
 
         airlock.migrate(address(this));
-        lpTokenId = ZoraUniswapV3Migrator(payable(address(liquidityMigrator))).lpTokenId();
 
-        uint256 integratorFeesThisAfter = airlock.getIntegratorFees(coinFactory, address(this));
-        uint256 integratorFeesCurrencyAfter = airlock.getIntegratorFees(coinFactory, currency);
-
-        uint256 thisFees = integratorFeesThisAfter - integratorFeesThisBefore;
-        uint256 currencyFees = integratorFeesCurrencyAfter - integratorFeesCurrencyBefore;
+        uint256 integratorFeesThis = airlock.getIntegratorFees(address(this), address(this));
+        uint256 integratorFeesCurrency = airlock.getIntegratorFees(address(this), currency);
 
         // collect the fees
-        _collect(thisFees, currencyFees);
+        _collect(integratorFeesThis, integratorFeesCurrency);
     }
 }
