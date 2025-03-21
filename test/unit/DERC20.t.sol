@@ -451,6 +451,25 @@ contract DERC20Test is Test {
         assertGt(token.balanceOf(token.owner()), 0, "Owner balance should be greater than 0");
     }
 
+    function test_updateTokenURI_UpdatesToNewTokenURI() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_RATE,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0),
+            ""
+        );
+
+        assertEq(token.tokenURI(), "", "Token URI should be empty");
+        token.updateTokenURI("newTokenURI");
+        assertEq(token.tokenURI(), "newTokenURI", "Token URI should be updated");
+    }
+
     function test_release_ReleasesAllTokensAfterVesting() public {
         address[] memory recipients = new address[](1);
         recipients[0] = address(0xa);
