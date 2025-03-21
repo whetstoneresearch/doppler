@@ -745,7 +745,6 @@ contract ZoraCoin is
 
     function _syncAndCollect() internal {
         address pool = getPoolAddress();
-        address liquidityMigrator = getLiquidityMigrator(pool);
 
         // todo: currently we only pull available to collect tokens and sync them
         // we need to check if someone else migrated the tokens at that point
@@ -756,7 +755,6 @@ contract ZoraCoin is
     }
 
     function _migrateAndCollect() internal {
-        address liquidityMigrator = getLiquidityMigrator();
         // migrate the pool
         uint256 integratorFeesThisBefore = airlock.getIntegratorFees(address(this), address(this));
         uint256 integratorFeesCurrencyBefore = airlock.getIntegratorFees(coinFactory, currency);
