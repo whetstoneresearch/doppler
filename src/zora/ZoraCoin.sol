@@ -247,6 +247,8 @@ contract ZoraCoin is
         if (!isExited()) {
             if (canMigrate()) {
                 _migrateAndCollect();
+            } else {
+                _syncAndCollect();
             }
 
             emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, 0, trueOrderSize);
@@ -727,6 +729,36 @@ contract ZoraCoin is
         int24 farTick = isToken0 ? tickUpper : tickLower;
         return isToken0 ? tick >= farTick : tick <= farTick;
     }
+    function _collect(uint256 thisFees, uint256 currencyFees) internal {
+        ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(address(this), currency, thisFees, currencyFees);
+        
+        // handle paying out the fees
+        MarketRewards memory rewards;
+        _transferMarketRewards(address(this), thisFees, rewards);
+        _transferMarketRewards(currency, currencyFees, rewards);
+    }
+
+    function _syncAndCollect() internal {
+        address pool = getPoolAddress();
+        address liquidityMigrator = getLiquidityMigrator(pool);
+
+        uint256 fees0;
+        uint256 fees1;
+        (fees0, fees1) = ILiquidityMigrator(liquidityMigrator).syncAndPushFees();
+
+        // Sort the token addresses
+        address token0 = address(this) < currency ? address(this) : currency;
+      
+        // If the coin is token0
+        bool isCoinToken0 = token0 == address(this);
+
+        // Map from token0 and token1 to coin and currency
+        thisFees = isCoinToken0 ? fees0 : fees1;
+        currencyFees = isCoinToken0 ? fees1 : fees0;
+
+        // collect the fees
+        _collect(thisFees, currencyFees);
+    }
 
     function _migrateAndCollect() internal {
         address liquidityMigrator = getLiquidityMigrator();
@@ -744,11 +776,6 @@ contract ZoraCoin is
         uint256 currencyFees = integratorFeesCurrencyAfter - integratorFeesCurrencyBefore;
 
         // collect the fees
-        ZoraTokenFactoryImpl(payable(coinFactory)).handleIntegratorFees(address(this), currency, thisFees, currencyFees);
-
-        // handle paying out the fees
-        MarketRewards memory rewards;
-        _transferMarketRewards(address(this), thisFees, rewards);
-        _transferMarketRewards(currency, currencyFees, rewards);
+        _collect(thisFees, currencyFees);
     }
 }

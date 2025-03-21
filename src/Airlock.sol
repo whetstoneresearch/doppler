@@ -269,6 +269,30 @@ contract Airlock is Ownable {
             emit SetModuleState(modules[i], states[i]);
         }
     }
+    /**
+     * @notice Syncs fees from remote
+     * @param integrator Address of the integrator to distribute fees
+     * @param token Address of the token to collect fees in
+     * @param amount Amount of fees to distribute
+     */
+
+    function syncRemoteFees(address integrator, address token, uint256 amount) external {
+        // is this a LBP?
+        // do we care if people send us free money?
+        _validateModuleState(msg.sender, ModuleState.PoolInitializer);
+
+        balanceBefore = ERC20(token).balanceOf(address(this));
+        ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        balanceAfter = ERC20(token).balanceOf(address(this));
+
+        require(balanceAfter - balanceBefore == amount, "Airlock: syncRemoteFees: transfer failed");
+
+        uint256 protocolFee = amount / 20;
+        uint256 interFaceFee = amount - protocolFee;
+
+        getProtocolFees[token] += protocolFee;
+        getIntegratorFees[integrator][token] += interfaceFee;
+    }
 
     /**
      * @notice Collects protocol fees
