@@ -294,9 +294,9 @@ contract Airlock is Ownable {
         )
     {
         AssetData memory assetData = getAssetData[asset];
+        address integrator = assetData.integrator;
 
         uint256 assetBalanceBefore = ERC20(asset).balanceOf(asset);
-
         address numeraire = assetData.numeraire;
         if (numeraire == address(0)) {
             uint256 numeraireBalanceBefore = address(this).balance;
