@@ -101,20 +101,18 @@ contract DERC20Test is Test {
     }
 
     function test_constructor_RevertsWhenMaxTotalPreMintExceeded() public {
-        uint256 maxTotalPreMint = INITIAL_SUPPLY * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
-        uint256 length = MAX_TOTAL_PRE_MINT_WAD / MAX_PRE_MINT_PER_ADDRESS_WAD + 1;
+        address[] memory recipients = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
 
-        address[] memory recipients = new address[](length);
-        uint256[] memory amounts = new uint256[](length);
-
-        for (uint256 i; i != length; ++i) {
-            recipients[i] = address(uint160(i));
-            amounts[i] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
-        }
+        recipients[0] = address(0xa);
+        recipients[1] = address(0xb);
+        amounts[0] = amounts[1] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                MaxTotalPreMintExceeded.selector, maxTotalPreMint * 1.1 ether / 1e18, maxTotalPreMint
+                MaxTotalPreMintExceeded.selector,
+                INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18 * 2,
+                INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18
             )
         );
         token = new DERC20(
@@ -477,7 +475,7 @@ contract DERC20Test is Test {
 
         vm.warp(token.vestingStart() + VESTING_DURATION);
         vm.prank(address(0xa));
-        token.release(amounts[0]);
+        token.release();
         assertEq(token.balanceOf(address(0xa)), amounts[0], "Wrong balance");
     }
 
@@ -505,38 +503,10 @@ contract DERC20Test is Test {
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        token.release(amounts[0] / 4);
+        token.release();
         assertEq(token.balanceOf(address(0xa)), amounts[0] / 4, "Wrong balance");
 
         vm.warp(token.vestingStart() + VESTING_DURATION / 2);
-        token.release(amounts[0] / 4);
-    }
-
-    function test_release_RevertsWhenReleaseAmountInvalid() public {
-        address[] memory recipients = new address[](1);
-        recipients[0] = address(0xa);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1e23;
-
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            recipients,
-            amounts,
-            ""
-        );
-
-        token.unlockPool();
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
-
-        vm.startPrank(address(0xa));
-        vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        vm.expectRevert(ReleaseAmountInvalid.selector);
-        token.release(amounts[0] / 4 + 1);
+        token.release();
     }
 }

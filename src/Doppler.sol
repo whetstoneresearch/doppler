@@ -353,10 +353,8 @@ contract Doppler is BaseHook {
                 });
 
                 // Include tickSpacing so we're at least at a higher price than the lower slug upper tick
-                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
-                    _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
-                        + (isToken0 ? key.tickSpacing : -key.tickSpacing)
-                );
+                uint160 sqrtPriceX96Next =
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper + (isToken0 ? key.tickSpacing : -key.tickSpacing));
 
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
@@ -945,8 +943,6 @@ contract Doppler is BaseHook {
         uint256 epochT1toT2Delta;
         if (epochEndTime != nextEpochEndTime) {
             epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
-        } else {
-            epochT1toT2Delta = 0;
         }
 
         uint256 pdSlugsToLp = numPDSlugs;
@@ -1142,7 +1138,7 @@ contract Doppler is BaseHook {
                         IPoolManager.ModifyLiquidityParams({
                             tickLower: isToken0 ? position.tickLower : position.tickUpper,
                             tickUpper: isToken0 ? position.tickUpper : position.tickLower,
-                            liquidityDelta: -int128(position.liquidity),
+                            liquidityDelta: -position.liquidity.toInt128(),
                             salt: bytes32(uint256(position.salt))
                         }),
                         ""
