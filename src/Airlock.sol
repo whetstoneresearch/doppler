@@ -298,23 +298,25 @@ contract Airlock is Ownable {
 
         uint256 assetBalanceBefore = ERC20(asset).balanceOf(asset);
         address numeraire = assetData.numeraire;
+        uint256 numeraireBalanceBefore;
         if (numeraire == address(0)) {
-            uint256 numeraireBalanceBefore = address(this).balance;
+            numeraireBalanceBefore = address(this).balance;
         } else {
-            uint256 numeraireBalanceBefore = ERC20(asset).balanceOf(address(this));
+            numeraireBalanceBefore = ERC20(asset).balanceOf(address(this));
         }
 
-        (fees0, fees1) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
+        (uint256 assetFees, uint256 numeraireFees) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
 
         uint256 assetBalanceAfter = ERC20(asset).balanceOf(asset);
+        uint256 numeraireBalanceAfter;
         if (numeraire == address(0)) {
-            uint256 numeraireBalanceAfter = address(this).balance;
+            numeraireBalanceAfter = address(this).balance;
         } else {
-            uint256 numeraireBalanceAfter = ERC20(asset).balanceOf(address(this));
+            numeraireBalanceAfter = ERC20(asset).balanceOf(address(this));
         }
 
         // todo: should we swap syncAndPushFees to asset/numeraire fees?
-        (address assetFees, address numeraireFees) = asset < numeraire ? (fees0, fees1) : (fees1, fees0);
+        // (uint256 assetFees, uint256 numeraireFees) = asset < numeraire ? (fees0, fees1) : (fees1, fees0);
 
         // todo: change this to a custom error message
         require(assetBalanceAfter - assetBalanceBefore == assetFees, "Airlock: syncInitializerFees: asset failed");
@@ -322,31 +324,30 @@ contract Airlock is Ownable {
         assetInterfaceFee = assetFees - assetProtocolFee;
 
         getProtocolFees[asset] += assetProtocolFee;
-        getIntegratorFees[integrator][asset] += assetInterFaceFee;
+        getIntegratorFees[integrator][asset] += assetInterfaceFee;
 
         require(
             numeraireBalanceAfter - numeraireBalanceBefore == numeraireFees,
             "Airlock: syncInitializerFees: numeraire failed"
         );
         numeraireProtocolFee = numeraireFees / 20;
-        numeraireInterFaceFee = numeraireFees - numeraireProtocolFee;
+        numeraireInterfaceFee = numeraireFees - numeraireProtocolFee;
 
         getProtocolFees[numeraire] += numeraireProtocolFee;
-        getIntegratorFees[integrator][numeraire] += numeraireInterFaceFee;
+        getIntegratorFees[integrator][numeraire] += numeraireInterfaceFee;
     }
 
     /**
      * @notice Change integrator address
-     * @param to Address receiving the fees
-     * @param token Address of the token to collect fees from
-     * @param amount Amount of fees to collect
+     * @param asset Address of asset changed
+     * @param newIntegrator Address of the new integrator
      */
     function setIntegrator(address asset, address newIntegrator) external {
         AssetData memory assetData = getAssetData[asset];
         address oldIntegrator = assetData.integrator;
         require(msg.sender == oldIntegrator, "Airlock: setIntegrator: only integrator can call this function");
 
-        getAssetData[asset].integrator = integrator;
+        getAssetData[asset].integrator = newIntegrator;
 
         emit SetIntegrator(asset, newIntegrator, oldIntegrator);
     }
@@ -394,5 +395,18 @@ contract Airlock is Ownable {
      */
     function _validateModuleState(address module, ModuleState state) internal view {
         require(getModuleState[address(module)] == state, WrongModuleState(module, state, getModuleState[module]));
+    }
+
+    /**
+     * @notice Updates the integrator address
+     * @param asset Address of asset changed
+     * @param newIntegrator Address of the new integrator
+     */
+    function updateIntegrator(address asset, address newIntegrator) external {
+        AssetData memory assetData = getAssetData[asset];
+        address oldIntegrator = assetData.integrator;
+        require(msg.sender == oldIntegrator, "Airlock: setIntegrator: only integrator can call this function");
+
+        getAssetData[asset].integrator = newIntegrator;
     }
 }

@@ -161,8 +161,13 @@ contract ZoraBaseTest is Test, CoinConstants {
         address platformReferrer = address(0xb055);
         address currency = address(weth);
 
+        address predictedAddress = tokenFactory.getCoinAddress(address(airlock), payoutRecipient, uri);
+
+        console.log("predictedAddress", predictedAddress);
+
         bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency);
+        bytes memory tokenFactoryData =
+            abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency, predictedAddress);
         bytes memory liquidityMigratorData = abi.encode(fee, NONFUNGIBLE_POSITION_MANAGER);
 
         bytes memory poolInitializerData = abi.encode(
@@ -188,7 +193,7 @@ contract ZoraBaseTest is Test, CoinConstants {
                 poolInitializerData,
                 uniswapV3Migrator,
                 liquidityMigratorData,
-                address(tokenFactory),
+                address(predictedAddress),
                 bytes32(0)
             )
         );
@@ -373,11 +378,14 @@ contract ZoraBaseTest is Test, CoinConstants {
         string memory uri = "test.com";
         string memory name = "Best Coin";
         string memory symbol = "BEST";
-        address platformReferrer = address(0xb055);
+        address platformReferrer = address(0xbadd);
         address currency = address(weth);
 
+        address predictedAddress = tokenFactory.getCoinAddress(address(airlock), payoutRecipient, uri);
+        console.log("predictedAddress", predictedAddress);
         bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency);
+        bytes memory tokenFactoryData =
+            abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency, predictedAddress);
         bytes memory liquidityMigratorData = abi.encode(fee, NONFUNGIBLE_POSITION_MANAGER);
 
         bytes memory poolInitializerData = abi.encode(

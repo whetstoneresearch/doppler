@@ -6,7 +6,7 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -220,10 +220,12 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
     function collectAndPushFees(
         address pool
     ) external onlyAirlock returns (uint256 fees0, uint256 fees1) {
-        token0 = IUniswapV3Pool(pool).token0();
-        token1 = IUniswapV3Pool(pool).token1();
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+        int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
         uint16 numPositions = getState[pool].numPositions;
+        bool isToken0 = getState[pool].asset == token0;
 
         uint256 numTokensToSell =
             FullMath.mulDiv(getState[pool].totalTokensOnBondingCurve, getState[pool].maxShareToBeSold, WAD);
@@ -243,16 +245,14 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
             tickSpacing
         );
 
-        uint256 fees0;
-        uint256 fees1;
         (fees0, fees1) = collectPositionsMultiple(pool, lbpPositions, numPositions);
 
         if (fees0 != 0) {
-            ERC20(token0).safeTransfer(airlock, fees0);
+            ERC20(token0).safeTransfer(address(airlock), fees0);
         }
 
         if (fees1 != 0) {
-            ERC20(token1).safeTransfer(airlock, fees1);
+            ERC20(token1).safeTransfer(address(airlock), fees1);
         }
     }
 
@@ -445,7 +445,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
             // since the earlier positions must be hit if , we early return for gas savings
             // TODO: check if this is actually needed
-            if (posBalance0 == 0 && posBalance1 == 0) {
+            if (posFees0 == 0 && posFees1 == 0) {
                 break;
             }
 

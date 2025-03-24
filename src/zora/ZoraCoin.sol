@@ -29,7 +29,6 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ZoraUniswapV3Migrator } from "src/zora/ZoraUniswapV3Migrator.sol";
 import { ZoraTokenFactoryImpl } from "src/zora/ZoraTokenFactoryImpl.sol";
-import "forge-std/console.sol";
 
 /*
      $$$$$$\   $$$$$$\  $$$$$$\ $$\   $$\ 
@@ -141,9 +140,6 @@ contract ZoraCoin is
         // Set immutable state
         platformReferrer = platformReferrer_ == address(0) ? protocolRewardRecipient : platformReferrer_;
         currency = currency_ == address(0) ? WETH : currency_;
-
-        // move the integrator to the coin itself
-        ZoraTokenFactoryImpl(payable(coinFactory)).migrateIntegrator(address(this));
 
         // Mint the total supply
         // mint total supply to this contract
@@ -748,7 +744,7 @@ contract ZoraCoin is
 
         // todo: currently we only pull available to collect tokens and sync them
         // we need to check if someone else migrated the tokens at that point
-        (uint256 assetInterfaceFee,,uint256 numeraireInterfaceFee,) = airlock.syncInitializerFees(address(this));
+        (uint256 assetInterfaceFee,, uint256 numeraireInterfaceFee,) = airlock.syncInitializerFees(address(this));
 
         // collect the fees
         _collect(assetInterfaceFee, numeraireInterfaceFee);

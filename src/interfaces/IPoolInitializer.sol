@@ -47,6 +47,16 @@ interface IPoolInitializer {
         );
 
     /**
+     * @notice Collects and pushes fees from a pool
+     * @param pool Address of the pool
+     * @return assetFees Amount of fees accrued for the asset
+     * @return numeraireFees Amount of fees accrued for the numeraire
+     */
+    function collectAndPushFees(
+        address pool
+    ) external returns (uint256 assetFees, uint256 numeraireFees);
+
+    /**
      * @notice Emitted when a pool or hook is created
      * @param poolOrHook Address of the pool or hook
      * @param asset Address of the asset

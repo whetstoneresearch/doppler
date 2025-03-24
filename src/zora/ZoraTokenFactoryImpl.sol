@@ -31,7 +31,7 @@ contract ZoraTokenFactoryImpl is
 
     function create(
         uint256,
-        address recipient,
+        address,
         address owner,
         bytes32,
         bytes calldata data
@@ -46,13 +46,14 @@ contract ZoraTokenFactoryImpl is
             string memory name,
             string memory symbol,
             address platformReferrer,
-            address currency
-        ) = abi.decode(data, (address, string, string, string, address, address));
-        bytes32 salt = _generateSalt(recipient, uri);
+            address currency,
+            address predictedAddress
+        ) = abi.decode(data, (address, string, string, string, address, address, address));
+        bytes32 salt = _generateSalt(payoutRecipient, uri);
 
         ZoraCoin coin = ZoraCoin(payable(Clones.cloneDeterministic(coinImpl, salt)));
 
-        // require(address(coin) == predictedCoinAddress, "Coin address does not match predicted address");
+        require(address(coin) == predictedAddress, "Coin address does not match predicted address");
 
         coin.initializeDoppler(payoutRecipient, owners, uri, name, symbol, platformReferrer, currency);
 
@@ -119,19 +120,15 @@ contract ZoraTokenFactoryImpl is
 
     /// @dev Generates a unique salt for deterministic deployment
     function _generateSalt(address payoutRecipient, string memory uri) internal view returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                msg.sender,
-                payoutRecipient,
-                keccak256(abi.encodePacked(uri)),
-                block.coinbase,
-                block.number,
-                block.prevrandao,
-                block.timestamp,
-                tx.gasprice,
-                tx.origin
-            )
-        );
+        return keccak256(abi.encodePacked(msg.sender, payoutRecipient, keccak256(abi.encodePacked(uri))));
+    }
+
+    function predictSalt(
+        address msgSender,
+        address payoutRecipient,
+        string memory uri
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(msgSender, payoutRecipient, keccak256(abi.encodePacked(uri))));
     }
 
     /// @dev Handles the first buy of a newly created coin
@@ -210,5 +207,34 @@ contract ZoraTokenFactoryImpl is
 
         airlock.collectIntegratorFees(coin, coin, amountAsset);
         airlock.collectIntegratorFees(coin, currency, amountNumeraire);
+    }
+
+    /**
+     * @notice Gets the address of a coin
+     * @param payoutRecipient The recipient of creator reward payouts
+     * @param uri The coin metadata uri
+     * @return The address of the coin
+     */
+    function getCoinAddress(
+        address msgSender,
+        address payoutRecipient,
+        string memory uri
+    ) external view returns (address) {
+        return predictCoinAddress(msgSender, payoutRecipient, uri);
+    }
+
+    /**
+     * @notice Predicts the address of a coin
+     * @param payoutRecipient The recipient of creator reward payouts
+     * @param uri The coin metadata uri
+     * @return The predicted address of the coin
+     */
+    function predictCoinAddress(
+        address msgSender,
+        address payoutRecipient,
+        string memory uri
+    ) internal view returns (address) {
+        bytes32 salt = predictSalt(msgSender, payoutRecipient, uri);
+        return Clones.predictDeterministicAddress(coinImpl, salt);
     }
 }
