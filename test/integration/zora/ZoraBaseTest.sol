@@ -163,8 +163,6 @@ contract ZoraBaseTest is Test, CoinConstants {
 
         address predictedAddress = tokenFactory.getCoinAddress(address(airlock), payoutRecipient, uri);
 
-        console.log("predictedAddress", predictedAddress);
-
         bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
         bytes memory tokenFactoryData =
             abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency, predictedAddress);
@@ -382,7 +380,6 @@ contract ZoraBaseTest is Test, CoinConstants {
         address currency = address(weth);
 
         address predictedAddress = tokenFactory.getCoinAddress(address(airlock), payoutRecipient, uri);
-        console.log("predictedAddress", predictedAddress);
         bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
         bytes memory tokenFactoryData =
             abi.encode(payoutRecipient, uri, name, symbol, platformReferrer, currency, predictedAddress);

@@ -11,8 +11,9 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-
+import "forge-std/console.sol";
 /// @notice Thrown when the caller is not the Pool contract
+
 error OnlyPool();
 
 /// @notice Thrown when the pool is already initialized
@@ -247,6 +248,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
         (fees0, fees1) = collectPositionsMultiple(pool, lbpPositions, numPositions);
 
+        console.log("fees0", fees0);
+        console.log("fees1", fees1);
+
         if (fees0 != 0) {
             ERC20(token0).safeTransfer(address(airlock), fees0);
         }
@@ -435,6 +439,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         uint128 posFees1;
 
         for (uint256 i; i <= numPositions; i++) {
+            IUniswapV3Pool(pool).burn(newPositions[i].tickLower, newPositions[i].tickUpper, 0);
             (posFees0, posFees1) = IUniswapV3Pool(pool).collect(
                 address(this),
                 newPositions[i].tickLower,
@@ -442,6 +447,9 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
                 type(uint128).max,
                 type(uint128).max
             );
+
+            console.log("posFees0", posFees0);
+            console.log("posFees1", posFees1);
 
             // since the earlier positions must be hit if , we early return for gas savings
             // TODO: check if this is actually needed

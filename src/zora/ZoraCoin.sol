@@ -244,6 +244,7 @@ contract ZoraCoin is
         _handleTradeRewards(tradeReward, tradeReferrer);
 
         if (!isExited()) {
+            airlock.syncInitializerFees(address(this));
             if (canMigrate()) {
                 _migrateAndCollect();
             } else {

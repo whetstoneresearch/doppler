@@ -9,6 +9,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
+import "forge-std/console.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -296,27 +297,25 @@ contract Airlock is Ownable {
         AssetData memory assetData = getAssetData[asset];
         address integrator = assetData.integrator;
 
-        uint256 assetBalanceBefore = ERC20(asset).balanceOf(asset);
+        uint256 assetBalanceBefore = ERC20(asset).balanceOf(address(this));
         address numeraire = assetData.numeraire;
         uint256 numeraireBalanceBefore;
         if (numeraire == address(0)) {
             numeraireBalanceBefore = address(this).balance;
         } else {
-            numeraireBalanceBefore = ERC20(asset).balanceOf(address(this));
+            numeraireBalanceBefore = ERC20(numeraire).balanceOf(address(this));
         }
 
-        (uint256 assetFees, uint256 numeraireFees) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
+        (uint256 fees0, uint256 fees1) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
+        (uint256 assetFees, uint256 numeraireFees) = asset < numeraire ? (fees0, fees1) : (fees1, fees0);
 
-        uint256 assetBalanceAfter = ERC20(asset).balanceOf(asset);
+        uint256 assetBalanceAfter = ERC20(asset).balanceOf(address(this));
         uint256 numeraireBalanceAfter;
         if (numeraire == address(0)) {
             numeraireBalanceAfter = address(this).balance;
         } else {
-            numeraireBalanceAfter = ERC20(asset).balanceOf(address(this));
+            numeraireBalanceAfter = ERC20(numeraire).balanceOf(address(this));
         }
-
-        // todo: should we swap syncAndPushFees to asset/numeraire fees?
-        // (uint256 assetFees, uint256 numeraireFees) = asset < numeraire ? (fees0, fees1) : (fees1, fees0);
 
         // todo: change this to a custom error message
         require(assetBalanceAfter - assetBalanceBefore == assetFees, "Airlock: syncInitializerFees: asset failed");
@@ -395,18 +394,5 @@ contract Airlock is Ownable {
      */
     function _validateModuleState(address module, ModuleState state) internal view {
         require(getModuleState[address(module)] == state, WrongModuleState(module, state, getModuleState[module]));
-    }
-
-    /**
-     * @notice Updates the integrator address
-     * @param asset Address of asset changed
-     * @param newIntegrator Address of the new integrator
-     */
-    function updateIntegrator(address asset, address newIntegrator) external {
-        AssetData memory assetData = getAssetData[asset];
-        address oldIntegrator = assetData.integrator;
-        require(msg.sender == oldIntegrator, "Airlock: setIntegrator: only integrator can call this function");
-
-        getAssetData[asset].integrator = newIntegrator;
     }
 }
