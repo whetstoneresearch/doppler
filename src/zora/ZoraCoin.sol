@@ -250,13 +250,10 @@ contract ZoraCoin is
             } else {
                 _syncAndCollect();
             }
-
-            emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, 0, trueOrderSize);
         } else {
             _handleMarketRewards();
-
-            emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, tradeReward, trueOrderSize);
         }
+        emit CoinBuy(msg.sender, recipient, tradeReferrer, amountOut, currency, tradeReward, trueOrderSize);
 
         return (orderSize, amountOut);
     }
@@ -344,7 +341,7 @@ contract ZoraCoin is
             _handleMarketRewards();
         }
 
-        emit CoinSell(msg.sender, recipient, tradeReferrer, orderSize, currency, 0, 0);
+        emit CoinSell(msg.sender, recipient, tradeReferrer, orderSize, currency, tradeReward, payoutSize);
 
         return (orderSize, payoutSize);
     }
@@ -561,7 +558,6 @@ contract ZoraCoin is
         uint256 platformReferrerFee = _calculateReward(totalValue, PLATFORM_REFERRER_FEE_BPS);
         uint256 tradeReferrerFee = _calculateReward(totalValue, TRADE_REFERRER_FEE_BPS);
         uint256 protocolFee = totalValue - tokenCreatorFee - platformReferrerFee - tradeReferrerFee;
-
         if (currency == WETH) {
             address[] memory recipients = new address[](4);
             uint256[] memory amounts = new uint256[](4);
@@ -582,6 +578,8 @@ contract ZoraCoin is
             recipients[3] = protocolRewardRecipient;
             amounts[3] = protocolFee;
             reasons[3] = bytes4(keccak256("COIN_PROTOCOL_REWARD"));
+
+            console.log("depositing batch");
 
             IProtocolRewards(protocolRewards).depositBatch{ value: totalValue }(recipients, amounts, reasons, "");
         }
