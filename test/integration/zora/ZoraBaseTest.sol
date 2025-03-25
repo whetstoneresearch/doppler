@@ -408,7 +408,7 @@ contract ZoraBaseTest is Test, CoinConstants {
                 poolInitializerData,
                 uniswapV3Migrator,
                 liquidityMigratorData,
-                address(tokenFactory),
+                address(predictedAddress),
                 bytes32(0)
             )
         );

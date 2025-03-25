@@ -11,9 +11,8 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import "forge-std/console.sol";
-/// @notice Thrown when the caller is not the Pool contract
 
+/// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
 
 /// @notice Thrown when the pool is already initialized
@@ -217,7 +216,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
     }
 
     /// @inheritdoc IPoolInitializer
-    // todo: make this actually exist in the poolinitializer
     function collectAndPushFees(
         address pool
     ) external onlyAirlock returns (uint256 fees0, uint256 fees1) {
@@ -247,9 +245,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         );
 
         (fees0, fees1) = collectPositionsMultiple(pool, lbpPositions, numPositions);
-
-        console.log("fees0", fees0);
-        console.log("fees1", fees1);
 
         if (fees0 != 0) {
             ERC20(token0).safeTransfer(address(airlock), fees0);
@@ -447,9 +442,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
                 type(uint128).max,
                 type(uint128).max
             );
-
-            console.log("posFees0", posFees0);
-            console.log("posFees1", posFees1);
 
             // since the earlier positions must be hit if , we early return for gas savings
             // TODO: check if this is actually needed

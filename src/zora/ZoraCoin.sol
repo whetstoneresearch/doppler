@@ -29,6 +29,7 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ZoraUniswapV3Migrator } from "src/zora/ZoraUniswapV3Migrator.sol";
 import { ZoraTokenFactoryImpl } from "src/zora/ZoraTokenFactoryImpl.sol";
+import "forge-std/console.sol";
 
 /*
      $$$$$$\   $$$$$$\  $$$$$$\ $$\   $$\ 
@@ -244,7 +245,6 @@ contract ZoraCoin is
         _handleTradeRewards(tradeReward, tradeReferrer);
 
         if (!isExited()) {
-            airlock.syncInitializerFees(address(this));
             if (canMigrate()) {
                 _migrateAndCollect();
             } else {
@@ -337,6 +337,8 @@ contract ZoraCoin is
         if (!isExited()) {
             if (canMigrate()) {
                 _migrateAndCollect();
+            } else {
+                _syncAndCollect();
             }
         } else {
             _handleMarketRewards();
@@ -731,20 +733,19 @@ contract ZoraCoin is
     }
 
     function _collect(uint256 thisFees, uint256 currencyFees) internal {
-        airlock.collectIntegratorFees(address(this), address(this), thisFees);
-        airlock.collectIntegratorFees(address(this), currency, currencyFees);
-
         // handle paying out the fees
         MarketRewards memory rewards;
-        _transferMarketRewards(address(this), thisFees, rewards);
-        _transferMarketRewards(currency, currencyFees, rewards);
+        if (thisFees > 0) {
+            airlock.collectIntegratorFees(address(this), address(this), thisFees);
+            _transferMarketRewards(address(this), thisFees, rewards);
+        }
+        if (currencyFees > 0) {
+            airlock.collectIntegratorFees(address(this), currency, currencyFees);
+            _transferMarketRewards(currency, currencyFees, rewards);
+        }
     }
 
     function _syncAndCollect() internal {
-        address pool = getPoolAddress();
-
-        // todo: currently we only pull available to collect tokens and sync them
-        // we need to check if someone else migrated the tokens at that point
         (uint256 assetInterfaceFee,, uint256 numeraireInterfaceFee,) = airlock.syncInitializerFees(address(this));
 
         // collect the fees
@@ -752,10 +753,6 @@ contract ZoraCoin is
     }
 
     function _migrateAndCollect() internal {
-        // migrate the pool
-        uint256 integratorFeesThisBefore = airlock.getIntegratorFees(address(this), address(this));
-        uint256 integratorFeesCurrencyBefore = airlock.getIntegratorFees(coinFactory, currency);
-
         airlock.migrate(address(this));
 
         uint256 integratorFeesThis = airlock.getIntegratorFees(address(this), address(this));

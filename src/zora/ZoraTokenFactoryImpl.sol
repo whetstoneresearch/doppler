@@ -190,13 +190,6 @@ contract ZoraTokenFactoryImpl is
         address newImpl
     ) internal override onlyOwner { }
 
-    function migrateIntegrator(address coin) external {
-        require(msg.sender == coin, "Only coin can call this function");
-
-        // set the integrator to the coin itself
-        airlock.setIntegrator(coin, coin);
-    }
-
     function handleIntegratorFees(
         address coin,
         address currency,

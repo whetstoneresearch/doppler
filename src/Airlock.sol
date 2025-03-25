@@ -9,7 +9,6 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { DERC20 } from "src/DERC20.sol";
-import "forge-std/console.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -334,21 +333,6 @@ contract Airlock is Ownable {
 
         getProtocolFees[numeraire] += numeraireProtocolFee;
         getIntegratorFees[integrator][numeraire] += numeraireInterfaceFee;
-    }
-
-    /**
-     * @notice Change integrator address
-     * @param asset Address of asset changed
-     * @param newIntegrator Address of the new integrator
-     */
-    function setIntegrator(address asset, address newIntegrator) external {
-        AssetData memory assetData = getAssetData[asset];
-        address oldIntegrator = assetData.integrator;
-        require(msg.sender == oldIntegrator, "Airlock: setIntegrator: only integrator can call this function");
-
-        getAssetData[asset].integrator = newIntegrator;
-
-        emit SetIntegrator(asset, newIntegrator, oldIntegrator);
     }
 
     /**
