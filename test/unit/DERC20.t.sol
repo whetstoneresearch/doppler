@@ -470,6 +470,24 @@ contract DERC20Test is Test {
         assertEq(token.tokenURI(), "newTokenURI", "Token URI should be updated");
     }
 
+    function test_updateTokenURI_RevertsWhenNotOwner() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(0xbeef),
+            YEARLY_MINT_RATE,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0),
+            ""
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        token.updateTokenURI("newTokenURI");
+    }
+
     function test_release_ReleasesAllTokensAfterVesting() public {
         address[] memory recipients = new address[](1);
         recipients[0] = address(0xa);
