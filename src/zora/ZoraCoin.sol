@@ -755,6 +755,9 @@ contract ZoraCoin is
     function _migrateAndCollect() internal {
         airlock.migrate(address(this));
 
+        (,,, ILiquidityMigrator migrator,,,,,,) = airlock.getAssetData(address(this));
+        lpTokenId = ZoraUniswapV3Migrator(payable(address(migrator))).lpTokenId();
+
         uint256 integratorFeesThis = airlock.getIntegratorFees(address(this), address(this));
         uint256 integratorFeesCurrency = airlock.getIntegratorFees(address(this), currency);
 
