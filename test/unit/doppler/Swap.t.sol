@@ -186,4 +186,16 @@ contract SwapTest is BaseTest {
 
         assertEq(tickAccumulator, tickAccumulator2);
     }
+
+    function test_swap_ZeroFeesWhenInsufficientProceeds() public {
+        vm.warp(hook.getStartingTime());
+        (uint256 bought,) = buy(1 ether);
+        vm.warp(hook.getEndingTime() + 1);
+
+        (uint256 beforeFeeGrowthGlobal0, uint256 beforeFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
+        sell(int256(bought));
+        (uint256 afterFeeGrowthGlobal0, uint256 afterFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
+        assertEq(beforeFeeGrowthGlobal0, afterFeeGrowthGlobal0, "Token 0 fee growth should not change");
+        assertEq(beforeFeeGrowthGlobal1, afterFeeGrowthGlobal1, "Token 1 fee growth should not change");
+    }
 }

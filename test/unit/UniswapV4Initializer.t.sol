@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -36,8 +37,8 @@ contract UniswapV4InitializerTest is DopplerFixtures {
         assertTrue(poolKey.currency0 == CurrencyLibrary.ADDRESS_ZERO);
         assertTrue(poolKey.currency1 == Currency.wrap(asset));
 
-        assertEq(poolKey.fee, fee);
-        assertEq(poolKey.tickSpacing, tickSpacing);
+        assertEq(poolKey.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG, "Wrong fee");
+        assertEq(poolKey.tickSpacing, tickSpacing, "Wrong tickSpacing");
 
         // pool is initialized
         (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolKey.toId());

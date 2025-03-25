@@ -8,6 +8,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { BalanceDelta, add, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
@@ -152,6 +153,8 @@ contract Doppler is BaseHook {
     bool internal isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 internal numPDSlugs; // number of price discovery slugs
 
+    uint24 internal initialLpFee;
+
     uint256 internal totalEpochs; // total number of epochs
     uint256 internal normalizedEpochDelta; // normalized delta between two epochs
     int24 internal upperSlugRange; // range of the upper slug
@@ -174,6 +177,7 @@ contract Doppler is BaseHook {
     /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
     /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
     /// @param _numPDSlugs Number of price discovery slugs to use
+    /// @param initialLpFee_ Initial swap fee
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -187,8 +191,11 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0,
         uint256 _numPDSlugs,
-        address initializer_
+        address initializer_,
+        uint24 initialLpFee_
     ) BaseHook(_poolManager) {
+        initialLpFee = initialLpFee_;
+
         // Check that the current time is before the starting time
         if (block.timestamp > _startingTime) revert InvalidStartTime();
         /* Tick checks */
@@ -272,6 +279,7 @@ contract Doppler is BaseHook {
         uint160,
         int24 tick
     ) external override onlyPoolManager returns (bytes4) {
+        poolManager.updateDynamicLPFee(key, initialLpFee);
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
     }
@@ -309,6 +317,8 @@ contract Doppler is BaseHook {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
+        uint24 fee;
+
         // Only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp >= endingTime && !insufficientProceeds) {
             // If we haven't raised the minimum proceeds, we allow for all asset tokens to be sold back into
@@ -343,10 +353,8 @@ contract Doppler is BaseHook {
                 });
 
                 // Include tickSpacing so we're at least at a higher price than the lower slug upper tick
-                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
-                    _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
-                        + (isToken0 ? key.tickSpacing : -key.tickSpacing)
-                );
+                uint160 sqrtPriceX96Next =
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper + (isToken0 ? key.tickSpacing : -key.tickSpacing));
 
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
@@ -367,18 +375,14 @@ contract Doppler is BaseHook {
             _rebalance(key);
         } else {
             // If we have insufficient proceeds, only allow swaps from asset -> numeraire
-            if (isToken0) {
-                if (swapParams.zeroForOne == false) {
-                    revert InvalidSwapAfterMaturityInsufficientProceeds();
-                }
-            } else {
-                if (swapParams.zeroForOne == true) {
-                    revert InvalidSwapAfterMaturityInsufficientProceeds();
-                }
+            if ((isToken0 && swapParams.zeroForOne == false) || (!isToken0 && swapParams.zeroForOne)) {
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
             }
+
+            fee = 0 | LPFeeLibrary.OVERRIDE_FEE_FLAG;
         }
 
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee);
     }
 
     /// @notice Called by the poolManager immediately after a swap is executed
