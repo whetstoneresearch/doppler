@@ -246,6 +246,16 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /**
+     * @notice Updates the token Uniform Resource Identifier (URI)
+     * @param tokenURI_ New token Uniform Resource Identifier (URI)
+     */
+    function updateTokenURI(
+        string memory tokenURI_
+    ) external onlyOwner {
+        tokenURI = tokenURI_;
+    }
+
+    /**
      * @notice Releases all available vested tokens
      */
     function release() external hasVestingStarted {
