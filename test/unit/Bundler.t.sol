@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { Create2 } from "@openzeppelin/utils/Create2.sol";
 import { Commands } from "@universal-router/libraries/Commands.sol";
+import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
+import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { Airlock } from "src/Airlock.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
@@ -21,9 +24,9 @@ contract BundlerTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.envString("UNICHAIN_MAINNET_RPC_URL"), 10_594_210);
         bundler = new Bundler(
-            payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254),
-            payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3),
-            0x385A5cf5F83e99f7BB2852b6A19C3538b9FA7658
+            Airlock(payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254)),
+            UniversalRouter(payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3)),
+            IQuoterV2(0x385A5cf5F83e99f7BB2852b6A19C3538b9FA7658)
         );
     }
 
