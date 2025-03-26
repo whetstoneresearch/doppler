@@ -15,17 +15,17 @@ error InvalidOutputToken();
  * @custom:security-contact security@whetstone.cc
  */
 contract Bundler {
-    Airlock airlock;
-    UniversalRouter router;
-    IQuoterV2 quoter;
+    Airlock immutable airlock;
+    UniversalRouter immutable router;
+    IQuoterV2 immutable quoter;
 
-    constructor(address payable _airlock, address payable _router, address _quoter) {
-        if (_airlock == address(0) || _router == address(0)) {
+    constructor(address payable airlock_, address payable router_, address quoter_) {
+        if (airlock_ == address(0) || router_ == address(0)) {
             revert InvalidAddresses();
         }
-        airlock = Airlock(_airlock);
-        router = UniversalRouter(_router);
-        quoter = IQuoterV2(_quoter);
+        airlock = Airlock(airlock_);
+        router = UniversalRouter(router_);
+        quoter = IQuoterV2(quoter_);
     }
 
     function simulateBundleExactOut(
