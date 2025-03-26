@@ -24,6 +24,8 @@ error WrongModuleState(address module, ModuleState expected, ModuleState actual)
 /// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
 
+error InvalidBalanceAfterFees();
+
 /**
  * @notice Data related to the asset token
  * @param numeraire Address of the numeraire token
@@ -111,6 +113,14 @@ event SetModuleState(address indexed module, ModuleState indexed state);
  * @param amount Amount of fees collected
  */
 event Collect(address indexed to, address indexed token, uint256 amount);
+
+/**
+ * @notice Emitted when integrator address changes
+ * @param asset Address of asset changed
+ * @param newIntegrator Address of the new integrator
+ * @param oldIntegrator Address of previous integrator
+ */
+event SetIntegrator(address indexed asset, address indexed newIntegrator, address indexed oldIntegrator);
 
 /// @custom:security-contact security@whetstone.cc
 contract Airlock is Ownable {
@@ -268,6 +278,59 @@ contract Airlock is Ownable {
             getModuleState[modules[i]] = states[i];
             emit SetModuleState(modules[i], states[i]);
         }
+    }
+
+    /**
+     * @notice Syncs fees from remote
+     * @param asset Address of the token sync fees for
+     */
+    function syncInitializerFees(
+        address asset
+    )
+        external
+        returns (
+            uint256 assetInterfaceFee,
+            uint256 assetProtocolFee,
+            uint256 numeraireInterfaceFee,
+            uint256 numeraireProtocolFee
+        )
+    {
+        AssetData memory assetData = getAssetData[asset];
+        address integrator = assetData.integrator;
+
+        uint256 assetBalanceBefore = ERC20(asset).balanceOf(address(this));
+        address numeraire = assetData.numeraire;
+        uint256 numeraireBalanceBefore;
+        if (numeraire == address(0)) {
+            numeraireBalanceBefore = address(this).balance;
+        } else {
+            numeraireBalanceBefore = ERC20(numeraire).balanceOf(address(this));
+        }
+
+        (uint256 fees0, uint256 fees1) = assetData.poolInitializer.collectAndPushFees(assetData.pool);
+        (uint256 assetFees, uint256 numeraireFees) = asset < numeraire ? (fees0, fees1) : (fees1, fees0);
+
+        uint256 assetBalanceAfter = ERC20(asset).balanceOf(address(this));
+        uint256 numeraireBalanceAfter;
+        if (numeraire == address(0)) {
+            numeraireBalanceAfter = address(this).balance;
+        } else {
+            numeraireBalanceAfter = ERC20(numeraire).balanceOf(address(this));
+        }
+
+        require(assetBalanceAfter - assetBalanceBefore == assetFees, InvalidBalanceAfterFees());
+        assetProtocolFee = assetFees / 20;
+        assetInterfaceFee = assetFees - assetProtocolFee;
+
+        getProtocolFees[asset] += assetProtocolFee;
+        getIntegratorFees[integrator][asset] += assetInterfaceFee;
+
+        require(numeraireBalanceAfter - numeraireBalanceBefore == numeraireFees, InvalidBalanceAfterFees());
+        numeraireProtocolFee = numeraireFees / 20;
+        numeraireInterfaceFee = numeraireFees - numeraireProtocolFee;
+
+        getProtocolFees[numeraire] += numeraireProtocolFee;
+        getIntegratorFees[integrator][numeraire] += numeraireInterfaceFee;
     }
 
     /**

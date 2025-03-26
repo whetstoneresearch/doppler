@@ -6,7 +6,7 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -215,6 +215,46 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         ERC20(token1).safeTransfer(msg.sender, balance1);
     }
 
+    /// @inheritdoc IPoolInitializer
+    function collectAndPushFees(
+        address pool
+    ) external onlyAirlock returns (uint256 fees0, uint256 fees1) {
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
+        int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
+
+        uint16 numPositions = getState[pool].numPositions;
+        bool isToken0 = getState[pool].asset == token0;
+
+        uint256 numTokensToSell =
+            FullMath.mulDiv(getState[pool].totalTokensOnBondingCurve, getState[pool].maxShareToBeSold, WAD);
+        uint256 numTokensToBond = getState[pool].totalTokensOnBondingCurve - numTokensToSell;
+
+        (LpPosition[] memory lbpPositions, uint256 reserves) = calculateLogNormalDistribution(
+            getState[pool].tickLower, getState[pool].tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell
+        );
+
+        lbpPositions[numPositions] = calculateLpTail(
+            numPositions,
+            getState[pool].tickLower,
+            getState[pool].tickUpper,
+            isToken0,
+            reserves,
+            numTokensToBond,
+            tickSpacing
+        );
+
+        (fees0, fees1) = collectPositionsMultiple(pool, lbpPositions, numPositions);
+
+        if (fees0 != 0) {
+            ERC20(token0).safeTransfer(address(airlock), fees0);
+        }
+
+        if (fees1 != 0) {
+            ERC20(token1).safeTransfer(address(airlock), fees1);
+        }
+    }
+
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         address pool = factory.getPool(callbackData.asset, callbackData.numeraire, callbackData.fee);
@@ -383,6 +423,35 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
     function checkPoolParams(int24 tick, int24 tickSpacing) internal pure {
         if (tick % tickSpacing != 0) revert InvalidTickRange(tick, tickSpacing);
+    }
+
+    function collectPositionsMultiple(
+        address pool,
+        LpPosition[] memory newPositions,
+        uint16 numPositions
+    ) internal returns (uint256 fees0Total, uint256 fees1Total) {
+        uint128 posFees0;
+        uint128 posFees1;
+
+        for (uint256 i; i <= numPositions; i++) {
+            IUniswapV3Pool(pool).burn(newPositions[i].tickLower, newPositions[i].tickUpper, 0);
+            (posFees0, posFees1) = IUniswapV3Pool(pool).collect(
+                address(this),
+                newPositions[i].tickLower,
+                newPositions[i].tickUpper,
+                type(uint128).max,
+                type(uint128).max
+            );
+
+            // since the earlier positions must be hit if , we early return for gas savings
+            // TODO: check if this is actually needed
+            if (posFees0 == 0 && posFees1 == 0) {
+                break;
+            }
+
+            fees0Total += posFees0;
+            fees1Total += posFees1;
+        }
     }
 
     function burnPositionsMultiple(
