@@ -101,20 +101,18 @@ contract DERC20Test is Test {
     }
 
     function test_constructor_RevertsWhenMaxTotalPreMintExceeded() public {
-        uint256 maxTotalPreMint = INITIAL_SUPPLY * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
-        uint256 length = MAX_TOTAL_PRE_MINT_WAD / MAX_PRE_MINT_PER_ADDRESS_WAD + 1;
+        address[] memory recipients = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
 
-        address[] memory recipients = new address[](length);
-        uint256[] memory amounts = new uint256[](length);
-
-        for (uint256 i; i != length; ++i) {
-            recipients[i] = address(uint160(i));
-            amounts[i] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
-        }
+        recipients[0] = address(0xa);
+        recipients[1] = address(0xb);
+        amounts[0] = amounts[1] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                MaxTotalPreMintExceeded.selector, maxTotalPreMint * 1.1 ether / 1e18, maxTotalPreMint
+                MaxTotalPreMintExceeded.selector,
+                INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18 * 2,
+                INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18
             )
         );
         token = new DERC20(
@@ -453,6 +451,43 @@ contract DERC20Test is Test {
         assertGt(token.balanceOf(token.owner()), 0, "Owner balance should be greater than 0");
     }
 
+    function test_updateTokenURI_UpdatesToNewTokenURI() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(this),
+            YEARLY_MINT_RATE,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0),
+            ""
+        );
+
+        assertEq(token.tokenURI(), "", "Token URI should be empty");
+        token.updateTokenURI("newTokenURI");
+        assertEq(token.tokenURI(), "newTokenURI", "Token URI should be updated");
+    }
+
+    function test_updateTokenURI_RevertsWhenNotOwner() public {
+        token = new DERC20(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            address(0xbeef),
+            YEARLY_MINT_RATE,
+            VESTING_DURATION,
+            new address[](0),
+            new uint256[](0),
+            ""
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        token.updateTokenURI("newTokenURI");
+    }
+
     function test_release_ReleasesAllTokensAfterVesting() public {
         address[] memory recipients = new address[](1);
         recipients[0] = address(0xa);
@@ -477,7 +512,7 @@ contract DERC20Test is Test {
 
         vm.warp(token.vestingStart() + VESTING_DURATION);
         vm.prank(address(0xa));
-        token.release(amounts[0]);
+        token.release();
         assertEq(token.balanceOf(address(0xa)), amounts[0], "Wrong balance");
     }
 
@@ -505,38 +540,10 @@ contract DERC20Test is Test {
 
         vm.startPrank(address(0xa));
         vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        token.release(amounts[0] / 4);
+        token.release();
         assertEq(token.balanceOf(address(0xa)), amounts[0] / 4, "Wrong balance");
 
         vm.warp(token.vestingStart() + VESTING_DURATION / 2);
-        token.release(amounts[0] / 4);
-    }
-
-    function test_release_RevertsWhenReleaseAmountInvalid() public {
-        address[] memory recipients = new address[](1);
-        recipients[0] = address(0xa);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1e23;
-
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            recipients,
-            amounts,
-            ""
-        );
-
-        token.unlockPool();
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
-
-        vm.startPrank(address(0xa));
-        vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        vm.expectRevert(ReleaseAmountInvalid.selector);
-        token.release(amounts[0] / 4 + 1);
+        token.release();
     }
 }
