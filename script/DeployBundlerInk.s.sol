@@ -9,7 +9,7 @@ import { Bundler } from "src/Bundler.sol";
 
 contract DeployBundlerInkScript is Script {
     function run() public {
-        Airlock airlock = Airlock(payable(0xe7dfbd5b0A2C3B4464653A9beCdc489229eF090E));
+        Airlock airlock = Airlock(payable(0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12));
         UniversalRouter router = UniversalRouter(payable(0x112908daC86e20e7241B0927479Ea3Bf935d1fa0));
         IQuoterV2 quoter = IQuoterV2(0x96b572D2d880cf2Fa2563651BD23ADE6f5516652);
 
