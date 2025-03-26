@@ -26,6 +26,12 @@
 "uniswap_v2_router_02" = "0xaA47D2977d622DBdFD33eeF6a8276727c52EB4e5"
 "uniswap_v3_factory" = "0xb4deE32EB70A5E55f3D2d861F49Fb3D79f7a14d9"
 
+# Ink
+[57073]
+"uniswap_v2_factory" = "0xfe57A6BA1951F69aE2Ed4abe23e0f095DF500C04"
+"uniswap_v2_router_02" = "0xB3FB126ACDd5AdCA2f50Ac644a7a2303745f18b4"
+"uniswap_v3_factory" = "0x640887A9ba3A9C53Ed27D0F7e8246A4F933f3424"
+
 # Ink Sepolia
 [763373]
 "uniswap_v2_factory" = "0x014E1c0bd34f3B10546E554CB33B3293fECDD056"
