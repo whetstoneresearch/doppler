@@ -7,7 +7,7 @@ import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { Airlock } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 
-contract BundlerDeployer is Script {
+contract DeployBundlerScript is Script {
     function run() public {
         Airlock airlock = Airlock(payable(0xe7dfbd5b0A2C3B4464653A9beCdc489229eF090E));
         UniversalRouter router = UniversalRouter(payable(0x95273d871c8156636e114b63797d78D7E1720d81));
