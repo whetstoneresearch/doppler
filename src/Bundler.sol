@@ -19,8 +19,8 @@ contract Bundler {
     UniversalRouter immutable router;
     IQuoterV2 immutable quoter;
 
-    constructor(address payable airlock_, address payable router_, address quoter_) {
-        if (airlock_ == address(0) || router_ == address(0)) {
+    constructor(Airlock airlock_, UniversalRouter router_, IQuoterV2 quoter_) {
+        if (address(airlock_) == address(0) || address(router_) == address(0)) {
             revert InvalidAddresses();
         }
         airlock = Airlock(airlock_);
