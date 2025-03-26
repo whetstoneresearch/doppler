@@ -29,7 +29,6 @@ import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ZoraUniswapV3Migrator } from "src/zora/ZoraUniswapV3Migrator.sol";
 import { ZoraTokenFactoryImpl } from "src/zora/ZoraTokenFactoryImpl.sol";
-import "forge-std/console.sol";
 
 /*
      $$$$$$\   $$$$$$\  $$$$$$\ $$\   $$\ 
@@ -578,8 +577,6 @@ contract ZoraCoin is
             recipients[3] = protocolRewardRecipient;
             amounts[3] = protocolFee;
             reasons[3] = bytes4(keccak256("COIN_PROTOCOL_REWARD"));
-
-            console.log("depositing batch");
 
             IProtocolRewards(protocolRewards).depositBatch{ value: totalValue }(recipients, amounts, reasons, "");
         }
