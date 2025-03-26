@@ -24,6 +24,8 @@ error WrongModuleState(address module, ModuleState expected, ModuleState actual)
 /// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
 
+error InvalidBalanceAfterFees();
+
 /**
  * @notice Data related to the asset token
  * @param numeraire Address of the numeraire token
@@ -316,18 +318,14 @@ contract Airlock is Ownable {
             numeraireBalanceAfter = ERC20(numeraire).balanceOf(address(this));
         }
 
-        // todo: change this to a custom error message
-        require(assetBalanceAfter - assetBalanceBefore == assetFees, "Airlock: syncInitializerFees: asset failed");
+        require(assetBalanceAfter - assetBalanceBefore == assetFees, InvalidBalanceAfterFees());
         assetProtocolFee = assetFees / 20;
         assetInterfaceFee = assetFees - assetProtocolFee;
 
         getProtocolFees[asset] += assetProtocolFee;
         getIntegratorFees[integrator][asset] += assetInterfaceFee;
 
-        require(
-            numeraireBalanceAfter - numeraireBalanceBefore == numeraireFees,
-            "Airlock: syncInitializerFees: numeraire failed"
-        );
+        require(numeraireBalanceAfter - numeraireBalanceBefore == numeraireFees, InvalidBalanceAfterFees());
         numeraireProtocolFee = numeraireFees / 20;
         numeraireInterfaceFee = numeraireFees - numeraireProtocolFee;
 
