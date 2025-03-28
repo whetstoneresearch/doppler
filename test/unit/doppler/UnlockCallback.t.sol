@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ImmutableState } from "v4-periphery/src/base/ImmutableState.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Doppler } from "src/Doppler.sol";
 

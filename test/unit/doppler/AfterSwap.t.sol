@@ -5,7 +5,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { ImmutableState } from "v4-periphery/src/base/ImmutableState.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract AfterSwapTest is BaseTest {

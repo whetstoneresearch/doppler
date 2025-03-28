@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { ImmutableState } from "v4-periphery/src/base/ImmutableState.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
