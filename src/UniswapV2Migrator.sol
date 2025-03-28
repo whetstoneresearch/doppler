@@ -11,7 +11,6 @@ import { Airlock } from "src/Airlock.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { console } from "forge-std/console.sol";
 
 library MigrationMath {
     using FullMath for uint256;
@@ -104,15 +103,10 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
         if (token0 == address(0)) {
-            console.log("first");
-            console.log("balance0", balance0);
             token0 = address(weth);
             weth.deposit{ value: address(this).balance }();
             balance0 = weth.balanceOf(address(this));
         } else {
-            console.log("second");
-            console.log("balance0", balance0);
-
             balance0 = ERC20(token0).balanceOf(address(this));
         }
 
