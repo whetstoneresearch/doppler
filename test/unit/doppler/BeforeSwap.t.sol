@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { SafeCallback } from "@v4-periphery/base/SafeCallback.sol";
+import { ImmutableState } from "v4-periphery/src/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 /// @dev forge test -vvv --mc DopplerBeforeSwapTest --via-ir
@@ -13,7 +13,7 @@ contract BeforeSwapTest is BaseTest {
     // =========================================================================
 
     function testBeforeSwap_RevertsIfNotPoolManager() public {
-        vm.expectRevert(SafeCallback.NotPoolManager.selector);
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
         hook.beforeSwap(
             address(this),
             key,
