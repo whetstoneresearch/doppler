@@ -6,8 +6,8 @@ import { Create2 } from "@openzeppelin/utils/Create2.sol";
 import { Commands } from "@universal-router/libraries/Commands.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { Airlock } from "src/Airlock.sol";
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { Airlock, ModuleState } from "src/Airlock.sol";
+import { ITokenFactory, TokenFactory } from "src/TokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -16,18 +16,29 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { CreateParams } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 
+address payable constant airlock = payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254);
+address payable constant ur = payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3);
+address constant quoterV2 = 0x385A5cf5F83e99f7BB2852b6A19C3538b9FA7658;
+address constant weth = 0x4200000000000000000000000000000000000006;
+
 contract BundlerTest is Test {
     Bundler bundler;
+    TokenFactory tokenFactory;
 
     receive() external payable { }
 
     function setUp() public {
         vm.createSelectFork(vm.envString("UNICHAIN_MAINNET_RPC_URL"), 10_594_210);
-        bundler = new Bundler(
-            Airlock(payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254)),
-            UniversalRouter(payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3)),
-            IQuoterV2(0x385A5cf5F83e99f7BB2852b6A19C3538b9FA7658)
-        );
+        bundler = new Bundler(Airlock(airlock), UniversalRouter(ur), IQuoterV2(quoterV2));
+
+        tokenFactory = new TokenFactory(airlock);
+        vm.prank(Airlock(airlock).owner());
+
+        address[] memory modules = new address[](1);
+        modules[0] = address(tokenFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.TokenFactory;
+        Airlock(airlock).setModuleState(modules, states);
     }
 
     function test_bundle() public {
@@ -38,8 +49,8 @@ contract BundlerTest is Test {
         CreateParams memory createParams = CreateParams({
             initialSupply: initialSupply,
             numTokensToSell: initialSupply,
-            numeraire: address(0x4200000000000000000000000000000000000006),
-            tokenFactory: ITokenFactory(0x43d0D97EC9241A8F05A264f94B82A1d2E600f2B3),
+            numeraire: weth,
+            tokenFactory: ITokenFactory(tokenFactory),
             tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), ""),
             governanceFactory: IGovernanceFactory(0x99C94B9Df930E1E21a4E4a2c105dBff21bF5c5aE),
             governanceFactoryData: abi.encode("Governance", 3, 3, 3),
@@ -65,20 +76,11 @@ contract BundlerTest is Test {
                 abi.encodePacked(
                     type(DERC20).creationCode,
                     abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        0x77EbfBAE15AD200758E9E2E61597c0B07d731254,
-                        0x77EbfBAE15AD200758E9E2E61597c0B07d731254,
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        ""
+                        name, symbol, initialSupply, airlock, airlock, 0, 0, new address[](0), new uint256[](0), ""
                     )
                 )
             ),
-            0x43d0D97EC9241A8F05A264f94B82A1d2E600f2B3
+            address(tokenFactory)
         );
 
         uint256 amountIn = 1 ether;
@@ -90,7 +92,7 @@ contract BundlerTest is Test {
         bytes memory path = abi.encodePacked(tokenIn, uint24(3000), tokenOut);
 
         bytes[] memory inputs = new bytes[](2);
-        inputs[0] = abi.encode(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3, amountIn);
+        inputs[0] = abi.encode(ur, amountIn);
         inputs[1] = abi.encode(address(this), amountIn, uint256(0), path, false);
 
         vm.deal(address(this), amountIn);
