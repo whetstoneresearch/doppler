@@ -6,7 +6,6 @@ import { Airlock, CreateParams } from "src/Airlock.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 
-error InvalidBundleData();
 error InvalidAddresses();
 error InvalidOutputToken();
 
@@ -61,10 +60,6 @@ contract Bundler {
         bytes calldata commands,
         bytes[] calldata inputs
     ) external payable {
-        if (address(airlock) == address(0) || address(router) == address(0)) {
-            revert InvalidBundleData();
-        }
-
         (address asset,,,,) = airlock.create(createData);
         uint256 balance = address(this).balance;
         router.execute{ value: balance }(commands, inputs);
