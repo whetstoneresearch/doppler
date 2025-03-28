@@ -32,9 +32,10 @@ contract Bundler {
      * @param quoter_ Immutable address of the QuoterV2 contract
      */
     constructor(Airlock airlock_, UniversalRouter router_, IQuoterV2 quoter_) {
-        if (address(airlock_) == address(0) || address(router_) == address(0)) {
+        if (address(airlock_) == address(0) || address(router_) == address(0) || address(quoter_) == address(0)) {
             revert InvalidAddresses();
         }
+
         airlock = Airlock(airlock_);
         router = UniversalRouter(router_);
         quoter = IQuoterV2(quoter_);
