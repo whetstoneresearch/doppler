@@ -30,7 +30,7 @@ contract Bundler {
     function simulateBundleExactOut(
         CreateParams calldata createData,
         IQuoterV2.QuoteExactOutputSingleParams calldata params
-    ) public returns (uint256 amountIn) {
+    ) external returns (uint256 amountIn) {
         (address asset,,,,) = airlock.create(createData);
         if (asset != params.tokenOut) {
             revert InvalidOutputToken();
@@ -41,7 +41,7 @@ contract Bundler {
     function simulateBundleExactIn(
         CreateParams calldata createData,
         IQuoterV2.QuoteExactInputSingleParams calldata params
-    ) public returns (uint256 amountOut) {
+    ) external returns (uint256 amountOut) {
         (address asset,,,,) = airlock.create(createData);
         if (asset != params.tokenOut) {
             revert InvalidOutputToken();
