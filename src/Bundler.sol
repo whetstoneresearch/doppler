@@ -14,9 +14,9 @@ error InvalidOutputToken();
  * @custom:security-contact security@whetstone.cc
  */
 contract Bundler {
-    Airlock immutable airlock;
-    UniversalRouter immutable router;
-    IQuoterV2 immutable quoter;
+    Airlock public immutable airlock;
+    UniversalRouter public immutable router;
+    IQuoterV2 public immutable quoter;
 
     constructor(Airlock airlock_, UniversalRouter router_, IQuoterV2 quoter_) {
         if (address(airlock_) == address(0) || address(router_) == address(0)) {
