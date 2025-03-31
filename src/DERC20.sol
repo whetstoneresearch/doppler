@@ -41,7 +41,7 @@ error VestingNotStartedYet();
 error MaxYearlyMintRateExceeded(uint256 amount, uint256 limit);
 
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
-uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.01 ether;
+uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.1 ether;
 
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
 uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.1 ether;
@@ -246,24 +246,41 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /**
-     * @notice Releases `amount` of vested tokens
-     * @param amount Amount of tokens to release
+     * @notice Updates the token Uniform Resource Identifier (URI)
+     * @param tokenURI_ New token Uniform Resource Identifier (URI)
      */
-    function release(
-        uint256 amount
-    ) external hasVestingStarted {
+    function updateTokenURI(
+        string memory tokenURI_
+    ) external onlyOwner {
+        tokenURI = tokenURI_;
+    }
+
+    /**
+     * @notice Releases all available vested tokens
+     */
+    function release() external hasVestingStarted {
+        uint256 availableAmount = computeAvailableVestedAmount(msg.sender);
+        getVestingDataOf[msg.sender].releasedAmount += availableAmount;
+        _transfer(address(this), msg.sender, availableAmount);
+    }
+
+    /**
+     * @notice Computes the amount of vested tokens available for a specific address
+     * @param account Recipient of the vested tokens
+     * @return Amount of vested tokens available
+     */
+    function computeAvailableVestedAmount(
+        address account
+    ) public view returns (uint256) {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {
-            vestedAmount = getVestingDataOf[msg.sender].totalAmount * (block.timestamp - vestingStart) / vestingDuration;
+            vestedAmount = getVestingDataOf[account].totalAmount * (block.timestamp - vestingStart) / vestingDuration;
         } else {
-            vestedAmount = getVestingDataOf[msg.sender].totalAmount;
+            vestedAmount = getVestingDataOf[account].totalAmount;
         }
 
-        getVestingDataOf[msg.sender].releasedAmount += amount;
-        require(getVestingDataOf[msg.sender].releasedAmount <= vestedAmount, ReleaseAmountInvalid());
-
-        _transfer(address(this), msg.sender, amount);
+        return vestedAmount - getVestingDataOf[account].releasedAmount;
     }
 
     /// @inheritdoc Nonces

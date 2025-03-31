@@ -52,6 +52,9 @@ source .env
 
 # Then use any of the following commands to deploy the contracts on the desired network
 
+# Ink Mainnet
+forge script ./script/DeployMainnet.s.sol --private-key $PRIVATE_KEY --rpc-url $INK_MAINNET_RPC_URL --verify --verifier blockscout --verifier-url $INK_MAINNET_VERIFIER_URL --broadcast --slow
+
 # Unichain Sepolia
 forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $UNICHAIN_SEPOLIA_VERIFIER_URL --broadcast --slow
 
