@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "@v4-periphery/base/hooks/BaseHook.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -248,11 +248,7 @@ contract Doppler is BaseHook {
     }
 
     /// @inheritdoc BaseHook
-    function beforeInitialize(
-        address,
-        PoolKey calldata key,
-        uint160
-    ) external override onlyPoolManager returns (bytes4) {
+    function _beforeInitialize(address, PoolKey calldata key, uint160) internal override returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
         isInitialized = true;
         poolKey = key;
@@ -273,25 +269,25 @@ contract Doppler is BaseHook {
     /// @param key The pool key
     /// @param tick The initial tick of the pool
     /// @return The function selector for afterInitialize
-    function afterInitialize(
+    function _afterInitialize(
         address sender,
         PoolKey calldata key,
         uint160,
         int24 tick
-    ) external override onlyPoolManager returns (bytes4) {
+    ) internal override returns (bytes4) {
         poolManager.updateDynamicLPFee(key, initialLpFee);
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
     }
 
     /// @inheritdoc BaseHook
-    function beforeDonate(
+    function _beforeDonate(
         address,
         PoolKey calldata,
         uint256,
         uint256,
         bytes calldata
-    ) external pure override returns (bytes4) {
+    ) internal pure override returns (bytes4) {
         revert CannotDonate();
     }
 
@@ -302,12 +298,12 @@ contract Doppler is BaseHook {
     /// @return selector The function selector for beforeSwap
     /// @return delta The delta to apply before the swap
     /// @return feeOverride Optional fee override, this is set to 0 in doppler
-    function beforeSwap(
+    function _beforeSwap(
         address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata swapParams,
         bytes calldata
-    ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         if (earlyExit) revert MaximumProceedsReached();
 
         if (block.timestamp < startingTime) revert CannotSwapBeforeStartTime();
@@ -393,13 +389,13 @@ contract Doppler is BaseHook {
     /// @param swapDelta The balance delta of the address swapping
     /// @return selector The function selector for afterSwap
     /// @return delta The delta amount to return to the pool manager (always 0)
-    function afterSwap(
+    function _afterSwap(
         address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata swapParams,
         BalanceDelta swapDelta,
         bytes calldata
-    ) external override onlyPoolManager returns (bytes4, int128) {
+    ) internal override returns (bytes4, int128) {
         // Get current tick
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
@@ -463,12 +459,12 @@ contract Doppler is BaseHook {
     ///         We revert if the caller is not this contract
     /// @param caller The address that called poolManager.modifyLiquidity
     /// @return The function selector for beforeAddLiquidity
-    function beforeAddLiquidity(
+    function _beforeAddLiquidity(
         address caller,
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) external view override onlyPoolManager returns (bytes4) {
+    ) internal view override onlyPoolManager returns (bytes4) {
         if (caller != address(this)) revert CannotAddLiquidity();
 
         return BaseHook.beforeAddLiquidity.selector;
@@ -1118,9 +1114,9 @@ contract Doppler is BaseHook {
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
     /// @param data The callback data (key, sender, tick)
-    function _unlockCallback(
+    function unlockCallback(
         bytes calldata data
-    ) internal override returns (bytes memory) {
+    ) external onlyPoolManager returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key, address sender, int24 tick, bool isMigration) =
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
