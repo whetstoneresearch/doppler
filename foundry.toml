@@ -8,6 +8,7 @@ solc = '0.8.26'
 fs_permissions = [
   { access = "read", path = "./lib" },
   { access = "read", path = "./script" },
+  { access = "write", path = "./deployments" },
 ]
 optimizer_runs = 0
 bytecode_hash = "none"
