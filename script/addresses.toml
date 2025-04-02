@@ -1,4 +1,5 @@
-# We're listing in this file the different deployment
+# We're listing in this file the different Uniswap deployments we're using
+# on different networks.
 
 # Unichain Mainnet
 [130]
@@ -11,6 +12,13 @@
 "uniswap_v2_factory" = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
 "uniswap_v2_router_02" = "0x920b806E40A00E02E7D2b94fFc89860fDaEd3640"
 "uniswap_v3_factory" = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+"weth" = "0x4200000000000000000000000000000000000006"
+
+# Base
+[8453]
+"uniswap_v2_factory" = "0x8909dc15e40173ff4699343b6eb8132c65e18ec6"
+"uniswap_v2_router_02" = "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24"
+"uniswap_v3_factory" = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
 "weth" = "0x4200000000000000000000000000000000000006"
 
 # Base Sepolia
