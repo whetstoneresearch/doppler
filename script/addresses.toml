@@ -1,10 +1,13 @@
-# We're listing in this file the different deployment
+# We're listing in this file the different Uniswap deployments we're using
+# on different networks.
 
 # Unichain Mainnet
 [130]
 "uniswap_v2_factory" = "0x1F98400000000000000000000000000000000002"
 "uniswap_v2_router_02" = "0x284F11109359a7e1306C3e447ef14D38400063FF"
 "uniswap_v3_factory" = "0x1F98400000000000000000000000000000000003"
+"universal_router" = "0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3"
+"quoter_v2" = "0x385A5cf5F83e99f7BB2852b6A19C3538b9FA7658"
 
 # Unichain Sepolia
 [1301]
@@ -12,6 +15,19 @@
 "uniswap_v2_router_02" = "0x920b806E40A00E02E7D2b94fFc89860fDaEd3640"
 "uniswap_v3_factory" = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
 "weth" = "0x4200000000000000000000000000000000000006"
+"universal_router" = "0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D"
+"quoter_v2" = "0xbc02cbe6e4e29b504b67b0187a0178e13871fa3c"
+
+# Base
+[8453]
+"deploy_bundler" = true
+"explorer_url" = "https://basescan.org/address/"
+"protocol_owner" = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
+"quoter_v2" = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"
+"uniswap_v2_factory" = "0x8909dc15e40173ff4699343b6eb8132c65e18ec6"
+"uniswap_v2_router_02" = "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24"
+"uniswap_v3_factory" = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
+"universal_router" = "0x6ff5693b99212da76ad316178a184ab56d299b43"
 
 # Base Sepolia
 [84532]
@@ -19,6 +35,8 @@
 "uniswap_v2_router_02" = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"
 "uniswap_v3_factory" = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
 "weth" = "0x4200000000000000000000000000000000000006"
+"universal_router" = "0x492e6456d9528771018deb9e87ef7750ef184104"
+"quoter_v2" = "0xC5290058841028F1614F3A6F0F5816cAd0df5E27"
 
 # World Sepolia
 [4801]
@@ -32,6 +50,8 @@
 "uniswap_v2_router_02" = "0xB3FB126ACDd5AdCA2f50Ac644a7a2303745f18b4"
 "uniswap_v3_factory" = "0x640887A9ba3A9C53Ed27D0F7e8246A4F933f3424"
 "weth" = "0x4200000000000000000000000000000000000006"
+"universal_router" = "0x112908daC86e20e7241B0927479Ea3Bf935d1fa0"
+"quoter_v2" = "0x96b572D2d880cf2Fa2563651BD23ADE6f5516652"
 
 # Ink Sepolia
 [763373]

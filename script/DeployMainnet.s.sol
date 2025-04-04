@@ -2,7 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { WETH } from "@solady/tokens/WETH.sol";
+import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
+import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import {
     Airlock,
     ModuleState,
@@ -16,12 +17,17 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
+import { Bundler } from "src/Bundler.sol";
 
-struct Addresses {
+struct ScriptData {
+    bool deployBundler;
+    string explorerUrl;
+    address protocolOwner;
+    address quoterV2;
     address uniswapV2Factory;
     address uniswapV2Router02;
     address uniswapV3Factory;
-    address weth;
+    address universalRouter;
 }
 
 contract DeployMainnetScript is Script {
@@ -30,74 +36,97 @@ contract DeployMainnetScript is Script {
 
         vm.startBroadcast();
 
-        // Let's check if we have any addresses for the Uniswap contracts
+        // Let's check if we have the script data for this chain
         string memory path = "./script/addresses.toml";
         string memory raw = vm.readFile(path);
         bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
+        require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
 
-        Addresses memory addresses;
-
-        if (exists) {
-            bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
-            addresses = abi.decode(data, (Addresses));
-        }
-
-        _validateUniswap(addresses);
+        bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
+        ScriptData memory scriptData = abi.decode(data, (ScriptData));
 
         (
-            address airlock,
-            address tokenFactory,
-            address uniswapV3Initializer,
-            address governanceFactory,
-            address uniswapV2LiquidityMigrator
-        ) = _deployDoppler(addresses);
+            Airlock airlock,
+            TokenFactory tokenFactory,
+            UniswapV3Initializer uniswapV3Initializer,
+            GovernanceFactory governanceFactory,
+            UniswapV2Migrator uniswapV2Migrator
+        ) = _deployDoppler(scriptData);
 
-        console.log(unicode"✨ Contracts were successfully deployed:");
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| Contract Name              | Address                                    |");
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| Airlock                    | %s |", address(airlock));
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| TokenFactory               | %s |", address(tokenFactory));
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| UniswapV3Initializer       | %s |", address(uniswapV3Initializer));
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| GovernanceFactory          | %s |", address(governanceFactory));
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| UniswapV2LiquidityMigrator | %s |", address(uniswapV2LiquidityMigrator));
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| UniswapV2Factory           | %s |", addresses.uniswapV2Factory);
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| UniswapV2Router02          | %s |", addresses.uniswapV2Router02);
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| UniswapV3Factory           | %s |", addresses.uniswapV3Factory);
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| WETH                       | %s |", IUniswapV2Router02(addresses.uniswapV2Router02).WETH());
-        console.log("+----------------------------+--------------------------------------------+");
+        console.log(unicode"✨ Contracts were successfully deployed!");
+
+        string memory log = string.concat(
+            "#  ",
+            vm.toString(block.chainid),
+            "\n",
+            "| Contract | Address |\n",
+            "|---|---|\n",
+            "| Airlock | ",
+            _toMarkdownLink(scriptData.explorerUrl, address(airlock)),
+            " |\n",
+            "| TokenFactory | ",
+            _toMarkdownLink(scriptData.explorerUrl, address(tokenFactory)),
+            " |\n",
+            "| UniswapV3Initializer | ",
+            _toMarkdownLink(scriptData.explorerUrl, address(uniswapV3Initializer)),
+            " |\n",
+            "| GovernanceFactory | ",
+            _toMarkdownLink(scriptData.explorerUrl, address(governanceFactory)),
+            " |\n",
+            "| UniswapV2LiquidityMigrator | ",
+            _toMarkdownLink(scriptData.explorerUrl, address(uniswapV2Migrator)),
+            " |\n"
+        );
+
+        if (scriptData.deployBundler) {
+            Bundler bundler = _deployBundler(scriptData, airlock);
+            log = string.concat(log, "| Bundler | ", _toMarkdownLink(scriptData.explorerUrl, address(bundler)), " |");
+        }
+
+        vm.writeFile(string.concat("./deployments/", vm.toString(block.chainid), ".md"), log);
 
         vm.stopBroadcast();
     }
 
+    function _toMarkdownLink(
+        string memory explorerUrl,
+        address contractAddress
+    ) internal pure returns (string memory) {
+        return string.concat("[", vm.toString(contractAddress), "](", explorerUrl, vm.toString(contractAddress), ")");
+    }
+
     function _deployDoppler(
-        Addresses memory addresses
-    ) internal returns (address, address, address, address, address) {
+        ScriptData memory scriptData
+    )
+        internal
+        returns (
+            Airlock airlock,
+            TokenFactory tokenFactory,
+            UniswapV3Initializer uniswapV3Initializer,
+            GovernanceFactory governanceFactory,
+            UniswapV2Migrator uniswapV2LiquidityMigrator
+        )
+    {
         // Let's check that a valid protocol owner is set
-        address owner = vm.envOr("PROTOCOL_OWNER", address(0));
-        require(owner != address(0), "PROTOCOL_OWNER not set! Please edit your .env file.");
-        console.log(unicode"👑 PROTOCOL_OWNER set as %s", owner);
+        require(scriptData.protocolOwner != address(0), "Protocol owner not set!");
+        console.log(unicode"👑 Protocol owner set as %s", scriptData.protocolOwner);
+
+        require(scriptData.uniswapV2Factory != address(0), "Cannot find UniswapV2Factory address!");
+        require(scriptData.uniswapV2Router02 != address(0), "Cannot find UniswapV2Router02 address!");
+        require(scriptData.uniswapV3Factory != address(0), "Cannot find UniswapV3Factory address!");
 
         // Owner of the protocol is first set as the deployer to allow the whitelisting of modules,
-        // ownership is then transferred to the address defined as the PROTOCOL_OWNER
-        Airlock airlock = new Airlock(msg.sender);
-        TokenFactory tokenFactory = new TokenFactory(address(airlock));
-        UniswapV3Initializer uniswapV3Initializer =
-            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(addresses.uniswapV3Factory));
-        GovernanceFactory governanceFactory = new GovernanceFactory(address(airlock));
-        UniswapV2Migrator uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        // ownership is then transferred to the address defined as the "protocol_owner"
+        airlock = new Airlock(msg.sender);
+        tokenFactory = new TokenFactory(address(airlock));
+        uniswapV3Initializer =
+            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(scriptData.uniswapV3Factory));
+        governanceFactory = new GovernanceFactory(address(airlock));
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             address(airlock),
-            IUniswapV2Factory(addresses.uniswapV2Factory),
-            IUniswapV2Router02(addresses.uniswapV2Router02),
-            owner
+            IUniswapV2Factory(scriptData.uniswapV2Factory),
+            IUniswapV2Router02(scriptData.uniswapV2Router02),
+            scriptData.protocolOwner
         );
 
         // Whitelisting the initial modules
@@ -115,24 +144,16 @@ contract DeployMainnetScript is Script {
 
         airlock.setModuleState(modules, states);
 
-        // Transfer ownership to the actual PROTOCOL_OWNER
-        airlock.transferOwnership(owner);
+        // Transfer ownership to the actual protocol owner
+        airlock.transferOwnership(scriptData.protocolOwner);
 
-        return (
-            address(airlock),
-            address(tokenFactory),
-            address(uniswapV3Initializer),
-            address(governanceFactory),
-            address(uniswapV2LiquidityMigrator)
-        );
+        return (airlock, tokenFactory, uniswapV3Initializer, governanceFactory, uniswapV2LiquidityMigrator);
     }
 
-    function _validateUniswap(
-        Addresses memory addresses
-    ) internal pure {
-        require(addresses.weth != address(0), "Cannot find WETH address!");
-        require(addresses.uniswapV2Factory != address(0), "Cannot find UniswapV2Factory address!");
-        require(addresses.uniswapV2Router02 != address(0), "Cannot find UniswapV2Router02 address!");
-        require(addresses.uniswapV3Factory != address(0), "Cannot find UniswapV3Factory address!");
+    function _deployBundler(ScriptData memory scriptData, Airlock airlock) internal returns (Bundler bundler) {
+        require(scriptData.universalRouter != address(0), "Cannot find UniversalRouter address!");
+        require(scriptData.quoterV2 != address(0), "Cannot find QuoterV2 address!");
+        bundler =
+            new Bundler(airlock, UniversalRouter(payable(scriptData.universalRouter)), IQuoterV2(scriptData.quoterV2));
     }
 }
