@@ -60,8 +60,6 @@ Our contracts are deployed on the following networks:
 
 ## Ink Sepolia (v1.0.1)
 
-(Not verified yet)
-
 | Contract Name              | Address                                    |
 | -------------------------- | ------------------------------------------ |
 | Airlock                    | 0x5CadB034267751a364dDD4d321C99E07A307f915 |
@@ -73,8 +71,6 @@ Our contracts are deployed on the following networks:
 | UniswapV2Router02          | 0x8AF018e28c273826e6b2d5a99e81c8fB63729b07 |
 | UniswapV3Factory           | 0x094D926A969B3024ca46D2186BF13FD5CDBA9CE2 |
 | WETH                       | 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B |
-
-## Arbitrum Sepolia (v1.0.1)
 
 ## Monad Testnet (v1.0.1)
 
