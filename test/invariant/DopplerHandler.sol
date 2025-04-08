@@ -5,8 +5,10 @@ import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
+import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
 contract DopplerHandler is Test {
@@ -109,7 +111,9 @@ contract DopplerHandler is Test {
         uint256 bought = router.buyExactIn{ value: isUsingEth ? amountToSpend : 0 }(amountToSpend);
         assetBalanceOf[currentActor] += bought;
         ghost_totalTokensSold += bought;
-        ghost_totalProceeds += amountToSpend;
+
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(amountToSpend), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        ghost_totalProceeds += proceedsLessFee;
 
         if (isToken0) {
             ghost_reserve0 -= bought;
@@ -136,14 +140,16 @@ contract DopplerHandler is Test {
         uint256 spent = router.buyExactOut{ value: isUsingEth ? amountInRequired : 0 }(assetsToBuy);
         assetBalanceOf[currentActor] += assetsToBuy;
         ghost_totalTokensSold += assetsToBuy;
-        ghost_totalProceeds += spent;
+
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        ghost_totalProceeds += proceedsLessFee;
 
         if (isToken0) {
             ghost_reserve0 -= assetsToBuy;
-            ghost_reserve1 += spent;
+            ghost_reserve1 += proceedsLessFee;
         } else {
             ghost_reserve1 -= assetsToBuy;
-            ghost_reserve0 += spent;
+            ghost_reserve0 += proceedsLessFee;
         }
     }
 
