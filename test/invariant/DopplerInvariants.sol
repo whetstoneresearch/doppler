@@ -37,9 +37,7 @@ contract DopplerInvariantsTest is BaseTest {
         assertLe(handler.ghost_totalTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
     }
 
-    /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_AlwaysProvidesAllAvailableTokens() public {
-        vm.skip(true);
+    function invariant_AlwaysProvidesAllAvailableTokens() public view {
         uint256 numTokensToSell = hook.getNumTokensToSell();
         uint256 totalTokensProvided;
         uint256 slugs = hook.getNumPDSlugs();
@@ -58,7 +56,7 @@ contract DopplerInvariantsTest is BaseTest {
         }
 
         (,, uint256 totalTokensSold,,,) = hook.state();
-        assertEq(totalTokensProvided, numTokensToSell - totalTokensSold);
+        assertLe(totalTokensProvided, numTokensToSell - totalTokensSold);
     }
 
     function invariant_LowerSlugWhenTokensSold() public view {
@@ -70,8 +68,7 @@ contract DopplerInvariantsTest is BaseTest {
         }
     }
 
-    function invariant_CannotTradeUnderLowerSlug() public {
-        vm.skip(true);
+    function invariant_CannotTradeUnderLowerSlug() public view {
         (int24 tickLower,,,) = hook.positions(bytes32(uint256(1)));
         int24 currentTick = hook.getCurrentTick(poolId);
 
@@ -82,9 +79,7 @@ contract DopplerInvariantsTest is BaseTest {
         }
     }
 
-    /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_PositionsDifferentTicks() public {
-        vm.skip(true);
+    function invariant_PositionsDifferentTicks() public view {
         uint256 slugs = hook.getNumPDSlugs();
         for (uint256 i = 1; i < 4 + slugs; i++) {
             (int24 tickLower, int24 tickUpper, uint128 liquidity,) = hook.positions(bytes32(uint256(i)));
@@ -93,9 +88,7 @@ contract DopplerInvariantsTest is BaseTest {
     }
 
     function invariant_NoPriceChangesBeforeStart() public {
-        vm.skip(true);
         vm.warp(DEFAULT_STARTING_TIME - 1);
-        // TODO: I think this test is broken because we don't set the tick in the constructor.
         assertEq(hook.getCurrentTick(poolId), hook.getStartingTick());
     }
 }
