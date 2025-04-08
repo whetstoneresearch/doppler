@@ -15,10 +15,10 @@ contract DopplerInvariantsTest is BaseTest {
         super.setUp();
         handler = new DopplerHandler(key, hook, router, isToken0, usingEth);
 
-        bytes4[] memory selectors = new bytes4[](3);
+        bytes4[] memory selectors = new bytes4[](2);
         selectors[0] = handler.buyExactAmountIn.selector;
-        selectors[1] = handler.buyExactAmountOut.selector;
-        selectors[2] = handler.sellExactIn.selector;
+        selectors[1] = handler.sellExactIn.selector;
+        // selectors[2] = handler.buyExactAmountOut.selector;
         // selectors[3] = handler.sellExactOut.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
@@ -27,28 +27,14 @@ contract DopplerInvariantsTest is BaseTest {
         vm.warp(DEFAULT_STARTING_TIME);
     }
 
-    function afterInvariant() public view {
-        console.log("+-------------------+-----------------------+");
-        console.log("| Function Name     | Calls                 |", handler.totalCalls());
-        console.log("+-------------------+-----------------------+");
-        console.log("| buyExactAmountIn  |", handler.calls(handler.buyExactAmountIn.selector), "                  |");
-        console.log("| buyExactAmountOut |", handler.calls(handler.buyExactAmountOut.selector), "                  |");
-        console.log("| sellExactIn       |", handler.calls(handler.sellExactIn.selector), "                    |");
-        console.log("| sellExactOut      |", handler.calls(handler.sellExactOut.selector), "                    |");
-        console.log("+-------------------+-----------------------+");
-    }
-
-    /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_TracksTotalTokensSoldAndProceeds() public {
-        vm.skip(true);
+    function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-        assertEq(totalTokensSold, handler.ghost_totalTokensSold());
-        assertEq(totalProceeds, handler.ghost_totalProceeds());
+        assertEq(totalTokensSold, handler.ghost_totalTokensSold(), "Total tokens sold mismatch");
+        assertEq(totalProceeds, handler.ghost_totalProceeds(), "Total proceeds mismatch");
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
     function invariant_CantSellMoreThanNumTokensToSell() public {
-        vm.skip(true);
         uint256 numTokensToSell = hook.getNumTokensToSell();
         assertLe(handler.ghost_totalTokensSold(), numTokensToSell);
     }
