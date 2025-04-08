@@ -61,8 +61,7 @@ contract DopplerInvariantsTest is BaseTest {
         assertEq(totalTokensProvided, numTokensToSell - totalTokensSold);
     }
 
-    function invariant_LowerSlugWhenTokensSold() public {
-        vm.skip(true);
+    function invariant_LowerSlugWhenTokensSold() public view {
         (,, uint256 totalTokensSold,,,) = hook.state();
 
         if (totalTokensSold > 0) {
