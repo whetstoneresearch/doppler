@@ -34,7 +34,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
         uint256 numTokensToSell = hook.getNumTokensToSell();
-        assertLe(handler.ghost_totalTokensSold(), numTokensToSell);
+        assertLe(handler.ghost_totalTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
     }
 
     /// forge-config: default.invariant.fail-on-revert = true
