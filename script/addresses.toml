@@ -31,12 +31,15 @@
 
 # Base Sepolia
 [84532]
+"deploy_bundler" = false
+"explorer_url" = "https://base-sepolia.blockscout.com/address/"
 "uniswap_v2_factory" = "0x7Ae58f10f7849cA6F5fB71b7f45CB416c9204b1e"
 "uniswap_v2_router_02" = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"
 "uniswap_v3_factory" = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
 "weth" = "0x4200000000000000000000000000000000000006"
 "universal_router" = "0x492e6456d9528771018deb9e87ef7750ef184104"
 "quoter_v2" = "0xC5290058841028F1614F3A6F0F5816cAd0df5E27"
+"pool_manager" = "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408"
 
 # World Sepolia
 [4801]
