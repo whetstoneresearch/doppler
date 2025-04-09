@@ -87,6 +87,22 @@ contract DopplerInvariantsTest is BaseTest {
         }
     }
 
+    function invariant_NoIdenticalRanges() public view {
+        uint256 slugs = hook.getNumPDSlugs();
+        for (uint256 i = 1; i < 4 + slugs; i++) {
+            for (uint256 j = i + 1; j < 4 + slugs - 1; j++) {
+                (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = hook.positions(bytes32(uint256(i)));
+                (int24 tickLower1, int24 tickUpper1, uint128 liquidity1,) = hook.positions(bytes32(uint256(j)));
+
+                if (liquidity0 > 0 && liquidity1 > 0) {
+                    assertTrue(
+                        tickLower0 != tickLower1 && tickUpper0 != tickUpper1, "Two positions have the same range"
+                    );
+                }
+            }
+        }
+    }
+
     function invariant_NoPriceChangesBeforeStart() public {
         vm.warp(DEFAULT_STARTING_TIME - 1);
         assertEq(hook.getCurrentTick(poolId), hook.getStartingTick());
