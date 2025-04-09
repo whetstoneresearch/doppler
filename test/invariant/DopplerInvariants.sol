@@ -14,11 +14,12 @@ contract DopplerInvariantsTest is BaseTest {
         super.setUp();
         handler = new DopplerHandler(key, hook, router, isToken0, usingEth);
 
-        bytes4[] memory selectors = new bytes4[](4);
+        bytes4[] memory selectors = new bytes4[](5);
         selectors[0] = handler.buyExactAmountIn.selector;
         selectors[1] = handler.sellExactIn.selector;
         selectors[2] = handler.buyExactAmountOut.selector;
         selectors[3] = handler.sellExactOut.selector;
+        selectors[4] = handler.goNextEpoch.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
