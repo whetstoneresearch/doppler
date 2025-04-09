@@ -17,11 +17,13 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
+import { UniswapV4Initializer, DopplerDeployer, IPoolManager } from "src/UniswapV4Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
 
 struct ScriptData {
     bool deployBundler;
     string explorerUrl;
+    address poolManager;
     address protocolOwner;
     address quoterV2;
     address uniswapV2Factory;
@@ -49,6 +51,7 @@ contract DeployMainnetScript is Script {
             Airlock airlock,
             TokenFactory tokenFactory,
             UniswapV3Initializer uniswapV3Initializer,
+            UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2Migrator
         ) = _deployDoppler(scriptData);
@@ -69,6 +72,9 @@ contract DeployMainnetScript is Script {
             " |\n",
             "| UniswapV3Initializer | ",
             _toMarkdownLink(scriptData.explorerUrl, address(uniswapV3Initializer)),
+            " |\n",
+            "| UniswapV4Initializer | ",
+            _toMarkdownLink(scriptData.explorerUrl, address(uniswapV4Initializer)),
             " |\n",
             "| GovernanceFactory | ",
             _toMarkdownLink(scriptData.explorerUrl, address(governanceFactory)),
@@ -103,6 +109,7 @@ contract DeployMainnetScript is Script {
             Airlock airlock,
             TokenFactory tokenFactory,
             UniswapV3Initializer uniswapV3Initializer,
+            UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2LiquidityMigrator
         )
@@ -129,25 +136,29 @@ contract DeployMainnetScript is Script {
             scriptData.protocolOwner
         );
 
+        DopplerDeployer dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
+        uniswapV4Initializer =
+            new UniswapV4Initializer(address(airlock), IPoolManager(scriptData.poolManager), dopplerDeployer);
+
         // Whitelisting the initial modules
-        address[] memory modules = new address[](4);
+        address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
         modules[2] = address(governanceFactory);
         modules[3] = address(uniswapV2LiquidityMigrator);
+        modules[4] = address(uniswapV4Initializer);
 
-        ModuleState[] memory states = new ModuleState[](4);
+        ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.PoolInitializer;
         states[2] = ModuleState.GovernanceFactory;
         states[3] = ModuleState.LiquidityMigrator;
+        states[4] = ModuleState.PoolInitializer;
 
         airlock.setModuleState(modules, states);
 
         // Transfer ownership to the actual protocol owner
         airlock.transferOwnership(scriptData.protocolOwner);
-
-        return (airlock, tokenFactory, uniswapV3Initializer, governanceFactory, uniswapV2LiquidityMigrator);
     }
 
     function _deployBundler(ScriptData memory scriptData, Airlock airlock) internal returns (Bundler bundler) {
