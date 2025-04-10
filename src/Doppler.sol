@@ -187,12 +187,13 @@ contract Doppler is BaseHook {
     /// @notice Initial swap fee for the pool
     uint24 public initialLpFee;
 
-    /// @notice Total number of epochs
+    /// @dev Total number of epochs
     uint256 internal totalEpochs;
 
-    /// @notice Range of the upper slug
+    /// @dev Range of the upper slug
     int24 internal upperSlugRange;
 
+    /// @notice Only the pool manager can send ETH to this contract
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
     }
