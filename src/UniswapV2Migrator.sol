@@ -50,13 +50,25 @@ library MigrationMath {
 contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
     using SafeTransferLib for ERC20;
 
+    /// @dev Constant used to increase precision during calculations
+    uint256 constant WAD = 1 ether;
+    /// @dev Liquidity to lock (% expressed in WAD)
+    uint256 constant LP_TO_LOCK_WAD = 0.05 ether;
+    /// @dev Maximum amount of liquidity that can be allocated to `lpAllocationRecipient` (% expressed in WAD)
+    uint256 constant MAX_LP_ALLOCATION_WAD = 0.1 ether;
+
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
     UniswapV2Locker public immutable locker;
 
-    receive() external payable onlyAirlock {
-        // require(msg.sender == airlock, SenderNotAirlock());
-    }
+    /// @dev Allow custom allocation of LP tokens other than `LP_TO_LOCK_WAD` (% expressed in WAD)
+    uint256 public lpAllocationWad;
+    address public lpAllocationRecipient;
+
+    error MaxLPAllocationExceeded();
+    error LPRecipientNotEOA();
+
+    receive() external payable onlyAirlock { }
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
@@ -72,7 +84,23 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         locker = new UniswapV2Locker(airlock_, factory, this, owner);
     }
 
-    function initialize(address asset, address numeraire, bytes calldata) external onlyAirlock returns (address) {
+    function initialize(
+        address asset,
+        address numeraire,
+        bytes calldata liquidityMigratorData
+    ) external onlyAirlock returns (address) {
+        if (liquidityMigratorData.length > 0) {
+            (uint256 lpAllocationWad_, address lpAllocationRecipient_) =
+                abi.decode(liquidityMigratorData, (uint256, address));
+            // both `lpAllocationWad_` and `lpAllocationRecipient_` can be 0 to indicate no allocation,
+            // as long as `lpAllocationWad_` is 0, `lpAllocationRecipient_` is not effective
+            require(lpAllocationWad_ <= MAX_LP_ALLOCATION_WAD, MaxLPAllocationExceeded());
+            lpAllocationWad = lpAllocationWad_;
+            // only allow EOA to receive the lp allocation
+            require(lpAllocationRecipient_.code.length == 0, LPRecipientNotEOA());
+            lpAllocationRecipient = lpAllocationRecipient_;
+        }
+
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
@@ -130,9 +158,16 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
+        // LP distribution - 5% to locker, (n <= 10)% to allocation recipient, rest to timelock
         liquidity = IUniswapV2Pair(pool).mint(address(this));
-        uint256 liquidityToLock = liquidity / 20;
-        IUniswapV2Pair(pool).transfer(recipient, liquidity - liquidityToLock);
+        uint256 liquidityToLock = liquidity * LP_TO_LOCK_WAD / WAD;
+        uint256 liquidityToTransfer = liquidity - liquidityToLock;
+        if (lpAllocationWad > 0) {
+            uint256 liquidityToAllocate = liquidity * lpAllocationWad / WAD;
+            liquidityToTransfer -= liquidityToAllocate;
+            IUniswapV2Pair(pool).transfer(lpAllocationRecipient, liquidityToAllocate);
+        }
+        IUniswapV2Pair(pool).transfer(recipient, liquidityToTransfer);
         IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
         locker.receiveAndLock(pool, recipient);
 
