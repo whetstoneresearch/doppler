@@ -200,85 +200,85 @@ contract Doppler is BaseHook {
 
     /// @notice Creates a new Doppler pool instance
     /// @dev Validates input parameters and sets up the initial pool state
-    /// @param _poolManager The Uniswap v4 pool manager contract
-    /// @param _numTokensToSell Total number of tokens available to be sold by the hook
-    /// @param _minimumProceeds Proceeds required to avoid refund phase
-    /// @param _maximumProceeds Proceeds amount that trigger early exit
-    /// @param _startingTime Unix timestamp when the sale starts
-    /// @param _endingTime Unix timestamp when the sale ends
-    /// @param _startingTick Initial tick for the bonding curve
-    /// @param _endingTick Final tick for the bonding curve
-    /// @param _epochLength Duration of each epoch in seconds
-    /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
-    /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
-    /// @param _numPDSlugs Number of price discovery slugs to use
+    /// @param poolManager_ The Uniswap v4 pool manager contract
+    /// @param numTokensToSell_ Total number of tokens available to be sold by the hook
+    /// @param minimumProceeds_ Proceeds required to avoid refund phase
+    /// @param maximumProceeds_ Proceeds amount that trigger early exit
+    /// @param startingTime_ Unix timestamp when the sale starts
+    /// @param endingTime_ Unix timestamp when the sale ends
+    /// @param startingTick_ Initial tick for the bonding curve
+    /// @param endingTick_ Final tick for the bonding curve
+    /// @param epochLength_ Duration of each epoch in seconds
+    /// @param gamma_ 1.0001^gamma, represents the maximum tick change for the entire bonding curve
+    /// @param isToken0_ Whether token0 is the asset being sold (true) or token1 (false)
+    /// @param numPDSlugs_ Number of price discovery slugs to use
     /// @param initialLpFee_ Initial swap fee
     constructor(
-        IPoolManager _poolManager,
-        uint256 _numTokensToSell,
-        uint256 _minimumProceeds,
-        uint256 _maximumProceeds,
-        uint256 _startingTime,
-        uint256 _endingTime,
-        int24 _startingTick,
-        int24 _endingTick,
-        uint256 _epochLength,
-        int24 _gamma,
-        bool _isToken0,
-        uint256 _numPDSlugs,
+        IPoolManager poolManager_,
+        uint256 numTokensToSell_,
+        uint256 minimumProceeds_,
+        uint256 maximumProceeds_,
+        uint256 startingTime_,
+        uint256 endingTime_,
+        int24 startingTick_,
+        int24 endingTick_,
+        uint256 epochLength_,
+        int24 gamma_,
+        bool isToken0_,
+        uint256 numPDSlugs_,
         address initializer_,
         uint24 initialLpFee_
-    ) BaseHook(_poolManager) {
+    ) BaseHook(poolManager_) {
         initialLpFee = initialLpFee_;
 
         // Check that the current time is before the starting time
-        if (block.timestamp > _startingTime) revert InvalidStartTime();
+        if (block.timestamp > startingTime_) revert InvalidStartTime();
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
-        if (_startingTick != _endingTick) {
-            if (_isToken0 && _startingTick < _endingTick) revert InvalidTickRange();
-            if (!_isToken0 && _startingTick > _endingTick) revert InvalidTickRange();
+        if (startingTick_ != endingTick_) {
+            if (isToken0_ && startingTick_ < endingTick_) revert InvalidTickRange();
+            if (!isToken0_ && startingTick_ > endingTick_) revert InvalidTickRange();
         }
 
         /* Time checks */
         // Starting time must be less than ending time
-        if (_startingTime >= _endingTime) revert InvalidTimeRange();
-        uint256 timeDelta = _endingTime - _startingTime;
+        if (startingTime_ >= endingTime_) revert InvalidTimeRange();
+        uint256 timeDelta = endingTime_ - startingTime_;
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
         if (
-            _gamma <= 0
-                || FullMath.mulDiv(FullMath.mulDiv(_epochLength, WAD, timeDelta), uint256(int256(_gamma)), WAD) == 0
+            gamma_ <= 0
+                || FullMath.mulDiv(FullMath.mulDiv(epochLength_, WAD, timeDelta), uint256(int256(gamma_)), WAD) == 0
         ) {
             revert InvalidGamma();
         }
         // _endingTime - startingTime must be divisible by epochLength
-        if (timeDelta % _epochLength != 0) revert InvalidEpochLength();
+        if (timeDelta % epochLength_ != 0) revert InvalidEpochLength();
 
         /* Num price discovery slug checks */
-        if (_numPDSlugs == 0) revert InvalidNumPDSlugs();
-        if (_numPDSlugs > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
+        if (numPDSlugs_ == 0) revert InvalidNumPDSlugs();
+        if (numPDSlugs_ > MAX_PRICE_DISCOVERY_SLUGS) revert InvalidNumPDSlugs();
 
         // These can both be zero
-        if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
+        if (minimumProceeds_ > maximumProceeds_) revert InvalidProceedLimits();
 
-        totalEpochs = timeDelta / _epochLength;
-        uint256 normalizedEpochDelta = FullMath.mulDiv(_epochLength, WAD, timeDelta);
+        totalEpochs = timeDelta / epochLength_;
+        uint256 normalizedEpochDelta = FullMath.mulDiv(epochLength_, WAD, timeDelta);
         // Safe from overflow since the result is <= gamma which is an int24 already
         // Cannot check if upperSlugRange > tickSpacing because poolKey unknown
-        upperSlugRange = FullMath.mulDiv(normalizedEpochDelta, uint256(int256(_gamma)), WAD).toInt24();
+        upperSlugRange = FullMath.mulDiv(normalizedEpochDelta, uint256(int256(gamma_)), WAD).toInt24();
 
-        numTokensToSell = _numTokensToSell;
-        minimumProceeds = _minimumProceeds;
-        maximumProceeds = _maximumProceeds;
-        startingTime = _startingTime;
-        endingTime = _endingTime;
-        startingTick = _startingTick;
-        endingTick = _endingTick;
-        epochLength = _epochLength;
-        gamma = _gamma;
-        isToken0 = _isToken0;
-        numPDSlugs = _numPDSlugs;
+        numTokensToSell = numTokensToSell_;
+        minimumProceeds = minimumProceeds_;
+        maximumProceeds = maximumProceeds_;
+        startingTime = startingTime_;
+        endingTime = endingTime_;
+        startingTick = startingTick_;
+        endingTick = endingTick_;
+        epochLength = epochLength_;
+        gamma = gamma_;
+        isToken0 = isToken0_;
+        numPDSlugs = numPDSlugs_;
         initializer = initializer_;
     }
 
