@@ -127,37 +127,74 @@ contract Doppler is BaseHook {
     using SafeCastLib for int256;
     using SafeCastLib for uint256;
 
-    bool public insufficientProceeds; // triggers if the pool matures and minimumProceeds is not met
-    bool public earlyExit; // triggers if the pool ever reaches or exceeds maximumProceeds
+    /// @notice True if the pool matured and the minimum proceeds were not met
+    bool public insufficientProceeds;
 
+    /// @notice True if the pool reached or exceeded the maximum proceeds
+    bool public earlyExit;
+
+    /// @notice State of the pool, see `State` struct
     State public state;
+
+    /// @notice Positions held by the hook
     mapping(bytes32 salt => Position position) public positions;
 
-    /// @notice True if the hook was already initialized. This is used to prevent another pool from
-    /// reusing the hook and messing with its state.
+    /// @notice True if the hook was already initialized, used to prevent
+    /// another pool from reusing the hook and messing with its state
     bool public isInitialized;
 
     // The following variables are NOT immutable to avoid hitting the contract size limit
+
+    /// @notice Uniswap V4 pool key associated with this hook
     PoolKey public poolKey;
+
+    /// @notice Address triggering the deployment and later the migration, likely the Airlock contract
     address public initializer;
 
-    uint256 public numTokensToSell; // total amount of tokens to be sold
-    uint256 public minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 public maximumProceeds; // proceeds amount that will trigger early exit condition
-    uint256 public startingTime; // sale start time
-    uint256 public endingTime; // sale end time
-    int24 public startingTick; // dutch auction starting tick
-    int24 public endingTick; // dutch auction ending tick
-    uint256 public epochLength; // length of each epoch (seconds)
-    int24 public gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
-    bool public isToken0; // whether token0 is the token being sold (true) or token1 (false)
-    uint256 public numPDSlugs; // number of price discovery slugs
+    /// @notice Total amount of tokens to be sold
+    uint256 public numTokensToSell;
 
+    /// @notice Minimum proceeds required to avoid refund phase
+    uint256 public minimumProceeds;
+
+    /// @notice Maximum proceeds amount that will trigger early exit condition
+    uint256 public maximumProceeds;
+
+    /// @notice Sale start time
+    uint256 public startingTime;
+
+    /// @notice Sale end time
+    uint256 public endingTime;
+
+    /// @notice Dutch auction starting tick
+    int24 public startingTick;
+
+    /// @notice Dutch auction ending tick
+    int24 public endingTick;
+
+    /// @notice Length of each epoch (in seconds)
+    uint256 public epochLength;
+
+    /// @notice Maximum tick change for the entire bonding curve (1.0001 ** (gamma))
+    int24 public gamma;
+
+    /// @notice True if token0 is the token being sold
+    bool public isToken0;
+
+    /// @notice Number of price discovery slugs
+    uint256 public numPDSlugs;
+
+    /// @notice Initial swap fee for the pool
     uint24 public initialLpFee;
 
-    uint256 internal totalEpochs; // total number of epochs
-    uint256 internal normalizedEpochDelta; // normalized delta between two epochs
-    int24 internal upperSlugRange; // range of the upper slug
+    /// @notice Total number of epochs
+    uint256 internal totalEpochs;
+
+    /// @notice Normalized delta between two epochs
+    uint256 internal normalizedEpochDelta;
+
+    /// @notice Range of the upper slug
+    int24 internal upperSlugRange;
 
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
