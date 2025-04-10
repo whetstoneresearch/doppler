@@ -141,17 +141,17 @@ contract Doppler is BaseHook {
     PoolKey public poolKey;
     address public initializer;
 
-    uint256 internal numTokensToSell; // total amount of tokens to be sold
-    uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 internal maximumProceeds; // proceeds amount that will trigger early exit condition
-    uint256 internal startingTime; // sale start time
-    uint256 internal endingTime; // sale end time
-    int24 internal startingTick; // dutch auction starting tick
-    int24 internal endingTick; // dutch auction ending tick
-    uint256 internal epochLength; // length of each epoch (seconds)
-    int24 internal gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
-    bool internal isToken0; // whether token0 is the token being sold (true) or token1 (false)
-    uint256 internal numPDSlugs; // number of price discovery slugs
+    uint256 public numTokensToSell; // total amount of tokens to be sold
+    uint256 public minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 public maximumProceeds; // proceeds amount that will trigger early exit condition
+    uint256 public startingTime; // sale start time
+    uint256 public endingTime; // sale end time
+    int24 public startingTick; // dutch auction starting tick
+    int24 public endingTick; // dutch auction ending tick
+    uint256 public epochLength; // length of each epoch (seconds)
+    int24 public gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
+    bool public isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    uint256 public numPDSlugs; // number of price discovery slugs
 
     uint24 internal initialLpFee;
 
