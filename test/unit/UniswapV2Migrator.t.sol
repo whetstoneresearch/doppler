@@ -179,14 +179,14 @@ contract UniswapV2MigratorTest is Test {
     }
 
     function test_migrate_AllocateLPToContract_RevertsWhenLPRecipientIsNotEOA() public {
-        // TestERC20 token0 = new TestERC20(1000 ether);
-        // TestERC20 token1 = new TestERC20(1000 ether);
+        TestERC20 token0 = new TestERC20(1000 ether);
+        TestERC20 token1 = new TestERC20(1000 ether);
 
-        // address testContract = makeAddr("testContract");
-        // vm.etch(testContract, new bytes(1));
-        // bytes memory liquidityMigratorData = abi.encode(0.1 ether, testContract);
-        // vm.expectRevert(abi.encodeWithSelector(UniswapV2Migrator.LPRecipientNotEOA.selector));
-        // migrator.initialize(address(token0), address(token1), liquidityMigratorData);
+        address testContract = makeAddr("testContract");
+        vm.etch(testContract, new bytes(1));
+        bytes memory liquidityMigratorData = abi.encode(0.1 ether, testContract);
+        vm.expectRevert(abi.encodeWithSelector(UniswapV2Migrator.LPRecipientNotEOA.selector));
+        migrator.initialize(address(token0), address(token1), liquidityMigratorData);
     }
 
     /*
