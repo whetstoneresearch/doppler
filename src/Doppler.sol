@@ -153,7 +153,7 @@ contract Doppler is BaseHook {
     bool public isToken0; // whether token0 is the token being sold (true) or token1 (false)
     uint256 public numPDSlugs; // number of price discovery slugs
 
-    uint24 internal initialLpFee;
+    uint24 public initialLpFee;
 
     uint256 internal totalEpochs; // total number of epochs
     uint256 internal normalizedEpochDelta; // normalized delta between two epochs
