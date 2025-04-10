@@ -13,8 +13,7 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { SlugVis } from "test/shared/SlugVis.sol";
-import { SlugVis } from "test/shared/SlugVis.sol";
-import { Position, MAX_SWAP_FEE } from "src/Doppler.sol";
+import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -368,7 +367,9 @@ contract RebalanceTest is BaseTest {
         assertGt(upperSlug.liquidity, 0, "upperSlug.liquidity is 0");
 
         // Validate that the upper slug has the correct range
-        int24 accumulatorDelta = int24(int256(hook.getNormalizedEpochDelta()) * hook.getGamma() / 1e18);
+        uint256 timeDelta = hook.endingTime() - hook.startingTime();
+        uint256 normalizedEpochDelta = FullMath.mulDiv(hook.epochLength(), WAD, timeDelta);
+        int24 accumulatorDelta = int24(int256(normalizedEpochDelta) * hook.getGamma() / 1e18);
         // Explicitly checking that accumulatorDelta is nonzero to show issues with
         // implicit assumption that gamma is positive.
         accumulatorDelta = accumulatorDelta != 0 ? accumulatorDelta : poolKey.tickSpacing;

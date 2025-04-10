@@ -86,13 +86,17 @@ contract DopplerTest is BaseTest {
     //                       _getGammaShare Unit Tests
     // =========================================================================
 
+    /*
     function testNormalizedEpochDelta() public view {
-        uint256 endingTime = hook.getEndingTime();
-        uint256 startingTime = hook.getStartingTime();
-        uint256 epochLength = hook.getEpochLength();
+        uint256 endingTime = hook.endingTime();
+        uint256 startingTime = hook.startingTime();
+        uint256 epochLength = hook.epochLength();
 
+        uint256 timeDelta = endingTime - startingTime;
+        uint256 normalizedEpochDelta = FullMath.mulDiv(epochLength, WAD, timeDelta);
         assertApproxEqAbs(epochLength, uint256(hook.getNormalizedEpochDelta()) * (endingTime - startingTime) / 1e18, 1);
     }
+    */
 
     // =========================================================================
     //                       _getEpochEndWithOffset Unit Tests
