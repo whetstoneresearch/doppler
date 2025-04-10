@@ -204,6 +204,7 @@ contract DopplerHandler is Test {
         }
     }
 
+    /// @dev Jumps to the next epoch
     function goNextEpoch() public countCall(this.goNextEpoch.selector) {
         vm.warp(block.timestamp + hook.getEpochLength());
     }
