@@ -55,7 +55,7 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
     /// @dev Liquidity to lock (% expressed in WAD)
     uint256 constant LP_TO_LOCK_WAD = 0.05 ether;
     /// @dev Maximum amount of liquidity that can be allocated to `lpAllocationRecipient` (% expressed in WAD)
-    uint256 constant MAX_LP_ALLOCATION_WAD = 0.1 ether;
+    uint256 constant MAX_LP_ALLOCATION_WAD = 0.02 ether;
 
     IUniswapV2Factory public immutable factory;
     IWETH public immutable weth;
