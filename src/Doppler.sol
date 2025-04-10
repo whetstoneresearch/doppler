@@ -190,9 +190,6 @@ contract Doppler is BaseHook {
     /// @notice Total number of epochs
     uint256 internal totalEpochs;
 
-    /// @notice Normalized delta between two epochs
-    uint256 internal normalizedEpochDelta;
-
     /// @notice Range of the upper slug
     int24 internal upperSlugRange;
 
@@ -265,7 +262,7 @@ contract Doppler is BaseHook {
         if (_minimumProceeds > _maximumProceeds) revert InvalidProceedLimits();
 
         totalEpochs = timeDelta / _epochLength;
-        normalizedEpochDelta = FullMath.mulDiv(_epochLength, WAD, timeDelta);
+        uint256 normalizedEpochDelta = FullMath.mulDiv(_epochLength, WAD, timeDelta);
         // Safe from overflow since the result is <= gamma which is an int24 already
         // Cannot check if upperSlugRange > tickSpacing because poolKey unknown
         upperSlugRange = FullMath.mulDiv(normalizedEpochDelta, uint256(int256(_gamma)), WAD).toInt24();
