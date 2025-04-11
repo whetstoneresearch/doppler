@@ -500,10 +500,12 @@ contract Doppler is BaseHook {
         if (epochsPassed > 1) {
             // handle the price adjustment that should have happened in the first empty epoch
             int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
+            bool lteExpectedSoldInFirstEpoch =
+                totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
 
-            if (initialNetSold <= 0) {
+            if (initialNetSold <= 0 && lteExpectedSoldInFirstEpoch) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch();
-            } else if (totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))) {
+            } else if (lteExpectedSoldInFirstEpoch) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch()
                     * int256(
                         WAD
@@ -544,7 +546,23 @@ contract Doppler is BaseHook {
 
             // apply max tick delta for remaining empty epochs
             // -2 because we already applied the first empty epoch and will apply the last epoch later
-            accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(epochsPassed - 2);
+            // only max DA for every epoch where we are below expected amount sold
+            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-1);
+            bool isLteExpectedSoldInLastEpoch = totalTokensSold_ <= expectedSoldInLastEpoch;
+            if (isLteExpectedSoldInLastEpoch) {
+                // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
+                int256 offset = -1;
+                uint256 exptectedSold;
+                bool isLteExpectedSold;
+                uint256 emptyEpochs = 0;
+                while (isLteExpectedSold) {
+                    exptectedSold = _getExpectedAmountSoldWithEpochOffset(offset);
+                    isLteExpectedSold = totalTokensSold_ <= exptectedSold;
+                    offset--;
+                    emptyEpochs++;
+                }
+                accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(emptyEpochs);
+            }
             state.totalTokensSoldLastEpoch = totalTokensSold_;
         }
 
@@ -554,11 +572,13 @@ contract Doppler is BaseHook {
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
 
+        bool lteExpectedSold = totalTokensSold_ <= expectedAmountSold;
+
         // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold <= 0) {
+        if (netSold <= 0 && lteExpectedSold) {
             adjustmentTick = upperSlugPosition.tickLower;
             accumulatorDelta += _getMaxTickDeltaPerEpoch();
-        } else if (totalTokensSold_ <= expectedAmountSold) {
+        } else if (lteExpectedSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             adjustmentTick = currentTick;
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
