@@ -29,6 +29,7 @@ contract DopplerHandler is Test {
     uint256 public ghost_reserve1;
     uint256 public ghost_totalTokensSold;
     uint256 public ghost_totalProceeds;
+    uint256 public ghost_currentEpoch;
 
     AddressSet internal actors;
     address internal currentActor;
@@ -82,6 +83,8 @@ contract DopplerHandler is Test {
             asset = token1;
             numeraire = token0;
         }
+
+        ghost_currentEpoch = hook.getCurrentEpoch();
     }
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
@@ -196,5 +199,6 @@ contract DopplerHandler is Test {
     /// @dev Jumps to the next epoch
     function goNextEpoch() public {
         vm.warp(block.timestamp + hook.getEpochLength());
+        ghost_currentEpoch += 1;
     }
 }
