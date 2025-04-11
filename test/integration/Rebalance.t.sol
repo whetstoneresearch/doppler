@@ -12,7 +12,6 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { SlugVis } from "test/shared/SlugVis.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 
 contract RebalanceTest is BaseTest {
