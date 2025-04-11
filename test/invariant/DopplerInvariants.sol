@@ -115,4 +115,8 @@ contract DopplerInvariantsTest is BaseTest {
         int24 change = isToken0 ? hook.startingTick() - hook.endingTick() : hook.endingTick() - hook.startingTick();
         assertLe(hook.gamma() * int24(uint24(hook.getCurrentEpoch())), change, "Tick change exceeds gamma");
     }
+
+    function invariant_EpochsAdvanceWithTime() public view {
+        assertEq(hook.getCurrentEpoch(), handler.ghost_currentEpoch(), "Current epoch mismatch");
+    }
 }
