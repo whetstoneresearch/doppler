@@ -97,10 +97,6 @@ contract DopplerImplementation is Doppler {
         return gamma;
     }
 
-    function getNormalizedEpochDelta() public view returns (uint256) {
-        return normalizedEpochDelta;
-    }
-
     function getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) public view returns (uint256) {
