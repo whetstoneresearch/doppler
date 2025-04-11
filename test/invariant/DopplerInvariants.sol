@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
 import { State } from "src/Doppler.sol";
@@ -107,5 +109,10 @@ contract DopplerInvariantsTest is BaseTest {
     function invariant_NoPriceChangesBeforeStart() public {
         vm.warp(DEFAULT_STARTING_TIME - 1);
         assertEq(hook.getCurrentTick(poolId), hook.getStartingTick());
+    }
+
+    function invariant_TickChangeCannotExceedGamma() public view {
+        int24 change = isToken0 ? hook.startingTick() - hook.endingTick() : hook.endingTick() - hook.startingTick();
+        assertLe(hook.gamma() * int24(uint24(hook.getCurrentEpoch())), change, "Tick change exceeds gamma");
     }
 }
