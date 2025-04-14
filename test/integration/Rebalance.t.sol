@@ -23,7 +23,7 @@ contract RebalanceTest is BaseTest {
 
     function test_rebalance_ExtremeOversoldCase() public {
         // Go to starting time
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
 
@@ -35,7 +35,7 @@ contract RebalanceTest is BaseTest {
         // This increases the price to the pool maximum
         buy(int256(expectedAmountSold));
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
@@ -117,7 +117,7 @@ contract RebalanceTest is BaseTest {
 
     function test_rebalance_LowerSlug_SufficientProceeds() public {
         // We start at the third epoch to allow some dutch auctioning
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2);
+        vm.warp(hook.startingTime() + hook.epochLength() * 2);
 
         PoolKey memory poolKey = key;
 
@@ -136,7 +136,7 @@ contract RebalanceTest is BaseTest {
         // Previous epoch references non-existent epoch
         assertEq(totalTokensSoldLastEpoch, 0);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 3); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength() * 3); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
@@ -171,10 +171,10 @@ contract RebalanceTest is BaseTest {
 
     function test_rebalance_LowerSlug_InsufficientProceeds() public {
         // Go to starting time
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
+        bool isToken0 = hook.isToken0();
 
         // Compute the amount of tokens available in both the upper and price discovery slugs
         // Should be two epochs of liquidity available since we're at the startingTime
@@ -183,7 +183,7 @@ contract RebalanceTest is BaseTest {
         // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
         buy(int256(expectedAmountSold * 9 / 10));
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1);
@@ -275,7 +275,7 @@ contract RebalanceTest is BaseTest {
 
     function test_rebalance_LowerSlug_NoLiquidity() public {
         // Go to starting time
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         // We sell some tokens to trigger the initial rebalance
         // We haven't sold any tokens in previous epochs so we shouldn't place a lower slug
@@ -294,10 +294,10 @@ contract RebalanceTest is BaseTest {
 
     function test_rebalance_UpperSlug_Undersold() public {
         // Go to starting time
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
+        bool isToken0 = hook.isToken0();
 
         // Compute the amount of tokens available in the upper slug
         uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
@@ -305,7 +305,7 @@ contract RebalanceTest is BaseTest {
         // We sell half the expected amount to ensure that we hit the undersold case
         buy(int256(expectedAmountSold / 2));
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
@@ -368,7 +368,7 @@ contract RebalanceTest is BaseTest {
         // Validate that the upper slug has the correct range
         uint256 timeDelta = hook.endingTime() - hook.startingTime();
         uint256 normalizedEpochDelta = FullMath.mulDiv(hook.epochLength(), WAD, timeDelta);
-        int24 accumulatorDelta = int24(int256(normalizedEpochDelta) * hook.getGamma() / 1e18);
+        int24 accumulatorDelta = int24(int256(normalizedEpochDelta) * hook.gamma() / 1e18);
         // Explicitly checking that accumulatorDelta is nonzero to show issues with
         // implicit assumption that gamma is positive.
         accumulatorDelta = accumulatorDelta != 0 ? accumulatorDelta : poolKey.tickSpacing;
@@ -394,7 +394,7 @@ contract RebalanceTest is BaseTest {
     //      Not all configurations will trigger this case
     function test_rebalance_UpperSlug_Oversold() public {
         // Go to starting time
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
 
@@ -402,15 +402,15 @@ contract RebalanceTest is BaseTest {
         uint256 amountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
 
         // Compute the amount of tokens available in the price discovery slugs
-        uint256 epochT1toT2Delta = hook.getNormalizedTimeElapsed(hook.getStartingTime() + hook.getEpochLength())
-            - hook.getNormalizedTimeElapsed(hook.getStartingTime());
-        uint256 tokensInPDSlug = FullMath.mulDiv(epochT1toT2Delta, hook.getNumTokensToSell(), 1e18);
+        uint256 epochT1toT2Delta = hook.getNormalizedTimeElapsed(hook.startingTime() + hook.epochLength())
+            - hook.getNormalizedTimeElapsed(hook.startingTime());
+        uint256 tokensInPDSlug = FullMath.mulDiv(epochT1toT2Delta, hook.numTokensToSell(), 1e18);
         amountSold += tokensInPDSlug * hook.getNumPDSlugs();
 
         // We sell all tokens available to trigger the oversold case
         buy(int256(amountSold));
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
@@ -461,12 +461,12 @@ contract RebalanceTest is BaseTest {
     function test_rebalance_PriceDiscoverySlug_RemainingEpoch() public {
         // Go to second last epoch
         vm.warp(
-            hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength() - 2)
+            hook.startingTime()
+                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 2)
         );
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
+        bool isToken0 = hook.isToken0();
 
         // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
         buy(1);
@@ -515,18 +515,18 @@ contract RebalanceTest is BaseTest {
                 priceDiscoverySlugs[0].liquidity
             );
         }
-        assertApproxEqAbs(totalAssetLpSize, hook.getNumTokensToSell(), 10_000);
+        assertApproxEqAbs(totalAssetLpSize, hook.numTokensToSell(), 10_000);
     }
 
     function testPriceDiscoverySlug_LastEpoch() public {
         // Go to the last epoch
         vm.warp(
-            hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength() - 1)
+            hook.startingTime()
+                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 1)
         );
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
+        bool isToken0 = hook.isToken0();
 
         // We sell one wei to trigger the rebalance without messing with resulting liquidity positions
         buy(1);
@@ -560,11 +560,11 @@ contract RebalanceTest is BaseTest {
                 upperSlug.liquidity
             );
         }
-        assertApproxEqAbs(totalAssetLpSize, hook.getNumTokensToSell(), 10_000);
+        assertApproxEqAbs(totalAssetLpSize, hook.numTokensToSell(), 10_000);
     }
 
     function test_rebalance_MaxDutchAuction() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
 
@@ -578,7 +578,7 @@ contract RebalanceTest is BaseTest {
         // Previous epoch didn't exist so no tokens would have been sold at the time
         assertEq(totalTokensSoldLastEpoch, 0);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength());
+        vm.warp(hook.startingTime() + hook.epochLength());
 
         // Swap tokens back into the pool, netSold approxEq 0
         sell(-1 ether + 1);
@@ -592,7 +592,7 @@ contract RebalanceTest is BaseTest {
         // Total tokens sold previous epoch should be 1 ether
         assertEq(totalTokensSoldLastEpoch2, 1 ether);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength() * 2); // Next epoch
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
         // We swap again just to trigger the rebalancing logic in the new epoch
@@ -653,7 +653,7 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_RelativeDutchAuction() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
 
@@ -672,7 +672,7 @@ contract RebalanceTest is BaseTest {
         // Previous epoch didn't exist so no tokens would have been sold at the time
         assertEq(totalTokensSoldLastEpoch, 0, "Wrong tokens sold last epoch");
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
@@ -747,10 +747,10 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_OversoldCase() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
-        bool isToken0 = hook.getIsToken0();
+        bool isToken0 = hook.isToken0();
 
         // Get the expected amount sold by next epoch
         uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
@@ -766,7 +766,7 @@ contract RebalanceTest is BaseTest {
         // Previous epoch references non-existent epoch
         assertEq(totalTokensSoldLastEpoch, 0);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // Get current tick
         PoolId poolId = poolKey.toId();
@@ -832,7 +832,7 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_CollectsFeeFromAllSlugs() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         (,,, uint24 lpFee) = manager.getSlot0(key.toId());
 
@@ -859,7 +859,7 @@ contract RebalanceTest is BaseTest {
         isToken0 ? buy(-int256(amount1ToSwap)) : buy(-int256(amount0ToSwap));
         isToken0 ? sell(-int256(amount0ToSwap)) : sell(-int256(amount1ToSwap));
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength());
+        vm.warp(hook.startingTime() + hook.epochLength());
 
         // trigger rebalance to accrue fees
         buy(1);
@@ -878,7 +878,7 @@ contract RebalanceTest is BaseTest {
 
     function test_rebalance_PdSlugsConvergeToZeroLiquidityAtLastEpoch() public {
         uint256 startTime =
-            hook.getStartingTime() + hook.getEpochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs() - 1);
+            hook.startingTime() + hook.epochLength() * (hook.getTotalEpochs() - hook.getNumPDSlugs() - 1);
         vm.warp(startTime);
 
         buy(1 ether);
@@ -891,7 +891,7 @@ contract RebalanceTest is BaseTest {
 
         // Move forward one epoch at a time until the end
         for (uint256 i = 0; i < hook.getNumPDSlugs(); i++) {
-            vm.warp(startTime + hook.getEpochLength() * (i + 1));
+            vm.warp(startTime + hook.epochLength() * (i + 1));
 
             buy(1 ether);
 
@@ -904,7 +904,7 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_totalEpochs() public {
-        vm.warp(hook.getEndingTime() - 1);
+        vm.warp(hook.endingTime() - 1);
         uint256 epochsRemaining = hook.getTotalEpochs() - hook.getCurrentEpoch();
         assertEq(epochsRemaining, 0, "epochsRemaining != 0");
     }
@@ -916,7 +916,7 @@ contract RebalanceTest is BaseTest {
         // ===============================================
 
         // Skip to the 4th epoch before the first swap
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 3);
+        vm.warp(hook.startingTime() + hook.epochLength() * 3);
 
         // Swap less then expected amount - to be used checked in the next epoch
 
@@ -987,7 +987,7 @@ contract RebalanceTest is BaseTest {
         // ====================================
 
         // Go to next epoch (5th)
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 4);
+        vm.warp(hook.startingTime() + hook.epochLength() * 4);
 
         // Get the expected amount sold by next epoch
         uint256 expectedAmountSold = hook.getExpectedAmountSoldWithEpochOffset(1);
@@ -1059,7 +1059,7 @@ contract RebalanceTest is BaseTest {
         // =======================================
 
         // Go to next epoch (6th)
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 5);
+        vm.warp(hook.startingTime() + hook.epochLength() * 5);
 
         // Get current tick
         currentTick = hook.getCurrentTick(poolId);
@@ -1137,8 +1137,8 @@ contract RebalanceTest is BaseTest {
 
         // Go to second last epoch
         vm.warp(
-            hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength() - 2)
+            hook.startingTime()
+                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 2)
         );
 
         // Swap some tokens
@@ -1190,8 +1190,8 @@ contract RebalanceTest is BaseTest {
 
         // Go to last epoch
         vm.warp(
-            hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength() - 1)
+            hook.startingTime()
+                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 1)
         );
 
         // Swap some tokens
@@ -1247,11 +1247,11 @@ contract RebalanceTest is BaseTest {
 
         // Go to very end time
         vm.warp(
-            hook.getStartingTime()
-                + hook.getEpochLength() * ((hook.getEndingTime() - hook.getStartingTime()) / hook.getEpochLength()) - 1
+            hook.startingTime() + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength())
+                - 1
         );
 
-        uint256 numTokensToSell = hook.getNumTokensToSell();
+        uint256 numTokensToSell = hook.numTokensToSell();
         (,, uint256 totalTokensSold4,,,) = hook.state();
 
         uint256 feesAccrued =

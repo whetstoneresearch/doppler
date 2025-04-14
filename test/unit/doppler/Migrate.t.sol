@@ -23,13 +23,13 @@ contract MigrateTest is BaseTest {
     function test_migrate_RemovesAllLiquidity() public {
         uint256 numPDSlugs = hook.getNumPDSlugs();
 
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         // buy minimumProceeds In
         // TODO: Check why buying only minimumProceeds is not enough
-        buyExactIn(hook.getMinimumProceeds() + 1 ether);
+        buyExactIn(hook.minimumProceeds() + 1 ether);
 
-        vm.warp(hook.getEndingTime());
+        vm.warp(hook.endingTime());
         vm.prank(hook.initializer());
         hook.migrate(address(0xbeef));
 
@@ -43,11 +43,11 @@ contract MigrateTest is BaseTest {
     }
 
     function test_migrate_NoMoreFundsInHook() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
-        buyExactOut(hook.getMinimumProceeds());
+        buyExactOut(hook.minimumProceeds());
 
-        vm.warp(hook.getEndingTime());
+        vm.warp(hook.endingTime());
         vm.prank(hook.initializer());
         hook.migrate(address(0xbeef));
 

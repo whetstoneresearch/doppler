@@ -57,46 +57,6 @@ contract DopplerImplementation is Doppler {
         BaseHook _this
     ) internal pure override { }
 
-    function getStartingTime() public view returns (uint256) {
-        return startingTime;
-    }
-
-    function getEndingTime() public view returns (uint256) {
-        return endingTime;
-    }
-
-    function getEpochLength() public view returns (uint256) {
-        return epochLength;
-    }
-
-    function getIsToken0() public view returns (bool) {
-        return isToken0;
-    }
-
-    function getNumTokensToSell() public view returns (uint256) {
-        return numTokensToSell;
-    }
-
-    function getMinimumProceeds() public view returns (uint256) {
-        return minimumProceeds;
-    }
-
-    function getMaximumProceeds() public view returns (uint256) {
-        return maximumProceeds;
-    }
-
-    function getStartingTick() public view returns (int24) {
-        return startingTick;
-    }
-
-    function getEndingTick() public view returns (int24) {
-        return endingTick;
-    }
-
-    function getGamma() public view returns (int24) {
-        return gamma;
-    }
-
     function getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) public view returns (uint256) {

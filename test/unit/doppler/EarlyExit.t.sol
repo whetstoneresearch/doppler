@@ -85,13 +85,13 @@ contract EarlyExitTest is BaseTest {
         // config.maximumProceeds = 500e18;
         // _deployDoppler(config);
 
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
-        int256 maximumProceeds = int256(hook.getMaximumProceeds());
+        int256 maximumProceeds = int256(hook.maximumProceeds());
 
         buy(-maximumProceeds);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
         sellExpectRevert(-1 ether, MaximumProceedsReached.selector, true);
     }
 }

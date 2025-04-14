@@ -14,12 +14,12 @@ contract DopplerTest is BaseTest {
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
         assertApproxEqAbs(
-            hook.getEndingTick(),
+            hook.endingTick(),
             (
                 (
                     maxTickDeltaPerEpoch
-                        * (int256((hook.getEndingTime() - hook.getStartingTime())) / int256(hook.getEpochLength()))
-                ) / 1e18 + hook.getStartingTick()
+                        * (int256((hook.endingTime() - hook.startingTime())) / int256(hook.epochLength()))
+                ) / 1e18 + hook.startingTick()
             ),
             1
         );
@@ -35,9 +35,9 @@ contract DopplerTest is BaseTest {
         int16 accumulator
     ) public view {
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(accumulator, key.tickSpacing);
-        int24 gamma = hook.getGamma();
+        int24 gamma = hook.gamma();
 
-        if (hook.getStartingTick() > hook.getEndingTick()) {
+        if (hook.startingTick() > hook.endingTick()) {
             assertEq(int256(gamma), tickUpper - tickLower);
         } else {
             assertEq(int256(gamma), tickLower - tickUpper);
@@ -49,17 +49,17 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     function testGetCurrentEpoch_ReturnsCorrectEpoch() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
         uint256 currentEpoch = hook.getCurrentEpoch();
 
         assertEq(currentEpoch, 1);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength());
+        vm.warp(hook.startingTime() + hook.epochLength());
         currentEpoch = hook.getCurrentEpoch();
 
         assertEq(currentEpoch, 2);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * 2);
+        vm.warp(hook.startingTime() + hook.epochLength() * 2);
         currentEpoch = hook.getCurrentEpoch();
 
         assertEq(currentEpoch, 3);
@@ -74,8 +74,8 @@ contract DopplerTest is BaseTest {
     ) public view {
         vm.assume(bps <= 10_000);
 
-        uint256 endingTime = hook.getEndingTime();
-        uint256 startingTime = hook.getStartingTime();
+        uint256 endingTime = hook.endingTime();
+        uint256 startingTime = hook.startingTime();
         uint256 timestamp = (endingTime - startingTime) * bps / 10_000 + startingTime;
 
         // Assert that the result is within one bps of the expected value
@@ -103,9 +103,9 @@ contract DopplerTest is BaseTest {
     // =========================================================================
 
     function testGetEpochEndWithOffset() public {
-        uint256 startingTime = hook.getStartingTime();
-        uint256 endingTime = hook.getEndingTime();
-        uint256 epochLength = hook.getEpochLength();
+        uint256 startingTime = hook.startingTime();
+        uint256 endingTime = hook.endingTime();
+        uint256 epochLength = hook.epochLength();
 
         // Assert cases without offset
 
@@ -174,7 +174,7 @@ contract DopplerTest is BaseTest {
         vm.assume(int256(tick) + int256(castTickSpacing) <= type(int24).max);
         vm.assume(int256(tick) - int256(castTickSpacing) >= type(int24).min);
 
-        bool isToken0 = hook.getIsToken0();
+        bool isToken0 = hook.isToken0();
         int24 alignedTick = hook.alignComputedTickWithTickSpacing(tick, castTickSpacing);
 
         // Validate that alignedTick is a multiple of tickSpacing
