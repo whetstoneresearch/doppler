@@ -66,6 +66,7 @@ contract DopplerNoValidateHook is Doppler {
     ) internal pure override { }
 }
 
+/// @dev Just a small contract to deploy Doppler contracts and be able to use `vm.expectRevert` easily
 contract Deployer {
     // TODO: Use a struct to clean this up
     function deploy(
