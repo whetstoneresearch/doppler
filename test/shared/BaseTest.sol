@@ -39,8 +39,8 @@ contract BaseTest is Test, Deployers {
         uint256 maximumProceeds;
         uint256 startingTime;
         uint256 endingTime;
-        int24 gamma;
         uint256 epochLength;
+        int24 gamma;
         uint24 fee;
         int24 tickSpacing;
         uint256 numPDSlugs;
