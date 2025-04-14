@@ -235,7 +235,7 @@ contract ConstructorTest is BaseTest {
         );
     }
 
-    function test_constructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanOrEqualToEndingTime() public {
+    function test_constructor_RevertsInvalidTimeRange_WhenStartingTimeEqualToEndingTime() public {
         vm.expectRevert(InvalidTimeRange.selector);
         deployer.deploy(
             address(manager),
@@ -256,15 +256,46 @@ contract ConstructorTest is BaseTest {
         );
     }
 
-    function test_constructor_RevertsInvalidGamma_WhenGammaCalculationZero() public {
-        vm.skip(true);
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.startingTime = 1000;
-        config.endingTime = 1001;
-        config.epochLength = 1;
-        config.gamma = 0;
+    function test_constructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanToEndingTime() public {
+        vm.expectRevert(InvalidTimeRange.selector);
+        deployer.deploy(
+            address(manager),
+            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
+            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
+            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
+            1001,
+            1000,
+            DEFAULT_START_TICK,
+            DEFAULT_END_TICK,
+            DEFAULT_DOPPLER_CONFIG.epochLength,
+            DEFAULT_DOPPLER_CONFIG.gamma,
+            isToken0,
+            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
+            address(0xbeef),
+            3000,
+            bytes32(0)
+        );
+    }
 
-        // deployDoppler(InvalidGamma.selector, config, 0, 0, true);
+    function test_constructor_RevertsInvalidGamma_WhenGammaZero() public {
+        vm.expectRevert(InvalidGamma.selector);
+        deployer.deploy(
+            address(manager),
+            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
+            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
+            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
+            DEFAULT_DOPPLER_CONFIG.startingTime,
+            DEFAULT_DOPPLER_CONFIG.endingTime,
+            DEFAULT_START_TICK,
+            DEFAULT_END_TICK,
+            DEFAULT_DOPPLER_CONFIG.epochLength,
+            0,
+            isToken0,
+            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
+            address(0xbeef),
+            3000,
+            bytes32(0)
+        );
     }
 
     function test_constructor_RevertsInvalidEpochLength_WhenTimeDeltaNotDivisibleByEpochLength() public {
