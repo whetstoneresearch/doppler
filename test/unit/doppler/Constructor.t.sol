@@ -113,6 +113,28 @@ contract ConstructorTest is BaseTest {
         deployer = new Deployer();
     }
 
+    function test_constructor_RevertsWhenStartingTimeLowerThanBlockTimestamp() public {
+        vm.warp(1);
+        vm.expectRevert(InvalidStartTime.selector);
+        deployer.deploy(
+            address(manager),
+            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
+            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
+            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
+            0,
+            DEFAULT_DOPPLER_CONFIG.endingTime,
+            DEFAULT_START_TICK,
+            DEFAULT_END_TICK,
+            DEFAULT_DOPPLER_CONFIG.epochLength,
+            DEFAULT_DOPPLER_CONFIG.gamma,
+            isToken0,
+            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
+            address(0xbeef),
+            3000,
+            bytes32(0)
+        );
+    }
+
     function test_constructor_RevertsInvalidTickRange_WhenIsToken0_AndStartingTickLEEndingTick() public {
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
         vm.expectRevert(InvalidTickRange.selector);
