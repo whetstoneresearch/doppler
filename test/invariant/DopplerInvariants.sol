@@ -34,12 +34,12 @@ contract DopplerInvariantsTest is BaseTest {
     }
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
-        uint256 numTokensToSell = hook.getNumTokensToSell();
+        uint256 numTokensToSell = hook.numTokensToSell();
         assertLe(handler.ghost_totalTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
     }
 
     function invariant_AlwaysProvidesAllAvailableTokens() public view {
-        uint256 numTokensToSell = hook.getNumTokensToSell();
+        uint256 numTokensToSell = hook.numTokensToSell();
         uint256 totalTokensProvided;
         uint256 slugs = hook.getNumPDSlugs();
 
@@ -106,7 +106,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_NoPriceChangesBeforeStart() public {
         vm.warp(DEFAULT_STARTING_TIME - 1);
-        assertEq(hook.getCurrentTick(poolId), hook.getStartingTick());
+        assertEq(hook.getCurrentTick(poolId), hook.startingTick());
     }
 
     function invariant_TickChangeCannotExceedGamma() public view {

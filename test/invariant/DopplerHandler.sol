@@ -198,7 +198,7 @@ contract DopplerHandler is Test {
 
     /// @dev Jumps to the next epoch
     function goNextEpoch() public {
-        vm.warp(block.timestamp + hook.getEpochLength());
+        vm.warp(block.timestamp + hook.epochLength());
         ghost_currentEpoch += 1;
     }
 }
