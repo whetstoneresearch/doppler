@@ -60,4 +60,21 @@ contract BeforeInitializeTest is BaseTest {
             0
         );
     }
+
+    function test_beforeInitialize_Initializes() public {
+        hook.resetInitialized();
+        vm.prank(address(hook.poolManager()));
+        hook.beforeInitialize(
+            address(0),
+            PoolKey({
+                currency0: Currency.wrap(address(0xa)),
+                currency1: Currency.wrap(address(0xb)),
+                fee: 0,
+                tickSpacing: DEFAULT_TICK_SPACING,
+                hooks: IHooks(address(0))
+            }),
+            0
+        );
+        assertTrue(hook.isInitialized(), "Hook not initialized");
+    }
 }
