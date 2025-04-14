@@ -57,6 +57,10 @@ contract DopplerImplementation is Doppler {
         BaseHook _this
     ) internal pure override { }
 
+    function resetInitialized() public {
+        isInitialized = false;
+    }
+
     function getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) public view returns (uint256) {
