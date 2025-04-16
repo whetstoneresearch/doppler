@@ -310,8 +310,8 @@ contract BaseTest is Test, Deployers {
 
     function buyExactOut(
         uint256 amount
-    ) public {
-        buy(int256(amount));
+    ) public returns (uint256, uint256) {
+        return buy(int256(amount));
     }
 
     function sellExactIn(
