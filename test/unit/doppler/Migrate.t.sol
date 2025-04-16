@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
 import { SenderNotInitializer, CannotMigrate } from "src/Doppler.sol";
@@ -58,5 +59,42 @@ contract MigrateTest is BaseTest {
         }
 
         assertEq(ERC20(token1).balanceOf(address(hook)), 0, "hook should have no token1");
+    }
+
+    function test_migrate_ReturnedValues() public {
+        vm.warp(hook.startingTime());
+
+        uint256 initialHookAssetBalance = ERC20(isToken0 ? token0 : token1).balanceOf(address(hook));
+        uint256 initialManagerAssetBalance = ERC20(isToken0 ? token0 : token1).balanceOf(address(manager));
+
+        (uint256 bought, uint256 used) = buyExactOut(hook.minimumProceeds());
+
+        vm.warp(hook.endingTime());
+        vm.prank(hook.initializer());
+        (,, uint128 fees0, uint128 balance0,, uint128 fees1, uint128 balance1) = hook.migrate(address(0xbeef));
+        uint256 expectedFees = used * uint24(vm.envOr("FEE", uint24(0))) / 1e6;
+
+        uint256 managerToken0Dust = ERC20(token0).balanceOf(address(manager));
+        uint256 managerToken1Dust = ERC20(token1).balanceOf(address(manager));
+
+        if (isToken0) {
+            assertEq(fees1, expectedFees, "fees1 should be equal to expectedFees");
+            assertEq(fees0, 0, "fees0 should be 0");
+            assertEq(
+                initialHookAssetBalance + initialManagerAssetBalance - bought - managerToken0Dust,
+                balance0,
+                "balance0 is wrong"
+            );
+            assertEq(used - managerToken1Dust, balance1, "balance1 should be equal to used");
+        } else {
+            assertEq(fees0, expectedFees, "fees0 should be equal to expectedFees");
+            assertEq(fees1, 0, "fees1 should be 0");
+            assertEq(
+                initialHookAssetBalance + initialManagerAssetBalance - bought - managerToken1Dust,
+                balance1,
+                "balance1 is wrong"
+            );
+            assertEq(used - managerToken0Dust, balance0, "balance0 should be equal to used");
+        }
     }
 }
