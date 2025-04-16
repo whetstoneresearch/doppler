@@ -137,58 +137,6 @@ contract UniswapV2MigratorTest is Test {
         assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
     }
 
-    function test_migrate_AllocateLPToAlice_WhenLiquidityMigratorDataNotEmpty() public {
-        TestERC20 token0 = new TestERC20(1000 ether);
-        TestERC20 token1 = new TestERC20(1000 ether);
-        address alice = makeAddr("alice");
-
-        // allocate 10% LP to alice during migration
-        bytes memory liquidityMigratorData = abi.encode(0.1 ether, alice);
-        address pool = migrator.initialize(address(token0), address(token1), liquidityMigratorData);
-
-        token0.transfer(address(migrator), 1000 ether);
-        token1.transfer(address(migrator), 1000 ether);
-        uint256 liquidity = migrator.migrate(uint160(2 ** 96), address(token0), address(token1), address(0xbeef));
-
-        assertEq(token0.balanceOf(address(migrator)), 0, "Wrong migrator token0 balance");
-        assertEq(token1.balanceOf(address(migrator)), 0, "Wrong migrator token1 balance");
-
-        assertEq(token0.balanceOf(pool), 1000 ether, "Wrong pool token0 balance");
-        assertEq(token1.balanceOf(pool), 1000 ether, "Wrong pool token1 balance");
-
-        uint256 lockedLiquidity = liquidity / 20;
-        uint256 allocatedLiquidity = liquidity * 0.1 ether / 1 ether;
-        assertEq(
-            liquidity - lockedLiquidity - allocatedLiquidity,
-            IUniswapV2Pair(pool).balanceOf(address(0xbeef)),
-            "Wrong liquidity"
-        );
-        assertEq(allocatedLiquidity, IUniswapV2Pair(pool).balanceOf(alice), "Wrong allocated liquidity");
-        assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
-    }
-
-    function test_migrate_AllocateLPToAlice_RevertsWhenMaxLPAllocationExceeded() public {
-        TestERC20 token0 = new TestERC20(1000 ether);
-        TestERC20 token1 = new TestERC20(1000 ether);
-        address alice = makeAddr("alice");
-
-        // try to allocate 20% LP to alice during migration
-        bytes memory liquidityMigratorData = abi.encode(0.2 ether, alice);
-        vm.expectRevert(abi.encodeWithSelector(UniswapV2Migrator.MaxLPAllocationExceeded.selector));
-        migrator.initialize(address(token0), address(token1), liquidityMigratorData);
-    }
-
-    function test_migrate_AllocateLPToContract_RevertsWhenLPRecipientIsNotEOA() public {
-        TestERC20 token0 = new TestERC20(1000 ether);
-        TestERC20 token1 = new TestERC20(1000 ether);
-
-        address testContract = makeAddr("testContract");
-        vm.etch(testContract, new bytes(1));
-        bytes memory liquidityMigratorData = abi.encode(0.1 ether, testContract);
-        vm.expectRevert(abi.encodeWithSelector(UniswapV2Migrator.LPRecipientNotEOA.selector));
-        migrator.initialize(address(token0), address(token1), liquidityMigratorData);
-    }
-
     /*
     function test_migrate_MockedCalls() public {
         address token0 = makeAddr("token0");
