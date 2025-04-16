@@ -6,39 +6,11 @@ import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
-/// @notice Thrown when the sender is not the migrator contract
-error SenderNotMigrator();
-
-/// @notice Thrown when trying to initialized a pool that was already initialized
-error PoolAlreadyInitialized();
-
-/// @notice Thrown when trying to exit a pool that was not initialized
-error PoolNotInitialized();
-
-/// @notice Thrown when the Locker contract doesn't hold any LP tokens
-error NoBalanceToLock();
-
-/// @notice Thrown when the minimum unlock date has not been reached
-error MinUnlockDateNotReached();
-
-/**
- * @notice State of a pool
- * @param amount0 Reserve of token0
- * @param amount1 Reserve of token1
- * @param minUnlockDate Minimum unlock date
- * @param timelock Address of the governance timelock
- */
-struct PoolState {
-    uint112 amount0;
-    uint112 amount1;
-    uint32 minUnlockDate;
-    address timelock;
-}
-
-contract UniswapV2Locker is Ownable, ImmutableAirlock {
+contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
@@ -68,9 +40,9 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
     /**
      * @notice Locks the LP tokens held by this contract
      * @param pool Address of the Uniswap V2 pool
-     * @param timelock Address of the timelock contract
+     * @param recipient Address of the recipient i.e. Timelock contract by default
      */
-    function receiveAndLock(address pool, address timelock) external {
+    function receiveAndLock(address pool, address recipient) external {
         require(msg.sender == address(migrator), SenderNotMigrator());
         require(getState[pool].minUnlockDate == 0, PoolAlreadyInitialized());
 
@@ -87,13 +59,13 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
             amount0: amount0,
             amount1: amount1,
             minUnlockDate: uint32(block.timestamp + 365 days),
-            timelock: timelock
+            recipient: recipient
         });
     }
 
     /**
      * @notice Unlocks the LP tokens by burning them, fees are sent to the owner
-     * and the principal tokens to the timelock contract
+     * and the principal tokens to the recipient i.e. Timelock contract by default
      * @param pool Address of the pool
      */
     function claimFeesAndExit(
@@ -134,10 +106,10 @@ contract UniswapV2Locker is Ownable, ImmutableAirlock {
         uint256 principal1 = fees1 > 0 ? amount1 - fees1 : amount1;
 
         if (principal0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), state.timelock, principal0);
+            SafeTransferLib.safeTransfer(ERC20(token0), state.recipient, principal0);
         }
         if (principal1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), state.timelock, principal1);
+            SafeTransferLib.safeTransfer(ERC20(token1), state.recipient, principal1);
         }
     }
 }
