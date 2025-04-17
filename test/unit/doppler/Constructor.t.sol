@@ -180,34 +180,6 @@ contract ConstructorTest is BaseTest {
         );
     }
 
-    function test_constructor_RevertsInvalidGamma_tickDeltaNotDivisibleByEpochsTimesGamma() public {
-        vm.skip(true);
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.gamma = 5;
-        config.startingTime = 1000;
-        config.endingTime = 5000;
-        config.epochLength = 1000;
-
-        vm.expectRevert(InvalidTickRange.selector);
-        deployer.deploy(
-            address(manager),
-            config.numTokensToSell,
-            config.minimumProceeds,
-            config.maximumProceeds,
-            config.startingTime,
-            config.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            config.epochLength,
-            config.gamma,
-            false,
-            config.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
-    }
-
     function test_constructor_RevertsInvalidTimeRange_WhenStartingTimeEqualToEndingTime() public {
         vm.expectRevert(InvalidTimeRange.selector);
         deployer.deploy(
@@ -244,6 +216,34 @@ contract ConstructorTest is BaseTest {
             DEFAULT_DOPPLER_CONFIG.gamma,
             isToken0,
             DEFAULT_DOPPLER_CONFIG.numPDSlugs,
+            address(0xbeef),
+            3000,
+            bytes32(0)
+        );
+    }
+
+    function test_constructor_RevertsInvalidGamma_tickDeltaNotDivisibleByEpochsTimesGamma() public {
+        vm.skip(true);
+        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
+        config.gamma = 5;
+        config.startingTime = 1000;
+        config.endingTime = 5000;
+        config.epochLength = 1000;
+
+        vm.expectRevert(InvalidTickRange.selector);
+        deployer.deploy(
+            address(manager),
+            config.numTokensToSell,
+            config.minimumProceeds,
+            config.maximumProceeds,
+            config.startingTime,
+            config.endingTime,
+            DEFAULT_START_TICK,
+            DEFAULT_END_TICK,
+            config.epochLength,
+            config.gamma,
+            false,
+            config.numPDSlugs,
             address(0xbeef),
             3000,
             bytes32(0)
