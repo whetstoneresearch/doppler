@@ -375,17 +375,12 @@ contract ConstructorTest is BaseTest {
     }
 
     function test_constructor_RevertsInvalidProceedLimits_WhenMinimumProceedsGreaterThanMaximumProceeds() public {
-        vm.skip(true);
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.minimumProceeds = 100;
-        config.maximumProceeds = 0;
-
-        // deployDoppler(InvalidProceedLimits.selector, config, 0, 0, true);
+        vm.expectRevert(InvalidProceedLimits.selector);
         deployer.deploy(
             address(manager),
             DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
+            100 ether,
+            1 ether,
             DEFAULT_DOPPLER_CONFIG.startingTime,
             DEFAULT_DOPPLER_CONFIG.endingTime,
             DEFAULT_START_TICK,
