@@ -5,8 +5,10 @@ import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
+import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
 contract DopplerHandler is Test {
@@ -27,9 +29,7 @@ contract DopplerHandler is Test {
     uint256 public ghost_reserve1;
     uint256 public ghost_totalTokensSold;
     uint256 public ghost_totalProceeds;
-
-    mapping(bytes4 => uint256) public calls;
-    uint256 public totalCalls;
+    uint256 public ghost_currentEpoch;
 
     AddressSet internal actors;
     address internal currentActor;
@@ -51,14 +51,6 @@ contract DopplerHandler is Test {
         vm.startPrank(currentActor);
         _;
         vm.stopPrank();
-    }
-
-    modifier countCall(
-        bytes4 key
-    ) {
-        calls[key]++;
-        totalCalls++;
-        _;
     }
 
     constructor(
@@ -91,12 +83,14 @@ contract DopplerHandler is Test {
             asset = token1;
             numeraire = token0;
         }
+
+        ghost_currentEpoch = hook.getCurrentEpoch();
     }
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
     function buyExactAmountIn(
         uint256 amountToSpend
-    ) public createActor countCall(this.buyExactAmountIn.selector) {
+    ) public createActor {
         amountToSpend = 1 ether;
 
         if (isUsingEth) {
@@ -109,7 +103,9 @@ contract DopplerHandler is Test {
         uint256 bought = router.buyExactIn{ value: isUsingEth ? amountToSpend : 0 }(amountToSpend);
         assetBalanceOf[currentActor] += bought;
         ghost_totalTokensSold += bought;
-        ghost_totalProceeds += amountToSpend;
+
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(amountToSpend), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        ghost_totalProceeds += proceedsLessFee;
 
         if (isToken0) {
             ghost_reserve0 -= bought;
@@ -122,7 +118,7 @@ contract DopplerHandler is Test {
 
     function buyExactAmountOut(
         uint256 assetsToBuy
-    ) public createActor countCall(this.buyExactAmountOut.selector) {
+    ) public createActor {
         assetsToBuy = 1 ether;
         uint256 amountInRequired = router.computeBuyExactOut(assetsToBuy);
 
@@ -136,20 +132,22 @@ contract DopplerHandler is Test {
         uint256 spent = router.buyExactOut{ value: isUsingEth ? amountInRequired : 0 }(assetsToBuy);
         assetBalanceOf[currentActor] += assetsToBuy;
         ghost_totalTokensSold += assetsToBuy;
-        ghost_totalProceeds += spent;
+
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        ghost_totalProceeds += proceedsLessFee;
 
         if (isToken0) {
             ghost_reserve0 -= assetsToBuy;
-            ghost_reserve1 += spent;
+            ghost_reserve1 += proceedsLessFee;
         } else {
             ghost_reserve1 -= assetsToBuy;
-            ghost_reserve0 += spent;
+            ghost_reserve0 += proceedsLessFee;
         }
     }
 
     function sellExactIn(
         uint256 seed
-    ) public useActor(uint256(uint160(msg.sender))) countCall(this.sellExactIn.selector) {
+    ) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
@@ -172,7 +170,7 @@ contract DopplerHandler is Test {
 
     function sellExactOut(
         uint256 seed
-    ) public useActor(uint256(uint160(msg.sender))) countCall(this.sellExactOut.selector) {
+    ) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
@@ -198,7 +196,9 @@ contract DopplerHandler is Test {
         }
     }
 
-    function goNextEpoch() public countCall(this.goNextEpoch.selector) {
-        vm.warp(block.timestamp + hook.getEpochLength());
+    /// @dev Jumps to the next epoch
+    function goNextEpoch() public {
+        vm.warp(block.timestamp + hook.epochLength());
+        ghost_currentEpoch += 1;
     }
 }

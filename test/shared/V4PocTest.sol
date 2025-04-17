@@ -7,6 +7,6 @@ import { BaseTest } from "test/shared/BaseTest.sol";
 contract V4PocTest is BaseTest {
     function test_v4_poc() public view {
         // TODO: YOUR DOPPLER V4 POC HERE
-        console.log("hook starting time", hook.getStartingTime());
+        console.log("hook starting time", hook.startingTime());
     }
 }

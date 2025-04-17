@@ -22,31 +22,31 @@ contract SwapTest is BaseTest {
     // otherwise, the quoter will attempt to calculate an exactOut amount, which will fail.
 
     function test_swap_RevertsBeforeStartTime() public {
-        vm.warp(hook.getStartingTime() - 1); // 1 second before the start time
+        vm.warp(hook.startingTime() - 1); // 1 second before the start time
 
         buyExpectRevert(-1 ether, CannotSwapBeforeStartTime.selector, true);
     }
 
     function test_swap_RevertsAfterEndTimeInsufficientProceedsAssetBuy() public {
-        vm.warp(hook.getStartingTime()); // 1 second after the end time
+        vm.warp(hook.startingTime()); // 1 second after the end time
 
-        int256 minimumProceeds = int256(hook.getMinimumProceeds());
+        int256 minimumProceeds = int256(hook.minimumProceeds());
 
         buy(-minimumProceeds / 2);
 
-        vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
+        vm.warp(hook.endingTime() + 1); // 1 second after the end time
 
         buyExpectRevert(-1 ether, InvalidSwapAfterMaturityInsufficientProceeds.selector, true);
     }
 
     function test_swap_CanRepurchaseNumeraireAfterEndTimeInsufficientProceeds() public {
-        vm.warp(hook.getStartingTime()); // 1 second after the end time
+        vm.warp(hook.startingTime()); // 1 second after the end time
 
-        int256 minimumProceeds = int256(hook.getMinimumProceeds());
+        int256 minimumProceeds = int256(hook.minimumProceeds());
 
         buy(-minimumProceeds / 2);
 
-        vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
+        vm.warp(hook.endingTime() + 1); // 1 second after the end time
 
         (,, uint256 totalTokensSold,,,) = hook.state();
 
@@ -66,19 +66,19 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_RevertsAfterEndTimeSufficientProceeds() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
-        int256 minimumProceeds = int256(hook.getMinimumProceeds());
+        int256 minimumProceeds = int256(hook.minimumProceeds());
 
         buy(-minimumProceeds * 11 / 10);
 
-        vm.warp(hook.getEndingTime() + 1); // 1 second after the end time
+        vm.warp(hook.endingTime() + 1); // 1 second after the end time
 
         buyExpectRevert(-1 ether, InvalidSwapAfterMaturitySufficientProceeds.selector, true);
     }
 
     function test_swap_DoesNotRebalanceTwiceInSameEpoch() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         buy(1 ether);
 
@@ -100,7 +100,7 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_UpdatesLastEpoch() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         buy(1 ether);
 
@@ -108,7 +108,7 @@ contract SwapTest is BaseTest {
 
         assertEq(lastEpoch, 1);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         buy(1 ether);
 
@@ -118,11 +118,11 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_UpdatesTotalTokensSoldLastEpoch() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         buy(1 ether);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         buy(1 ether);
 
@@ -133,7 +133,7 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_UpdatesTotalProceedsAndTotalTokensSoldLessFee() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
         (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(key.toId());
         uint24 swapFee = uint16(protocolFee).calculateSwapFee(lpFee);
 
@@ -157,17 +157,17 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_CannotSwapBelowLowerSlug_AfterInitialization() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         sellExpectRevert(-1 ether, SwapBelowRange.selector, false);
     }
 
     function test_swap_CannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         buy(1 ether);
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength()); // Next epoch
+        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // Swap to trigger lower slug being created
         // Unsell half of sold tokens
@@ -179,7 +179,7 @@ contract SwapTest is BaseTest {
     function test_swap_DoesNotRebalanceInTheFirstEpoch() public {
         (, int256 tickAccumulator,,,,) = hook.state();
 
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         buy(1 ether);
         (, int256 tickAccumulator2,,,,) = hook.state();
@@ -188,9 +188,9 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_ZeroFeesWhenInsufficientProceeds() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
         (uint256 bought,) = buy(1 ether);
-        vm.warp(hook.getEndingTime() + 1);
+        vm.warp(hook.endingTime() + 1);
 
         (uint256 beforeFeeGrowthGlobal0, uint256 beforeFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
         sell(int256(bought));
