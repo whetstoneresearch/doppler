@@ -346,11 +346,24 @@ contract ConstructorTest is BaseTest {
     }
 
     function test_constructor_RevertsInvalidNumPDSlugs_WithZeroSlugs() public {
-        vm.skip(true);
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.numPDSlugs = 0;
-
-        // deployDoppler(InvalidNumPDSlugs.selector, config, 0, 0, true);
+        vm.expectRevert(InvalidNumPDSlugs.selector);
+        deployer.deploy(
+            address(manager),
+            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
+            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
+            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
+            DEFAULT_DOPPLER_CONFIG.startingTime,
+            DEFAULT_DOPPLER_CONFIG.endingTime,
+            DEFAULT_START_TICK,
+            DEFAULT_END_TICK,
+            DEFAULT_DOPPLER_CONFIG.epochLength,
+            DEFAULT_DOPPLER_CONFIG.gamma,
+            isToken0,
+            0,
+            address(0xbeef),
+            3000,
+            bytes32(0)
+        );
     }
 
     function test_constructor_RevertsInvalidNumPDSlugs_GreaterThanMax() public {
