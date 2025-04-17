@@ -5,9 +5,25 @@ import { BaseTest } from "test/shared/BaseTest.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { MAX_TICK_SPACING, InvalidTickSpacing, AlreadyInitialized, InvalidGamma } from "src/Doppler.sol";
 
 contract BeforeInitializeTest is BaseTest {
+    function test_beforeInitialize_RevertsWhenNotPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        hook.beforeInitialize(
+            address(0),
+            PoolKey({
+                currency0: Currency.wrap(address(0)),
+                currency1: Currency.wrap(address(0)),
+                fee: 0,
+                tickSpacing: 0,
+                hooks: IHooks(address(0))
+            }),
+            0
+        );
+    }
+
     function test_beforeInitialize_RevertsWhenAlreadyInitialized() public {
         assertEq(hook.isInitialized(), true);
         vm.prank(address(hook.poolManager()));
