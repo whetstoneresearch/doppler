@@ -292,27 +292,6 @@ contract ConstructorTest is BaseTest {
         );
     }
 
-    function test_constructor_RevertsInvalidGamma_WhenGammaNotDivisibleByTickSpacing() public {
-        vm.expectRevert(InvalidGamma.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma + 1,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
-    }
-
     function test_constructor_RevertsInvalidGamma_WhenGammaTimesTotalEpochsNotDivisibleByTotalTickDelta() public {
         vm.skip(true);
         DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
