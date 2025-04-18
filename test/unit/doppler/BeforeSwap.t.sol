@@ -6,7 +6,7 @@ import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract BeforeSwapTest is BaseTest {
-    function testBeforeSwap_RevertsIfNotPoolManager() public {
+    function test_beforeSwap_RevertsIfNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
         hook.beforeSwap(
             address(this),
