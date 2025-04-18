@@ -61,6 +61,10 @@ contract DopplerImplementation is Doppler {
         isInitialized = false;
     }
 
+    function setEarlyExit() public {
+        earlyExit = true;
+    }
+
     function getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) public view returns (uint256) {
