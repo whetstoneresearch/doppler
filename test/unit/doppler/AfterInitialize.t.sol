@@ -11,9 +11,6 @@ import { Position } from "src/Doppler.sol";
 
 contract AfterInitializeTest is BaseTest {
     using PoolIdLibrary for PoolKey;
-    // =========================================================================
-    //                      afterInitialize Unit Tests
-    // =========================================================================
 
     function testAfterInitialize() public view {
         // We've already initialized in the setUp, so we just need to validate
