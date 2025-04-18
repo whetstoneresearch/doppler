@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
 import { SenderNotInitializer, CannotMigrate } from "src/Doppler.sol";
