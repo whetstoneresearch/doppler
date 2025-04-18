@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { MaximumProceedsReached } from "src/Doppler.sol";
+import { MaximumProceedsReached, CannotSwapBeforeStartTime } from "src/Doppler.sol";
 
 contract BeforeSwapTest is BaseTest {
     function test_beforeSwap_RevertsIfNotPoolManager() public {
@@ -21,6 +21,17 @@ contract BeforeSwapTest is BaseTest {
         hook.setEarlyExit();
         vm.prank(address(manager));
         vm.expectRevert(MaximumProceedsReached.selector);
+        hook.beforeSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1 }),
+            ""
+        );
+    }
+
+    function test_beforeSwap_RevertsBeforeStartTime() public {
+        vm.warp(hook.startingTime() - 1);
+        vm.expectRevert(CannotSwapBeforeStartTime.selector);
         hook.beforeSwap(
             address(this),
             key,
