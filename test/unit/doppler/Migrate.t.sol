@@ -43,6 +43,28 @@ contract MigrateTest is BaseTest {
         }
     }
 
+    function test_migrate_CollectAllFees() public {
+        vm.warp(hook.startingTime());
+        buyExactIn(hook.minimumProceeds() + 1 ether);
+
+        vm.warp(hook.endingTime());
+        vm.prank(hook.initializer());
+        hook.migrate(address(0xbeef));
+
+        uint256 numPDSlugs = hook.getNumPDSlugs();
+
+        for (uint256 i = 1; i < numPDSlugs + 3; i++) {
+            (int24 tickLower, int24 tickUpper,,) = hook.positions(bytes32(i));
+            (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = manager.getPositionInfo(
+                poolId, address(hook), isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower, bytes32(i)
+            );
+            (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+                manager.getFeeGrowthInside(poolId, isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower);
+            assertEq(feeGrowthInside0X128, feeGrowthInside0LastX128, "feeGrowth0 should be equal");
+            assertEq(feeGrowthInside1X128, feeGrowthInside1LastX128, "feeGrowth1 should be equal");
+        }
+    }
+
     function test_migrate_NoMoreFundsInHook() public {
         vm.warp(hook.startingTime());
 
