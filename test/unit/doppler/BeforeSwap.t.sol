@@ -31,6 +31,7 @@ contract BeforeSwapTest is BaseTest {
 
     function test_beforeSwap_RevertsBeforeStartTime() public {
         vm.warp(hook.startingTime() - 1);
+        vm.prank(address(manager));
         vm.expectRevert(CannotSwapBeforeStartTime.selector);
         hook.beforeSwap(
             address(this),
