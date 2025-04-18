@@ -45,7 +45,9 @@ contract MigrateTest is BaseTest {
 
     function test_migrate_CollectAllFees() public {
         vm.warp(hook.startingTime());
-        buyExactIn(hook.minimumProceeds() + 1 ether);
+        (uint256 bought,) = buyExactIn(hook.minimumProceeds() + 1 ether);
+        sellExactIn(bought / 2);
+        buyExactIn(hook.minimumProceeds());
 
         vm.warp(hook.endingTime());
         vm.prank(hook.initializer());
