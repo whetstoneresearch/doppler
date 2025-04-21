@@ -45,7 +45,6 @@ uint256 constant DEFAULT_MAX_SHARE_TO_BE_SOLD = 0.23 ether;
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;
-int24 constant DEFAULT_TARGET_TICK = 12_000;
 
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;
