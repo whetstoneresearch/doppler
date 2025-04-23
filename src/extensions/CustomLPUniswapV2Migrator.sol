@@ -26,7 +26,7 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
     /// @dev Liquidity to lock (% expressed in WAD)
     uint256 constant LP_TO_LOCK_WAD = 0.05 ether;
     /// @dev Maximum amount of liquidity that can be allocated to `lpAllocationRecipient` (% expressed in WAD)
-    uint256 constant MAX_CUSTOM_LP_WAD = 0.02 ether;
+    uint256 constant MAX_CUSTOM_LP_WAD = 0.05 ether;
 
     CustomLPUniswapV2Locker public immutable customLPLocker;
 
@@ -108,7 +108,7 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
-        // Custom LP allocation - 5% to locker, (n <= `MAX_CUSTOM_LP_WAD`)% to `customLPRecipient`, rest to timelock
+        // Custom LP allocation - 5% to locker, (n <= `MAX_CUSTOM_LP_WAD`)% to `customLPRecipient` after `lockUpPeriod`, rest to timelock
         liquidity = IUniswapV2Pair(pool).mint(address(this));
         uint256 liquidityToLock = liquidity * LP_TO_LOCK_WAD / WAD;
         uint256 customLiquidityToLock = liquidity * customLPWad / WAD;

@@ -49,20 +49,20 @@ contract UniswapV2LockerTest is Test {
         tokenBar.transfer(address(pool), 100e18);
         pool.mint(address(locker));
         vm.prank(address(migrator));
-        locker.receiveAndLock(address(pool), aliceRecipient, 90 days);
+        locker.receiveAndLock(address(pool), aliceRecipient, 30 days);
     }
 
     function test_receiveAndLock_RevertsWhenPoolAlreadyInitialized() public {
         test_receiveAndLock_WithLockUpPeriod_InitializesPool();
         vm.startPrank(address(migrator));
         vm.expectRevert(IUniswapV2Locker.PoolAlreadyInitialized.selector);
-        locker.receiveAndLock(address(pool), aliceRecipient, 90 days);
+        locker.receiveAndLock(address(pool), aliceRecipient, 30 days);
     }
 
     function test_receiveAndLock_RevertsWhenNoBalanceToLock() public {
         vm.startPrank(address(migrator));
         vm.expectRevert(IUniswapV2Locker.NoBalanceToLock.selector);
-        locker.receiveAndLock(address(pool), aliceRecipient, 90 days);
+        locker.receiveAndLock(address(pool), aliceRecipient, 30 days);
     }
 
     function owner() external pure { }
@@ -73,7 +73,7 @@ contract UniswapV2LockerTest is Test {
 
     function test_claimFeesAndExit_RevertsWhenMinUnlockDateNotReached() public {
         test_receiveAndLock_WithLockUpPeriod_InitializesPool();
-        vm.warp(block.timestamp + 89 days);
+        vm.warp(block.timestamp + 29 days);
         vm.expectRevert(IUniswapV2Locker.MinUnlockDateNotReached.selector);
         locker.claimFeesAndExit(address(pool));
     }
@@ -98,7 +98,7 @@ contract UniswapV2LockerTest is Test {
             abi.encode(address(tokenBar))
         );
 
-        vm.warp(block.timestamp + 90 days);
+        vm.warp(block.timestamp + 30 days);
 
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(aliceRecipient), 0, "alice balance0 is wrong");

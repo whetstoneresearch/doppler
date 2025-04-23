@@ -27,9 +27,9 @@ contract CustomLPUniswapV2MigratorTest is Test {
     function test_migrate_CustomLPToEOA_WhenLiquidityMigratorDataNotEmpty() public {
         TestERC20 token0 = new TestERC20(1000 ether);
         TestERC20 token1 = new TestERC20(1000 ether);
-        // allocate 1% LP to alice during migration
-        uint256 customLPWad = 0.01 ether;
-        uint32 lockUpPeriod = 90 days;
+        // allocate 3% LP to alice during migration
+        uint256 customLPWad = 0.03 ether;
+        uint32 lockUpPeriod = 30 days;
         address alice = makeAddr("alice");
 
         bytes memory liquidityMigratorData = abi.encode(customLPWad, alice, lockUpPeriod);
@@ -70,7 +70,7 @@ contract CustomLPUniswapV2MigratorTest is Test {
         TestERC20 token1 = new TestERC20(1000 ether);
         // try to allocate 20% LP to alice during migration
         uint256 customLPWad = 0.2 ether;
-        uint32 lockUpPeriod = 90 days;
+        uint32 lockUpPeriod = 30 days;
         address alice = makeAddr("alice");
 
         bytes memory liquidityMigratorData = abi.encode(customLPWad, alice, lockUpPeriod);
