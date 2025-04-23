@@ -38,7 +38,6 @@ function mineV4(
     MineV4Params memory params
 ) view returns (bytes32, address, address) {
     (
-        ,
         uint256 minimumProceeds,
         uint256 maximumProceeds,
         uint256 startingTime,
@@ -53,7 +52,7 @@ function mineV4(
         int24 tickSpacing
     ) = abi.decode(
         params.poolInitializerData,
-        (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+        (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
     );
 
     bytes32 dopplerInitHash = keccak256(
