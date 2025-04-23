@@ -172,64 +172,6 @@ contract AirlockTest is Test, Deployers {
         airlock.setModuleState(modules, states);
     }
 
-    // TODO: It would be better to move this into an integration test
-    function test_create_DeploysV4() public returns (address, address) {
-        bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
-
-        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
-
-        bytes memory poolInitializerData = abi.encode(
-            sqrtPrice,
-            DEFAULT_MIN_PROCEEDS,
-            DEFAULT_MAX_PROCEEDS,
-            DEFAULT_STARTING_TIME,
-            DEFAULT_ENDING_TIME,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_EPOCH_LENGTH,
-            DEFAULT_GAMMA,
-            false,
-            DEFAULT_PD_SLUGS,
-            DEFAULT_FEE,
-            DEFAULT_TICK_SPACING
-        );
-
-        (bytes32 salt, address hook, address asset) = mineV4(
-            MineV4Params(
-                address(airlock),
-                address(manager),
-                DEFAULT_INITIAL_SUPPLY,
-                DEFAULT_INITIAL_SUPPLY,
-                address(0),
-                tokenFactory,
-                tokenFactoryData,
-                uniswapV4Initializer,
-                poolInitializerData
-            )
-        );
-
-        airlock.create(
-            CreateParams(
-                DEFAULT_INITIAL_SUPPLY,
-                DEFAULT_INITIAL_SUPPLY,
-                address(0),
-                tokenFactory,
-                tokenFactoryData,
-                governanceFactory,
-                abi.encode(DEFAULT_TOKEN_NAME, 7200, 50_400, 0),
-                uniswapV4Initializer,
-                poolInitializerData,
-                uniswapV2LiquidityMigrator,
-                new bytes(0),
-                address(0xb0b),
-                salt
-            )
-        );
-
-        return (hook, asset);
-    }
-
     address public constant DEFAULT_INTEGRATOR = address(0x0000000aaaaabbbcccceee);
 
     function test_migrate_DistributeFees(uint128 fees0, uint128 balance0, uint128 fees1, uint128 balance1) public {
