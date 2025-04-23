@@ -15,6 +15,11 @@ contract CustomLPUniswapV2Locker is UniswapV2Locker {
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
 
+    /// @dev Minimum lock up period for the custom LP allocation
+    uint256 public constant MIN_LOCK_PERIOD = 30 days;
+
+    error LessThanMinLockPeriod();
+
     /**
      * @param factory_ Address of the Uniswap V2 factory
      */
@@ -34,6 +39,7 @@ contract CustomLPUniswapV2Locker is UniswapV2Locker {
     function receiveAndLock(address pool, address recipient, uint32 lockPeriod) external {
         require(msg.sender == address(migrator), SenderNotMigrator());
         require(getState[pool].minUnlockDate == 0, PoolAlreadyInitialized());
+        require(lockPeriod >= MIN_LOCK_PERIOD, LessThanMinLockPeriod());
 
         uint256 balance = IUniswapV2Pair(pool).balanceOf(address(this));
         require(balance > 0, NoBalanceToLock());
