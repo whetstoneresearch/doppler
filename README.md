@@ -38,7 +38,40 @@ FEE=30
 
 ### Deploy
 
-First be sure to set the `PROTOCOL_OWNER` variable in your .env file. V1 contracts running on Uniswap V3 can be deployed using the following command:
+Deploying can take different forms depending on what one wants to do, the three main cases being:
+
+- Deploying the whole protocol, for example on a testnet or on a new production chain
+- Deploying a new _periphery_ contract, (e.g. `Bundler`)
+- Deploying a new module, (e.g. `UniswapV4Initializer`)
+
+In most cases, dedicated scripts are provided in the `script` folder and all require some base set up:
+
+```shell
+# If you haven't done it yet, create your own .env file by copying the given example
+$ cp .env.example .env
+```
+
+Then using your favorite editor, edit the `.env` file and set the following variables:
+
+```shell
+# Private key of the wallet used to deploy the contracts
+PRIVATE_KEY=0x...
+
+
+```
+
+#### Deploying the whole protocol
+
+See `Deploy.s.sol`.
+
+#### Deploying a new periphery contract
+
+Deploying a new periphery contract should be as simple as running its script. For example,
+
+#### Deploying a new module
+
+Deploying a new module is slightly different than deploying a periphery contract, as an extra step is required: the module must be registered in the `Airlock` contract. This is done by calling the `setModuleState` function of the `Airlock` contract and passing the address of the new module along its type (`TokenFactory` or `PoolInitializer` for example).
+In our case, the protocol multisig being the admin of the `Airlock`, the transaction must be executed via the Safe interface.
 
 ```shell
 # --rpc-url is the chain you want to deploy to
