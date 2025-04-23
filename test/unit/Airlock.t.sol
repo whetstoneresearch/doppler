@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import { Test, stdError } from "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import {
@@ -27,7 +26,6 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 // TODO: Reuse these constants from the BaseTest
