@@ -12,11 +12,13 @@ import { QuoterRevert } from "@uniswap/v4-periphery/src/libraries/QuoterRevert.s
 import { BaseV4Quoter } from "@uniswap/v4-periphery/src/base/BaseV4Quoter.sol";
 import { IStateView } from "@uniswap/v4-periphery/src/lens/StateView.sol";
 import { ParseBytes } from "@uniswap/v4-core/src/libraries/ParseBytes.sol";
+import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
 /// @title DopplerLensQuoter
 /// @notice Supports quoting the tick for exact input or exact output swaps.
 /// @dev These functions are not marked view because they rely on calling non-view functions and reverting
 /// to compute the result. They are also not gas efficient and should not be called on-chain.
+
 contract DopplerLensQuoter is BaseV4Quoter {
     using DopplerLensRevert for *;
 
@@ -28,10 +30,11 @@ contract DopplerLensQuoter is BaseV4Quoter {
 
     function quoteDopplerLensData(
         IV4Quoter.QuoteExactSingleParams memory params
-    ) external returns (int24 tick) {
+    ) external returns (uint160 sqrtPriceX96, int24 tick) {
         try poolManager.unlock(abi.encodeCall(this._quoteDopplerLensDataExactInputSingle, (params))) { }
         catch (bytes memory reason) {
-            tick = reason.parseDopplerLensData();
+            sqrtPriceX96 = reason.parseDopplerLensData();
+            tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
         }
     }
 
@@ -41,8 +44,8 @@ contract DopplerLensQuoter is BaseV4Quoter {
     ) external selfOnly returns (bytes memory) {
         _swap(params.poolKey, params.zeroForOne, -int256(int128(params.exactAmount)), params.hookData);
 
-        (, int24 tick,,) = stateView.getSlot0(params.poolKey.toId());
-        tick.revertDopplerLensData();
+        (uint160 sqrtPriceX96,,,) = stateView.getSlot0(params.poolKey.toId());
+        sqrtPriceX96.revertDopplerLensData();
     }
 }
 
@@ -53,13 +56,13 @@ library DopplerLensRevert {
     /// @notice error thrown when invalid revert bytes are thrown by the quote
     error UnexpectedRevertBytes(bytes revertData);
 
-    /// @notice error thrown containing the tick as the data, to be caught and parsed later
-    error DopplerLensData(int24 tick);
+    /// @notice error thrown containing the sqrtPriceX96 as the data, to be caught and parsed later
+    error DopplerLensData(uint160 sqrtPriceX96);
 
     function revertDopplerLensData(
-        int24 tick
+        uint160 sqrtPriceX96
     ) internal pure {
-        revert DopplerLensData(tick);
+        revert DopplerLensData(sqrtPriceX96);
     }
 
     /// @notice reverts using the revertData as the reason
@@ -75,10 +78,10 @@ library DopplerLensRevert {
     }
 
     /// @notice validates whether a revert reason is a valid doppler lens data or not
-    /// if valid, it decodes the tick to return. Otherwise it reverts.
+    /// if valid, it decodes the sqrtPriceX96 to return. Otherwise it reverts.
     function parseDopplerLensData(
         bytes memory reason
-    ) internal pure returns (int24 tick) {
+    ) internal pure returns (uint160 sqrtPriceX96) {
         // If the error doesnt start with DopplerLensData, we know this isnt valid data to parse
         // Instead it is another revert that was triggered somewhere in the simulation
         if (reason.parseSelector() != DopplerLensData.selector) {
@@ -87,9 +90,9 @@ library DopplerLensRevert {
 
         // reason -> reason+0x1f is the length of the reason string
         // reason+0x20 -> reason+0x23 is the selector of DopplerLensData
-        // reason+0x24 -> reason+0x43 is the tick
+        // reason+0x24 -> reason+0x43 is the sqrtPriceX96
         assembly ("memory-safe") {
-            tick := mload(add(reason, 0x24))
+            sqrtPriceX96 := mload(add(reason, 0x24))
         }
     }
 }
