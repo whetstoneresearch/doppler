@@ -22,7 +22,6 @@ contract DopplerLensTest is BaseTest {
     function test_lens_fetches_consistent_ticks() public _deployLensQuoter {
         vm.warp(hook.getStartingTime());
 
-        // Get istoken0
         bool isToken0 = hook.isToken0();
 
         (uint160 sqrtPriceX960, int24 tick0) = lensQuoter.quoteDopplerLensData(
@@ -34,8 +33,12 @@ contract DopplerLensTest is BaseTest {
         (uint160 sqrtPriceX961, int24 tick1) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
-
-        assertLt(tick1, tick0, "Tick should be less than the previous tick");
-        assertLt(sqrtPriceX961, sqrtPriceX960, "SqrtPriceX96 should be the same");
+        if (isToken0) {
+            assertLt(tick1, tick0, "Tick should be less than the previous tick");
+            assertLt(sqrtPriceX961, sqrtPriceX960, "SqrtPriceX96 should be less than the previous sqrtPriceX96");
+        } else {
+            assertGt(tick1, tick0, "Tick should be greater than the previous tick");
+            assertGt(sqrtPriceX961, sqrtPriceX960, "SqrtPriceX96 should be greater than the previous sqrtPriceX96");
+        }
     }
 }
