@@ -5,6 +5,7 @@ import { IPoolManager, PoolKey, IHooks } from "@v4-core/PoolManager.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Doppler } from "src/Doppler.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
@@ -23,7 +24,6 @@ contract DopplerDeployer {
 
     function deploy(uint256 numTokensToSell, bytes32 salt, bytes calldata data) external returns (Doppler) {
         (
-            ,
             uint256 minimumProceeds,
             uint256 maximumProceeds,
             uint256 startingTime,
@@ -36,8 +36,7 @@ contract DopplerDeployer {
             uint256 numPDSlugs,
             uint24 lpFee,
         ) = abi.decode(
-            data,
-            (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+            data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
 
         Doppler doppler = new Doppler{ salt: salt }(
@@ -94,9 +93,8 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
         bytes32 salt,
         bytes calldata data
     ) external onlyAirlock returns (address) {
-        (uint160 sqrtPriceX96,,,,,,,,, bool isToken0,,, int24 tickSpacing) = abi.decode(
-            data,
-            (uint160, uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+        (,,,, int24 startingTick, int24 endingTick,,, bool isToken0,,, int24 tickSpacing) = abi.decode(
+            data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
 
         Doppler doppler = deployer.deploy(numTokensToSell, salt, data);
@@ -115,7 +113,7 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
 
         address(asset).safeTransferFrom(address(airlock), address(doppler), numTokensToSell);
 
-        poolManager.initialize(poolKey, sqrtPriceX96);
+        poolManager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
 
         emit Create(address(doppler), asset, numeraire);
 

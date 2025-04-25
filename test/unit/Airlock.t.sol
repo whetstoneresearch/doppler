@@ -181,7 +181,6 @@ contract AirlockTest is Test, Deployers {
         uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK);
 
         bytes memory poolInitializerData = abi.encode(
-            sqrtPrice,
             DEFAULT_MIN_PROCEEDS,
             DEFAULT_MAX_PROCEEDS,
             DEFAULT_STARTING_TIME,
