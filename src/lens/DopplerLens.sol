@@ -32,7 +32,7 @@ contract DopplerLensQuoter is BaseV4Quoter {
         }
     }
 
-    /// @dev external function called within the _unlockCallback, to simulate a single-hop exact input swap, then revert with the result
+    /// @dev External function called within the _unlockCallback, to simulate a single-hop exact input swap, then revert with the result
     function _quoteDopplerLensDataExactInputSingle(
         IV4Quoter.QuoteExactSingleParams calldata params
     ) external selfOnly returns (bytes memory) {
@@ -47,10 +47,10 @@ library DopplerLensRevert {
     using DopplerLensRevert for bytes;
     using ParseBytes for bytes;
 
-    /// @notice error thrown when invalid revert bytes are thrown by the quote
+    /// @notice Error thrown when invalid revert bytes are thrown by the quote
     error UnexpectedRevertBytes(bytes revertData);
 
-    /// @notice error thrown containing the sqrtPriceX96 as the data, to be caught and parsed later
+    /// @notice Error thrown containing the sqrtPriceX96 as the data, to be caught and parsed later
     error DopplerLensData(uint160 sqrtPriceX96);
 
     function revertDopplerLensData(
@@ -59,8 +59,8 @@ library DopplerLensRevert {
         revert DopplerLensData(sqrtPriceX96);
     }
 
-    /// @notice reverts using the revertData as the reason
-    /// @dev to bubble up both the valid QuoteSwap(amount) error, or an alternative error thrown during simulation
+    /// @notice Reverts using the revertData as the reason
+    /// @dev To bubble up both the valid QuoteSwap(amount) error, or an alternative error thrown during simulation
     function bubbleReason(
         bytes memory revertData
     ) internal pure {
@@ -71,7 +71,7 @@ library DopplerLensRevert {
         }
     }
 
-    /// @notice validates whether a revert reason is a valid doppler lens data or not
+    /// @notice Validates whether a revert reason is a valid doppler lens data or not
     /// if valid, it decodes the sqrtPriceX96 to return. Otherwise it reverts.
     function parseDopplerLensData(
         bytes memory reason
