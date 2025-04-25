@@ -65,12 +65,6 @@ contract UniswapV2LockerTest is Test {
         locker.receiveAndLock(address(pool), aliceRecipient, 30 days);
     }
 
-    function test_receiveAndLock_RevertsWhenLessThanMinLockPeriod() public {
-        vm.startPrank(address(migrator));
-        vm.expectRevert(CustomLPUniswapV2Locker.LessThanMinLockPeriod.selector);
-        locker.receiveAndLock(address(pool), aliceRecipient, 29 days);
-    }
-
     function owner() external pure { }
 
     function getAsset(

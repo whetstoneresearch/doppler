@@ -27,6 +27,8 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
     uint256 constant LP_TO_LOCK_WAD = 0.05 ether;
     /// @dev Maximum amount of liquidity that can be allocated to `lpAllocationRecipient` (% expressed in WAD)
     uint256 constant MAX_CUSTOM_LP_WAD = 0.05 ether;
+    /// @dev Minimum lock up period for the custom LP allocation
+    uint256 public constant MIN_LOCK_PERIOD = 30 days;
 
     CustomLPUniswapV2Locker public immutable customLPLocker;
 
@@ -37,8 +39,13 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
     /// @dev Address of the recipient of the custom LP allocation
     address public customLPRecipient;
 
+    /// @notice Thrown when the custom LP allocation exceeds `MAX_CUSTOM_LP_WAD`
     error MaxCustomLPWadExceeded();
+    /// @notice Thrown when the recipient is not an EOA
     error RecipientNotEOA();
+    /// @notice Thrown when the lock up period is less than `MIN_LOCK_PERIOD`
+    error LessThanMinLockPeriod();
+    /// @notice Thrown when the input is zero
     error InvalidInput();
 
     constructor(
@@ -50,6 +57,7 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
         customLPLocker = new CustomLPUniswapV2Locker(airlock_, factory_, this, owner);
     }
 
+    /// @inheritdoc UniswapV2Migrator
     function _initialize(
         address asset,
         address numeraire,
@@ -62,6 +70,7 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
             require(customLPWad_ <= MAX_CUSTOM_LP_WAD, MaxCustomLPWadExceeded());
             // initially only allow EOA to receive the lp allocation
             require(customLPRecipient_.code.length == 0, RecipientNotEOA());
+            require(lockUpPeriod_ >= MIN_LOCK_PERIOD, LessThanMinLockPeriod());
 
             customLPWad = customLPWad_;
             customLPRecipient = customLPRecipient_;
@@ -71,6 +80,7 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
         return super._initialize(asset, numeraire, liquidityMigratorData);
     }
 
+    /// @inheritdoc UniswapV2Migrator
     function _migrate(
         uint160 sqrtPriceX96,
         address token0,

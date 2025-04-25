@@ -90,4 +90,16 @@ contract CustomLPUniswapV2MigratorTest is Test {
         vm.expectRevert(abi.encodeWithSelector(CustomLPUniswapV2Migrator.RecipientNotEOA.selector));
         migrator.initialize(address(token0), address(token1), liquidityMigratorData);
     }
+
+    function test_migrate_CustomLPToSmartContract_RevertsWhenLessThanMinLockPeriod() public {
+        TestERC20 token0 = new TestERC20(1000 ether);
+        TestERC20 token1 = new TestERC20(1000 ether);
+        uint256 customLPWad = 0.03 ether;
+        uint32 lockUpPeriod = 29 days;
+        address alice = makeAddr("alice");
+
+        bytes memory liquidityMigratorData = abi.encode(customLPWad, alice, lockUpPeriod);
+        vm.expectRevert(abi.encodeWithSelector(CustomLPUniswapV2Migrator.LessThanMinLockPeriod.selector));
+        migrator.initialize(address(token0), address(token1), liquidityMigratorData);
+    }
 }
