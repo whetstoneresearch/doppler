@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IV4Quoter } from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
 import { BaseV4Quoter } from "@uniswap/v4-periphery/src/base/BaseV4Quoter.sol";
 import { IStateView } from "@uniswap/v4-periphery/src/lens/StateView.sol";
