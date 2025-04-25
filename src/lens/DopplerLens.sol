@@ -18,8 +18,8 @@ contract DopplerLensQuoter is BaseV4Quoter {
 
     IStateView public immutable stateView;
 
-    constructor(IPoolManager _poolManager, IStateView _stateView) BaseV4Quoter(_poolManager) {
-        stateView = _stateView;
+    constructor(IPoolManager poolManager_, IStateView stateView_) BaseV4Quoter(poolManager_) {
+        stateView = stateView_;
     }
 
     function quoteDopplerLensData(
