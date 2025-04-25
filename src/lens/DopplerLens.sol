@@ -13,9 +13,9 @@ import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 /// @notice Supports quoting the tick for exact input or exact output swaps.
 /// @dev These functions are not marked view because they rely on calling non-view functions and reverting
 /// to compute the result. They are also not gas efficient and should not be called on-chain.
-
 contract DopplerLensQuoter is BaseV4Quoter {
-    using DopplerLensRevert for *;
+    using DopplerLensRevert for bytes;
+    using DopplerLensRevert for uint160;
 
     IStateView public immutable stateView;
 
