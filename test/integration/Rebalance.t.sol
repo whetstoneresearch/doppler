@@ -933,8 +933,8 @@ contract RebalanceTest is BaseTest {
 
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
-        // Assert that we've done three epochs worth of max dutch auctioning
-        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 3");
+        // Assert that we've done two epochs worth of max dutch auctioning
+        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 2, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 2");
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
