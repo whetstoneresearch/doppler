@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "@v4-periphery/base/hooks/BaseHook.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { BalanceDelta, add, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
@@ -140,17 +141,19 @@ contract Doppler is BaseHook {
     PoolKey public poolKey;
     address public initializer;
 
-    uint256 internal numTokensToSell; // total amount of tokens to be sold
-    uint256 internal minimumProceeds; // minimum proceeds required to avoid refund phase
-    uint256 internal maximumProceeds; // proceeds amount that will trigger early exit condition
-    uint256 internal startingTime; // sale start time
-    uint256 internal endingTime; // sale end time
-    int24 internal startingTick; // dutch auction starting tick
-    int24 internal endingTick; // dutch auction ending tick
-    uint256 internal epochLength; // length of each epoch (seconds)
-    int24 internal gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
-    bool internal isToken0; // whether token0 is the token being sold (true) or token1 (false)
-    uint256 internal numPDSlugs; // number of price discovery slugs
+    uint256 public numTokensToSell; // total amount of tokens to be sold
+    uint256 public minimumProceeds; // minimum proceeds required to avoid refund phase
+    uint256 public maximumProceeds; // proceeds amount that will trigger early exit condition
+    uint256 public startingTime; // sale start time
+    uint256 public endingTime; // sale end time
+    int24 public startingTick; // dutch auction starting tick
+    int24 public endingTick; // dutch auction ending tick
+    uint256 public epochLength; // length of each epoch (seconds)
+    int24 public gamma; // 1.0001 ** (gamma), represents the maximum tick change for the entire bonding curve
+    bool public isToken0; // whether token0 is the token being sold (true) or token1 (false)
+    uint256 public numPDSlugs; // number of price discovery slugs
+
+    uint24 internal initialLpFee;
 
     uint256 internal totalEpochs; // total number of epochs
     uint256 internal normalizedEpochDelta; // normalized delta between two epochs
@@ -174,6 +177,7 @@ contract Doppler is BaseHook {
     /// @param _gamma 1.0001^gamma, represents the maximum tick change for the entire bonding curve
     /// @param _isToken0 Whether token0 is the asset being sold (true) or token1 (false)
     /// @param _numPDSlugs Number of price discovery slugs to use
+    /// @param initialLpFee_ Initial swap fee
     constructor(
         IPoolManager _poolManager,
         uint256 _numTokensToSell,
@@ -187,8 +191,11 @@ contract Doppler is BaseHook {
         int24 _gamma,
         bool _isToken0,
         uint256 _numPDSlugs,
-        address initializer_
+        address initializer_,
+        uint24 initialLpFee_
     ) BaseHook(_poolManager) {
+        initialLpFee = initialLpFee_;
+
         // Check that the current time is before the starting time
         if (block.timestamp > _startingTime) revert InvalidStartTime();
         /* Tick checks */
@@ -241,11 +248,7 @@ contract Doppler is BaseHook {
     }
 
     /// @inheritdoc BaseHook
-    function beforeInitialize(
-        address,
-        PoolKey calldata key,
-        uint160
-    ) external override onlyPoolManager returns (bytes4) {
+    function _beforeInitialize(address, PoolKey calldata key, uint160) internal override returns (bytes4) {
         if (isInitialized) revert AlreadyInitialized();
         isInitialized = true;
         poolKey = key;
@@ -266,24 +269,25 @@ contract Doppler is BaseHook {
     /// @param key The pool key
     /// @param tick The initial tick of the pool
     /// @return The function selector for afterInitialize
-    function afterInitialize(
+    function _afterInitialize(
         address sender,
         PoolKey calldata key,
         uint160,
         int24 tick
-    ) external override onlyPoolManager returns (bytes4) {
+    ) internal override returns (bytes4) {
+        poolManager.updateDynamicLPFee(key, initialLpFee);
         poolManager.unlock(abi.encode(CallbackData({ key: key, sender: sender, tick: tick, isMigration: false })));
         return BaseHook.afterInitialize.selector;
     }
 
     /// @inheritdoc BaseHook
-    function beforeDonate(
+    function _beforeDonate(
         address,
         PoolKey calldata,
         uint256,
         uint256,
         bytes calldata
-    ) external pure override returns (bytes4) {
+    ) internal pure override returns (bytes4) {
         revert CannotDonate();
     }
 
@@ -294,12 +298,12 @@ contract Doppler is BaseHook {
     /// @return selector The function selector for beforeSwap
     /// @return delta The delta to apply before the swap
     /// @return feeOverride Optional fee override, this is set to 0 in doppler
-    function beforeSwap(
+    function _beforeSwap(
         address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata swapParams,
         bytes calldata
-    ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         if (earlyExit) revert MaximumProceedsReached();
 
         if (block.timestamp < startingTime) revert CannotSwapBeforeStartTime();
@@ -308,6 +312,8 @@ contract Doppler is BaseHook {
         if (_getCurrentEpoch() <= uint256(state.lastEpoch)) {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
+
+        uint24 fee;
 
         // Only check proceeds if we're after maturity and we haven't already triggered insufficient proceeds
         if (block.timestamp >= endingTime && !insufficientProceeds) {
@@ -343,10 +349,8 @@ contract Doppler is BaseHook {
                 });
 
                 // Include tickSpacing so we're at least at a higher price than the lower slug upper tick
-                uint160 sqrtPriceX96Next = TickMath.getSqrtPriceAtTick(
-                    _alignComputedTickWithTickSpacing(lowerSlug.tickUpper, key.tickSpacing)
-                        + (isToken0 ? key.tickSpacing : -key.tickSpacing)
-                );
+                uint160 sqrtPriceX96Next =
+                    TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper + (isToken0 ? key.tickSpacing : -key.tickSpacing));
 
                 uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(currentTick);
                 _update(newPositions, sqrtPriceX96, sqrtPriceX96Next, key);
@@ -367,18 +371,14 @@ contract Doppler is BaseHook {
             _rebalance(key);
         } else {
             // If we have insufficient proceeds, only allow swaps from asset -> numeraire
-            if (isToken0) {
-                if (swapParams.zeroForOne == false) {
-                    revert InvalidSwapAfterMaturityInsufficientProceeds();
-                }
-            } else {
-                if (swapParams.zeroForOne == true) {
-                    revert InvalidSwapAfterMaturityInsufficientProceeds();
-                }
+            if ((isToken0 && swapParams.zeroForOne == false) || (!isToken0 && swapParams.zeroForOne)) {
+                revert InvalidSwapAfterMaturityInsufficientProceeds();
             }
+
+            fee = 0 | LPFeeLibrary.OVERRIDE_FEE_FLAG;
         }
 
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee);
     }
 
     /// @notice Called by the poolManager immediately after a swap is executed
@@ -389,13 +389,13 @@ contract Doppler is BaseHook {
     /// @param swapDelta The balance delta of the address swapping
     /// @return selector The function selector for afterSwap
     /// @return delta The delta amount to return to the pool manager (always 0)
-    function afterSwap(
+    function _afterSwap(
         address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata swapParams,
         BalanceDelta swapDelta,
         bytes calldata
-    ) external override onlyPoolManager returns (bytes4, int128) {
+    ) internal override returns (bytes4, int128) {
         // Get current tick
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
@@ -459,12 +459,12 @@ contract Doppler is BaseHook {
     ///         We revert if the caller is not this contract
     /// @param caller The address that called poolManager.modifyLiquidity
     /// @return The function selector for beforeAddLiquidity
-    function beforeAddLiquidity(
+    function _beforeAddLiquidity(
         address caller,
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) external view override onlyPoolManager returns (bytes4) {
+    ) internal view override onlyPoolManager returns (bytes4) {
         if (caller != address(this)) revert CannotAddLiquidity();
 
         return BaseHook.beforeAddLiquidity.selector;
@@ -1134,9 +1134,9 @@ contract Doppler is BaseHook {
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
     /// @param data The callback data (key, sender, tick)
-    function _unlockCallback(
+    function unlockCallback(
         bytes calldata data
-    ) internal override returns (bytes memory) {
+    ) external onlyPoolManager returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key, address sender, int24 tick, bool isMigration) =
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
@@ -1154,7 +1154,7 @@ contract Doppler is BaseHook {
                         IPoolManager.ModifyLiquidityParams({
                             tickLower: isToken0 ? position.tickLower : position.tickUpper,
                             tickUpper: isToken0 ? position.tickUpper : position.tickLower,
-                            liquidityDelta: -int128(position.liquidity),
+                            liquidityDelta: -position.liquidity.toInt128(),
                             salt: bytes32(uint256(position.salt))
                         }),
                         ""

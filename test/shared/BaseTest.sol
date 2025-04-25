@@ -21,6 +21,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { DopplerImplementation } from "./DopplerImplementation.sol";
@@ -202,7 +203,7 @@ contract BaseTest is Test, Deployers {
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
             currency1: Currency.wrap(address(token1)),
-            fee: config.fee,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
             tickSpacing: config.tickSpacing,
             hooks: IHooks(address(hook))
         });
@@ -223,6 +224,7 @@ contract BaseTest is Test, Deployers {
                 isToken0,
                 config.numPDSlugs,
                 address(0xbeef),
+                config.fee,
                 hook
             ),
             address(hook)

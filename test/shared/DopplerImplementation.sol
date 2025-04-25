@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { BaseHook } from "v4-periphery/src/base/hooks/BaseHook.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { Doppler, SlugData, Position } from "src/Doppler.sol";
 
 contract DopplerImplementation is Doppler {
@@ -29,6 +29,7 @@ contract DopplerImplementation is Doppler {
         bool _isToken0,
         uint256 _numPDSlugs,
         address initializer_,
+        uint24 lpFee_,
         IHooks addressToEtch
     )
         Doppler(
@@ -44,7 +45,8 @@ contract DopplerImplementation is Doppler {
             _gamma,
             _isToken0,
             _numPDSlugs,
-            initializer_
+            initializer_,
+            lpFee_
         )
     {
         Hooks.validateHookPermissions(addressToEtch, getHookPermissions());

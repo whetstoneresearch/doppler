@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
@@ -223,7 +224,7 @@ contract DopplerFixtures is Deployers {
         _poolKey = PoolKey({
             currency0: Currency.wrap(_numeraire),
             currency1: Currency.wrap(_asset),
-            fee: _fee,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
             tickSpacing: _tickSpacing,
             hooks: IHooks(hook)
         });
