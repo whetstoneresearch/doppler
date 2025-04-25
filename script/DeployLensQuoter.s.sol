@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import { Script, console } from "forge-std/Script.sol";
 import { Airlock } from "src/Airlock.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
-import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { IStateView } from "@uniswap/v4-periphery/src/interfaces/IStateView.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { IStateView } from "@v4-periphery/interfaces/IStateView.sol";
 
 contract DeployLensQuoterScript is Script {
     IPoolManager constant POOLMANAGER = IPoolManager(address(0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408));
@@ -13,7 +13,7 @@ contract DeployLensQuoterScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        DopplerLensQuoter lensQuoter = new DopplerLensQuoter(IPoolManager(POOLMANAGER), STATE_VIEW);
+        DopplerLensQuoter lensQuoter = new DopplerLensQuoter(IPoolManager(POOLMANAGER), IStateView(STATE_VIEW));
 
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| Contract Name              | Address                                    |");
