@@ -2,13 +2,8 @@
 pragma solidity ^0.8.0;
 
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { BalanceDelta } from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import { IV4Quoter } from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
-import { PathKey } from "@uniswap/v4-periphery/src/libraries/PathKey.sol";
-import { QuoterRevert } from "@uniswap/v4-periphery/src/libraries/QuoterRevert.sol";
 import { BaseV4Quoter } from "@uniswap/v4-periphery/src/base/BaseV4Quoter.sol";
 import { IStateView } from "@uniswap/v4-periphery/src/lens/StateView.sol";
 import { ParseBytes } from "@uniswap/v4-core/src/libraries/ParseBytes.sol";
