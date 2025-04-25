@@ -174,7 +174,6 @@ contract DopplerFixtures is Deployers {
         bytes memory governanceFactoryData = _defaultGovernanceFactoryData();
 
         bytes memory poolInitializerData = abi.encode(
-            TickMath.getSqrtPriceAtTick(startTick),
             config.minimumProceeds,
             config.maximumProceeds,
             config.startingTime,
