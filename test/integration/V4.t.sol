@@ -84,7 +84,6 @@ contract V4Test is Test {
         bytes memory tokenFactoryData =
             abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
         bytes memory poolInitializerData = abi.encode(
-            TickMath.getSqrtPriceAtTick(DEFAULT_START_TICK),
             DEFAULT_MINIMUM_PROCEEDS,
             DEFAULT_MAXIMUM_PROCEEDS,
             block.timestamp,
