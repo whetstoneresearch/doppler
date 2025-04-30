@@ -30,9 +30,10 @@ struct ScriptData {
     address uniswapV2Router02;
     address uniswapV3Factory;
     address universalRouter;
+    address weth;
 }
 
-contract DeployMainnetScript is Script {
+contract DeployScript is Script {
     function run() public {
         console.log(unicode"🚀 Deploying on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
 
