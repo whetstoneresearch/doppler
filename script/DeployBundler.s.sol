@@ -7,20 +7,44 @@ import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { Airlock } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 
-contract DeployBundlerScript is Script {
-    function run() public {
-        Airlock airlock = Airlock(payable(0xe7dfbd5b0A2C3B4464653A9beCdc489229eF090E));
-        UniversalRouter router = UniversalRouter(payable(0x95273d871c8156636e114b63797d78D7E1720d81));
-        IQuoterV2 quoter = IQuoterV2(0xC5290058841028F1614F3A6F0F5816cAd0df5E27);
+struct DeployBundlerScriptData {
+    address airlock;
+    address quoter;
+    address router;
+}
 
+contract DeployBundlerScript is Script {
+    function _deployBundler(Airlock airlock, UniversalRouter router, IQuoterV2 quoter) internal returns (Bundler) {
         vm.startBroadcast();
         Bundler bundler = new Bundler(airlock, router, quoter);
+        vm.stopBroadcast();
+        return bundler;
+    }
 
+    function run() public {
+        console.log(unicode"🚀 Deploying Bundler on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
+
+        // Let's check if we have the script data for this chain
+        string memory path = "./script/addresses.toml";
+        string memory raw = vm.readFile(path);
+        bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
+        require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
+
+        bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
+        DeployBundlerScriptData memory scriptData = abi.decode(data, (DeployBundlerScriptData));
+
+        _deployBundler(
+            Airlock(payable(scriptData.airlock)),
+            UniversalRouter(payable(scriptData.router)),
+            IQuoterV2(scriptData.quoter)
+        );
+
+        /*
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| Contract Name              | Address                                    |");
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| Bundler                    | %s |", address(bundler));
         console.log("+----------------------------+--------------------------------------------+");
-        vm.stopBroadcast();
+        */
     }
 }

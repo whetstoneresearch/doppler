@@ -14,7 +14,7 @@ contract SlugVisTest is BaseTest {
     }
 
     function testSlugVis() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
 
@@ -24,7 +24,7 @@ contract SlugVisTest is BaseTest {
     }
 
     function test_visualizePoolAtInitialization() public {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         PoolKey memory poolKey = key;
 

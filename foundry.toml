@@ -33,3 +33,6 @@ number_underscore = 'thousands'
 quote_style = 'double'
 tab_width = 4
 wrap_comments = false
+
+[invariant]
+show_metrics = true
