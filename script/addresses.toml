@@ -11,12 +11,16 @@
 
 # Unichain Sepolia
 [1301]
+"deploy_bundler" = true
+"explorer_url" = "https://sepolia.uniscan.xyz/address/"
+"protocol_owner" = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
 "uniswap_v2_factory" = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
 "uniswap_v2_router_02" = "0x920b806E40A00E02E7D2b94fFc89860fDaEd3640"
 "uniswap_v3_factory" = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
 "weth" = "0x4200000000000000000000000000000000000006"
 "universal_router" = "0xf70536B3bcC1bD1a972dc186A2cf84cC6da6Be5D"
 "quoter_v2" = "0xbc02cbe6e4e29b504b67b0187a0178e13871fa3c"
+"pool_manager" = "0x00b036b58a818b1bc34d502d3fe730db729e62ac"
 
 # Base
 [8453]
