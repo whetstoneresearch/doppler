@@ -105,7 +105,7 @@ function mineV4(
         )
     );
 
-    for (uint256 salt; salt < 100_000; ++salt) {
+    for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(params.poolInitializer.deployer()));
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
 
