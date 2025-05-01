@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { IV4Quoter } from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
-import { BaseV4Quoter } from "@uniswap/v4-periphery/src/base/BaseV4Quoter.sol";
-import { IStateView } from "@uniswap/v4-periphery/src/lens/StateView.sol";
-import { ParseBytes } from "@uniswap/v4-core/src/libraries/ParseBytes.sol";
-import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
+import { BaseV4Quoter } from "@v4-periphery/base/BaseV4Quoter.sol";
+import { IStateView } from "@v4-periphery/interfaces/IStateView.sol";
+import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
 /// @title DopplerLensQuoter
 /// @notice Supports quoting the tick for exact input or exact output swaps.

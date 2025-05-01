@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { StateView } from "@uniswap/v4-periphery/src/lens/StateView.sol";
+import { StateView } from "@v4-periphery/lens/StateView.sol";
 import { DopplerLensQuoter } from "../../src/lens/DopplerLens.sol";
-import { IV4Quoter } from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
+import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 
 contract DopplerLensTest is BaseTest {
     DopplerLensQuoter public lensQuoter;
