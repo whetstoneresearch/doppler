@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
 import { SenderNotInitializer, CannotMigrate } from "src/Doppler.sol";
@@ -97,7 +99,8 @@ contract MigrateTest is BaseTest {
         (,, uint128 fees0, uint128 balance0,, uint128 fees1, uint128 balance1) = hook.migrate(address(0xbeef));
         uint256 expectedFees = used * uint24(vm.envOr("FEE", uint24(0))) / 1e6;
 
-        uint256 managerToken0Dust = ERC20(token0).balanceOf(address(manager));
+        uint256 managerToken0Dust =
+            token0 == address(0) ? address(manager).balance : ERC20(token0).balanceOf(address(manager));
         uint256 managerToken1Dust = ERC20(token1).balanceOf(address(manager));
 
         if (isToken0) {
