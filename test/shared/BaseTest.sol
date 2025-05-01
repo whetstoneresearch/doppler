@@ -50,21 +50,34 @@ contract BaseTest is Test, Deployers {
 
     // Constants
 
-    uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
-    uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
-    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
+    // uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
+    // uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
+    // uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
+    uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 900_000_000e18; // 900M tokens
+    uint256 constant DEFAULT_MINIMUM_PROCEEDS = 6667e15; // 6.667 eth
+    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 13_333e15; // 13.333 eth
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
-    uint256 constant DEFAULT_ENDING_TIME = 2 days;
-    int24 constant DEFAULT_GAMMA = 800;
+    // uint256 constant DEFAULT_ENDING_TIME = 2 days;
+    uint256 constant DEFAULT_ENDING_TIME = DEFAULT_STARTING_TIME + 10 hours;
+
+    // int24 constant DEFAULT_GAMMA = 43_736;
+    // int24 constant DEFAULT_GAMMA = 59_780;
+    int24 constant DEFAULT_GAMMA = 18_850;
+    // int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 0;
-    int24 constant DEFAULT_TICK_SPACING = 8;
-    uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
+    // int24 constant DEFAULT_TICK_SPACING = 8;
+    int24 constant DEFAULT_TICK_SPACING = 10;
+    uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
-    int24 constant DEFAULT_START_TICK = 1600;
-    int24 constant DEFAULT_END_TICK = 171_200;
+    // int24 constant DEFAULT_START_TICK = 1600;
+    // int24 constant DEFAULT_END_TICK = 171_200;
+    // int24 constant DEFAULT_START_TICK = -184_210;
+    // int24 constant DEFAULT_END_TICK = 353_810;
+    int24 constant DEFAULT_START_TICK = -161_180;
+    int24 constant DEFAULT_END_TICK = 330_780;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
