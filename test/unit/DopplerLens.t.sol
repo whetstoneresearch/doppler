@@ -20,7 +20,7 @@ contract DopplerLensTest is BaseTest {
     }
 
     function test_lens_fetches_consistent_ticks() public _deployLensQuoter {
-        vm.warp(hook.getStartingTime());
+        vm.warp(hook.startingTime());
 
         bool isToken0 = hook.isToken0();
 
@@ -28,7 +28,7 @@ contract DopplerLensTest is BaseTest {
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength());
+        vm.warp(hook.startingTime() + hook.epochLength());
 
         (uint160 sqrtPriceX961, int24 tick1) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })

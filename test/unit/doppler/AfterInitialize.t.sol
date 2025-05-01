@@ -3,14 +3,14 @@ pragma solidity ^0.8.24;
 
 import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "src/Doppler.sol";
 
 contract AfterInitializeTest is BaseTest {
     using PoolIdLibrary for PoolKey;
-    // =========================================================================
-    //                      afterInitialize Unit Tests
-    // =========================================================================
 
     function testAfterInitialize() public view {
         // We've already initialized in the setUp, so we just need to validate
@@ -57,10 +57,26 @@ contract AfterInitializeTest is BaseTest {
         // Assert that upper and price discovery slugs have liquidity
         assertNotEq(upperSlug.liquidity, 0);
 
-        assertEq(lowerSlug.tickLower, hook.getStartingTick());
-        assertEq(lowerSlug.tickUpper, hook.getStartingTick());
+        assertEq(lowerSlug.tickLower, hook.startingTick());
+        assertEq(lowerSlug.tickUpper, hook.startingTick());
 
         // Assert that lower slug has no liquidity
         assertEq(lowerSlug.liquidity, 0);
+    }
+
+    function test_afterInitialize_RevertsWhenNotCalledByPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        hook.afterInitialize(
+            address(0),
+            PoolKey({
+                currency0: Currency.wrap(address(0)),
+                currency1: Currency.wrap(address(0)),
+                fee: 0,
+                tickSpacing: 0,
+                hooks: IHooks(address(0))
+            }),
+            0,
+            0
+        );
     }
 }
