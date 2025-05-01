@@ -304,82 +304,82 @@ contract V4PocTest is DopplerLensTest {
         console.log("ETH migrated: ", address(0xbeef).balance);
     }
 
-    function test_buy_60sPerEpoch_HalfEmptyEpoch_HalfSameSizeUntilMaxProceed() public _deployLensQuoter {
-        // Go to starting time
-        vm.warp(hook.getStartingTime());
+    // function test_buy_60sPerEpoch_HalfEmptyEpoch_HalfSameSizeUntilMaxProceed() public _deployLensQuoter {
+    //     // Go to starting time
+    //     vm.warp(hook.getStartingTime());
 
-        (uint160 oriSqrtPriceX96,,,) = manager.getSlot0(key.toId());
+    //     (uint160 oriSqrtPriceX96,,,) = manager.getSlot0(key.toId());
 
-        console.log("\n-------------- CURRENT CONFIG ------------------");
-        console.log("ori token left in hook", IERC20(asset).balanceOf(address(hook)));
-        console.log("ori token left in pool", IERC20(asset).balanceOf(address(manager)));
-        console.log("ori sqrtPriceX96", oriSqrtPriceX96);
-        console.log("starting tick", hook.getStartingTick());
-        console.log("ending tick", hook.getEndingTick());
-        console.log("gamma", hook.getGamma());
+    //     console.log("\n-------------- CURRENT CONFIG ------------------");
+    //     console.log("ori token left in hook", IERC20(asset).balanceOf(address(hook)));
+    //     console.log("ori token left in pool", IERC20(asset).balanceOf(address(manager)));
+    //     console.log("ori sqrtPriceX96", oriSqrtPriceX96);
+    //     console.log("starting tick", hook.getStartingTick());
+    //     console.log("ending tick", hook.getEndingTick());
+    //     console.log("gamma", hook.getGamma());
 
-        // no buys for N epochs
-        uint256 totalEpochs = 360;
-        uint256 halfOfEpoch = totalEpochs / 2;
-        uint256 maxProceed = 13_333e15;
-        uint256 buyEthAmount = maxProceed / halfOfEpoch + 1;
+    //     // no buys for N epochs
+    //     uint256 totalEpochs = 360;
+    //     uint256 halfOfEpoch = totalEpochs / 2;
+    //     uint256 maxProceed = 13_333e15;
+    //     uint256 buyEthAmount = maxProceed / halfOfEpoch + 1;
 
-        vm.warp(hook.getStartingTime() + hook.getEpochLength() * halfOfEpoch);
+    //     vm.warp(hook.getStartingTime() + hook.getEpochLength() * halfOfEpoch);
 
-        // vm.warp(hook.getStartingTime() + hook.getEpochLength()); // go to next epoch
+    //     // vm.warp(hook.getStartingTime() + hook.getEpochLength()); // go to next epoch
 
-        // consecutive buy in each epoch
-        for (uint256 i; i < halfOfEpoch; i++) {
-            uint256 tokenBought;
+    //     // consecutive buy in each epoch
+    //     for (uint256 i; i < halfOfEpoch; i++) {
+    //         uint256 tokenBought;
 
-            // if (i == halfOfEpoch - 1) {
-            (tokenBought,) = buy(-int256(buyEthAmount));
+    //         // if (i == halfOfEpoch - 1) {
+    //         (tokenBought,) = buy(-int256(buyEthAmount));
 
-            // } else {
-            //     (tokenBought,) = buy(-int256(0.0740556 ether));
-            //     sellExactIn(tokenBought / 2);
-            //     buyExactOut(tokenBought / 2);
-            // }
+    //         // } else {
+    //         //     (tokenBought,) = buy(-int256(0.0740556 ether));
+    //         //     sellExactIn(tokenBought / 2);
+    //         //     buyExactOut(tokenBought / 2);
+    //         // }
 
-            (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
+    //         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
 
-            uint160 sqrtPriceX96;
-            int24 tick;
+    //         uint160 sqrtPriceX96;
+    //         int24 tick;
 
-            if (i == halfOfEpoch - 1) {
-                (sqrtPriceX96, tick,,) = manager.getSlot0(key.toId());
-            } else {
-                (sqrtPriceX96, tick) = lensQuoter.quoteDopplerLensData(
-                    IV4Quoter.QuoteExactSingleParams({
-                        poolKey: key,
-                        zeroForOne: !isToken0,
-                        exactAmount: 1,
-                        hookData: ""
-                    })
-                );
-            }
-            uint256 tokenPerOneETH = sqrtPriceX96;
+    //         if (i == halfOfEpoch - 1) {
+    //             (sqrtPriceX96, tick,,) = manager.getSlot0(key.toId());
+    //         } else {
+    //             (sqrtPriceX96, tick) = lensQuoter.quoteDopplerLensData(
+    //                 IV4Quoter.QuoteExactSingleParams({
+    //                     poolKey: key,
+    //                     zeroForOne: !isToken0,
+    //                     exactAmount: 1,
+    //                     hookData: ""
+    //                 })
+    //             );
+    //         }
+    //         uint256 tokenPerOneETH = sqrtPriceX96;
 
-            console.log("\n-------------- SALE No. %d ------------------", i);
-            console.log("tick", tick);
-            console.log("token bought", tokenBought);
-            console.log("\n");
-            console.log("totalTokensSold / circulating supply", totalTokensSold);
-            console.log("totalProceeds", totalProceeds);
-            console.log("\n");
-            console.log("token / ETH (sqrtPriceX96)", tokenPerOneETH);
-            console.log("isEarlyExit", hook.earlyExit());
-            console.log("current epoch", hook.getCurrentEpoch());
+    //         console.log("\n-------------- SALE No. %d ------------------", i);
+    //         console.log("tick", tick);
+    //         console.log("token bought", tokenBought);
+    //         console.log("\n");
+    //         console.log("totalTokensSold / circulating supply", totalTokensSold);
+    //         console.log("totalProceeds", totalProceeds);
+    //         console.log("\n");
+    //         console.log("token / ETH (sqrtPriceX96)", tokenPerOneETH);
+    //         console.log("isEarlyExit", hook.earlyExit());
+    //         console.log("current epoch", hook.getCurrentEpoch());
 
-            vm.warp(hook.getStartingTime() + hook.getEpochLength() * (halfOfEpoch + i + 1)); // go to next epoch
-        }
+    //         vm.warp(hook.getStartingTime() + hook.getEpochLength() * (halfOfEpoch + i + 1)); // go to next epoch
+    //     }
 
-        vm.prank(hook.initializer());
-        hook.migrate(address(0xbeef));
+    //     vm.prank(hook.initializer());
+    //     hook.migrate(address(0xbeef));
 
-        console.log("\nToken migrated: ", IERC20(asset).balanceOf(address(0xbeef)));
-        console.log("ETH migrated: ", address(0xbeef).balance);
-    }
+    //     console.log("\nToken migrated: ", IERC20(asset).balanceOf(address(0xbeef)));
+    //     console.log("ETH migrated: ", address(0xbeef).balance);
+    // }
 
     function test_buy_24hrSale_HalfEmptyEpoch_HalfSameSizeUntilMaxProceed() public _deployLensQuoter {
         // Go to starting time
@@ -659,6 +659,74 @@ contract V4PocTest is DopplerLensTest {
             console.log("current epoch", hook.getCurrentEpoch());
 
             vm.warp(hook.getStartingTime() + hook.getEpochLength() * (skipNumOfEpoch + i + 1)); // go to next epoch
+        }
+
+        vm.prank(hook.initializer());
+        hook.migrate(address(0xbeef));
+
+        console.log("\nToken migrated: ", IERC20(asset).balanceOf(address(0xbeef)));
+        console.log("ETH migrated: ", address(0xbeef).balance);
+    }
+
+    function test_buy_EveryEpochUntilMaxProceed() public _deployLensQuoter {
+        // Go to starting time
+        vm.warp(hook.getStartingTime());
+
+        (uint160 oriSqrtPriceX96,,,) = manager.getSlot0(key.toId());
+
+        console.log("\n-------------- CURRENT CONFIG ------------------");
+        console.log("ori token left in hook", IERC20(asset).balanceOf(address(hook)));
+        console.log("ori token left in pool", IERC20(asset).balanceOf(address(manager)));
+        console.log("ori sqrtPriceX96", oriSqrtPriceX96);
+        console.log("starting tick", hook.getStartingTick());
+        console.log("ending tick", hook.getEndingTick());
+        console.log("gamma", hook.getGamma());
+
+        uint256 tradeNum = 14;
+
+        // consecutive buy in each epoch
+        for (uint256 i; i < tradeNum; i++) {
+            uint256 tokenBought;
+
+            if (i == tradeNum - 1) {
+                (tokenBought,) = buy(-int256(1 ether));
+            } else {
+                (tokenBought,) = buy(-int256(1 ether));
+                sellExactIn(tokenBought / 2);
+                buyExactOut(tokenBought / 2);
+            }
+
+            (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
+
+            uint160 sqrtPriceX96;
+            int24 tick;
+
+            if (i == tradeNum - 1) {
+                (sqrtPriceX96, tick,,) = manager.getSlot0(key.toId());
+            } else {
+                (sqrtPriceX96, tick) = lensQuoter.quoteDopplerLensData(
+                    IV4Quoter.QuoteExactSingleParams({
+                        poolKey: key,
+                        zeroForOne: !isToken0,
+                        exactAmount: 1,
+                        hookData: ""
+                    })
+                );
+            }
+            uint256 tokenPerOneETH = sqrtPriceX96;
+
+            console.log("\n-------------- SALE No. %d ------------------", i);
+            console.log("tick", tick);
+            console.log("token bought", tokenBought);
+            console.log("\n");
+            console.log("totalTokensSold / circulating supply", totalTokensSold);
+            console.log("totalProceeds", totalProceeds);
+            console.log("\n");
+            console.log("token / ETH (sqrtPriceX96)", tokenPerOneETH);
+            console.log("isEarlyExit", hook.earlyExit());
+            console.log("current epoch", hook.getCurrentEpoch());
+
+            vm.warp(hook.getStartingTime() + hook.getEpochLength() * (tradeNum + i + 1)); // go to next epoch
         }
 
         vm.prank(hook.initializer());
