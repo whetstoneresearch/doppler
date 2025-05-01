@@ -13,6 +13,8 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
+import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -290,6 +292,39 @@ contract RebalanceTest is BaseTest {
 
         // Assert that the lowerSlug has no liquidity
         assertEq(lowerSlug.liquidity, 0);
+    }
+
+    function test_rebalance_CurrentTick_Correct_After_Each_Rebalance() public {
+        vm.warp(hook.startingTime());
+
+        bool isToken0 = hook.isToken0();
+        int256 I_WAD = 1e18;
+
+        int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
+        console.log("tickDeltaPerEpoch", tickDeltaPerEpoch);
+
+        (uint160 initialSqrtPriceX96, int24 initialTick) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+
+        uint256 numEpochs = (hook.endingTime() - hook.startingTime()) / hook.epochLength();
+
+        for (uint256 i; i < numEpochs; i++) {
+            vm.warp(hook.startingTime() + hook.epochLength() * i);
+
+            (uint160 sqrtPriceX96, int24 tick) = lensQuoter.quoteDopplerLensData(
+                IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+            );
+
+            int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
+
+            console.log("epoch", i + 1);
+            console.log("expectedTick", expectedTick);
+            console.log("tick", tick);
+
+            assertEq(tick, expectedTick);
+        }
     }
 
     function test_rebalance_UpperSlug_Undersold() public {

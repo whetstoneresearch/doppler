@@ -2,24 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { StateView } from "@uniswap/v4-periphery/src/lens/StateView.sol";
-import { DopplerLensQuoter } from "../../src/lens/DopplerLens.sol";
-import { IV4Quoter } from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
+import { StateView } from "@v4-periphery/lens/StateView.sol";
+import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 
 contract DopplerLensTest is BaseTest {
-    DopplerLensQuoter public lensQuoter;
-
-    function deployLensQuoter() internal {
-        StateView stateView = new StateView(manager);
-        lensQuoter = new DopplerLensQuoter(manager, stateView);
-    }
-
-    modifier _deployLensQuoter() {
-        deployLensQuoter();
-        _;
-    }
-
-    function test_lens_fetches_consistent_ticks() public _deployLensQuoter {
+    function test_lens_fetches_consistent_ticks() public {
         vm.warp(hook.startingTime());
 
         bool isToken0 = hook.isToken0();
