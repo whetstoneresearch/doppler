@@ -606,14 +606,14 @@ contract Doppler is BaseHook {
             // apply max tick delta for remaining empty epochs
             // -2 because we already applied the first empty epoch and will apply the last epoch later
             // only max DA for every epoch where we are below expected amount sold
-            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-1); // 4 tokens
+            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-2); // 4 tokens
             bool isLteExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch; // True
 
             console.log(state.lastEpoch);
 
             if (isLteExpectedSoldInLastEpoch) {
                 // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
-                int256 offset = -1;
+                int256 offset = -2;
                 uint256 expectedSold = expectedSoldInLastEpoch; // 4 tokens
                 uint256 emptyEpochs;
 
