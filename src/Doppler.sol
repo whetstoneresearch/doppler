@@ -579,6 +579,19 @@ contract Doppler is BaseHook {
                 accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
             }
 
+            /*
+
+            proceeds > 0
+
+            n     | trade (buy or sell)
+            n + 1 |
+            n + 2 | 
+            n + 3 |
+            n + 4 | 
+            now   | 
+
+            */
+
             // apply max tick delta for remaining empty epochs
             // -2 because we already applied the first empty epoch and will apply the last epoch later
             // only max DA for every epoch where we are below expected amount sold
