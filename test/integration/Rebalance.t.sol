@@ -296,22 +296,22 @@ contract RebalanceTest is BaseTest {
 
     function test_big_swap() public {
         vm.warp(hook.startingTime());
+        // buy the tokens for epoch 3
         uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
         buyExactOut(amountToBuy);
-        (, int24 tick) = lensQuoter.quoteDopplerLensData(
+        // warp to epoch 3
+        vm.warp(hook.startingTime() + hook.epochLength() * 3);
+        // get the tick for epoch 3
+        (, int24 tickAtEpoch3) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
-        console.log("tick", tick);
-        vm.warp(hook.startingTime() + hook.epochLength() * 2);
-        (, int24 tick2) = lensQuoter.quoteDopplerLensData(
+        // warp to epoch 6
+        vm.warp(hook.startingTime() + hook.epochLength() * 6);
+        // get the tick for epoch 6
+        (, int24 tickAtEpoch6) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
-        vm.warp(hook.startingTime() + hook.epochLength() * 5);
-        (, int24 tick3) = lensQuoter.quoteDopplerLensData(
-            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
-        );
-        console.log("tick3", tick3);
-        assertEq(tick3, tick2 - 800 * 3, "tick3 != tick2 - 800 * 3");
+        assertApproxEqAbs(tickAtEpoch6, tickAtEpoch3 - 800 * 2, 1000, "tickAtEpoch6 != tickAtEpoch3 - 800 * 2");
     }
 
     function test_rebalance_CurrentTick_Correct_After_Each_Rebalance() public {
@@ -321,14 +321,12 @@ contract RebalanceTest is BaseTest {
         int256 I_WAD = 1e18;
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
-        console.log("tickDeltaPerEpoch", tickDeltaPerEpoch);
 
         (, int24 initialTick) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
         uint256 numEpochs = (hook.endingTime() - hook.startingTime()) / hook.epochLength();
-        console.log("numEpochs", numEpochs);
 
         for (uint256 i; i < numEpochs; i++) {
             vm.warp(hook.startingTime() + hook.epochLength() * i);
@@ -342,12 +340,6 @@ contract RebalanceTest is BaseTest {
 
             int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
             expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
-
-            /*
-            console.log("epoch", i + 1);
-            console.log("expectedTick", expectedTick);
-            console.log("tick", tick);
-            */
 
             assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
         }
