@@ -91,7 +91,8 @@ contract DopplerHandler is Test {
     function buyExactAmountIn(
         uint256 amountToSpend
     ) public createActor {
-        amountToSpend = 1 ether;
+        // amountToSpend = 1 ether;
+        vm.assume(amountToSpend > 0 && amountToSpend <= 10 ether);
 
         if (isUsingEth) {
             deal(currentActor, amountToSpend);
