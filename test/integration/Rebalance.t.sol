@@ -323,7 +323,7 @@ contract RebalanceTest is BaseTest {
             console.log("expectedTick", expectedTick);
             console.log("tick", tick);
 
-            assertEq(tick, expectedTick);
+            assertEq(tick, expectedTick, string.concat("Failing at tick ", vm.toString(i)));
         }
     }
 
