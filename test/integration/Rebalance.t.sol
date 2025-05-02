@@ -298,11 +298,20 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.startingTime());
         uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
         buyExactOut(amountToBuy);
-        vm.warp(hook.startingTime() + hook.epochLength() * 2);
         (, int24 tick) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
         console.log("tick", tick);
+        vm.warp(hook.startingTime() + hook.epochLength() * 2);
+        (, int24 tick2) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+        vm.warp(hook.startingTime() + hook.epochLength() * 5);
+        (, int24 tick3) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+        console.log("tick3", tick3);
+        assertEq(tick3, tick2 - 800 * 3, "tick3 != tick2 - 800 * 3");
     }
 
     function test_rebalance_CurrentTick_Correct_After_Each_Rebalance() public {
