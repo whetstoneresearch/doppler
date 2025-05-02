@@ -303,7 +303,7 @@ contract RebalanceTest is BaseTest {
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
         console.log("tickDeltaPerEpoch", tickDeltaPerEpoch);
 
-        (uint160 initialSqrtPriceX96, int24 initialTick) = lensQuoter.quoteDopplerLensData(
+        (, int24 initialTick) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
@@ -312,7 +312,7 @@ contract RebalanceTest is BaseTest {
         for (uint256 i; i < numEpochs; i++) {
             vm.warp(hook.startingTime() + hook.epochLength() * i);
 
-            (uint160 sqrtPriceX96, int24 tick) = lensQuoter.quoteDopplerLensData(
+            (, int24 tick) = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
             );
 
@@ -323,7 +323,7 @@ contract RebalanceTest is BaseTest {
             console.log("expectedTick", expectedTick);
             console.log("tick", tick);
 
-            assertEq(tick, expectedTick, string.concat("Failing at tick ", vm.toString(i)));
+            assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
         }
     }
 

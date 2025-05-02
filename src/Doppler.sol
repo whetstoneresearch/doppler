@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -581,40 +582,54 @@ contract Doppler is BaseHook {
 
             /*
 
-            proceeds > 0
+            tokens sold = 3
 
-            n     | trade (buy or sell)
-            n + 1 |
-            n + 2 | 
-            n + 3 |
-            n + 4 | 
-            now   | 
+            n     | trade (buy or sell) | if oversold -> dispatch the tokens sold over the next epochs | if undersold -> max DA | currentTick - expectedTick
+            n + 1 | 1
+            n + 2 | 2
+            n + 3 | 3
+            n + 4 | 4
+            now   | tick = epoch n tick - 4 * max DA
+
+
+
+
+
+            epoch
+            1 1600
+            2 800
+            3 0
+            4 -800  
 
             */
 
             // apply max tick delta for remaining empty epochs
             // -2 because we already applied the first empty epoch and will apply the last epoch later
             // only max DA for every epoch where we are below expected amount sold
-            // uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-1);
-            // bool isLteExpectedSoldInLastEpoch = totalTokensSold_ <= expectedSoldInLastEpoch;
-            /*
+            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-1); // 4 tokens
+            bool isLteExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch; // True
+
+            console.log(state.lastEpoch);
+
             if (isLteExpectedSoldInLastEpoch) {
                 // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
                 int256 offset = -1;
-                uint256 exptectedSold;
-                bool isLteExpectedSold;
-                uint256 emptyEpochs = 0;
-                while (isLteExpectedSold) {
-                    exptectedSold = _getExpectedAmountSoldWithEpochOffset(offset);
-                    isLteExpectedSold = totalTokensSold_ <= exptectedSold;
-                    offset--;
-                    emptyEpochs++;
-                }
-                accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(emptyEpochs);
-            }
-            */
+                uint256 expectedSold = expectedSoldInLastEpoch; // 4 tokens
+                uint256 emptyEpochs;
 
-            accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(epochsPassed - 2);
+                do {
+                    emptyEpochs++;
+                    offset--;
+                    expectedSold = _getExpectedAmountSoldWithEpochOffset(offset);
+                    isLteExpectedSoldInLastEpoch = totalTokensSold_ < expectedSold;
+                } while (isLteExpectedSoldInLastEpoch);
+
+                console.log("emptyEpochs", emptyEpochs);
+
+                accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(emptyEpochs);
+                console.log("accumulatorDelta", accumulatorDelta);
+            }
+
             state.totalTokensSoldLastEpoch = totalTokensSold_;
         }
 
@@ -799,6 +814,12 @@ contract Doppler is BaseHook {
     function _getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) internal view returns (uint256) {
+        if (offset > 0) {
+            require(uint256(offset) + state.lastEpoch <= totalEpochs, "Invalid offset");
+        } else {
+            require(uint256(-offset) < state.lastEpoch, "Invalid offset");
+        }
+
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed(
                 uint256((int256(_getCurrentEpoch()) + offset - 1) * int256(epochLength) + int256(startingTime))
