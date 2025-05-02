@@ -120,7 +120,7 @@ contract DopplerHandler is Test {
     function buyExactAmountOut(
         uint256 assetsToBuy
     ) public createActor {
-        assetsToBuy = 1 ether;
+        vm.assume(assetsToBuy > 0 && assetsToBuy <= hook.numTokensToSell());
         uint256 amountInRequired = router.computeBuyExactOut(assetsToBuy);
 
         if (isUsingEth) {
