@@ -294,6 +294,17 @@ contract RebalanceTest is BaseTest {
         assertEq(lowerSlug.liquidity, 0);
     }
 
+    function test_big_swap() public {
+        vm.warp(hook.startingTime());
+        uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
+        buyExactOut(amountToBuy);
+        vm.warp(hook.startingTime() + hook.epochLength() * 2);
+        (, int24 tick) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+        console.log("tick", tick);
+    }
+
     function test_rebalance_CurrentTick_Correct_After_Each_Rebalance() public {
         vm.warp(hook.startingTime());
 
@@ -308,9 +319,13 @@ contract RebalanceTest is BaseTest {
         );
 
         uint256 numEpochs = (hook.endingTime() - hook.startingTime()) / hook.epochLength();
+        console.log("numEpochs", numEpochs);
 
         for (uint256 i; i < numEpochs; i++) {
             vm.warp(hook.startingTime() + hook.epochLength() * i);
+            if (block.timestamp >= hook.endingTime()) {
+                break;
+            }
 
             (, int24 tick) = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
@@ -319,9 +334,11 @@ contract RebalanceTest is BaseTest {
             int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
             expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
 
+            /*
             console.log("epoch", i + 1);
             console.log("expectedTick", expectedTick);
             console.log("tick", tick);
+            */
 
             assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
         }

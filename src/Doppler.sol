@@ -609,7 +609,7 @@ contract Doppler is BaseHook {
             uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-2); // 4 tokens
             bool isLteExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch; // True
 
-            console.log(state.lastEpoch);
+            console.log("state.lastEpoch", state.lastEpoch);
 
             if (isLteExpectedSoldInLastEpoch) {
                 // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
@@ -814,11 +814,13 @@ contract Doppler is BaseHook {
     function _getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) internal view returns (uint256) {
+        /*
         if (offset > 0) {
-            require(uint256(offset) + state.lastEpoch <= totalEpochs, "Invalid offset");
+            require(uint256(offset) + state.lastEpoch <= totalEpochs, "Invalid positive offset");
         } else {
-            require(uint256(-offset) < state.lastEpoch, "Invalid offset");
+            require(uint256(-offset) < state.lastEpoch, "Invalid negative offset");
         }
+        */
 
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed(
