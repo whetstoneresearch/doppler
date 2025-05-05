@@ -302,13 +302,13 @@ contract RebalanceTest is BaseTest {
         // warp to epoch 3
         vm.warp(hook.startingTime() + hook.epochLength() * 3);
         // get the tick for epoch 3
-        (, int24 tickAtEpoch3) = lensQuoter.quoteDopplerLensData(
+        (, int24 tickAtEpoch3,) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
         // warp to epoch 6
         vm.warp(hook.startingTime() + hook.epochLength() * 6);
         // get the tick for epoch 6
-        (, int24 tickAtEpoch6) = lensQuoter.quoteDopplerLensData(
+        (, int24 tickAtEpoch6,) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
@@ -328,7 +328,7 @@ contract RebalanceTest is BaseTest {
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
-        (, int24 initialTick) = lensQuoter.quoteDopplerLensData(
+        (, int24 initialTick,) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
@@ -340,7 +340,7 @@ contract RebalanceTest is BaseTest {
                 break;
             }
 
-            (, int24 tick) = lensQuoter.quoteDopplerLensData(
+            (, int24 tick,) = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
             );
             tick = hook.alignComputedTickWithTickSpacing(tick, key.tickSpacing);

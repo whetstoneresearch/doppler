@@ -7,6 +7,15 @@ import { BaseV4Quoter } from "@v4-periphery/base/BaseV4Quoter.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { Doppler, Position } from "src/Doppler.sol";
+
+// Demarcates the id of the lower, upper, and price discovery slugs
+bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
+bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
+bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
+
+// Number of default slugs
+uint256 constant NUM_DEFAULT_SLUGS = 3;
 
 /// @title DopplerLensQuoter
 /// @notice Supports quoting the tick for exact input or exact output swaps.
@@ -24,11 +33,42 @@ contract DopplerLensQuoter is BaseV4Quoter {
 
     function quoteDopplerLensData(
         IV4Quoter.QuoteExactSingleParams memory params
-    ) external returns (uint160 sqrtPriceX96, int24 tick) {
+    ) external returns (uint160 sqrtPriceX96, int24 tick, Position[] memory positions) {
         try poolManager.unlock(abi.encodeCall(this._quoteDopplerLensDataExactInputSingle, (params))) { }
         catch (bytes memory reason) {
             sqrtPriceX96 = reason.parseDopplerLensData();
             tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+            Doppler doppler = Doppler(payable(address(params.poolKey.hooks)));
+
+            uint256 pdSlugCount = doppler.numPDSlugs();
+            positions = new Position[](NUM_DEFAULT_SLUGS - 1 + pdSlugCount);
+
+            (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = doppler.positions(LOWER_SLUG_SALT);
+            positions[0] = Position({
+                tickLower: tickLower0,
+                tickUpper: tickUpper0,
+                liquidity: liquidity0,
+                salt: uint8(uint256(LOWER_SLUG_SALT))
+            });
+
+            (int24 tickLower1, int24 tickUpper1, uint128 liquidity1,) = doppler.positions(UPPER_SLUG_SALT);
+            positions[1] = Position({
+                tickLower: tickLower1,
+                tickUpper: tickUpper1,
+                liquidity: liquidity1,
+                salt: uint8(uint256(UPPER_SLUG_SALT))
+            });
+
+            for (uint256 i; i < pdSlugCount; i++) {
+                (int24 tickLower, int24 tickUpper, uint128 liquidity,) =
+                    doppler.positions(bytes32(uint256(DISCOVERY_SLUG_SALT) + i));
+                positions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    liquidity: liquidity,
+                    salt: uint8(NUM_DEFAULT_SLUGS + i)
+                });
+            }
         }
     }
 
