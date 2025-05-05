@@ -311,7 +311,13 @@ contract RebalanceTest is BaseTest {
         (, int24 tickAtEpoch6) = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
-        assertApproxEqAbs(tickAtEpoch6, tickAtEpoch3 - 800 * 2, 1000, "tickAtEpoch6 != tickAtEpoch3 - 800 * 2");
+
+        assertApproxEqAbs(
+            tickAtEpoch6,
+            isToken0 ? tickAtEpoch3 - 800 * 2 : tickAtEpoch3 + 800 * 2,
+            1000,
+            "tickAtEpoch6 != tickAtEpoch3 - 800 * 2"
+        );
     }
 
     function test_rebalance_CurrentTick_Correct_After_Each_Rebalance() public {
@@ -337,6 +343,7 @@ contract RebalanceTest is BaseTest {
             (, int24 tick) = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
             );
+            tick = hook.alignComputedTickWithTickSpacing(tick, key.tickSpacing);
 
             int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
             expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
