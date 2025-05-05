@@ -582,22 +582,25 @@ contract Doppler is BaseHook {
             // apply max tick delta for remaining empty epochs
             // -2 because we already applied the first empty epoch and will apply the last epoch later
             // only max DA for every epoch where we are below expected amount sold
-            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-1);
-            bool isLteExpectedSoldInLastEpoch = totalTokensSold_ <= expectedSoldInLastEpoch;
-            if (isLteExpectedSoldInLastEpoch) {
+            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-2);
+            bool isLtExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch;
+
+            if (isLtExpectedSoldInLastEpoch) {
                 // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
-                int256 offset = -1;
-                uint256 exptectedSold;
-                bool isLteExpectedSold;
-                uint256 emptyEpochs = 0;
-                while (isLteExpectedSold) {
-                    exptectedSold = _getExpectedAmountSoldWithEpochOffset(offset);
-                    isLteExpectedSold = totalTokensSold_ <= exptectedSold;
-                    offset--;
+                int256 offset = -2;
+                uint256 expectedSold = expectedSoldInLastEpoch;
+                uint256 emptyEpochs;
+
+                do {
                     emptyEpochs++;
-                }
+                    offset--;
+                    expectedSold = _getExpectedAmountSoldWithEpochOffset(offset);
+                    isLtExpectedSoldInLastEpoch = totalTokensSold_ < expectedSold;
+                } while (isLtExpectedSoldInLastEpoch);
+
                 accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(emptyEpochs);
             }
+
             state.totalTokensSoldLastEpoch = totalTokensSold_;
         }
 
