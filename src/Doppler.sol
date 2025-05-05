@@ -579,26 +579,16 @@ contract Doppler is BaseHook {
                 accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
             }
 
-            /*
-                tokens sold = 3
-                n     | trade (buy or sell) | if oversold -> dispatch the tokens sold over the next epochs | if undersold -> max DA | currentTick - expectedTick
-                n + 1 | 1
-                n + 2 | 2
-                n + 3 | 3
-                n + 4 | 4
-                now   | tick = epoch n tick - 4 * max DA
-            */
-
             // apply max tick delta for remaining empty epochs
             // -2 because we already applied the first empty epoch and will apply the last epoch later
             // only max DA for every epoch where we are below expected amount sold
-            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-2); // 4 tokens
-            bool isLtExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch; // True
+            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-2);
+            bool isLtExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch;
 
             if (isLtExpectedSoldInLastEpoch) {
                 // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
                 int256 offset = -2;
-                uint256 expectedSold = expectedSoldInLastEpoch; // 4 tokens
+                uint256 expectedSold = expectedSoldInLastEpoch;
                 uint256 emptyEpochs;
 
                 do {
