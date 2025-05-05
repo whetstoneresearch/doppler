@@ -13,6 +13,8 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
+import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -290,6 +292,64 @@ contract RebalanceTest is BaseTest {
 
         // Assert that the lowerSlug has no liquidity
         assertEq(lowerSlug.liquidity, 0);
+    }
+
+    function test_big_swap() public {
+        vm.warp(hook.startingTime());
+        // buy the tokens for epoch 3
+        uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
+        buyExactOut(amountToBuy);
+        // warp to epoch 3
+        vm.warp(hook.startingTime() + hook.epochLength() * 3);
+        // get the tick for epoch 3
+        (, int24 tickAtEpoch3) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+        // warp to epoch 6
+        vm.warp(hook.startingTime() + hook.epochLength() * 6);
+        // get the tick for epoch 6
+        (, int24 tickAtEpoch6) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+
+        assertApproxEqAbs(
+            tickAtEpoch6,
+            isToken0 ? tickAtEpoch3 - 800 * 2 : tickAtEpoch3 + 800 * 2,
+            1000,
+            "tickAtEpoch6 != tickAtEpoch3 - 800 * 2"
+        );
+    }
+
+    function test_rebalance_CurrentTick_Correct_After_Each_Rebalance() public {
+        vm.warp(hook.startingTime());
+
+        bool isToken0 = hook.isToken0();
+        int256 I_WAD = 1e18;
+
+        int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
+
+        (, int24 initialTick) = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+
+        uint256 numEpochs = (hook.endingTime() - hook.startingTime()) / hook.epochLength();
+
+        for (uint256 i; i < numEpochs; i++) {
+            vm.warp(hook.startingTime() + hook.epochLength() * i);
+            if (block.timestamp >= hook.endingTime()) {
+                break;
+            }
+
+            (, int24 tick) = lensQuoter.quoteDopplerLensData(
+                IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+            );
+            tick = hook.alignComputedTickWithTickSpacing(tick, key.tickSpacing);
+
+            int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
+
+            assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
+        }
     }
 
     function test_rebalance_UpperSlug_Undersold() public {
@@ -933,8 +993,8 @@ contract RebalanceTest is BaseTest {
 
         int256 maxTickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
-        // Assert that we've done two epochs worth of max dutch auctioning
-        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 2, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 2");
+        // Assert that we've done three epochs worth of max dutch auctioning
+        assertEq(tickAccumulator, maxTickDeltaPerEpoch * 3, "first swap: tickAccumulator != maxTickDeltaPerEpoch * 3");
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -1259,7 +1319,7 @@ contract RebalanceTest is BaseTest {
 
         // Swap all remaining tokens
         // we subtract 50 to account for rounding errors
-        buy(int256(numTokensToSell - totalTokensSold4 - feesAccrued - 50));
+        buy(int256(numTokensToSell - totalTokensSold4 - feesAccrued - 100));
 
         (, int256 tickAccumulator6,,,,) = hook.state();
 
