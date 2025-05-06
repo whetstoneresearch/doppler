@@ -148,10 +148,8 @@ contract DopplerImplementation is Doppler {
         return poolManager.unlock(data);
     }
 
-    function getCurrentTick(
-        PoolId poolId
-    ) public view returns (int24) {
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+    function getCurrentTick() public view returns (int24) {
+        (, int24 currentTick,,) = poolManager.getSlot0(poolKey.toId());
         return currentTick;
     }
 
