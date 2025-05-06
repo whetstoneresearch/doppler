@@ -14,6 +14,7 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
@@ -302,19 +303,19 @@ contract RebalanceTest is BaseTest {
         // warp to epoch 3
         vm.warp(hook.startingTime() + hook.epochLength() * 3);
         // get the tick for epoch 3
-        (, int24 tickAtEpoch3,) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
         // warp to epoch 6
         vm.warp(hook.startingTime() + hook.epochLength() * 6);
         // get the tick for epoch 6
-        (, int24 tickAtEpoch6,) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory data2 = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
         assertApproxEqAbs(
-            tickAtEpoch6,
-            isToken0 ? tickAtEpoch3 - 800 * 2 : tickAtEpoch3 + 800 * 2,
+            data2.tick,
+            isToken0 ? data.tick - 800 * 2 : data.tick + 800 * 2,
             1000,
             "tickAtEpoch6 != tickAtEpoch3 - 800 * 2"
         );
@@ -328,7 +329,7 @@ contract RebalanceTest is BaseTest {
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
-        (, int24 initialTick,) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory initialData = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
@@ -340,12 +341,50 @@ contract RebalanceTest is BaseTest {
                 break;
             }
 
-            (, int24 tick,) = lensQuoter.quoteDopplerLensData(
+            DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
             );
-            tick = hook.alignComputedTickWithTickSpacing(tick, key.tickSpacing);
+            int24 tick = hook.alignComputedTickWithTickSpacing(data.tick, key.tickSpacing);
 
-            int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
+
+            assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
+        }
+    }
+
+    function test_rebalance_LensFetchesCorrectPositionsAtEachEpoch() public {
+        vm.warp(hook.startingTime());
+
+        bool isToken0 = hook.isToken0();
+        int256 I_WAD = 1e18;
+
+        int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
+
+        DopplerLensReturnData memory initialData = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+
+        uint256 numEpochs = (hook.endingTime() - hook.startingTime()) / hook.epochLength();
+
+        for (uint256 i; i < numEpochs; i++) {
+            vm.warp(hook.startingTime() + hook.epochLength() * i);
+            if (block.timestamp >= hook.endingTime()) {
+                break;
+            }
+
+            DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
+                IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+            );
+            for (uint256 j; j < data.positions.length; j++) {
+                console.log("tickUpper", data.positions[j].tickUpper);
+                console.log("tickLower", data.positions[j].tickLower);
+                console.log("liquidity", data.positions[j].liquidity);
+                console.log("salt", data.positions[j].salt);
+            }
+            int24 tick = hook.alignComputedTickWithTickSpacing(data.tick, key.tickSpacing);
+
+            int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
             expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
 
             assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
