@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -11,7 +12,8 @@ import {
     SwapBelowRange,
     InvalidSwapAfterMaturityInsufficientProceeds,
     InvalidSwapAfterMaturitySufficientProceeds,
-    MAX_SWAP_FEE
+    MAX_SWAP_FEE,
+    SlugData
 } from "src/Doppler.sol";
 
 contract SwapTest is BaseTest {
@@ -197,5 +199,22 @@ contract SwapTest is BaseTest {
         (uint256 afterFeeGrowthGlobal0, uint256 afterFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
         assertEq(beforeFeeGrowthGlobal0, afterFeeGrowthGlobal0, "Token 0 fee growth should not change");
         assertEq(beforeFeeGrowthGlobal1, afterFeeGrowthGlobal1, "Token 1 fee growth should not change");
+    }
+
+    function test_computeLowerSlugData() public {
+        vm.warp(hook.startingTime() + hook.epochLength() * 25);
+        SlugData memory slug = hook.computeLowerSlugData(
+            key, 48_004_403_943_716_531, 51_856_904_538_340_935, 437_152_299_985_969_633_423, 91_168, 91_176
+        );
+
+        assertTrue(slug.tickLower < slug.tickUpper);
+
+        console.log(slug.tickLower);
+        console.log(slug.tickUpper);
+    }
+
+    function test_swap_what() public {
+        vm.warp(hook.startingTime() + hook.epochLength() * 25);
+        buy(-0.01 ether);
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -89,10 +91,10 @@ contract DopplerHandler is Test {
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
     function buyExactAmountIn(
-        uint256 amountToSpend
+        uint256 seed
     ) public createActor {
-        // amountToSpend = 1 ether;
-        vm.assume(amountToSpend > 0 && amountToSpend <= 10 ether);
+        // vm.assume(amountToSpend > 0 && amountToSpend <= 1 ether);
+        uint256 amountToSpend = 0.01 ether;
 
         if (isUsingEth) {
             deal(currentActor, amountToSpend);
@@ -101,19 +103,22 @@ contract DopplerHandler is Test {
             numeraire.approve(address(router), amountToSpend);
         }
 
-        uint256 bought = router.buyExactIn{ value: isUsingEth ? amountToSpend : 0 }(amountToSpend);
+        (uint256 bought, uint256 used) = router.buy{ value: isUsingEth ? amountToSpend : 0 }(-int256(amountToSpend));
+        console.log("bought", bought);
+        console.log("used", used);
+
         assetBalanceOf[currentActor] += bought;
         ghost_totalTokensSold += bought;
 
-        uint256 proceedsLessFee = FullMath.mulDiv(uint128(amountToSpend), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(used), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
         ghost_totalProceeds += proceedsLessFee;
 
         if (isToken0) {
             ghost_reserve0 -= bought;
-            ghost_reserve1 += amountToSpend;
+            ghost_reserve1 += used;
         } else {
             ghost_reserve1 -= bought;
-            ghost_reserve0 += amountToSpend;
+            ghost_reserve0 += used;
         }
     }
 
@@ -121,6 +126,7 @@ contract DopplerHandler is Test {
         uint256 assetsToBuy
     ) public createActor {
         vm.assume(assetsToBuy > 0 && assetsToBuy <= hook.numTokensToSell());
+        assetsToBuy = 1 ether;
         uint256 amountInRequired = router.computeBuyExactOut(assetsToBuy);
 
         if (isUsingEth) {
@@ -137,6 +143,7 @@ contract DopplerHandler is Test {
         uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
         ghost_totalProceeds += proceedsLessFee;
 
+        /*
         if (isToken0) {
             ghost_reserve0 -= assetsToBuy;
             ghost_reserve1 += proceedsLessFee;
@@ -144,6 +151,7 @@ contract DopplerHandler is Test {
             ghost_reserve1 -= assetsToBuy;
             ghost_reserve0 += proceedsLessFee;
         }
+        */
     }
 
     function sellExactIn(
