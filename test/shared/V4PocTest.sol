@@ -69,7 +69,7 @@ contract V4PocTest is DopplerLensTest {
         console.log("tick(tokenPerOneETH)", tick);
     }
 
-    function test_buy_EmptyEpochsForHalfSale_BuyWithinFixedEpochsUntilMaxProceed() public {
+    function test_buy_EmptyFixedEpochs_BuyWithinFixedEpochsUntilMaxProceed() public {
         // Go to starting time
         vm.warp(hook.startingTime());
 
@@ -82,12 +82,22 @@ contract V4PocTest is DopplerLensTest {
         console.log("starting tick", hook.startingTick());
         console.log("ending tick", hook.endingTick());
         console.log("gamma", hook.gamma());
+        console.log("\n");
+        console.log("numeraire ", numeraire);
+        console.log("asset ", asset);
+        console.log("isToken0 ", isToken0);
+        console.log("usingEth ", usingEth);
+        console.log("current epoch", hook.getCurrentEpoch());
 
         // no buys for N epochs
+        uint256 emptyEpochs = 5;
+        // buy with same size for N epochs
         uint256 fixedEpochs = 10;
-        uint256 buyEthAmount = DEFAULT_MAXIMUM_PROCEEDS / fixedEpochs + 1; // in case max proceed is not divisible by the number of epochs
 
-        vm.warp(hook.startingTime() + hook.epochLength() * fixedEpochs);
+        // time travel by `emptyEpochs`
+        vm.warp(hook.startingTime() + hook.epochLength() * emptyEpochs);
+
+        uint256 buyEthAmount = DEFAULT_MAXIMUM_PROCEEDS / fixedEpochs + 1; // in case max proceed is not divisible by the number of epochs
 
         // consecutive buy with same size in each epoch
         for (uint256 i; i < fixedEpochs; i++) {
@@ -113,7 +123,7 @@ contract V4PocTest is DopplerLensTest {
                 );
             }
 
-            console.log("\n-------------- SALE No. %d ------------------", i);
+            console.log("\n-------------- SALE No. %d ------------------", i + 1);
             console.log("current epoch", hook.getCurrentEpoch());
             console.log("token bought", tokenBought);
             console.log("totalTokensSold / circulating supply", totalTokensSold);
@@ -123,7 +133,7 @@ contract V4PocTest is DopplerLensTest {
             console.log("tick(tokenPerOneETH)", tick);
             console.log("isEarlyExit", hook.earlyExit());
 
-            vm.warp(hook.startingTime() + hook.epochLength() * (fixedEpochs + i + 1)); // go to next epoch
+            vm.warp(hook.startingTime() + hook.epochLength() * (emptyEpochs + i + 1)); // go to next epoch
         }
 
         vm.prank(hook.initializer());
@@ -146,11 +156,20 @@ contract V4PocTest is DopplerLensTest {
         console.log("starting tick", hook.startingTick());
         console.log("ending tick", hook.endingTick());
         console.log("gamma", hook.gamma());
+        console.log("\n");
+        console.log("numeraire ", numeraire);
+        console.log("asset ", asset);
+        console.log("isToken0 ", isToken0);
+        console.log("usingEth ", usingEth);
+        console.log("current epoch", hook.getCurrentEpoch());
 
+        uint256 totalEpochs = SALE_DURATION / DEFAULT_EPOCH_LENGTH;
         uint256 fixedEpochs = 10;
+        assert(totalEpochs > fixedEpochs);
+
         uint256 buyEthAmount = DEFAULT_MAXIMUM_PROCEEDS / fixedEpochs + 1; // in case max proceed is not divisible by the number of epochs
 
-        // consecutive buy in each epoch
+        // consecutive buy with same size in each epoch
         for (uint256 i; i < fixedEpochs; i++) {
             (uint256 tokenBought,) = buy(-int256(buyEthAmount));
 
@@ -172,7 +191,7 @@ contract V4PocTest is DopplerLensTest {
                 );
             }
 
-            console.log("\n-------------- SALE No. %d ------------------", i);
+            console.log("\n-------------- SALE No. %d ------------------", i + 1);
             console.log("current epoch", hook.getCurrentEpoch());
             console.log("token bought", tokenBought);
             console.log("totalTokensSold / circulating supply", totalTokensSold);
@@ -182,7 +201,7 @@ contract V4PocTest is DopplerLensTest {
             console.log("tick(tokenPerOneETH)", tick);
             console.log("isEarlyExit", hook.earlyExit());
 
-            vm.warp(hook.startingTime() + hook.epochLength() * (fixedEpochs + i + 1)); // go to next epoch
+            vm.warp(hook.startingTime() + hook.epochLength() * (i + 1)); // go to next epoch
         }
 
         vm.prank(hook.initializer());
@@ -207,6 +226,11 @@ contract V4PocTest is DopplerLensTest {
         console.log("starting tick", hook.startingTick());
         console.log("ending tick", hook.endingTick());
         console.log("gamma", hook.gamma());
+        console.log("\n");
+        console.log("numeraire ", numeraire);
+        console.log("asset ", asset);
+        console.log("isToken0 ", isToken0);
+        console.log("usingEth ", usingEth);
         console.log("current epoch", hook.getCurrentEpoch());
 
         (uint256 tokenBought,) = buy(-maximumProceeds);

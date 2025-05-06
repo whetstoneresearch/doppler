@@ -57,7 +57,7 @@ contract BaseTest is Test, Deployers {
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
     uint256 constant DEFAULT_ENDING_TIME = DEFAULT_STARTING_TIME + SALE_DURATION;
 
-    int24 constant DEFAULT_GAMMA = 6400;
+    int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 
     // default to feeless case for now
