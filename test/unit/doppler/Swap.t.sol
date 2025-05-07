@@ -3,6 +3,9 @@ pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
@@ -13,7 +16,9 @@ import {
     InvalidSwapAfterMaturityInsufficientProceeds,
     InvalidSwapAfterMaturitySufficientProceeds,
     MAX_SWAP_FEE,
-    SlugData
+    SlugData,
+    Position,
+    LOWER_SLUG_SALT
 } from "src/Doppler.sol";
 
 contract SwapTest is BaseTest {
@@ -213,8 +218,161 @@ contract SwapTest is BaseTest {
         console.log(slug.tickUpper);
     }
 
+    function goNextEpoch() public {
+        vm.warp(hook.startingTime() + (hook.getCurrentEpoch() * (hook.epochLength() + 1)));
+    }
+
+    function test_goNextEpoch() public {
+        assertEq(hook.getCurrentEpoch(), 1, "Should start at one");
+        goNextEpoch();
+        assertEq(hook.getCurrentEpoch(), 2);
+        goNextEpoch();
+        goNextEpoch();
+        assertEq(hook.getCurrentEpoch(), 4);
+    }
+
+    function _buy(
+        uint256 amount
+    ) public {
+        require(amount <= uint256(type(int256).max), "Amount exceeds int256 max");
+
+        TestERC20(numeraire).mint(address(this), amount);
+        TestERC20(numeraire).approve(address(swapRouter), amount);
+
+        uint256 preBalance0 = TestERC20(token0).balanceOf(address(this));
+        uint256 preBalance1 = TestERC20(token1).balanceOf(address(this));
+
+        BalanceDelta delta = swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(!isToken0, int256(amount), isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+
+        uint256 postBalance0 = TestERC20(token0).balanceOf(address(this));
+        uint256 postBalance1 = TestERC20(token1).balanceOf(address(this));
+
+        console.log("delta0", delta.amount0());
+        console.log("delta1", delta.amount1());
+
+        /*
+        if (isToken0) {
+            assertEq(postBalance0, preBalance0 + uint256(int256(delta.amount0())), "Token 0 balance mismatch");
+            assertEq(postBalance1, preBalance1 - uint256(int256(delta.amount1())), "Token 1 balance mismatch");
+        } else {
+            assertEq(postBalance0, preBalance0 - uint256(int256(delta.amount0())), "Token 0 balance mismatch");
+            assertEq(postBalance1, preBalance1 + uint256(int256(delta.amount1())), "Token 1 balance mismatch");
+        }
+        */
+    }
+
     function test_swap_what() public {
-        vm.warp(hook.startingTime() + hook.epochLength() * 25);
-        buy(-0.01 ether);
+        assertEq(hook.getCurrentEpoch(), 1, "Should start at one");
+        goNextEpoch();
+
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+
+        console.log("numTokensToSell", hook.numTokensToSell());
+
+        _buy(1_765_966_115_684_030_849_982_404_392_077);
+
+        (,, uint256 totalTokensSold, uint256 totalProceeds, uint256 totalTokensSoldLastEpoch,) = hook.state();
+        console.log("totalTokensSold", totalTokensSold);
+        console.log("totalProceeds", totalProceeds);
+        console.log("totalTokensSoldLastEpoch", totalTokensSoldLastEpoch);
+
+        (,, uint128 liquidity,) = hook.positions(LOWER_SLUG_SALT);
+        console.log("lowerSlug.liquitiy", liquidity);
+
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        _buy(654_526_008_458_728_267);
+        (,, liquidity,) = hook.positions(LOWER_SLUG_SALT);
+        console.log("lowerSlug.liquitiy", liquidity);
+
+        goNextEpoch();
+
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        console.log("WHAT!");
+        _buy(8_865_492);
+        console.log("WHAT!");
+        goNextEpoch();
+
+        console.log("Current epoch", hook.getCurrentEpoch());
+        console.log("Max epochs", hook.getTotalEpochs());
+
+        console.log("end?", block.timestamp >= hook.endingTime());
+
+        (,, liquidity,) = hook.positions(LOWER_SLUG_SALT);
+        console.log("lowerSlug.liquitiy", liquidity);
+
+        (,, totalTokensSold, totalProceeds, totalTokensSoldLastEpoch,) = hook.state();
+        console.log("totalTokensSold", totalTokensSold);
+        console.log("totalProceeds", totalProceeds);
+        console.log("totalTokensSoldLastEpoch", totalTokensSoldLastEpoch);
+        _buy(2_023_415_125);
+        /*
+
+        console.log("WHAT!!");
+        buy(-1_863_356_641);
+        console.log("WHAT!");
+        buy(-7836);
+        console.log("WHAT!");
+        goNextEpoch();
+        buy(-2_936_100);
+        goNextEpoch();
+        buy(-3630);
+        buy(-26_999);
+        goNextEpoch();
+        goNextEpoch();
+        console.log("WHAT!");
+        buy(-88_745_857_400_782_139_919_628_676_743_698_271_562_583_316_451_352);
+        console.log("WHAT?");
+        (,, liquidity,) = hook.positions("1");
+        console.log("lowerSlug.liquitiy", liquidity);
+        goNextEpoch();
+        goNextEpoch();
+        buy(-965_430_616_177_411_934_095_361_875_558_615_015);
+        (,, liquidity,) = hook.positions("1");
+        console.log("lowerSlug.liquitiy", liquidity);
+        goNextEpoch();
+        goNextEpoch();
+        buy(-5763);
+        goNextEpoch();
+        goNextEpoch();
+        goNextEpoch();
+        buy(-5249);
+        goNextEpoch();
+        (,, liquidity,) = hook.positions("1");
+        console.log("lowerSlug.liquitiy", liquidity);
+        uint256 amount = 2_023_415_125;
+        // assertEq(amount, uint256(-(-int256(amount))));
+        // assertLe(amount, uint256(type(int256).max));
+
+        TestERC20(numeraire).mint(address(this), uint256(amount));
+        TestERC20(numeraire).approve(address(swapRouter), uint256(amount));
+
+        BalanceDelta delta = swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(!isToken0, int256(amount), isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+
+        // buyExactIn(amount);
+        // goNextEpoch();
+        // buy(-1_212_299_942_327);
+        */
     }
 }
