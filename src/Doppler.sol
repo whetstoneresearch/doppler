@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -535,13 +533,12 @@ contract Doppler is BaseHook {
         // Handle empty epochs
         // accumulatorDelta should always be nonzero if epochsPassed > 1, so we don't need the check
         if (epochsPassed > 1) {
-            console.log("epochsPassed", epochsPassed);
             // handle the price adjustment that should have happened in the first empty epoch
             int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
             bool lteExpectedSoldInFirstEpoch =
                 totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
 
-            if (initialNetSold <= 0 && lteExpectedSoldInFirstEpoch) {
+            if (initialNetSold < 0 && lteExpectedSoldInFirstEpoch) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch();
             } else if (lteExpectedSoldInFirstEpoch) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch()
@@ -616,12 +613,12 @@ contract Doppler is BaseHook {
         bool lteExpectedSold = totalTokensSold_ <= expectedAmountSold;
 
         // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold <= 0 && lteExpectedSold) {
+        if (netSold < 0 && lteExpectedSold) {
             adjustmentTick = upperSlugPosition.tickLower;
             accumulatorDelta += _getMaxTickDeltaPerEpoch();
         } else if (lteExpectedSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
-            adjustmentTick = currentTick;
+            adjustmentTick = currentTick / key.tickSpacing * key.tickSpacing;
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
         } else {
@@ -661,22 +658,15 @@ contract Doppler is BaseHook {
             state.tickAccumulator = newAccumulator;
         }
 
-        console.log("newAccumulator", newAccumulator);
-
         currentTick =
             _alignComputedTickWithTickSpacing(adjustmentTick + (accumulatorDelta / I_WAD).toInt24(), key.tickSpacing);
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
-        console.log("Before currentTick == tickLower");
-        console.log("currentTick", currentTick);
-        console.log("tickLower", tickLower);
-
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero
         // Thus we have to create a gap between the two
         if (currentTick == tickLower) {
-            console.log("currentTick == tickLower", currentTick == tickLower);
             if (isToken0) {
                 tickLower -= key.tickSpacing;
             } else {
@@ -716,9 +706,7 @@ contract Doppler is BaseHook {
         // Compute new positions
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
-        console.log("lowerSlug has liquidity?", lowerSlug.liquidity > 0);
-        console.log("lowerSlug tickLower", lowerSlug.tickLower);
-        console.log("lowerSlug tickUpper", lowerSlug.tickUpper);
+
         (SlugData memory upperSlug, uint256 assetRemaining) =
             _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData[] memory priceDiscoverySlugs =
@@ -883,10 +871,7 @@ contract Doppler is BaseHook {
     ) internal view returns (int24 lower, int24 upper) {
         int24 accumulatorDelta = (accumulator / I_WAD).toInt24();
         int24 adjustedTick = startingTick + accumulatorDelta;
-        console.log("_getTicksBasedOnState");
-        console.log("adjustedTick", adjustedTick);
         lower = _alignComputedTickWithTickSpacing(adjustedTick, tickSpacing);
-        console.log("lower", lower);
 
         // We don't need to align the upper tick since gamma is a multiple of tickSpacing
         if (isToken0) {
@@ -915,16 +900,11 @@ contract Doppler is BaseHook {
         int24 tickLower,
         int24 currentTick
     ) internal view returns (SlugData memory slug) {
-        console.log("tickLower", tickLower);
-        console.log("currentTick", currentTick);
-
         // If we do not have enough proceeds to place the full lower slug,
         // we switch to a single tick range at the target price
         if (requiredProceeds > totalProceeds_) {
-            console.log("Required proceeds!");
             slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_);
         } else {
-            console.log("Not enough");
             slug.tickLower = tickLower;
             slug.tickUpper = currentTick;
             slug.liquidity = _computeLiquidity(
@@ -1137,10 +1117,6 @@ contract Doppler is BaseHook {
                 ""
             );
         }
-
-        console.log("newPositions[0].liquidity", newPositions[0].liquidity);
-        console.log("newPositions[0].liquidity", newPositions[0].tickLower);
-        console.log("newPositions[0].liquidity", newPositions[0].tickUpper);
 
         for (uint256 i; i < newPositions.length; ++i) {
             if (newPositions[i].liquidity != 0) {
