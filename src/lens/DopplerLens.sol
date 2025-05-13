@@ -15,10 +15,8 @@ bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
 bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
-// Number of default slugs
-uint256 constant NUM_DEFAULT_SLUGS = 3;
-
 struct DopplerLensReturnData {
+    uint256 numSlugs;
     uint160 sqrtPriceX96;
     int24 tick;
     Position[] positions;
@@ -43,10 +41,8 @@ contract DopplerLensQuoter is BaseV4Quoter {
     ) external returns (DopplerLensReturnData memory returnData) {
         try poolManager.unlock(abi.encodeCall(this._quoteDopplerLensDataExactInputSingle, (params))) { }
         catch (bytes memory reason) {
+            console.logBytes(reason);
             returnData = reason.parseDopplerLensData();
-            console.log("tick", returnData.tick);
-            console.log("sqrtPriceX96", returnData.sqrtPriceX96);
-            console.log("positions", returnData.positions.length);
         }
     }
 
@@ -61,7 +57,7 @@ contract DopplerLensQuoter is BaseV4Quoter {
         DopplerLensReturnData memory returnData;
 
         uint256 pdSlugCount = doppler.numPDSlugs();
-        Position[] memory positions = new Position[](NUM_DEFAULT_SLUGS - 1 + pdSlugCount);
+        Position[] memory positions = new Position[](pdSlugCount + 2);
 
         (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = doppler.positions(LOWER_SLUG_SALT);
         positions[0] = Position({
@@ -82,17 +78,16 @@ contract DopplerLensQuoter is BaseV4Quoter {
         for (uint256 i; i < pdSlugCount; i++) {
             (int24 tickLower, int24 tickUpper, uint128 liquidity,) =
                 doppler.positions(bytes32(uint256(DISCOVERY_SLUG_SALT) + i));
-            positions[NUM_DEFAULT_SLUGS - 1 + i] = Position({
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                liquidity: liquidity,
-                salt: uint8(NUM_DEFAULT_SLUGS + i)
-            });
+            positions[2 + i] =
+                Position({ tickLower: tickLower, tickUpper: tickUpper, liquidity: liquidity, salt: uint8(2 + i) });
         }
+        returnData.numSlugs = pdSlugCount + 2;
         returnData.positions = positions;
         returnData.sqrtPriceX96 = sqrtPriceX96;
         returnData.tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-
+        console.log("returnData.numSlugs", returnData.numSlugs);
+        console.log("returnData.sqrtPriceX96", returnData.sqrtPriceX96);
+        console.log("returnData.tick", returnData.tick);
         returnData.revertDopplerLensData();
     }
 }
@@ -129,43 +124,78 @@ library DopplerLensRevert {
     /// if valid, it decodes the sqrtPriceX96 to return. Otherwise it reverts.
     function parseDopplerLensData(
         bytes memory reason
-    ) internal pure returns (DopplerLensReturnData memory returnData) {
-        // If the error doesnt start with DopplerLensData, we know this isnt valid data to parse
-        // Instead it is another revert that was triggered somewhere in the simulation
+    ) internal returns (DopplerLensReturnData memory returnData) {
         if (reason.parseSelector() != DopplerLensData.selector) {
             revert UnexpectedRevertBytes(reason);
         }
 
-        // reason -> reason+0x1f is the length of the reason string
-        // reason+0x20 -> reason+0x23 is the selector of DopplerLensData
-        // reason+0x24 -> reason+0x43 is the sqrtPriceX96
-        // reason+0x44 -> reason+0x47 is the tick
-        // reason+0x48 -> reason+0x67 is the positions array length
-        // reason+0x68 -> reason+0x87 is the positions array data pointer
         assembly ("memory-safe") {
-            // Load sqrtPriceX96 (uint160)
-            mstore(add(returnData, 0x00), shr(96, mload(add(reason, 0x24))))
+            // Get the data offset (32 bytes after selector)
+            let dataOffset := mload(add(reason, 0x24))
 
-            // Load tick (int24)
-            mstore(add(returnData, 0x20), signextend(2, shr(232, mload(add(reason, 0x44)))))
+            // Copy the struct data
+            let dataPtr := add(reason, add(0x24, dataOffset))
+            let returnDataPtr := returnData
 
-            // Load positions array length
-            let positionsLength := mload(add(reason, 0x48))
-            mstore(add(returnData, 0x40), positionsLength)
+            // Copy first three fields
+            let numSlugs := mload(dataPtr)
+            mstore(returnDataPtr, numSlugs)
+            log2(0, 0, "numSlugs:", numSlugs)
 
-            // Calculate positions array data pointer
-            let positionsData := add(reason, 0x68)
+            let sqrtPriceX96 := mload(add(dataPtr, 0x20))
+            mstore(add(returnDataPtr, 0x20), sqrtPriceX96)
+            log2(0, 0, "sqrtPriceX96:", sqrtPriceX96)
+
+            let tick := mload(add(dataPtr, 0x40))
+            mstore(add(returnDataPtr, 0x40), tick)
+            log2(0, 0, "tick:", tick)
+
+            // Get positions array offset
+            let positionsOffset := mload(add(dataPtr, 0x60))
+            log2(0, 0, "positionsOffset:", positionsOffset)
+
+            let positionsData := add(dataPtr, positionsOffset)
+            log2(0, 0, "positionsData:", positionsData)
+
+            // Copy positions array length
+            let numPositions := mload(positionsData)
+            log2(0, 0, "numPositions:", numPositions)
+            mstore(add(returnDataPtr, 0x60), numPositions)
 
             // Copy positions array data
-            let positionsDataSize := mul(positionsLength, 0x20) // Each Position struct is 0x20 bytes
-            let positionsDataEnd := add(positionsData, positionsDataSize)
+            let positionsPtr := add(returnDataPtr, 0x80)
+            let positionsDataPtr := add(positionsData, 0x20)
+            log2(0, 0, "positionsPtr:", positionsPtr)
+            log2(0, 0, "positionsDataPtr:", positionsDataPtr)
+            mstore(add(returnDataPtr, 0xa0), positionsPtr)
 
-            // Copy each position struct
-            for { let i := 0 } lt(i, positionsLength) { i := add(i, 1) } {
-                let posPtr := add(positionsData, mul(i, 0x20))
-                let posData := mload(posPtr)
-                mstore(add(add(returnData, 0x60), mul(i, 0x20)), posData)
+            // Copy each position
+            let amount0 := 0
+            let amount1 := 0
+            for { let i := 0 } lt(i, numPositions) { i := add(i, 1) } {
+                // Each position is 128 bytes (4 * 32 bytes) in the ABI encoding
+                let posPtr := add(positionsDataPtr, mul(i, 0x80))
+                let structPtr := add(positionsPtr, mul(i, 0x20))
+
+                // Extract and store each field
+                // tickLower (3 bytes)
+                let tickLower := signextend(2, mload(posPtr))
+                mstore(structPtr, tickLower)
+
+                // tickUpper (3 bytes)
+                let tickUpper := signextend(2, mload(add(posPtr, 0x20)))
+                mstore(add(structPtr, 0x03), tickUpper)
+                // liquidity (16 bytes)
+                let liquidity := mload(add(posPtr, 0x40))
+                mstore(add(structPtr, 0x06), liquidity)
+                log2(0, 0, "liquidity:", liquidity)
+
+                // salt (1 byte)
+                let salt := mload(add(posPtr, 0x60))
+                mstore(add(structPtr, 0x16), salt)
+                log2(0, 0, "salt:", salt)
             }
         }
+        console.logBytes(abi.encode(returnData));
     }
 }
