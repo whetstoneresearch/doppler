@@ -376,12 +376,6 @@ contract RebalanceTest is BaseTest {
             DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
             );
-            for (uint256 j; j < data.positions.length; j++) {
-                console.log("tickUpper", data.positions[j].tickUpper);
-                console.log("tickLower", data.positions[j].tickLower);
-                console.log("liquidity", data.positions[j].liquidity);
-                console.log("salt", data.positions[j].salt);
-            }
             int24 tick = hook.alignComputedTickWithTickSpacing(data.tick, key.tickSpacing);
 
             int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));

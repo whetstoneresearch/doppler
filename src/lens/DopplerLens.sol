@@ -8,6 +8,7 @@ import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Doppler, Position } from "src/Doppler.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import "forge-std/console.sol";
 
 // Demarcates the id of the lower, upper, and price discovery slugs
@@ -16,19 +17,21 @@ bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 struct DopplerLensReturnData {
-    uint256 numSlugs;
     uint160 sqrtPriceX96;
+    uint256 amount0;
+    uint256 amount1;
     int24 tick;
-    Position[] positions;
 }
 
 /// @title DopplerLensQuoter
 /// @notice Supports quoting the tick for exact input or exact output swaps.
 /// @dev These functions are not marked view because they rely on calling non-view functions and reverting
 /// to compute the result. They are also not gas efficient and should not be called on-chain.
+
 contract DopplerLensQuoter is BaseV4Quoter {
     using DopplerLensRevert for bytes;
     using DopplerLensRevert for DopplerLensReturnData;
+    using SqrtPriceMath for *;
 
     IStateView public immutable stateView;
 
@@ -41,6 +44,7 @@ contract DopplerLensQuoter is BaseV4Quoter {
     ) external returns (DopplerLensReturnData memory returnData) {
         try poolManager.unlock(abi.encodeCall(this._quoteDopplerLensDataExactInputSingle, (params))) { }
         catch (bytes memory reason) {
+            console.log("reason");
             console.logBytes(reason);
             returnData = reason.parseDopplerLensData();
         }
@@ -59,35 +63,75 @@ contract DopplerLensQuoter is BaseV4Quoter {
         uint256 pdSlugCount = doppler.numPDSlugs();
         Position[] memory positions = new Position[](pdSlugCount + 2);
 
+        bool isToken0 = doppler.isToken0();
+        console.log("isToken0", isToken0);
+
+        uint256 amount0;
+        uint256 amount1;
         (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = doppler.positions(LOWER_SLUG_SALT);
         positions[0] = Position({
-            tickLower: tickLower0,
-            tickUpper: tickUpper0,
+            tickLower: isToken0 ? tickLower0 : tickUpper0,
+            tickUpper: isToken0 ? tickUpper0 : tickLower0,
             liquidity: liquidity0,
             salt: uint8(uint256(LOWER_SLUG_SALT))
         });
 
         (int24 tickLower1, int24 tickUpper1, uint128 liquidity1,) = doppler.positions(UPPER_SLUG_SALT);
         positions[1] = Position({
-            tickLower: tickLower1,
-            tickUpper: tickUpper1,
+            tickLower: isToken0 ? tickLower1 : tickUpper1,
+            tickUpper: isToken0 ? tickUpper1 : tickLower1,
             liquidity: liquidity1,
             salt: uint8(uint256(UPPER_SLUG_SALT))
         });
 
         for (uint256 i; i < pdSlugCount; i++) {
-            (int24 tickLower, int24 tickUpper, uint128 liquidity,) =
+            (int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 salt) =
                 doppler.positions(bytes32(uint256(DISCOVERY_SLUG_SALT) + i));
-            positions[2 + i] =
-                Position({ tickLower: tickLower, tickUpper: tickUpper, liquidity: liquidity, salt: uint8(2 + i) });
+            positions[2 + i] = Position({
+                tickLower: isToken0 ? tickLower : tickUpper,
+                tickUpper: isToken0 ? tickUpper : tickLower,
+                liquidity: liquidity,
+                salt: uint8(salt)
+            });
         }
-        returnData.numSlugs = pdSlugCount + 2;
-        returnData.positions = positions;
+
+        int24 tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+
+        for (uint256 i; i < positions.length; i++) {
+            console.log("position tickUpper", positions[i].tickUpper);
+            console.log("position tickLower", positions[i].tickLower);
+            if (tick < positions[i].tickLower) {
+                // current tick is below the passed range; liquidity can only become in range by crossing from left to
+                // right, when we'll need _more_ currency0 (it's becoming more valuable) so user must provide it
+                amount0 += SqrtPriceMath.getAmount0Delta(
+                    TickMath.getSqrtPriceAtTick(positions[i].tickLower),
+                    TickMath.getSqrtPriceAtTick(positions[i].tickUpper),
+                    positions[i].liquidity,
+                    false
+                );
+            } else if (tick < positions[i].tickUpper) {
+                amount0 += SqrtPriceMath.getAmount0Delta(
+                    sqrtPriceX96, TickMath.getSqrtPriceAtTick(positions[i].tickUpper), positions[i].liquidity, false
+                );
+
+                amount1 += SqrtPriceMath.getAmount1Delta(
+                    TickMath.getSqrtPriceAtTick(positions[i].tickLower), sqrtPriceX96, positions[i].liquidity, false
+                );
+            } else {
+                // current tick is above the passed range; liquidity can only become in range by crossing from right to
+                // left, when we'll need _more_ currency1 (it's becoming more valuable) so user must provide it
+                amount1 += SqrtPriceMath.getAmount1Delta(
+                    TickMath.getSqrtPriceAtTick(positions[i].tickLower),
+                    TickMath.getSqrtPriceAtTick(positions[i].tickUpper),
+                    positions[i].liquidity,
+                    false
+                );
+            }
+        }
+        returnData.amount0 = amount0;
+        returnData.amount1 = amount1;
+        returnData.tick = tick;
         returnData.sqrtPriceX96 = sqrtPriceX96;
-        returnData.tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        console.log("returnData.numSlugs", returnData.numSlugs);
-        console.log("returnData.sqrtPriceX96", returnData.sqrtPriceX96);
-        console.log("returnData.tick", returnData.tick);
         returnData.revertDopplerLensData();
     }
 }
@@ -121,81 +165,24 @@ library DopplerLensRevert {
     }
 
     /// @notice Validates whether a revert reason is a valid doppler lens data or not
-    /// if valid, it decodes the sqrtPriceX96 to return. Otherwise it reverts.
+    /// if valid, it decodes the data to return. Otherwise it reverts.
     function parseDopplerLensData(
         bytes memory reason
-    ) internal returns (DopplerLensReturnData memory returnData) {
+    ) internal pure returns (DopplerLensReturnData memory returnData) {
         if (reason.parseSelector() != DopplerLensData.selector) {
             revert UnexpectedRevertBytes(reason);
         }
 
         assembly ("memory-safe") {
-            // Get the data offset (32 bytes after selector)
-            let dataOffset := mload(add(reason, 0x24))
-
-            // Copy the struct data
-            let dataPtr := add(reason, add(0x24, dataOffset))
+            // The data starts right after the selector (4 bytes)
+            let dataPtr := add(reason, 0x24)
             let returnDataPtr := returnData
 
-            // Copy first three fields
-            let numSlugs := mload(dataPtr)
-            mstore(returnDataPtr, numSlugs)
-            log2(0, 0, "numSlugs:", numSlugs)
-
-            let sqrtPriceX96 := mload(add(dataPtr, 0x20))
-            mstore(add(returnDataPtr, 0x20), sqrtPriceX96)
-            log2(0, 0, "sqrtPriceX96:", sqrtPriceX96)
-
-            let tick := mload(add(dataPtr, 0x40))
-            mstore(add(returnDataPtr, 0x40), tick)
-            log2(0, 0, "tick:", tick)
-
-            // Get positions array offset
-            let positionsOffset := mload(add(dataPtr, 0x60))
-            log2(0, 0, "positionsOffset:", positionsOffset)
-
-            let positionsData := add(dataPtr, positionsOffset)
-            log2(0, 0, "positionsData:", positionsData)
-
-            // Copy positions array length
-            let numPositions := mload(positionsData)
-            log2(0, 0, "numPositions:", numPositions)
-            mstore(add(returnDataPtr, 0x60), numPositions)
-
-            // Copy positions array data
-            let positionsPtr := add(returnDataPtr, 0x80)
-            let positionsDataPtr := add(positionsData, 0x20)
-            log2(0, 0, "positionsPtr:", positionsPtr)
-            log2(0, 0, "positionsDataPtr:", positionsDataPtr)
-            mstore(add(returnDataPtr, 0xa0), positionsPtr)
-
-            // Copy each position
-            let amount0 := 0
-            let amount1 := 0
-            for { let i := 0 } lt(i, numPositions) { i := add(i, 1) } {
-                // Each position is 128 bytes (4 * 32 bytes) in the ABI encoding
-                let posPtr := add(positionsDataPtr, mul(i, 0x80))
-                let structPtr := add(positionsPtr, mul(i, 0x20))
-
-                // Extract and store each field
-                // tickLower (3 bytes)
-                let tickLower := signextend(2, mload(posPtr))
-                mstore(structPtr, tickLower)
-
-                // tickUpper (3 bytes)
-                let tickUpper := signextend(2, mload(add(posPtr, 0x20)))
-                mstore(add(structPtr, 0x03), tickUpper)
-                // liquidity (16 bytes)
-                let liquidity := mload(add(posPtr, 0x40))
-                mstore(add(structPtr, 0x06), liquidity)
-                log2(0, 0, "liquidity:", liquidity)
-
-                // salt (1 byte)
-                let salt := mload(add(posPtr, 0x60))
-                mstore(add(structPtr, 0x16), salt)
-                log2(0, 0, "salt:", salt)
-            }
+            // Copy fields in the correct order
+            mstore(returnDataPtr, mload(dataPtr)) // sqrtPriceX96
+            mstore(add(returnDataPtr, 0x20), mload(add(dataPtr, 0x20))) // amount0
+            mstore(add(returnDataPtr, 0x40), mload(add(dataPtr, 0x40))) // amount1
+            mstore(add(returnDataPtr, 0x60), mload(add(dataPtr, 0x60))) // tick
         }
-        console.logBytes(abi.encode(returnData));
     }
 }
