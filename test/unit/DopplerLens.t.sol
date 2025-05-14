@@ -18,10 +18,6 @@ contract DopplerLensTest is BaseTest {
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
-        console.log("data0.tick", data0.tick);
-        console.log("data0.amount0", data0.amount0);
-        console.log("data0.amount1", data0.amount1);
-
         vm.warp(hook.startingTime() + hook.epochLength());
 
         DopplerLensReturnData memory data1 = lensQuoter.quoteDopplerLensData(

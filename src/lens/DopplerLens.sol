@@ -9,7 +9,6 @@ import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Doppler, Position } from "src/Doppler.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-import "forge-std/console.sol";
 
 // Demarcates the id of the lower, upper, and price discovery slugs
 bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
@@ -44,8 +43,6 @@ contract DopplerLensQuoter is BaseV4Quoter {
     ) external returns (DopplerLensReturnData memory returnData) {
         try poolManager.unlock(abi.encodeCall(this._quoteDopplerLensDataExactInputSingle, (params))) { }
         catch (bytes memory reason) {
-            console.log("reason");
-            console.logBytes(reason);
             returnData = reason.parseDopplerLensData();
         }
     }
@@ -64,7 +61,6 @@ contract DopplerLensQuoter is BaseV4Quoter {
         Position[] memory positions = new Position[](pdSlugCount + 2);
 
         bool isToken0 = doppler.isToken0();
-        console.log("isToken0", isToken0);
 
         uint256 amount0;
         uint256 amount1;
@@ -98,8 +94,6 @@ contract DopplerLensQuoter is BaseV4Quoter {
         int24 tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
 
         for (uint256 i; i < positions.length; i++) {
-            console.log("position tickUpper", positions[i].tickUpper);
-            console.log("position tickLower", positions[i].tickLower);
             if (tick < positions[i].tickLower) {
                 // current tick is below the passed range; liquidity can only become in range by crossing from left to
                 // right, when we'll need _more_ currency0 (it's becoming more valuable) so user must provide it
