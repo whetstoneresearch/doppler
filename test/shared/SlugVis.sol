@@ -26,7 +26,7 @@ library SlugVis {
     ) public view {
         string memory json;
         uint256 numPDSlugs = hook.getNumPDSlugs();
-        int24 currentTick = hook.getCurrentTick(poolId);
+        int24 currentTick = hook.getCurrentTick();
         (SlugData memory lowerSlug, SlugData memory upperSlug, SlugData[] memory pdSlugs) =
             getSlugDataFromPositions(numPDSlugs, hook.getPositions);
         SlugDataWithName[] memory slugs = checkSlugsAndCreateNamedSlugArray(numPDSlugs, lowerSlug, upperSlug, pdSlugs);

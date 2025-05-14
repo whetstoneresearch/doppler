@@ -538,7 +538,7 @@ contract Doppler is BaseHook {
             bool lteExpectedSoldInFirstEpoch =
                 totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
 
-            if (initialNetSold <= 0 && lteExpectedSoldInFirstEpoch) {
+            if (initialNetSold < 0 && lteExpectedSoldInFirstEpoch) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch();
             } else if (lteExpectedSoldInFirstEpoch) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch()
@@ -613,12 +613,12 @@ contract Doppler is BaseHook {
         bool lteExpectedSold = totalTokensSold_ <= expectedAmountSold;
 
         // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold <= 0 && lteExpectedSold) {
+        if (netSold < 0 && lteExpectedSold) {
             adjustmentTick = upperSlugPosition.tickLower;
             accumulatorDelta += _getMaxTickDeltaPerEpoch();
         } else if (lteExpectedSold) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
-            adjustmentTick = currentTick;
+            adjustmentTick = (currentTick - key.tickSpacing + 1) / key.tickSpacing * key.tickSpacing;
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
         } else {
@@ -706,6 +706,7 @@ contract Doppler is BaseHook {
         // Compute new positions
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
+
         (SlugData memory upperSlug, uint256 assetRemaining) =
             _computeUpperSlugData(key, totalTokensSold_, currentTick, assetAvailable);
         SlugData[] memory priceDiscoverySlugs =

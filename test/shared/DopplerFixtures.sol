@@ -30,7 +30,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { MAX_TICK_SPACING } from "src/Doppler.sol";
-import { DopplerTickLibrary } from "../util/DopplerTickLibrary.sol";
+import { DopplerTickLibrary } from "../utils/DopplerTickLibrary.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
