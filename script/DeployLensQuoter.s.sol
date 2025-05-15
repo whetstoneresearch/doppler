@@ -35,14 +35,13 @@ contract DeployLensQuoterScript is Script {
         bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
         DeployLensQuoterScriptData memory scriptData = abi.decode(data, (DeployLensQuoterScriptData));
 
-        _deployLensQuoter(IPoolManager(scriptData.poolManager), IStateView(scriptData.stateView));
+        DopplerLensQuoter quoter =
+            _deployLensQuoter(IPoolManager(scriptData.poolManager), IStateView(scriptData.stateView));
 
-        /*
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| Contract Name              | Address                                    |");
         console.log("+----------------------------+--------------------------------------------+");
-        console.log("| Bundler                    | %s |", address(bundler));
+        console.log("| LensQuoter                 | %s |", address(quoter));
         console.log("+----------------------------+--------------------------------------------+");
-        */
     }
 }
