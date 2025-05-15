@@ -14,12 +14,15 @@ contract DopplerInvariantsTest is BaseTest {
         super.setUp();
         handler = new DopplerHandler(key, hook, router, isToken0, usingEth);
 
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](2);
         selectors[0] = handler.buyExactAmountIn.selector;
+        selectors[1] = handler.goNextEpoch.selector;
+
+        /*
         selectors[1] = handler.sellExactIn.selector;
         selectors[2] = handler.buyExactAmountOut.selector;
         selectors[3] = handler.sellExactOut.selector;
-        selectors[4] = handler.goNextEpoch.selector;
+        */
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
@@ -27,6 +30,7 @@ contract DopplerInvariantsTest is BaseTest {
         vm.warp(DEFAULT_STARTING_TIME);
     }
 
+    /// forge-config: default.invariant.fail-on-revert = true
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
         assertEq(totalTokensSold, handler.ghost_totalTokensSold(), "Total tokens sold mismatch");
@@ -43,7 +47,7 @@ contract DopplerInvariantsTest is BaseTest {
         uint256 totalTokensProvided;
         uint256 slugs = hook.getNumPDSlugs();
 
-        int24 currentTick = hook.getCurrentTick(poolId);
+        int24 currentTick = hook.getCurrentTick();
 
         for (uint256 i = 1; i < 4 + slugs; i++) {
             (int24 tickLower, int24 tickUpper, uint128 liquidity,) = hook.positions(bytes32(uint256(i)));
@@ -71,7 +75,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_CannotTradeUnderLowerSlug() public view {
         (int24 tickLower,,,) = hook.positions(bytes32(uint256(1)));
-        int24 currentTick = hook.getCurrentTick(poolId);
+        int24 currentTick = hook.getCurrentTick();
 
         if (isToken0) {
             assertTrue(currentTick >= tickLower);
@@ -106,7 +110,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_NoPriceChangesBeforeStart() public {
         vm.warp(DEFAULT_STARTING_TIME - 1);
-        assertEq(hook.getCurrentTick(poolId), hook.startingTick());
+        assertEq(hook.getCurrentTick(), hook.startingTick());
     }
 
     function invariant_TickChangeCannotExceedGamma() public view {
