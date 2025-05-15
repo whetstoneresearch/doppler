@@ -45,6 +45,7 @@
 "universal_router" = "0x492e6456d9528771018deb9e87ef7750ef184104"
 "quoter_v2" = "0xC5290058841028F1614F3A6F0F5816cAd0df5E27"
 "pool_manager" = "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408"
+"state_view" = "0x571291b572ed32ce6751a2cb2486ebee8defb9b4"
 
 # World Sepolia
 [4801]
