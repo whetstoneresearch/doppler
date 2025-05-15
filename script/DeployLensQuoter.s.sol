@@ -24,7 +24,9 @@ contract DeployLensQuoterScript is Script {
     }
 
     function run() public {
-        console.log(unicode"🚀 Deploying Bundler on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
+        console.log(
+            unicode"🚀 Deploying LensQuoter on chain %s with sender %s...", vm.toString(block.chainid), msg.sender
+        );
 
         // Let's check if we have the script data for this chain
         string memory path = "./script/addresses.toml";
