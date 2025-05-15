@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
+import { IStateView } from "@v4-periphery/lens/StateView.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import {
     Airlock,
@@ -17,11 +19,13 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
-import { UniswapV4Initializer, DopplerDeployer, IPoolManager } from "src/UniswapV4Initializer.sol";
+import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
+import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 
 struct ScriptData {
     bool deployBundler;
+    bool deployLens;
     string explorerUrl;
     address poolManager;
     address protocolOwner;
@@ -30,23 +34,18 @@ struct ScriptData {
     address uniswapV2Router02;
     address uniswapV3Factory;
     address universalRouter;
-    address weth;
+    address stateView;
 }
 
-contract DeployScript is Script {
+abstract contract DeployScript is Script {
+    ScriptData internal _scriptData;
+
+    function setUp() public virtual;
+
     function run() public {
         console.log(unicode"🚀 Deploying on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
 
         vm.startBroadcast();
-
-        // Let's check if we have the script data for this chain
-        string memory path = "./script/addresses.toml";
-        string memory raw = vm.readFile(path);
-        bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
-        require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
-
-        bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
-        ScriptData memory scriptData = abi.decode(data, (ScriptData));
 
         (
             Airlock airlock,
@@ -55,7 +54,7 @@ contract DeployScript is Script {
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2Migrator
-        ) = _deployDoppler(scriptData);
+        ) = _deployDoppler(_scriptData);
 
         console.log(unicode"✨ Contracts were successfully deployed!");
 
@@ -66,40 +65,38 @@ contract DeployScript is Script {
             "| Contract | Address |\n",
             "|---|---|\n",
             "| Airlock | ",
-            _toMarkdownLink(scriptData.explorerUrl, address(airlock)),
+            _toMarkdownLink(_scriptData.explorerUrl, address(airlock)),
             " |\n",
             "| TokenFactory | ",
-            _toMarkdownLink(scriptData.explorerUrl, address(tokenFactory)),
+            _toMarkdownLink(_scriptData.explorerUrl, address(tokenFactory)),
             " |\n",
             "| UniswapV3Initializer | ",
-            _toMarkdownLink(scriptData.explorerUrl, address(uniswapV3Initializer)),
+            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV3Initializer)),
             " |\n",
             "| UniswapV4Initializer | ",
-            _toMarkdownLink(scriptData.explorerUrl, address(uniswapV4Initializer)),
+            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV4Initializer)),
             " |\n",
             "| GovernanceFactory | ",
-            _toMarkdownLink(scriptData.explorerUrl, address(governanceFactory)),
+            _toMarkdownLink(_scriptData.explorerUrl, address(governanceFactory)),
             " |\n",
             "| UniswapV2LiquidityMigrator | ",
-            _toMarkdownLink(scriptData.explorerUrl, address(uniswapV2Migrator)),
+            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV2Migrator)),
             " |\n"
         );
 
-        if (scriptData.deployBundler) {
-            Bundler bundler = _deployBundler(scriptData, airlock);
-            log = string.concat(log, "| Bundler | ", _toMarkdownLink(scriptData.explorerUrl, address(bundler)), " |");
+        if (_scriptData.deployBundler) {
+            Bundler bundler = _deployBundler(_scriptData, airlock);
+            log = string.concat(log, "| Bundler | ", _toMarkdownLink(_scriptData.explorerUrl, address(bundler)), " |");
+        }
+
+        if (_scriptData.deployLens) {
+            DopplerLensQuoter lens = _deployLens(_scriptData);
+            log = string.concat(log, "| Lens | ", _toMarkdownLink(_scriptData.explorerUrl, address(lens)), " |");
         }
 
         vm.writeFile(string.concat("./deployments/", vm.toString(block.chainid), ".md"), log);
 
         vm.stopBroadcast();
-    }
-
-    function _toMarkdownLink(
-        string memory explorerUrl,
-        address contractAddress
-    ) internal pure returns (string memory) {
-        return string.concat("[", vm.toString(contractAddress), "](", explorerUrl, vm.toString(contractAddress), ")");
     }
 
     function _deployDoppler(
@@ -167,5 +164,20 @@ contract DeployScript is Script {
         require(scriptData.quoterV2 != address(0), "Cannot find QuoterV2 address!");
         bundler =
             new Bundler(airlock, UniversalRouter(payable(scriptData.universalRouter)), IQuoterV2(scriptData.quoterV2));
+    }
+
+    function _deployLens(
+        ScriptData memory scriptData
+    ) internal returns (DopplerLensQuoter lens) {
+        require(scriptData.poolManager != address(0), "Cannot find PoolManager address!");
+        require(scriptData.stateView != address(0), "Cannot find StateView address!");
+        lens = new DopplerLensQuoter(IPoolManager(scriptData.poolManager), IStateView(scriptData.stateView));
+    }
+
+    function _toMarkdownLink(
+        string memory explorerUrl,
+        address contractAddress
+    ) internal pure returns (string memory) {
+        return string.concat("[", vm.toString(contractAddress), "](", explorerUrl, vm.toString(contractAddress), ")");
     }
 }
