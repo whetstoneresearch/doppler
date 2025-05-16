@@ -53,7 +53,8 @@ abstract contract DeployScript is Script {
             UniswapV3Initializer uniswapV3Initializer,
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
-            UniswapV2Migrator uniswapV2Migrator
+            UniswapV2Migrator uniswapV2Migrator,
+            DopplerDeployer dopplerDeployer
         ) = _deployDoppler(_scriptData);
 
         console.log(unicode"✨ Contracts were successfully deployed!");
@@ -76,6 +77,9 @@ abstract contract DeployScript is Script {
             "| UniswapV4Initializer | ",
             _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV4Initializer)),
             " |\n",
+            "| DopplerDeployer | ",
+            _toMarkdownLink(_scriptData.explorerUrl, address(dopplerDeployer)),
+            " |\n",
             "| GovernanceFactory | ",
             _toMarkdownLink(_scriptData.explorerUrl, address(governanceFactory)),
             " |\n",
@@ -86,12 +90,12 @@ abstract contract DeployScript is Script {
 
         if (_scriptData.deployBundler) {
             Bundler bundler = _deployBundler(_scriptData, airlock);
-            log = string.concat(log, "| Bundler | ", _toMarkdownLink(_scriptData.explorerUrl, address(bundler)), " |");
+            log = string.concat(log, "| Bundler | ", _toMarkdownLink(_scriptData.explorerUrl, address(bundler)), " |\n");
         }
 
         if (_scriptData.deployLens) {
             DopplerLensQuoter lens = _deployLens(_scriptData);
-            log = string.concat(log, "| Lens | ", _toMarkdownLink(_scriptData.explorerUrl, address(lens)), " |");
+            log = string.concat(log, "| Lens | ", _toMarkdownLink(_scriptData.explorerUrl, address(lens)), " |\n");
         }
 
         vm.writeFile(string.concat("./deployments/", vm.toString(block.chainid), ".md"), log);
@@ -109,7 +113,8 @@ abstract contract DeployScript is Script {
             UniswapV3Initializer uniswapV3Initializer,
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
-            UniswapV2Migrator uniswapV2LiquidityMigrator
+            UniswapV2Migrator uniswapV2LiquidityMigrator,
+            DopplerDeployer dopplerDeployer
         )
     {
         // Let's check that a valid protocol owner is set
@@ -134,7 +139,7 @@ abstract contract DeployScript is Script {
             scriptData.protocolOwner
         );
 
-        DopplerDeployer dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
+        dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
         uniswapV4Initializer =
             new UniswapV4Initializer(address(airlock), IPoolManager(scriptData.poolManager), dopplerDeployer);
 
