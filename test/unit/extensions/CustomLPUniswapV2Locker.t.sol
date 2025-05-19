@@ -40,8 +40,8 @@ contract UniswapV2LockerTest is Test {
     }
 
     function test_constructor() public view {
-        assertEq(address(locker.factory()), UNISWAP_V2_FACTORY_MAINNET);
-        assertEq(address(locker.migrator()), address(migrator));
+        assertEq(address(locker.FACTORY()), UNISWAP_V2_FACTORY_MAINNET);
+        assertEq(address(locker.MIGRATOR()), address(migrator));
     }
 
     function test_receiveAndLock_WithLockUpPeriod_InitializesPool() public {

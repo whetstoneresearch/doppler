@@ -49,18 +49,12 @@ contract CustomLPUniswapV2MigratorTest is Test {
         assertEq(token0.balanceOf(pool), 1000 ether, "Wrong pool token0 balance");
         assertEq(token1.balanceOf(pool), 1000 ether, "Wrong pool token1 balance");
 
-        uint256 lockedLiquidity = liquidity / 20;
         uint256 customLockedLiquidity = liquidity * customLPWad / 1 ether;
-        assertEq(
-            liquidity - lockedLiquidity - customLockedLiquidity,
-            IUniswapV2Pair(pool).balanceOf(address(0xbeef)),
-            "Wrong liquidity"
-        );
+        assertEq(liquidity - customLockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
         assertEq(0, IUniswapV2Pair(pool).balanceOf(alice), "Wrong custom locked liquidity");
-        assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
         assertEq(
             customLockedLiquidity,
-            IUniswapV2Pair(pool).balanceOf(address(migrator.customLPLocker())),
+            IUniswapV2Pair(pool).balanceOf(address(migrator.CUSTOM_LP_LOCKER())),
             "Wrong custom locked liquidity"
         );
     }
