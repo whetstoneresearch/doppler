@@ -1,24 +1,40 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { Test } from "forge-std/Test.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Pool } from "@v4-core/libraries/Pool.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
+import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange } from "src/Doppler.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
+import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { Pool } from "@v4-core/libraries/Pool.sol";
+
+uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
+uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
+
+uint256 constant TOTAL_WEIGHTS = 100;
 
 contract DopplerHandler is Test {
     using LibAddressSet for AddressSet;
+    using StateLibrary for IPoolManager;
 
     PoolKey public poolKey;
     DopplerImplementation public hook;
     CustomRouter public router;
+    PoolSwapTest public swapRouter;
     TestERC20 public token0;
     TestERC20 public token1;
     TestERC20 public numeraire;
@@ -31,12 +47,18 @@ contract DopplerHandler is Test {
     uint256 public ghost_reserve1;
     uint256 public ghost_totalTokensSold;
     uint256 public ghost_totalProceeds;
+    uint256 public ghost_totalTokensSoldBack;
+
+    bool public ghost_hasRebalanced;
+
     uint256 public ghost_currentEpoch;
 
     AddressSet internal actors;
     address internal currentActor;
 
     mapping(address actor => uint256 balance) public assetBalanceOf;
+
+    mapping(bytes4 => uint256) public selectorWeights;
 
     modifier createActor() {
         currentActor = msg.sender;
@@ -59,12 +81,14 @@ contract DopplerHandler is Test {
         PoolKey memory poolKey_,
         DopplerImplementation hook_,
         CustomRouter router_,
+        PoolSwapTest swapRouter_,
         bool isToken0_,
         bool isUsingEth_
     ) {
         poolKey = poolKey_;
         hook = hook_;
         router = router_;
+        swapRouter = swapRouter_;
         isToken0 = isToken0_;
         isUsingEth = isUsingEth_;
 
@@ -76,7 +100,7 @@ contract DopplerHandler is Test {
         }
 
         token1 = TestERC20(Currency.unwrap(poolKey.currency1));
-        ghost_reserve1 = token1.balanceOf(address(hook));
+        // ghost_reserve1 = token1.balanceOf(address(hook));
 
         if (isToken0) {
             asset = token0;
@@ -91,34 +115,62 @@ contract DopplerHandler is Test {
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
     function buyExactAmountIn(
-        uint256 seed
+        uint256 amount
     ) public createActor {
-        // vm.assume(amountToSpend > 0 && amountToSpend <= 1 ether);
-        uint256 amountToSpend = 0.01 ether;
+        vm.assume(amount > 0 && amount <= 10 ether);
 
-        if (isUsingEth) {
-            deal(currentActor, amountToSpend);
-        } else {
-            numeraire.mint(currentActor, amountToSpend);
-            numeraire.approve(address(router), amountToSpend);
+        if (ghost_totalTokensSold > 0 && block.timestamp > hook.startingTime()) {
+            ghost_hasRebalanced = true;
         }
 
-        (uint256 bought, uint256 used) = router.buy{ value: isUsingEth ? amountToSpend : 0 }(-int256(amountToSpend));
-        console.log("bought", bought);
-        console.log("used", used);
-
-        assetBalanceOf[currentActor] += bought;
-        ghost_totalTokensSold += bought;
-
-        uint256 proceedsLessFee = FullMath.mulDiv(uint128(used), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
-        ghost_totalProceeds += proceedsLessFee;
-
-        if (isToken0) {
-            ghost_reserve0 -= bought;
-            ghost_reserve1 += used;
+        if (isUsingEth) {
+            deal(currentActor, amount);
         } else {
-            ghost_reserve1 -= bought;
-            ghost_reserve0 += used;
+            numeraire.mint(currentActor, amount);
+            numeraire.approve(address(swapRouter), amount);
+        }
+
+        try swapRouter.swap{ value: isUsingEth ? amount : 0 }(
+            poolKey,
+            IPoolManager.SwapParams(!isToken0, -int256(amount), isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        ) returns (BalanceDelta delta) {
+            uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
+            uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
+
+            uint256 bought = isToken0 ? delta0 : delta1;
+            uint256 spent = isToken0 ? delta1 : delta0;
+
+            assetBalanceOf[currentActor] += bought;
+            ghost_totalTokensSold += bought;
+
+            uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
+            ghost_totalProceeds += proceedsLessFee;
+        } catch (bytes memory err) {
+            bytes4 selector;
+
+            assembly {
+                selector := mload(add(err, 0x20))
+            }
+
+            if (selector == CustomRevert.WrappedError.selector) {
+                (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
+
+                if (revertReasonSelector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
+                    revert("invalid swap after maturity");
+                } else if (revertReasonSelector == Pool.TicksMisordered.selector) {
+                    revert("ticks misordered");
+                }
+
+                revert("Unimplemented error");
+            } else if (selector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
+                revert("invalid swap after maturity");
+            } else if (selector == Pool.PriceLimitAlreadyExceeded.selector) {
+                revert("price limit already exceeded");
+            } else {
+                revert("Unknown error");
+            }
         }
     }
 
@@ -152,6 +204,10 @@ contract DopplerHandler is Test {
             ghost_reserve0 += proceedsLessFee;
         }
         */
+
+        if (block.timestamp > hook.startingTime()) {
+            ghost_hasRebalanced = true;
+        }
     }
 
     function sellExactIn(
@@ -161,19 +217,56 @@ contract DopplerHandler is Test {
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
-        TestERC20(asset).approve(address(router), assetsToSell);
-        uint256 received = router.sellExactIn(assetsToSell);
 
-        assetBalanceOf[currentActor] -= assetsToSell;
-        ghost_totalTokensSold -= assetsToSell;
-        ghost_totalProceeds -= received;
+        TestERC20(asset).approve(address(swapRouter), assetsToSell);
 
+        try swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams(isToken0, -int256(assetsToSell), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        ) returns (BalanceDelta delta) {
+            uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
+            uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
+
+            uint256 sold = isToken0 ? delta0 : delta1;
+            uint256 received = isToken0 ? delta1 : delta0;
+
+            assertEq(sold, assetsToSell, "Sold amount mismatch");
+
+            assetBalanceOf[currentActor] -= assetsToSell;
+            ghost_totalTokensSoldBack += assetsToSell;
+            ghost_totalProceeds -= received;
+        } catch (bytes memory err) {
+            bytes4 selector;
+
+            assembly {
+                selector := mload(add(err, 0x20))
+            }
+
+            if (selector == CustomRevert.WrappedError.selector) {
+                (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
+
+                if (revertReasonSelector == SwapBelowRange.selector) {
+                    // revert("invalid swap after maturity");
+                }
+            } else {
+                revert();
+            }
+        }
+
+        /*
         if (isToken0) {
             ghost_reserve0 += assetsToSell;
             ghost_reserve1 -= received;
         } else {
             ghost_reserve1 += assetsToSell;
             ghost_reserve0 -= received;
+        }
+        */
+
+        if (block.timestamp > hook.startingTime()) {
+            ghost_hasRebalanced = true;
         }
     }
 
@@ -193,7 +286,7 @@ contract DopplerHandler is Test {
         uint256 sold = router.sellExactOut(amountToReceive);
 
         assetBalanceOf[currentActor] -= sold;
-        ghost_totalTokensSold -= sold;
+        ghost_totalTokensSoldBack += sold;
         ghost_totalProceeds -= amountToReceive;
 
         if (isToken0) {
@@ -203,11 +296,21 @@ contract DopplerHandler is Test {
             ghost_reserve0 -= amountToReceive;
             ghost_reserve1 += sold;
         }
+
+        if (block.timestamp > hook.startingTime()) {
+            ghost_hasRebalanced = true;
+        }
     }
 
     /// @dev Jumps to the next epoch
-    function goNextEpoch() public {
-        vm.warp(block.timestamp + hook.epochLength());
-        ghost_currentEpoch += 1;
+    function goNextEpoch(
+        uint256 seed
+    ) public {
+        uint256 rand = seed % 100;
+
+        if (rand > 80) {
+            vm.warp(block.timestamp + hook.epochLength());
+            ghost_currentEpoch += 1;
+        }
     }
 }
