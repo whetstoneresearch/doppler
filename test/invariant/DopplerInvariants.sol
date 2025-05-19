@@ -28,6 +28,7 @@ contract DopplerInvariantsTest is BaseTest {
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
+        excludeSender(address(manager));
 
         vm.warp(DEFAULT_STARTING_TIME);
     }
