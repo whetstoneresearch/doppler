@@ -26,7 +26,7 @@ contract CustomLPUniswapV2Locker is ICustomLPUniswapV2Locker, Ownable, Immutable
 
     /**
      * @param factory_ Address of the Uniswap V2 factory
-     * @param migrator_ Address of the Uniswap V2 migrator
+     * @param migrator_ Address of the Custom LP Uniswap V2 migrator
      */
     constructor(
         address airlock_,

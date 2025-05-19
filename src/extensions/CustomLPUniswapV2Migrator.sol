@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { ICustomLPUniswapV2Migrator } from "src/extensions/interfaces/ICustomLPUniswapV2Migrator.sol";
 import { MigrationMath } from "src/libs/MigrationMath.sol";
 import { CustomLPUniswapV2Locker } from "src/extensions/CustomLPUniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
@@ -16,7 +16,7 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
  * @author ant from Long
  * @notice An extension built on top of UniswapV2Migrator to enable locking LP for a custom period
  */
-contract CustomLPUniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
+contract CustomLPUniswapV2Migrator is ICustomLPUniswapV2Migrator, ImmutableAirlock {
     using SafeTransferLib for ERC20;
 
     /// @dev Constant used to increase precision during calculations
@@ -36,15 +36,6 @@ contract CustomLPUniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
     uint64 public customLPWad;
     /// @dev Address of the recipient of the custom LP allocation
     address public customLPRecipient;
-
-    /// @notice Thrown when the custom LP allocation exceeds `MAX_CUSTOM_LP_WAD`
-    error MaxCustomLPWadExceeded();
-    /// @notice Thrown when the recipient is not an EOA
-    error RecipientNotEOA();
-    /// @notice Thrown when the lock up period is less than `MIN_LOCK_PERIOD`
-    error LessThanMinLockPeriod();
-    /// @notice Thrown when the input is zero
-    error InvalidInput();
 
     receive() external payable onlyAirlock { }
 
