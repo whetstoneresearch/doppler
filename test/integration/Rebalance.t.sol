@@ -777,7 +777,11 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch2, expectedAmountSold / 2, "Wrong tokens sold last epoch (2)");
 
         // Assert that we reduced the accumulator by half the max amount as intended
-        assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2, "Wrong tick accumulator");
+        assertEq(
+            tickAccumulator2,
+            hook.alignTickDeltaWithTickSpacing(tickAccumulator + maxTickDeltaPerEpoch / 2, poolKey.tickSpacing),
+            "Wrong tick accumulator"
+        );
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
