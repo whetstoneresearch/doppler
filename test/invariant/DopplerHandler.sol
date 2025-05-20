@@ -276,6 +276,7 @@ contract DopplerHandler is Test {
                     }
                 } else if (revertReasonSelector == bytes4(0)) {
                     console.log("Random revert");
+                    revert();
                 } else {
                     revert("Unimplemented wrapped error");
                 }
