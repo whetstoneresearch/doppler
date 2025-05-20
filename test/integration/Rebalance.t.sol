@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { stdMath } from "forge-std/StdMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -14,7 +16,7 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import "forge-std/console.sol";
+import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -66,10 +68,10 @@ contract RebalanceTest is BaseTest {
 
         if (isToken0) {
             // Validate that lower slug is not above the current tick
-            assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()), "lowerSlug.tickUpper > currentTick");
+            assertLe(lowerSlug.tickUpper, hook.getCurrentTick(), "lowerSlug.tickUpper > currentTick");
         } else {
             // Validate that lower slug is not below the current tick
-            assertGe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()), "lowerSlug.tickUpper < currentTick");
+            assertGe(lowerSlug.tickUpper, hook.getCurrentTick(), "lowerSlug.tickUpper < currentTick");
         }
 
         // Validate that upper slug and all price discovery slugs are placed continuously
@@ -153,7 +155,7 @@ contract RebalanceTest is BaseTest {
         (int24 tickLower,) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Validate that the lower slug is spanning the full range
-        if (stdMath.delta(hook.getCurrentTick(poolKey.toId()), tickLower) <= 1) {
+        if (stdMath.delta(hook.getCurrentTick(), tickLower) <= 1) {
             assertEq(
                 tickLower + (isToken0 ? -poolKey.tickSpacing : poolKey.tickSpacing),
                 lowerSlug.tickLower,
@@ -205,8 +207,8 @@ contract RebalanceTest is BaseTest {
 
         // Validate that lower slug is not above the current tick
         isToken0
-            ? assertLe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()))
-            : assertGe(lowerSlug.tickUpper, hook.getCurrentTick(poolKey.toId()));
+            ? assertLe(lowerSlug.tickUpper, hook.getCurrentTick())
+            : assertGe(lowerSlug.tickUpper, hook.getCurrentTick());
         if (isToken0) {
             assertEq(
                 lowerSlug.tickUpper - lowerSlug.tickLower,
@@ -302,19 +304,19 @@ contract RebalanceTest is BaseTest {
         // warp to epoch 3
         vm.warp(hook.startingTime() + hook.epochLength() * 3);
         // get the tick for epoch 3
-        (, int24 tickAtEpoch3) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
         // warp to epoch 6
         vm.warp(hook.startingTime() + hook.epochLength() * 6);
         // get the tick for epoch 6
-        (, int24 tickAtEpoch6) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory data2 = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
         assertApproxEqAbs(
-            tickAtEpoch6,
-            isToken0 ? tickAtEpoch3 - 800 * 2 : tickAtEpoch3 + 800 * 2,
+            data2.tick,
+            isToken0 ? data.tick - 800 * 2 : data.tick + 800 * 2,
             1000,
             "tickAtEpoch6 != tickAtEpoch3 - 800 * 2"
         );
@@ -328,7 +330,7 @@ contract RebalanceTest is BaseTest {
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
-        (, int24 initialTick) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory initialData = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
@@ -340,12 +342,44 @@ contract RebalanceTest is BaseTest {
                 break;
             }
 
-            (, int24 tick) = lensQuoter.quoteDopplerLensData(
+            DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
                 IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
             );
-            tick = hook.alignComputedTickWithTickSpacing(tick, key.tickSpacing);
+            int24 tick = hook.alignComputedTickWithTickSpacing(data.tick, key.tickSpacing);
 
-            int24 expectedTick = initialTick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
+
+            assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
+        }
+    }
+
+    function test_rebalance_LensFetchesCorrectPositionsAtEachEpoch() public {
+        vm.warp(hook.startingTime());
+
+        bool isToken0 = hook.isToken0();
+        int256 I_WAD = 1e18;
+
+        int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
+
+        DopplerLensReturnData memory initialData = lensQuoter.quoteDopplerLensData(
+            IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+        );
+
+        uint256 numEpochs = (hook.endingTime() - hook.startingTime()) / hook.epochLength();
+
+        for (uint256 i; i < numEpochs; i++) {
+            vm.warp(hook.startingTime() + hook.epochLength() * i);
+            if (block.timestamp >= hook.endingTime()) {
+                break;
+            }
+
+            DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
+                IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
+            );
+            int24 tick = hook.alignComputedTickWithTickSpacing(data.tick, key.tickSpacing);
+
+            int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
             expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
 
             assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));
@@ -539,9 +573,7 @@ contract RebalanceTest is BaseTest {
         }
 
         // Assert that the slugs are continuous
-        assertApproxEqAbs(
-            hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower"
-        );
+        assertApproxEqAbs(hook.getCurrentTick(), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower");
 
         // We should only have one price discovery slug at this point
         assertEq(upperSlug.tickUpper, priceDiscoverySlugs[0].tickLower);
@@ -596,9 +628,7 @@ contract RebalanceTest is BaseTest {
         Position memory priceDiscoverySlug = hook.getPositions(bytes32(uint256(3)));
 
         // Assert that the upperSlug is correctly placed
-        assertApproxEqAbs(
-            hook.getCurrentTick(poolKey.toId()), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower"
-        );
+        assertApproxEqAbs(hook.getCurrentTick(), upperSlug.tickLower, 1, "currentTick != upperSlug.tickLower");
 
         // Assert that the priceDiscoverySlug has no liquidity
         assertEq(priceDiscoverySlug.liquidity, 0);
@@ -764,7 +794,7 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         PoolId poolId = poolKey.toId();
-        int24 currentTick = hook.getCurrentTick(poolId);
+        int24 currentTick = hook.getCurrentTick();
 
         // Slugs must be inline and continuous
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "Wrong ticks for lower and upper slugs");
@@ -830,7 +860,7 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         PoolId poolId = poolKey.toId();
-        int24 currentTick = hook.getCurrentTick(poolId);
+        int24 currentTick = hook.getCurrentTick();
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
@@ -856,7 +886,7 @@ contract RebalanceTest is BaseTest {
         (, int24 tickUpper) = hook.getTicksBasedOnState(tickAccumulator2, poolKey.tickSpacing);
 
         // Get current tick
-        currentTick = hook.getCurrentTick(poolId);
+        currentTick = hook.getCurrentTick();
 
         // TODO: Depending on the hook used, it's possible to hit the lower slug oversold case or not
         //       Currently we're hitting the oversold case. As such, the assertions should be agnostic
@@ -1009,7 +1039,7 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         PoolId poolId = poolKey.toId();
-        int24 currentTick = hook.getCurrentTick(poolId);
+        int24 currentTick = hook.getCurrentTick();
 
         // Slugs must be inline and continuous
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "first swap: lowerSlug.tickUpper != upperSlug.tickLower");
@@ -1122,7 +1152,7 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.startingTime() + hook.epochLength() * 5);
 
         // Get current tick
-        currentTick = hook.getCurrentTick(poolId);
+        currentTick = hook.getCurrentTick();
 
         // Trigger rebalance
         buy(1 ether);
@@ -1153,7 +1183,7 @@ contract RebalanceTest is BaseTest {
         (int24 tickLower, int24 tickUpper2) = hook.getTicksBasedOnState(tickAccumulator3, poolKey.tickSpacing);
 
         // Get current tick
-        currentTick = hook.getCurrentTick(poolId);
+        currentTick = hook.getCurrentTick();
 
         if (isToken0) {
             // Lower slug must not be above current tick
@@ -1217,7 +1247,7 @@ contract RebalanceTest is BaseTest {
         (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator4, poolKey.tickSpacing);
 
         // Get current tick
-        currentTick = hook.getCurrentTick(poolId);
+        currentTick = hook.getCurrentTick();
 
         if (isToken0) {
             // Lower slug must not be greater than current tick
@@ -1270,7 +1300,14 @@ contract RebalanceTest is BaseTest {
         (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator5, poolKey.tickSpacing);
 
         // Get current tick
-        currentTick = hook.getCurrentTick(poolId);
+        currentTick = hook.getCurrentTick();
+
+        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
+        console.log("lowerSlug.tickUpper", lowerSlug.tickUpper);
+        console.log("upperSlug.tickLower", upperSlug.tickLower);
+        console.log("upperSlug.tickUpper", upperSlug.tickUpper);
+        console.log("tickLower", tickLower);
+        console.log("tickUpper", tickUpper);
 
         // Slugs must be inline and continuous
         if (stdMath.delta(currentTick, tickLower) <= 1) {
@@ -1284,11 +1321,11 @@ contract RebalanceTest is BaseTest {
                 assertEq(
                     tickLower + poolKey.tickSpacing,
                     lowerSlug.tickLower,
-                    "fifth swap: lowerSlug.tickUpper != global tickLower"
+                    "fifth swap: lowerSlug.tickUpper != global tickLower ?"
                 );
             }
         } else {
-            assertEq(tickLower, lowerSlug.tickLower, "fifth swap: lowerSlug.tickUpper != global tickLower");
+            assertEq(tickLower, lowerSlug.tickLower, "fifth swap: lowerSlug.tickLower != global tickLower");
         }
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "fifth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
@@ -1334,7 +1371,7 @@ contract RebalanceTest is BaseTest {
         (tickLower, tickUpper) = hook.getTicksBasedOnState(tickAccumulator6, poolKey.tickSpacing);
 
         // Get current tick
-        currentTick = hook.getCurrentTick(poolId);
+        currentTick = hook.getCurrentTick();
         assertEq(tickLower, lowerSlug.tickLower, "sixth swap: lowerSlug.tickLower != global tickLower");
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "sixth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 

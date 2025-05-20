@@ -9,7 +9,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { MAX_TICK_SPACING } from "src/Doppler.sol";
-import { DopplerTickLibrary } from "../util/DopplerTickLibrary.sol";
+import { DopplerTickLibrary } from "../utils/DopplerTickLibrary.sol";
 import { DopplerFixtures, DEFAULT_START_TICK } from "test/shared/DopplerFixtures.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 

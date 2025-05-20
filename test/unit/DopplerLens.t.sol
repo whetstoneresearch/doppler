@@ -3,8 +3,10 @@ pragma solidity ^0.8.24;
 
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { StateView } from "@v4-periphery/lens/StateView.sol";
-import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { DopplerLensQuoter, DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { Position, LOWER_SLUG_SALT, UPPER_SLUG_SALT, DISCOVERY_SLUG_SALT } from "src/Doppler.sol";
+import "forge-std/console.sol";
 
 contract DopplerLensTest is BaseTest {
     function test_lens_fetches_consistent_ticks() public {
@@ -12,21 +14,30 @@ contract DopplerLensTest is BaseTest {
 
         bool isToken0 = hook.isToken0();
 
-        (uint160 sqrtPriceX960, int24 tick0) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory data0 = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
 
         vm.warp(hook.startingTime() + hook.epochLength());
 
-        (uint160 sqrtPriceX961, int24 tick1) = lensQuoter.quoteDopplerLensData(
+        DopplerLensReturnData memory data1 = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
+
         if (isToken0) {
-            assertLt(tick1, tick0, "Tick should be less than the previous tick");
-            assertLt(sqrtPriceX961, sqrtPriceX960, "SqrtPriceX96 should be less than the previous sqrtPriceX96");
+            assertLt(data1.tick, data0.tick, "Tick should be less than the previous tick");
+            assertLt(
+                data1.sqrtPriceX96, data0.sqrtPriceX96, "SqrtPriceX96 should be less than the previous sqrtPriceX96"
+            );
+            assertGt(data1.amount0, data0.amount0, "Amount0 should be greater than the previous amount0");
+            assertEq(data1.amount1, data0.amount1, "Amount1 should be equal to the previous amount1");
         } else {
-            assertGt(tick1, tick0, "Tick should be greater than the previous tick");
-            assertGt(sqrtPriceX961, sqrtPriceX960, "SqrtPriceX96 should be greater than the previous sqrtPriceX96");
+            assertGt(data1.tick, data0.tick, "Tick should be greater than the previous tick");
+            assertGt(
+                data1.sqrtPriceX96, data0.sqrtPriceX96, "SqrtPriceX96 should be greater than the previous sqrtPriceX96"
+            );
+            assertGt(data1.amount1, data0.amount1, "Amount1 should be greater than the previous amount1");
+            assertEq(data1.amount0, data0.amount0, "Amount0 should be equal to the previous amount0");
         }
     }
 }

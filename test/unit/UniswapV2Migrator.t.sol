@@ -109,6 +109,24 @@ contract UniswapV2MigratorTest is Test {
         assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
     }
 
+    function test_migrate_KeepsCorrectPrice() public {
+        TestERC20 token0 = new TestERC20(131_261_409_265_385_327_997_940);
+        TestERC20 token1 = new TestERC20(16_622_742_685_037);
+
+        uint160 sqrtPriceX96 = 3_893_493_510_706_508_098_175_185;
+
+        address pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+
+        token0.transfer(address(migrator), 13_126_140_926_538_532_799_794);
+        token1.transfer(address(migrator), 16_622_742_685_037);
+        migrator.migrate(sqrtPriceX96, address(token0), address(token1), address(0xbeef));
+        assertEq(token0.balanceOf(address(migrator)), 0, "Wrong migrator token0 balance");
+        assertEq(token1.balanceOf(address(migrator)), 0, "Wrong migrator token1 balance");
+        (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(pool).getReserves();
+        uint256 price = uint256(reserve1) * 2 ** 192 / uint256(reserve0);
+        assertApproxEqRel(price, uint256(sqrtPriceX96) * uint256(sqrtPriceX96), 0.00000001e18);
+    }
+
     function test_migrate(uint256 balance0, uint256 balance1, uint160 sqrtPriceX96) public {
         vm.skip(true);
         uint256 max = uint256(int256(type(int128).max));

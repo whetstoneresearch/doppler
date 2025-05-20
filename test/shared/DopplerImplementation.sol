@@ -107,6 +107,12 @@ contract DopplerImplementation is Doppler {
         return _alignComputedTickWithTickSpacing(tick, tickSpacing);
     }
 
+    /*
+    function alignTickDeltaWithTickSpacing(int256 tick, int256 tickSpacing) public view returns (int256) {
+        return _alignTickDeltaWithTickSpacing(tick, tickSpacing);
+    }
+    */
+
     function computeLowerSlugData(
         PoolKey memory key,
         uint256 requiredProceeds,
@@ -148,10 +154,8 @@ contract DopplerImplementation is Doppler {
         return poolManager.unlock(data);
     }
 
-    function getCurrentTick(
-        PoolId poolId
-    ) public view returns (int24) {
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+    function getCurrentTick() public view returns (int24) {
+        (, int24 currentTick,,) = poolManager.getSlot0(poolKey.toId());
         return currentTick;
     }
 
