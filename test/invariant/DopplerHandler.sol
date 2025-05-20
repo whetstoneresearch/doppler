@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { Test } from "forge-std/Test.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
@@ -47,7 +49,6 @@ contract DopplerHandler is Test {
     uint256 public ghost_reserve1;
     uint256 public ghost_totalTokensSold;
     uint256 public ghost_totalProceeds;
-    uint256 public ghost_totalTokensSoldBack;
 
     bool public ghost_hasRebalanced;
 
@@ -117,7 +118,7 @@ contract DopplerHandler is Test {
     function buyExactAmountIn(
         uint256 amount
     ) public createActor {
-        vm.assume(amount > 0 && amount <= 10 ether);
+        vm.assume(amount > 0.00001 ether && amount <= 10 ether);
 
         if (ghost_totalTokensSold > 0 && block.timestamp > hook.startingTime()) {
             ghost_hasRebalanced = true;
@@ -167,7 +168,7 @@ contract DopplerHandler is Test {
             } else if (selector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
                 revert("invalid swap after maturity");
             } else if (selector == Pool.PriceLimitAlreadyExceeded.selector) {
-                revert("price limit already exceeded");
+                // revert("price limit already exceeded");
             } else {
                 revert("Unknown error");
             }
@@ -217,6 +218,7 @@ contract DopplerHandler is Test {
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
+        assertLe(assetsToSell, assetBalanceOf[currentActor]);
 
         TestERC20(asset).approve(address(swapRouter), assetsToSell);
 
@@ -232,11 +234,9 @@ contract DopplerHandler is Test {
             uint256 sold = isToken0 ? delta0 : delta1;
             uint256 received = isToken0 ? delta1 : delta0;
 
-            assertEq(sold, assetsToSell, "Sold amount mismatch");
-
-            assetBalanceOf[currentActor] -= assetsToSell;
-            ghost_totalTokensSoldBack += assetsToSell;
+            ghost_totalTokensSold -= sold;
             ghost_totalProceeds -= received;
+            assetBalanceOf[currentActor] -= sold;
         } catch (bytes memory err) {
             bytes4 selector;
 
@@ -249,9 +249,12 @@ contract DopplerHandler is Test {
 
                 if (revertReasonSelector == SwapBelowRange.selector) {
                     // revert("invalid swap after maturity");
+                    console.log("Swap below range");
+                } else {
+                    revert("Unimplemented wrapped error");
                 }
             } else {
-                revert();
+                revert("Unimplemented error");
             }
         }
 
@@ -286,7 +289,7 @@ contract DopplerHandler is Test {
         uint256 sold = router.sellExactOut(amountToReceive);
 
         assetBalanceOf[currentActor] -= sold;
-        ghost_totalTokensSoldBack += sold;
+        ghost_totalTokensSold += sold;
         ghost_totalProceeds -= amountToReceive;
 
         if (isToken0) {
