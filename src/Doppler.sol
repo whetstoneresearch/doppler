@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -526,6 +528,7 @@ contract Doppler is BaseHook {
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+        currentTick = _alignComputedTickWithTickSpacing(currentTick, key.tickSpacing);
 
         int256 accumulatorDelta;
         int256 newAccumulator;
@@ -548,6 +551,7 @@ contract Doppler is BaseHook {
                                 totalTokensSold_, WAD, _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))
                             )
                     ) / I_WAD;
+                // accumulatorDelta = _alignTickDeltaWithTickSpacing(accumulatorDelta, key.tickSpacing);
             } else {
                 int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
@@ -621,6 +625,7 @@ contract Doppler is BaseHook {
             adjustmentTick = _alignComputedTickWithTickSpacing(currentTick, key.tickSpacing);
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
+            // accumulatorDelta = _alignTickDeltaWithTickSpacing(accumulatorDelta, key.tickSpacing);
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
@@ -663,6 +668,20 @@ contract Doppler is BaseHook {
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
+        /*
+        if (!isToken0 && tickLower < currentTick) {
+            tickLower = currentTick;
+            // currentTick -= key.tickSpacing;
+        } else if (isToken0 && tickLower > currentTick) {
+            tickLower = currentTick;
+            // currentTick += key.tickSpacing;
+        }
+        */
+
+        console.log("\ntickLower", tickLower);
+        console.log("tickUpper", tickUpper);
+        console.log("currentTick", currentTick);
+
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero
         // Thus we have to create a gap between the two
@@ -673,6 +692,9 @@ contract Doppler is BaseHook {
                 tickLower += key.tickSpacing;
             }
         }
+
+        console.log("tickLower", tickLower);
+        console.log("\n");
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
@@ -811,7 +833,44 @@ contract Doppler is BaseHook {
 
         // Safe from overflow since max value is (2**24-1) * 1e18
         return int256(endingTick - effectiveStartingTick) * I_WAD / int256((endingTime - startingTime) / epochLength);
+
+        /*
+        return _alignTickDeltaWithTickSpacing(
+            int256(endingTick - effectiveStartingTick) * I_WAD / int256((endingTime - startingTime) / epochLength),
+            poolKey.tickSpacing
+        );
+        */
     }
+
+    /*
+    function _alignTickDeltaWithTickSpacing(int256 tick, int256 tickSpacing) internal view returns (int256) {
+        if (tick < 0) {
+            return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+        } else {
+            return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+        }
+
+        if (isToken0) {
+            // Round down if isToken0
+            if (tick < 0) {
+                // If the tick is negative, we round up (negatively) the negative result to round down
+                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+            } else {
+                // Else if positive, we simply round down
+                return tick / tickSpacing * tickSpacing;
+            }
+        } else {
+            // Round up if isToken1
+            if (tick < 0) {
+                // If the tick is negative, we round down the negative result to round up
+                return tick / tickSpacing * tickSpacing;
+            } else {
+                // Else if positive, we simply round up
+                return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+            }
+        }
+    }
+    */
 
     /// @notice Aligns a given tick with the tickSpacing of the pool
     ///         Rounds down according to the asset token denominated price

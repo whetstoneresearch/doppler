@@ -107,9 +107,11 @@ contract DopplerImplementation is Doppler {
         return _alignComputedTickWithTickSpacing(tick, tickSpacing);
     }
 
+    /*
     function alignTickDeltaWithTickSpacing(int256 tick, int256 tickSpacing) public view returns (int256) {
         return _alignTickDeltaWithTickSpacing(tick, tickSpacing);
     }
+    */
 
     function computeLowerSlugData(
         PoolKey memory key,
