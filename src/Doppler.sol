@@ -74,38 +74,93 @@ error CannotAddLiquidity();
 /// @notice Thrown when an attempt is made to swap before the start time
 error CannotSwapBeforeStartTime();
 
+/// @notice Thrown when an attempt is made to swap below the range of the lower slug
 error SwapBelowRange();
 
 /// @notice Thrown when start time is before the current block.timestamp
 error InvalidStartTime();
 
+/// @notice Thrown when the time range is invalid (likely start is after end)
 error InvalidTickRange();
+
+/// @notice Thrown when the tick spacing is invalid (likely too large)
 error InvalidTickSpacing();
+
+/// @notice Thrown when the epoch length is invalid (likely not divisible by the time range)
 error InvalidEpochLength();
+
+/// @notice Thrown when the proceeds limits are invalid (likely min > max)
 error InvalidProceedLimits();
+
+/// @notice Thrown when the number of price discovery slugs is invalid (likely too large)
 error InvalidNumPDSlugs();
+
+/// @notice Thrown when a swap is attempted after migration
 error InvalidSwapAfterMaturitySufficientProceeds();
+
+/// @notice Thrown when a swap is attempting to buy assets after sale has ended
 error InvalidSwapAfterMaturityInsufficientProceeds();
+
+/// @notice Thrown when the pool has already reached the maximum proceeds
 error MaximumProceedsReached();
+
+/// @notice Thrown when the caller is not the pool manager
 error SenderNotPoolManager();
+
+/// @notice Thrown when the pool is not ready for migration
 error CannotMigrate();
+
+/// @notice Thrown when the pool is already initialized
 error AlreadyInitialized();
+
+/// @notice Thrown when the sender is not the initializer of the pool
 error SenderNotInitializer();
+
+/// @notice Thrown when a donation is attempted
 error CannotDonate();
 
+/**
+ * @notice Emitted when the pool rebalances
+ * @param currentTick Current tick of the pool
+ * @param tickLower Lower tick
+ * @param tickUpper Upper tick
+ * @param epoch Current epoch
+ */
 event Rebalance(int24 currentTick, int24 tickLower, int24 tickUpper, uint256 epoch);
 
+/**
+ * @notice Emitted when a swap occurs
+ * @param currentTick Current tick of the pool
+ * @param totalProceeds Total proceeds
+ * @param totalTokensSold Total tokens sold
+ */
 event Swap(int24 currentTick, uint256 totalProceeds, uint256 totalTokensSold);
 
+/**
+ * @notice Emitted when the pool reaches the early exit state
+ * @param epoch Current epoch
+ */
 event EarlyExit(uint256 epoch);
 
+/// @notice Emitted when the pool reaches the insufficient proceeds state
 event InsufficientProceeds();
 
+/// @dev Maximum swap fee for the pool
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
+
+/// @dev Precision multiplier for unsigned integers
 uint256 constant WAD = 1e18;
+
+/// @dev Precision multiplier for signed integers
 int256 constant I_WAD = 1e18;
+
+/// @dev Maximum tick spacing for the pool
 int24 constant MAX_TICK_SPACING = 30;
+
+/// @dev Maximum number of price discovery slugs
 uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
+
+/// @dev Number of default slugs
 uint256 constant NUM_DEFAULT_SLUGS = 3;
 
 /// @dev Used to differentiate between the lower, upper, and price discovery slugs
@@ -549,7 +604,6 @@ contract Doppler is BaseHook {
                                 totalTokensSold_, WAD, _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))
                             )
                     ) / I_WAD;
-                // accumulatorDelta = _alignTickDeltaWithTickSpacing(accumulatorDelta, key.tickSpacing);
             } else {
                 int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
@@ -623,7 +677,6 @@ contract Doppler is BaseHook {
             adjustmentTick = _alignComputedTickWithTickSpacing(currentTick, key.tickSpacing);
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
                 * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
-            // accumulatorDelta = _alignTickDeltaWithTickSpacing(accumulatorDelta, key.tickSpacing);
         } else {
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
