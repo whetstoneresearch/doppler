@@ -15,7 +15,6 @@ import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
-import "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
