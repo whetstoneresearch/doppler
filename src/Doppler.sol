@@ -668,15 +668,11 @@ contract Doppler is BaseHook {
 
         (int24 tickLower, int24 tickUpper) = _getTicksBasedOnState(newAccumulator, key.tickSpacing);
 
-        /*
-        if (!isToken0 && tickLower < currentTick) {
+        if (isToken0 && tickLower < currentTick) {
             tickLower = currentTick;
-            // currentTick -= key.tickSpacing;
         } else if (isToken0 && tickLower > currentTick) {
             tickLower = currentTick;
-            // currentTick += key.tickSpacing;
         }
-        */
 
         console.log("\ntickLower", tickLower);
         console.log("tickUpper", tickUpper);
@@ -685,12 +681,10 @@ contract Doppler is BaseHook {
         // It's possible that these are equal
         // If we try to add liquidity in this range though, we revert with a divide by zero
         // Thus we have to create a gap between the two
-        if (currentTick == tickLower) {
-            if (isToken0) {
-                tickLower -= key.tickSpacing;
-            } else {
-                tickLower += key.tickSpacing;
-            }
+        if (!isToken0 && currentTick >= tickLower) {
+            tickLower = currentTick + key.tickSpacing;
+        } else if (isToken0 && currentTick <= tickLower) {
+            tickLower = currentTick - key.tickSpacing;
         }
 
         console.log("tickLower", tickLower);
@@ -725,6 +719,8 @@ contract Doppler is BaseHook {
                 - uint128(state.feesAccrued.amount1());
         }
 
+        console.log("numeraireAvailable", numeraireAvailable);
+        console.log("assetAvailable", assetAvailable);
         // Compute new positions
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
@@ -961,7 +957,11 @@ contract Doppler is BaseHook {
     ) internal view returns (SlugData memory slug) {
         // If we do not have enough proceeds to place the full lower slug,
         // we switch to a single tick range at the target price
-        if (requiredProceeds > totalProceeds_) {
+        if (totalProceeds_ == 0) {
+            slug.tickLower = currentTick;
+            slug.tickUpper = currentTick;
+            slug.liquidity = 0;
+        } else if (requiredProceeds > totalProceeds_) {
             slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_);
         } else {
             slug.tickLower = tickLower;
