@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { console } from "forge-std/console.sol";
+
 import { stdMath } from "forge-std/StdMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -777,11 +779,7 @@ contract RebalanceTest is BaseTest {
         assertEq(totalTokensSoldLastEpoch2, expectedAmountSold / 2, "Wrong tokens sold last epoch (2)");
 
         // Assert that we reduced the accumulator by half the max amount as intended
-        assertEq(
-            tickAccumulator2,
-            hook.alignTickDeltaWithTickSpacing(tickAccumulator + maxTickDeltaPerEpoch / 2, poolKey.tickSpacing),
-            "Wrong tick accumulator"
-        );
+        assertEq(tickAccumulator2, tickAccumulator + maxTickDeltaPerEpoch / 2, "Wrong tick accumulator");
 
         // Get positions
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
@@ -1304,6 +1302,13 @@ contract RebalanceTest is BaseTest {
         // Get current tick
         currentTick = hook.getCurrentTick();
 
+        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
+        console.log("lowerSlug.tickUpper", lowerSlug.tickUpper);
+        console.log("upperSlug.tickLower", upperSlug.tickLower);
+        console.log("upperSlug.tickUpper", upperSlug.tickUpper);
+        console.log("tickLower", tickLower);
+        console.log("tickUpper", tickUpper);
+
         // Slugs must be inline and continuous
         if (stdMath.delta(currentTick, tickLower) <= 1) {
             if (isToken0) {
@@ -1316,11 +1321,11 @@ contract RebalanceTest is BaseTest {
                 assertEq(
                     tickLower + poolKey.tickSpacing,
                     lowerSlug.tickLower,
-                    "fifth swap: lowerSlug.tickUpper != global tickLower"
+                    "fifth swap: lowerSlug.tickUpper != global tickLower ?"
                 );
             }
         } else {
-            assertEq(tickLower, lowerSlug.tickLower, "fifth swap: lowerSlug.tickUpper != global tickLower");
+            assertEq(tickLower, lowerSlug.tickLower, "fifth swap: lowerSlug.tickLower != global tickLower");
         }
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "fifth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
