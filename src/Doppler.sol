@@ -373,7 +373,7 @@ contract Doppler is BaseHook {
                 uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()));
 
                 SlugData memory lowerSlug =
-                    _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold);
+                    _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold, currentTick);
                 Position[] memory newPositions = new Position[](1);
 
                 newPositions[0] = Position({
@@ -907,7 +907,7 @@ contract Doppler is BaseHook {
             slug.tickUpper = currentTick;
             slug.liquidity = 0;
         } else if (requiredProceeds > totalProceeds_) {
-            slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_);
+            slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_, currentTick);
         } else {
             slug.tickLower = tickLower;
             slug.tickUpper = currentTick;
@@ -1048,7 +1048,13 @@ contract Doppler is BaseHook {
     /// @param num The numerator
     /// @param denom The denominator
     function _computeTargetPriceX96(uint256 num, uint256 denom) internal pure returns (uint160) {
-        return FullMath.mulDiv(num, FixedPoint96.Q96, denom).toUint160();
+        uint256 targetPriceX96 = FullMath.mulDiv(num, FixedPoint96.Q96, denom);
+
+        if (targetPriceX96 > type(uint160).max) {
+            return 0;
+        }
+
+        return targetPriceX96.toUint160();
     }
 
     /// @notice Computes the single sided liquidity amount for a given price range and amount of tokens
@@ -1276,7 +1282,8 @@ contract Doppler is BaseHook {
     function _computeLowerSlugInsufficientProceeds(
         PoolKey memory key,
         uint256 totalProceeds_,
-        uint256 totalTokensSold_
+        uint256 totalTokensSold_,
+        int24 currentTick
     ) internal view returns (SlugData memory slug) {
         uint160 targetPriceX96;
         if (isToken0) {
@@ -1287,18 +1294,24 @@ contract Doppler is BaseHook {
             targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
         }
 
-        slug.tickUpper = _alignComputedTickWithTickSpacing(
-            // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
-            TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
-            key.tickSpacing
-        );
-        slug.tickLower = isToken0 ? slug.tickUpper - key.tickSpacing : slug.tickUpper + key.tickSpacing;
-        slug.liquidity = _computeLiquidity(
-            !isToken0,
-            TickMath.getSqrtPriceAtTick(slug.tickLower),
-            TickMath.getSqrtPriceAtTick(slug.tickUpper),
-            totalProceeds_
-        );
+        if (targetPriceX96 == 0) {
+            slug.tickLower = currentTick;
+            slug.tickUpper = currentTick;
+            slug.liquidity = 0;
+        } else {
+            slug.tickUpper = _alignComputedTickWithTickSpacing(
+                // We compute the sqrtPrice as the integer sqrt left shifted by 48 bits to convert to Q96
+                TickMath.getTickAtSqrtPrice(uint160(FixedPointMathLib.sqrt(uint256(targetPriceX96)) << 48)),
+                key.tickSpacing
+            );
+            slug.tickLower = isToken0 ? slug.tickUpper - key.tickSpacing : slug.tickUpper + key.tickSpacing;
+            slug.liquidity = _computeLiquidity(
+                !isToken0,
+                TickMath.getSqrtPriceAtTick(slug.tickLower),
+                TickMath.getSqrtPriceAtTick(slug.tickUpper),
+                totalProceeds_
+            );
+        }
     }
 
     /// @inheritdoc BaseHook
