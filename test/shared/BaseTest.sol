@@ -49,12 +49,14 @@ contract BaseTest is Test, Deployers {
     }
 
     // Constants
-
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
     uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
     uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
+
+    uint256 constant SALE_DURATION = 1 days;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
-    uint256 constant DEFAULT_ENDING_TIME = 2 days;
+    uint256 constant DEFAULT_ENDING_TIME = DEFAULT_STARTING_TIME + SALE_DURATION;
+
     int24 constant DEFAULT_GAMMA = 800;
     uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
 
