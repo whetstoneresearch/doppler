@@ -163,21 +163,8 @@ contract DopplerHandler is Test {
                 } else if (revertReasonSelector == Pool.TicksMisordered.selector) {
                     revert("ticks misordered");
                 } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
-                    (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-                    console.log("ghost_totalTokensSold", ghost_totalTokensSold);
-                    console.log("totalTokensSold", totalTokensSold);
-                    console.log("ghost_totalProceeds", ghost_totalProceeds);
-                    console.log("totalProceeds", totalProceeds);
-
-                    console.log("InvalidSqrtPrice");
                     revert("invalid sqrt price");
                 } else {
-                    (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-                    console.log("ghost_totalTokensSold", ghost_totalTokensSold);
-                    console.log("totalTokensSold", totalTokensSold);
-                    console.log("ghost_totalProceeds", ghost_totalProceeds);
-                    console.log("totalProceeds", totalProceeds);
-
                     revert("Unimplemented error");
                 }
             } else if (selector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
@@ -208,7 +195,7 @@ contract DopplerHandler is Test {
         assetBalanceOf[currentActor] += assetsToBuy;
         ghost_totalTokensSold += assetsToBuy;
 
-        uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
         ghost_totalProceeds += proceedsLessFee;
 
         /*
@@ -230,7 +217,7 @@ contract DopplerHandler is Test {
         uint256 seed
     ) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
-        if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
+        vm.assume(currentActor != address(0) && assetBalanceOf[currentActor] > 0);
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
         assertLe(assetsToSell, assetBalanceOf[currentActor]);
@@ -248,8 +235,9 @@ contract DopplerHandler is Test {
 
             uint256 sold = isToken0 ? delta0 : delta1;
             uint256 received = isToken0 ? delta1 : delta0;
+            uint256 soldLessFee = FullMath.mulDiv(uint128(sold), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
 
-            ghost_totalTokensSold -= sold;
+            ghost_totalTokensSold -= soldLessFee;
             ghost_totalProceeds -= received;
             assetBalanceOf[currentActor] -= sold;
         } catch (bytes memory err) {
@@ -262,20 +250,11 @@ contract DopplerHandler is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
 
-                if (revertReasonSelector == SwapBelowRange.selector) {
-                    console.log("Swap below range");
-                } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
-                    console.log("InvalidSqrtPrice");
-                    (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-                    console.log("ghost_totalTokensSold", ghost_totalTokensSold);
-                    console.log("totalTokensSold", totalTokensSold);
-                    console.log("ghost_totalProceeds", ghost_totalProceeds);
-                    console.log("totalProceeds", totalProceeds);
-                    if (assetsToSell > 10_000) {
-                        revert("invalid sqrt price");
-                    }
+                if (revertReasonSelector == SwapBelowRange.selector) { } else if (
+                    revertReasonSelector == TickMath.InvalidSqrtPrice.selector
+                ) {
+                    revert("invalid sqrt price");
                 } else if (revertReasonSelector == bytes4(0)) {
-                    console.log("Random revert");
                     revert();
                 } else {
                     revert("Unimplemented wrapped error");
@@ -337,10 +316,8 @@ contract DopplerHandler is Test {
         uint256 seed
     ) public {
         uint256 rand = seed % 100;
-
-        if (rand > 80) {
-            vm.warp(block.timestamp + hook.epochLength());
-            ghost_currentEpoch += 1;
-        }
+        vm.assume(rand > 80);
+        vm.warp(block.timestamp + hook.epochLength());
+        ghost_currentEpoch += 1;
     }
 }
