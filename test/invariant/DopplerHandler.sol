@@ -208,7 +208,7 @@ contract DopplerHandler is Test {
         assetBalanceOf[currentActor] += assetsToBuy;
         ghost_totalTokensSold += assetsToBuy;
 
-        uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - poolKey.fee, MAX_SWAP_FEE);
+        uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
         ghost_totalProceeds += proceedsLessFee;
 
         /*
@@ -248,8 +248,9 @@ contract DopplerHandler is Test {
 
             uint256 sold = isToken0 ? delta0 : delta1;
             uint256 received = isToken0 ? delta1 : delta0;
+            uint256 soldLessFee = FullMath.mulDiv(uint128(sold), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
 
-            ghost_totalTokensSold -= sold;
+            ghost_totalTokensSold -= soldLessFee;
             ghost_totalProceeds -= received;
             assetBalanceOf[currentActor] -= sold;
         } catch (bytes memory err) {
