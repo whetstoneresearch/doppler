@@ -2,48 +2,43 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
-import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { Airlock } from "src/Airlock.sol";
-import { Bundler } from "src/Bundler.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 
-struct DeployLensQuoterScriptData {
+struct LensQuoterScriptData {
     address poolManager;
     address stateView;
 }
 
-contract DeployLensQuoterScript is Script {
-    function _deployLensQuoter(IPoolManager poolManager, IStateView stateView) internal returns (DopplerLensQuoter) {
-        vm.startBroadcast();
-        DopplerLensQuoter quoter = new DopplerLensQuoter(poolManager, stateView);
-        vm.stopBroadcast();
-        return quoter;
-    }
+abstract contract DeployLensQuoterScript is Script {
+    LensQuoterScriptData internal _scriptData;
+
+    function setUp() public virtual;
 
     function run() public {
         console.log(
             unicode"🚀 Deploying LensQuoter on chain %s with sender %s...", vm.toString(block.chainid), msg.sender
         );
 
-        // Let's check if we have the script data for this chain
-        string memory path = "./script/addresses.toml";
-        string memory raw = vm.readFile(path);
-        bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
-        require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
-
-        bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
-        DeployLensQuoterScriptData memory scriptData = abi.decode(data, (DeployLensQuoterScriptData));
-
+        vm.startBroadcast();
         DopplerLensQuoter quoter =
-            _deployLensQuoter(IPoolManager(scriptData.poolManager), IStateView(scriptData.stateView));
+            new DopplerLensQuoter(IPoolManager(_scriptData.poolManager), IStateView(_scriptData.stateView));
+        vm.stopBroadcast();
 
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| Contract Name              | Address                                    |");
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| LensQuoter                 | %s |", address(quoter));
         console.log("+----------------------------+--------------------------------------------+");
+    }
+}
+
+contract DeployLensQuoterScriptBase is DeployLensQuoterScript {
+    function setUp() public override {
+        _scriptData = LensQuoterScriptData({
+            poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
+            stateView: 0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71
+        });
     }
 }
