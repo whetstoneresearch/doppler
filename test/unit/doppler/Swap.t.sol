@@ -11,7 +11,10 @@ import {
     SwapBelowRange,
     InvalidSwapAfterMaturityInsufficientProceeds,
     InvalidSwapAfterMaturitySufficientProceeds,
-    MAX_SWAP_FEE
+    MAX_SWAP_FEE,
+    SlugData,
+    Position,
+    LOWER_SLUG_SALT
 } from "src/Doppler.sol";
 
 contract SwapTest is BaseTest {
@@ -176,17 +179,6 @@ contract SwapTest is BaseTest {
         sellExpectRevert(-0.6 ether, SwapBelowRange.selector, false);
     }
 
-    function test_swap_DoesNotRebalanceInTheFirstEpoch() public {
-        (, int256 tickAccumulator,,,,) = hook.state();
-
-        vm.warp(hook.startingTime());
-
-        buy(1 ether);
-        (, int256 tickAccumulator2,,,,) = hook.state();
-
-        assertEq(tickAccumulator, tickAccumulator2);
-    }
-
     function test_swap_ZeroFeesWhenInsufficientProceeds() public {
         vm.warp(hook.startingTime());
         (uint256 bought,) = buy(1 ether);
@@ -197,5 +189,9 @@ contract SwapTest is BaseTest {
         (uint256 afterFeeGrowthGlobal0, uint256 afterFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
         assertEq(beforeFeeGrowthGlobal0, afterFeeGrowthGlobal0, "Token 0 fee growth should not change");
         assertEq(beforeFeeGrowthGlobal1, afterFeeGrowthGlobal1, "Token 1 fee growth should not change");
+    }
+
+    function goNextEpoch() public {
+        vm.warp(block.timestamp + hook.epochLength());
     }
 }

@@ -14,32 +14,29 @@ struct V4ScriptData {
  * @title Doppler V4 Deployment Script
  * @notice Use this script if the rest of the protocol (Airlock and co) is already deployed
  */
-contract DeployV4Script is Script {
+abstract contract DeployV4Script is Script {
+    V4ScriptData internal _scriptData;
+
+    function setUp() public virtual;
+
     function run() public {
         console.log(unicode"🚀 Deploying V4 on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
 
         vm.startBroadcast();
+        (DopplerDeployer dopplerDeployer, UniswapV4Initializer uniswapV4Initializer) = _deployV4(_scriptData);
 
-        // Let's check if we have the script data for this chain
-        string memory path = "./script/addresses.toml";
-        string memory raw = vm.readFile(path);
-        bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
-        require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
+        console.log(unicode"✨ Contracts were successfully deployed!");
 
-        bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
-        V4ScriptData memory scriptData = abi.decode(data, (V4ScriptData));
-
-        UniswapV4Initializer uniswapV4Initializer = _deployV4(scriptData);
-
-        console.log(unicode"✨ UniswapV4Initializer was successfully deployed at %s!", address(uniswapV4Initializer));
+        console.log("DopplerDeployer: ", address(dopplerDeployer));
+        console.log("UniswapV4Initializer: ", address(uniswapV4Initializer));
 
         vm.stopBroadcast();
     }
 
     function _deployV4(
         V4ScriptData memory scriptData
-    ) internal returns (UniswapV4Initializer uniswapV4Initializer) {
-        DopplerDeployer dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
+    ) internal returns (DopplerDeployer dopplerDeployer, UniswapV4Initializer uniswapV4Initializer) {
+        dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
         uniswapV4Initializer =
             new UniswapV4Initializer(scriptData.airlock, IPoolManager(scriptData.poolManager), dopplerDeployer);
     }

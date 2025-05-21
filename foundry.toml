@@ -36,3 +36,4 @@ wrap_comments = false
 
 [invariant]
 show_metrics = true
+fail_on_revert = true
