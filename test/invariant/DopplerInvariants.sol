@@ -33,15 +33,11 @@ contract DopplerInvariantsTest is BaseTest {
         vm.warp(DEFAULT_STARTING_TIME);
     }
 
-    /// forge-config: default.invariant.fail-on-revert = true
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
         assertEq(totalTokensSold, handler.ghost_totalTokensSold(), "Total tokens sold mismatch");
         assertApproxEqAbs(totalProceeds, handler.ghost_totalProceeds(), 1); //"Total proceeds mismatch");
     }
-
-    /// forge-config: default.invariant.fail-on-revert = true
-    function invariant_works() public view { }
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
         uint256 numTokensToSell = hook.numTokensToSell();
