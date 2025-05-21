@@ -5,10 +5,11 @@ import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
+import { ICustomLPUniswapV2Migrator } from "src/extensions/interfaces/ICustomLPUniswapV2Migrator.sol";
 import { CustomLPUniswapV2Migrator } from "src/extensions/CustomLPUniswapV2Migrator.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
 import { MigrationMath } from "src/UniswapV2Migrator.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 contract CustomLPUniswapV2MigratorTest is Test {
@@ -49,18 +50,12 @@ contract CustomLPUniswapV2MigratorTest is Test {
         assertEq(token0.balanceOf(pool), 1000 ether, "Wrong pool token0 balance");
         assertEq(token1.balanceOf(pool), 1000 ether, "Wrong pool token1 balance");
 
-        uint256 lockedLiquidity = liquidity / 20;
         uint256 customLockedLiquidity = liquidity * customLPWad / 1 ether;
-        assertEq(
-            liquidity - lockedLiquidity - customLockedLiquidity,
-            IUniswapV2Pair(pool).balanceOf(address(0xbeef)),
-            "Wrong liquidity"
-        );
+        assertEq(liquidity - customLockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(0xbeef)), "Wrong liquidity");
         assertEq(0, IUniswapV2Pair(pool).balanceOf(alice), "Wrong custom locked liquidity");
-        assertEq(lockedLiquidity, IUniswapV2Pair(pool).balanceOf(address(migrator.locker())), "Wrong locked liquidity");
         assertEq(
             customLockedLiquidity,
-            IUniswapV2Pair(pool).balanceOf(address(migrator.customLPLocker())),
+            IUniswapV2Pair(pool).balanceOf(address(migrator.CUSTOM_LP_LOCKER())),
             "Wrong custom locked liquidity"
         );
     }
@@ -74,7 +69,7 @@ contract CustomLPUniswapV2MigratorTest is Test {
         address alice = makeAddr("alice");
 
         bytes memory liquidityMigratorData = abi.encode(customLPWad, alice, lockUpPeriod);
-        vm.expectRevert(abi.encodeWithSelector(CustomLPUniswapV2Migrator.MaxCustomLPWadExceeded.selector));
+        vm.expectRevert(abi.encodeWithSelector(ICustomLPUniswapV2Migrator.MaxCustomLPWadExceeded.selector));
         migrator.initialize(address(token0), address(token1), liquidityMigratorData);
     }
 
@@ -87,7 +82,7 @@ contract CustomLPUniswapV2MigratorTest is Test {
         vm.etch(testContract, new bytes(1));
 
         bytes memory liquidityMigratorData = abi.encode(customLPWad, testContract, lockUpPeriod);
-        vm.expectRevert(abi.encodeWithSelector(CustomLPUniswapV2Migrator.RecipientNotEOA.selector));
+        vm.expectRevert(abi.encodeWithSelector(ICustomLPUniswapV2Migrator.RecipientNotEOA.selector));
         migrator.initialize(address(token0), address(token1), liquidityMigratorData);
     }
 
@@ -99,7 +94,7 @@ contract CustomLPUniswapV2MigratorTest is Test {
         address alice = makeAddr("alice");
 
         bytes memory liquidityMigratorData = abi.encode(customLPWad, alice, lockUpPeriod);
-        vm.expectRevert(abi.encodeWithSelector(CustomLPUniswapV2Migrator.LessThanMinLockPeriod.selector));
+        vm.expectRevert(abi.encodeWithSelector(ICustomLPUniswapV2Migrator.LessThanMinLockPeriod.selector));
         migrator.initialize(address(token0), address(token1), liquidityMigratorData);
     }
 }

@@ -4,33 +4,31 @@ pragma solidity ^0.8.24;
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { ICustomLPUniswapV2Migrator } from "src/extensions/interfaces/ICustomLPUniswapV2Migrator.sol";
 import { MigrationMath } from "src/libs/MigrationMath.sol";
-import { Airlock } from "src/Airlock.sol";
-import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
-import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { CustomLPUniswapV2Locker } from "src/extensions/CustomLPUniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
 /**
- * @notice UniswapV2Migrator with custom LP allocation feature enabled
+ * @author ant from Long
+ * @notice An extension built on top of UniswapV2Migrator to enable locking LP for a custom period
  */
-contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
+contract CustomLPUniswapV2Migrator is ICustomLPUniswapV2Migrator, ImmutableAirlock {
     using SafeTransferLib for ERC20;
 
     /// @dev Constant used to increase precision during calculations
     uint256 constant WAD = 1 ether;
-    /// @dev Liquidity to lock (% expressed in WAD)
-    uint256 constant LP_TO_LOCK_WAD = 0.05 ether;
-    /// @dev Maximum amount of liquidity that can be allocated to `lpAllocationRecipient` (% expressed in WAD)
+    /// @dev Maximum amount of liquidity that can be allocated to `lpAllocationRecipient` (% expressed in WAD i.e. max 5%)
     uint256 constant MAX_CUSTOM_LP_WAD = 0.05 ether;
     /// @dev Minimum lock up period for the custom LP allocation
     uint256 public constant MIN_LOCK_PERIOD = 30 days;
 
-    CustomLPUniswapV2Locker public immutable customLPLocker;
+    IUniswapV2Factory public immutable FACTORY;
+    IWETH public immutable WETH;
+    CustomLPUniswapV2Locker public immutable CUSTOM_LP_LOCKER;
 
     /// @dev Lock up period for the LP tokens allocated to `customLPRecipient`
     uint32 public lockUpPeriod;
@@ -39,30 +37,31 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
     /// @dev Address of the recipient of the custom LP allocation
     address public customLPRecipient;
 
-    /// @notice Thrown when the custom LP allocation exceeds `MAX_CUSTOM_LP_WAD`
-    error MaxCustomLPWadExceeded();
-    /// @notice Thrown when the recipient is not an EOA
-    error RecipientNotEOA();
-    /// @notice Thrown when the lock up period is less than `MIN_LOCK_PERIOD`
-    error LessThanMinLockPeriod();
-    /// @notice Thrown when the input is zero
-    error InvalidInput();
+    receive() external payable onlyAirlock { }
 
     constructor(
         address airlock_,
         IUniswapV2Factory factory_,
         IUniswapV2Router02 router,
         address owner
-    ) UniswapV2Migrator(airlock_, factory_, router, owner) {
-        customLPLocker = new CustomLPUniswapV2Locker(airlock_, factory_, this, owner);
+    ) ImmutableAirlock(airlock_) {
+        FACTORY = factory_;
+        WETH = IWETH(payable(router.WETH()));
+        CUSTOM_LP_LOCKER = new CustomLPUniswapV2Locker(airlock_, factory_, this, owner);
     }
 
-    /// @inheritdoc UniswapV2Migrator
-    function _initialize(
+    /**
+     * @notice Initializes the migrator
+     * @param asset Address of the asset token
+     * @param numeraire Address of the numeraire token
+     * @param liquidityMigratorData Encoded data containing custom LP allocation parameters
+     * @return pool Address of the created Uniswap V2 pool
+     */
+    function initialize(
         address asset,
         address numeraire,
         bytes calldata liquidityMigratorData
-    ) internal override returns (address) {
+    ) external onlyAirlock returns (address) {
         if (liquidityMigratorData.length > 0) {
             (uint64 customLPWad_, address customLPRecipient_, uint32 lockUpPeriod_) =
                 abi.decode(liquidityMigratorData, (uint64, address, uint32));
@@ -77,23 +76,39 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
             lockUpPeriod = lockUpPeriod_;
         }
 
-        return super._initialize(asset, numeraire, liquidityMigratorData);
+        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+
+        if (token0 == address(0)) token0 = address(WETH);
+
+        address pool = FACTORY.getPair(token0, token1);
+
+        if (pool == address(0)) {
+            pool = FACTORY.createPair(token0, token1);
+        }
+
+        return pool;
     }
 
-    /// @inheritdoc UniswapV2Migrator
-    function _migrate(
+    /**
+     * @notice Migrates the liquidity into a Uniswap V2 pool
+     * @param sqrtPriceX96 Square root price of the pool as a Q64.96 value
+     * @param token0 Smaller address of the two tokens
+     * @param token1 Larger address of the two tokens
+     * @param recipient Address receiving the liquidity pool tokens
+     */
+    function migrate(
         uint160 sqrtPriceX96,
         address token0,
         address token1,
         address recipient
-    ) internal override returns (uint256 liquidity) {
+    ) external payable onlyAirlock returns (uint256 liquidity) {
         uint256 balance0;
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
         if (token0 == address(0)) {
-            token0 = address(weth);
-            weth.deposit{ value: address(this).balance }();
-            balance0 = weth.balanceOf(address(this));
+            token0 = address(WETH);
+            WETH.deposit{ value: address(this).balance }();
+            balance0 = WETH.balanceOf(address(this));
         } else {
             balance0 = ERC20(token0).balanceOf(address(this));
         }
@@ -113,22 +128,19 @@ contract CustomLPUniswapV2Migrator is UniswapV2Migrator {
         }
 
         // Pool was created beforehand along the asset token deployment
-        address pool = factory.getPair(token0, token1);
+        address pool = FACTORY.getPair(token0, token1);
 
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
-        // Custom LP allocation - 5% to locker, (n <= `MAX_CUSTOM_LP_WAD`)% to `customLPRecipient` after `lockUpPeriod`, rest to timelock
+        // Custom LP allocation: (n <= `MAX_CUSTOM_LP_WAD`)% to `customLPRecipient` after `lockUpPeriod`, rest will be sent to timelock
         liquidity = IUniswapV2Pair(pool).mint(address(this));
-        uint256 liquidityToLock = liquidity * LP_TO_LOCK_WAD / WAD;
         uint256 customLiquidityToLock = liquidity * customLPWad / WAD;
-        uint256 liquidityToTransfer = liquidity - liquidityToLock - customLiquidityToLock;
+        uint256 liquidityToTransfer = liquidity - customLiquidityToLock;
 
         IUniswapV2Pair(pool).transfer(recipient, liquidityToTransfer);
-        IUniswapV2Pair(pool).transfer(address(locker), liquidityToLock);
-        IUniswapV2Pair(pool).transfer(address(customLPLocker), customLiquidityToLock);
-        locker.receiveAndLock(pool, recipient);
-        customLPLocker.receiveAndLock(pool, customLPRecipient, lockUpPeriod);
+        IUniswapV2Pair(pool).transfer(address(CUSTOM_LP_LOCKER), customLiquidityToLock);
+        CUSTOM_LP_LOCKER.receiveAndLock(pool, customLPRecipient, lockUpPeriod);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
