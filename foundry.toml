@@ -45,3 +45,6 @@ fail_on_revert = true
 show_metrics = true
 fail_on_revert = true
 runs = 2048
+
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}" }
