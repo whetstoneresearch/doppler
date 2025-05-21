@@ -6,11 +6,17 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position } from "src/Doppler.sol";
 
 contract AfterInitializeTest is BaseTest {
     using PoolIdLibrary for PoolKey;
+    using ProtocolFeeLibrary for uint16;
+    using ProtocolFeeLibrary for uint24;
+    using StateLibrary for IPoolManager;
 
     function testAfterInitialize() public view {
         // We've already initialized in the setUp, so we just need to validate
@@ -78,5 +84,15 @@ contract AfterInitializeTest is BaseTest {
             0,
             0
         );
+    }
+
+    function test_afterInitialize_UpdatesDynamicLPFee() public view {
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolId);
+        assertEq(lpFee, hook.initialLpFee(), "LP fee not set to initial value");
+
+        uint16 protocolFeeZeroForOne = protocolFee.getZeroForOneFee();
+        uint16 protocolFeeOneForZero = protocolFee.getOneForZeroFee();
+        assertEq(protocolFeeZeroForOne.calculateSwapFee(lpFee), lpFee, "Wrong swap fee");
+        assertEq(protocolFeeOneForZero.calculateSwapFee(lpFee), lpFee, "Wrong swap fee");
     }
 }
