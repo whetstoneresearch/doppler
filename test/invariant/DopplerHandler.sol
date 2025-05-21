@@ -163,21 +163,8 @@ contract DopplerHandler is Test {
                 } else if (revertReasonSelector == Pool.TicksMisordered.selector) {
                     revert("ticks misordered");
                 } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
-                    (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-                    console.log("ghost_totalTokensSold", ghost_totalTokensSold);
-                    console.log("totalTokensSold", totalTokensSold);
-                    console.log("ghost_totalProceeds", ghost_totalProceeds);
-                    console.log("totalProceeds", totalProceeds);
-
-                    console.log("InvalidSqrtPrice");
                     revert("invalid sqrt price");
                 } else {
-                    (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-                    console.log("ghost_totalTokensSold", ghost_totalTokensSold);
-                    console.log("totalTokensSold", totalTokensSold);
-                    console.log("ghost_totalProceeds", ghost_totalProceeds);
-                    console.log("totalProceeds", totalProceeds);
-
                     revert("Unimplemented error");
                 }
             } else if (selector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
@@ -263,20 +250,11 @@ contract DopplerHandler is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
 
-                if (revertReasonSelector == SwapBelowRange.selector) {
-                    console.log("Swap below range");
-                } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
-                    console.log("InvalidSqrtPrice");
-                    (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-                    console.log("ghost_totalTokensSold", ghost_totalTokensSold);
-                    console.log("totalTokensSold", totalTokensSold);
-                    console.log("ghost_totalProceeds", ghost_totalProceeds);
-                    console.log("totalProceeds", totalProceeds);
-                    if (assetsToSell > 10_000) {
-                        revert("invalid sqrt price");
-                    }
+                if (revertReasonSelector == SwapBelowRange.selector) { } else if (
+                    revertReasonSelector == TickMath.InvalidSqrtPrice.selector
+                ) {
+                    revert("invalid sqrt price");
                 } else if (revertReasonSelector == bytes4(0)) {
-                    console.log("Random revert");
                     revert();
                 } else {
                     revert("Unimplemented wrapped error");
