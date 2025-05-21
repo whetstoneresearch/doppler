@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { DeployV4Script, V4ScriptData } from "script/DeployV4.s.sol";
+import { DeployV4Script, V4ScriptData } from "script/deployV4/DeployV4.s.sol";
 
 contract DeployV4Base is DeployV4Script {
     function setUp() public override {

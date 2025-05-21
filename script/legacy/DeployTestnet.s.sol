@@ -31,7 +31,7 @@ contract DeployTestnetScript is Script {
         vm.startBroadcast();
 
         // Let's check if we have any addresses for the Uniswap contracts
-        string memory path = "./script/addresses.toml";
+        string memory path = "./script/legacy/addresses.toml";
         string memory raw = vm.readFile(path);
         bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
 
