@@ -39,8 +39,6 @@ contract DopplerInvariantsTest is BaseTest {
         assertApproxEqAbs(totalProceeds, handler.ghost_totalProceeds(), 1); //"Total proceeds mismatch");
     }
 
-    function invariant_works() public view { }
-
     function invariant_CantSellMoreThanNumTokensToSell() public view {
         uint256 numTokensToSell = hook.numTokensToSell();
         assertLe(handler.ghost_totalTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
