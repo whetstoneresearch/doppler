@@ -23,7 +23,8 @@ Our contracts are deployed on the following networks:
 | Airlock                    | 0x77EbfBAE15AD200758E9E2E61597c0B07d731254 |
 | TokenFactory               | 0x43d0D97EC9241A8F05A264f94B82A1d2E600f2B3 |
 | UniswapV3Initializer       | 0x9F4e56be80f08ba1A2445645EFa6d231E27b43ec |
-| GovernanceFactory          | 0x99C94B9Df930E1E21a4E4a2c105dBff21bF5c5aE |
+| GovernanceFactory          | 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B |
+| TimelockFactory            | 0xa636bD5F9179E80e9EdB371Ed90956fA5ebdCB33 |
 | UniswapV2LiquidityMigrator | 0xf6023127f6E937091D5B605680056A6D27524bad |
 | UniswapV2Factory           | 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f |
 | UniswapV2Router02          | 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640 |
