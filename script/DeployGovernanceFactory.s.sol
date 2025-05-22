@@ -26,3 +26,9 @@ abstract contract DeployGovernanceFactoryScript is Script {
         vm.stopBroadcast();
     }
 }
+
+contract DeployGovernanceFactoryBaseScript is DeployGovernanceFactoryScript {
+    function setUp() public override {
+        _scriptData = ScriptData({ airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12 });
+    }
+}
