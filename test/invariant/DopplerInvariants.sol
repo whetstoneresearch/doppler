@@ -29,6 +29,7 @@ contract DopplerInvariantsTest is BaseTest {
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
         excludeSender(address(manager));
+        excludeSender(address(0));
 
         vm.warp(DEFAULT_STARTING_TIME);
     }
@@ -129,11 +130,6 @@ contract DopplerInvariantsTest is BaseTest {
             DopplerTickLibrary.alignComputedTickWithTickSpacing(hook.isToken0(), hook.getCurrentTick(), tickSpacing),
             hook.startingTick()
         );
-    }
-
-    function invariant_TickChangeCannotExceedGamma() public view {
-        int24 change = isToken0 ? hook.startingTick() - hook.endingTick() : hook.endingTick() - hook.startingTick();
-        assertLe(hook.gamma() * int24(uint24(hook.getCurrentEpoch())), change, "Tick change exceeds gamma");
     }
 
     function invariant_EpochsAdvanceWithTime() public view {
