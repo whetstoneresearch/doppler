@@ -21,6 +21,7 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import "forge-std/console.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
@@ -468,6 +469,8 @@ contract Doppler is BaseHook {
             fee = 0 | LPFeeLibrary.OVERRIDE_FEE_FLAG;
         }
 
+        console.log("fee in beforeSwap", fee);
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee);
     }
 
@@ -490,11 +493,20 @@ contract Doppler is BaseHook {
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+        console.log("lpFee", lpFee);
 
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
             .calculateSwapFee(lpFee);
+
+        console.log("isToken0", isToken0);
+        console.log("totalProceedsBefore", state.totalProceeds);
+        console.log("totalTokensSoldBefore", state.totalTokensSold);
+        console.log("swapDelta0", swapDelta.amount0());
+        console.log("swapDelta1", swapDelta.amount1());
+
+        console.log("swapFee", swapFee);
 
         if (isToken0) {
             if (currentTick < tickLower) revert SwapBelowRange();
@@ -533,6 +545,9 @@ contract Doppler is BaseHook {
                 state.totalProceeds += proceedsLessFee;
             }
         }
+
+        console.log("totalProceedsAfter", state.totalProceeds);
+        console.log("totalTokensSoldAfter", state.totalTokensSold);
 
         // If we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
@@ -727,6 +742,10 @@ contract Doppler is BaseHook {
         } else if (isToken0 && currentTick <= tickLower) {
             tickLower = currentTick - key.tickSpacing;
         }
+
+        console.log("tickLower", tickLower);
+        console.log("tickUpper", tickUpper);
+        console.log("currentTick", currentTick);
 
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
@@ -960,8 +979,10 @@ contract Doppler is BaseHook {
             slug.tickUpper = currentTick;
             slug.liquidity = 0;
         } else if (requiredProceeds > totalProceeds_) {
+            console.log("INSUFFICIENT PROCEEDS");
             slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_, currentTick);
         } else {
+            console.log("SUFFICIENT PROCEEDS");
             slug.tickLower = tickLower;
             slug.tickUpper = currentTick;
             slug.liquidity = _computeLiquidity(

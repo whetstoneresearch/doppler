@@ -18,6 +18,7 @@ import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -296,6 +297,35 @@ contract RebalanceTest is BaseTest {
 
         // Assert that the lowerSlug has no liquidity
         assertEq(lowerSlug.liquidity, 0);
+    }
+
+    function test_totalProceeds_EqualAmountDeltaLowerSlug() public {
+        vm.warp(hook.startingTime());
+        buy(-1 ether);
+        vm.warp(hook.startingTime() + hook.epochLength());
+        sell(1);
+
+        (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
+
+        (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = hook.positions(bytes32(uint256(1)));
+        Position memory lowerSlug =
+            Position({ tickLower: tickLower0, tickUpper: tickUpper0, liquidity: liquidity0, salt: uint8(uint256(1)) });
+
+        uint256 amountDelta = isToken0
+            ? SqrtPriceMath.getAmount1Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            )
+            : SqrtPriceMath.getAmount0Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            );
+
+        assertEq(amountDelta, totalProceeds, "amountDelta != totalProceeds");
     }
 
     function test_big_swap() public {

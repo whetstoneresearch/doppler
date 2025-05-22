@@ -222,6 +222,10 @@ contract DopplerHandler is Test {
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
         assertLe(assetsToSell, assetBalanceOf[currentActor]);
+        uint256 numeraireBalanceOfManager = numeraire.balanceOf(address(hook.poolManager()));
+
+        console.log("numeraireBalanceOfManager", numeraireBalanceOfManager);
+        console.log("assetsToSell", assetsToSell);
 
         TestERC20(asset).approve(address(swapRouter), assetsToSell);
 
