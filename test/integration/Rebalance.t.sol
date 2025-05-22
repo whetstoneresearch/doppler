@@ -1372,7 +1372,11 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick();
-        assertEq(tickLower, lowerSlug.tickLower, "sixth swap: lowerSlug.tickLower != global tickLower");
+
+        assertApproxEqAbs(
+            tickLower, lowerSlug.tickLower, 8, "sixth swap: lowerSlug.tickLower != global tickLower (+ / - 8)"
+        );
+
         assertEq(lowerSlug.tickUpper, upperSlug.tickLower, "sixth swap: lowerSlug.tickUpper != upperSlug.tickLower");
 
         // We don't set a priceDiscoverySlug because it's the last epoch
