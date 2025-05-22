@@ -217,7 +217,8 @@ contract DopplerHandler is Test {
         uint256 seed
     ) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
-        vm.assume(currentActor != address(0) && assetBalanceOf[currentActor] > 0);
+        // vm.assume(currentActor != address(0) && assetBalanceOf[currentActor] > 0);
+        if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
         assertLe(assetsToSell, assetBalanceOf[currentActor]);
