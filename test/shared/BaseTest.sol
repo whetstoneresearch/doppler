@@ -61,7 +61,7 @@ contract BaseTest is Test, Deployers {
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 20_000;
     int24 constant DEFAULT_TICK_SPACING = 8;
-    uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
+    uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
     int24 constant DEFAULT_START_TICK = 172_504;
     int24 constant DEFAULT_END_TICK = 260_000;
@@ -196,11 +196,13 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0
-            ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
-            : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
-        endTick =
-            isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
+        // startTick = isToken0
+        //     ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
+        //     : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
+        // endTick =
+        //     isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
+        startTick = DEFAULT_START_TICK;
+        endTick = DEFAULT_END_TICK;
 
         // Default to feeless case because it's easier to reason about
         config.fee = uint24(vm.envOr("FEE", uint24(0)));
