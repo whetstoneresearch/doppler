@@ -425,7 +425,7 @@ contract Doppler is BaseHook {
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
-                BalanceDelta delta = _clearPositions(prevPositions, key);
+                (BalanceDelta delta, BalanceDelta feeDelta) = _clearPositions(prevPositions, key);
                 uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()));
 
                 SlugData memory lowerSlug =
@@ -743,10 +743,6 @@ contract Doppler is BaseHook {
             tickLower = currentTick - key.tickSpacing;
         }
 
-        console.log("tickLower", tickLower);
-        console.log("tickUpper", tickUpper);
-        console.log("currentTick", currentTick);
-
         uint160 sqrtPriceNext = TickMath.getSqrtPriceAtTick(currentTick);
         uint160 sqrtPriceLower = TickMath.getSqrtPriceAtTick(tickLower);
 
@@ -762,18 +758,19 @@ contract Doppler is BaseHook {
         }
 
         // Remove existing positions, track removed tokens
-        BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
+        (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
 
         uint256 numeraireAvailable;
         uint256 assetAvailable;
+
         if (isToken0) {
-            numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf()
-                - uint128(state.feesAccrued.amount0());
+            numeraireAvailable = uint256(uint128(positionDeltas.amount1())) - uint128(feeDeltas.amount1());
+            assetAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
+                - uint128(feeDeltas.amount0());
         } else {
-            numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf()
-                - uint128(state.feesAccrued.amount1());
+            numeraireAvailable = uint256(uint128(positionDeltas.amount0())) - uint128(feeDeltas.amount0());
+            assetAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
+                - uint128(feeDeltas.amount1());
         }
 
         // Compute new positions
@@ -1159,10 +1156,10 @@ contract Doppler is BaseHook {
     function _clearPositions(
         Position[] memory lastEpochPositions,
         PoolKey memory key
-    ) internal returns (BalanceDelta deltas) {
+    ) internal returns (BalanceDelta deltas, BalanceDelta feeDeltas) {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
-                (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
+                (BalanceDelta positionDeltas, BalanceDelta positionFeeDeltas) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: isToken0 ? lastEpochPositions[i].tickLower : lastEpochPositions[i].tickUpper,
@@ -1173,7 +1170,8 @@ contract Doppler is BaseHook {
                     ""
                 );
                 deltas = add(deltas, positionDeltas);
-                state.feesAccrued = add(state.feesAccrued, feesAccrued);
+                feeDeltas = add(feeDeltas, positionFeeDeltas);
+                state.feesAccrued = add(state.feesAccrued, positionFeeDeltas);
             }
         }
     }
