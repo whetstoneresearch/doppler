@@ -9,7 +9,6 @@ import { State, LOWER_SLUG_SALT } from "src/Doppler.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DopplerTickLibrary } from "test/utils/DopplerTickLibrary.sol";
-import { DERC20 } from "src/DERC20.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;
@@ -34,6 +33,8 @@ contract DopplerInvariantsTest is BaseTest {
 
         vm.warp(DEFAULT_STARTING_TIME);
     }
+
+    function invariant_works() public view { }
 
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
