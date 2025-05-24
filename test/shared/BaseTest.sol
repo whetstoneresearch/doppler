@@ -63,13 +63,11 @@ contract BaseTest is Test, Deployers {
     int24 constant DEFAULT_TICK_SPACING = 8;
     uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
-    int24 constant DEFAULT_START_TICK = 172_504;
-    int24 constant DEFAULT_END_TICK = 260_000;
+    int24 constant DEFAULT_START_TICK = -172_504;
+    int24 constant DEFAULT_END_TICK = -260_000;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
-
-    uint160 constant SQRT_RATIO_2_1 = 112_045_541_949_572_279_837_463_876_454;
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
         numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
