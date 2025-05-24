@@ -17,7 +17,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Pool } from "@v4-core/libraries/Pool.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
-import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange } from "src/Doppler.sol";
+import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
@@ -164,6 +164,8 @@ contract DopplerHandler is Test {
                     revert("ticks misordered");
                 } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
                     revert("invalid sqrt price");
+                } else if (revertReasonSelector == MaximumProceedsReached.selector) {
+                    return;
                 } else {
                     revert("Unimplemented error");
                 }
@@ -255,12 +257,14 @@ contract DopplerHandler is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
 
-                if (revertReasonSelector == SwapBelowRange.selector) { } else if (
-                    revertReasonSelector == TickMath.InvalidSqrtPrice.selector
-                ) {
+                if (revertReasonSelector == SwapBelowRange.selector) {
+                    revert("swap below range");
+                } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
                     revert("invalid sqrt price");
+                } else if (revertReasonSelector == MaximumProceedsReached.selector) {
+                    return;
                 } else if (revertReasonSelector == bytes4(0)) {
-                    revert();
+                    revert("Wrapped error without revert reason");
                 } else {
                     revert("Unimplemented wrapped error");
                 }
