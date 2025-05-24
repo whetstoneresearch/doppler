@@ -159,7 +159,7 @@ int256 constant I_WAD = 1e18;
 int24 constant MAX_TICK_SPACING = 30;
 
 /// @dev Maximum number of price discovery slugs
-uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
+uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 15;
 
 /// @dev Number of default slugs
 uint256 constant NUM_DEFAULT_SLUGS = 3;
