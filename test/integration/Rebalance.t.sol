@@ -16,7 +16,9 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { DERC20 } from "src/DERC20.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -186,6 +188,7 @@ contract RebalanceTest is BaseTest {
 
         // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
         buy(int256(expectedAmountSold * 9 / 10));
+        // buy(-int256(1 ether));
 
         vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
@@ -296,11 +299,42 @@ contract RebalanceTest is BaseTest {
         assertEq(lowerSlug.liquidity, 0);
     }
 
+    function test_totalProceeds_EqualAmountDeltaLowerSlug() public {
+        vm.warp(hook.startingTime());
+        buy(-1 ether);
+        vm.warp(hook.startingTime() + hook.epochLength());
+        sell(1);
+
+        (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
+
+        (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = hook.positions(bytes32(uint256(1)));
+        Position memory lowerSlug =
+            Position({ tickLower: tickLower0, tickUpper: tickUpper0, liquidity: liquidity0, salt: uint8(uint256(1)) });
+
+        uint256 amountDelta = isToken0
+            ? SqrtPriceMath.getAmount1Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            )
+            : SqrtPriceMath.getAmount0Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            );
+
+        assertEq(amountDelta, totalProceeds, "amountDelta != totalProceeds");
+    }
+
     function test_big_swap() public {
         vm.warp(hook.startingTime());
         // buy the tokens for epoch 3
+        uint256 balanceOfPool = DERC20(asset).balanceOf(address(this));
         uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
         buyExactOut(amountToBuy);
+
         // warp to epoch 3
         vm.warp(hook.startingTime() + hook.epochLength() * 3);
         // get the tick for epoch 3
@@ -316,9 +350,9 @@ contract RebalanceTest is BaseTest {
 
         assertApproxEqAbs(
             data2.tick,
-            isToken0 ? data.tick - 800 * 2 : data.tick + 800 * 2,
+            isToken0 ? data.tick - hook.getMaxTickDeltaPerEpoch() * 2 : data.tick + hook.getMaxTickDeltaPerEpoch() * 2,
             1000,
-            "tickAtEpoch6 != tickAtEpoch3 - 800 * 2"
+            "tickAtEpoch6 != tickAtEpoch3 - maxTickDeltaPerEpoch * 2"
         );
     }
 

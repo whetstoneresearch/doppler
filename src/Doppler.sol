@@ -21,6 +21,7 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import "forge-std/console.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
@@ -158,7 +159,7 @@ int256 constant I_WAD = 1e18;
 int24 constant MAX_TICK_SPACING = 30;
 
 /// @dev Maximum number of price discovery slugs
-uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
+uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 15;
 
 /// @dev Number of default slugs
 uint256 constant NUM_DEFAULT_SLUGS = 3;
@@ -424,7 +425,7 @@ contract Doppler is BaseHook {
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
-                BalanceDelta delta = _clearPositions(prevPositions, key);
+                (BalanceDelta delta, BalanceDelta feeDelta) = _clearPositions(prevPositions, key);
                 uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()));
 
                 SlugData memory lowerSlug =
@@ -468,6 +469,8 @@ contract Doppler is BaseHook {
             fee = 0 | LPFeeLibrary.OVERRIDE_FEE_FLAG;
         }
 
+        console.log("fee in beforeSwap", fee);
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee);
     }
 
@@ -490,11 +493,20 @@ contract Doppler is BaseHook {
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+        console.log("lpFee", lpFee);
 
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
             .calculateSwapFee(lpFee);
+
+        console.log("isToken0", isToken0);
+        console.log("totalProceedsBefore", state.totalProceeds);
+        console.log("totalTokensSoldBefore", state.totalTokensSold);
+        console.log("swapDelta0", swapDelta.amount0());
+        console.log("swapDelta1", swapDelta.amount1());
+
+        console.log("swapFee", swapFee);
 
         if (isToken0) {
             if (currentTick < tickLower) revert SwapBelowRange();
@@ -533,6 +545,9 @@ contract Doppler is BaseHook {
                 state.totalProceeds += proceedsLessFee;
             }
         }
+
+        console.log("totalProceedsAfter", state.totalProceeds);
+        console.log("totalTokensSoldAfter", state.totalTokensSold);
 
         // If we reach or exceed the maximumProceeds, we trigger the early exit condition
         if (state.totalProceeds >= maximumProceeds) {
@@ -743,18 +758,19 @@ contract Doppler is BaseHook {
         }
 
         // Remove existing positions, track removed tokens
-        BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
+        (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
 
         uint256 numeraireAvailable;
         uint256 assetAvailable;
+
         if (isToken0) {
-            numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf()
-                - uint128(state.feesAccrued.amount0());
+            numeraireAvailable = uint256(uint128(positionDeltas.amount1())) - uint128(feeDeltas.amount1());
+            assetAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
+                - uint128(feeDeltas.amount0());
         } else {
-            numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf()
-                - uint128(state.feesAccrued.amount1());
+            numeraireAvailable = uint256(uint128(positionDeltas.amount0())) - uint128(feeDeltas.amount0());
+            assetAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
+                - uint128(feeDeltas.amount1());
         }
 
         // Compute new positions
@@ -960,8 +976,10 @@ contract Doppler is BaseHook {
             slug.tickUpper = currentTick;
             slug.liquidity = 0;
         } else if (requiredProceeds > totalProceeds_) {
+            console.log("INSUFFICIENT PROCEEDS");
             slug = _computeLowerSlugInsufficientProceeds(key, totalProceeds_, totalTokensSold_, currentTick);
         } else {
+            console.log("SUFFICIENT PROCEEDS");
             slug.tickLower = tickLower;
             slug.tickUpper = currentTick;
             slug.liquidity = _computeLiquidity(
@@ -1138,10 +1156,10 @@ contract Doppler is BaseHook {
     function _clearPositions(
         Position[] memory lastEpochPositions,
         PoolKey memory key
-    ) internal returns (BalanceDelta deltas) {
+    ) internal returns (BalanceDelta deltas, BalanceDelta feeDeltas) {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
-                (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
+                (BalanceDelta positionDeltas, BalanceDelta positionFeeDeltas) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: isToken0 ? lastEpochPositions[i].tickLower : lastEpochPositions[i].tickUpper,
@@ -1152,7 +1170,8 @@ contract Doppler is BaseHook {
                     ""
                 );
                 deltas = add(deltas, positionDeltas);
-                state.feesAccrued = add(state.feesAccrued, feesAccrued);
+                feeDeltas = add(feeDeltas, positionFeeDeltas);
+                state.feesAccrued = add(state.feesAccrued, positionFeeDeltas);
             }
         }
     }
