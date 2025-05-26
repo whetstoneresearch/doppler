@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
-
 struct HookConfig {
     uint256 numTokensToSell;
     uint256 minimumProceeds;
@@ -17,12 +15,6 @@ struct HookConfig {
     int24 startingTick;
     int24 endingTick;
     bool isToken0;
-}
-
-contract TestHookConfigs is Test {
-    function test_computeGamma() public view {
-        console.log("gamma", HookConfigs.computeGamma(200 seconds, 28_800 hours, 8));
-    }
 }
 
 library HookConfigs {
