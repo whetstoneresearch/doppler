@@ -18,12 +18,6 @@ struct HookConfig {
 }
 
 library HookConfigs {
-    function computeGamma(uint256 epochLength, uint256 timeDelta, int24 tickSpacing) internal pure returns (int24) {
-        int24 minGamma = int24(int256((timeDelta + epochLength - 1) / epochLength)); // ceil division
-        int24 validGamma = ((minGamma + tickSpacing - 1) / tickSpacing) * tickSpacing;
-        return validGamma;
-    }
-
     function DEFAULT_CONFIG_0() internal pure returns (HookConfig memory) {
         return HookConfig({
             numTokensToSell: 6e28,
