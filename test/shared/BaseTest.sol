@@ -464,29 +464,6 @@ contract BaseTest is Test, Deployers {
 
         return (amount0ExpectedFee, amount1ExpectedFee);
     }
-
-    function _debugPositions(
-        string memory desc
-    ) internal view {
-        uint256 numPDSlugs = hook.getNumPDSlugs();
-
-        console.log("\n", desc);
-        console.log("--------------------");
-
-        for (uint256 i = 1; i < numPDSlugs + 3; i++) {
-            (int24 tickLower, int24 tickUpper, uint128 storedLiquidity,) = hook.positions(bytes32(i));
-            (uint128 actualLiquidity,,) = manager.getPositionInfo(
-                poolId, address(hook), isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower, bytes32(i)
-            );
-
-            console.log("Position %i", i);
-            console.log("tickLower %i", tickLower);
-            console.log("tickUpper %i", tickUpper);
-            console.log("storedLiquidity %e", storedLiquidity);
-            console.log("actualLiquidity %e", actualLiquidity);
-            console.log("------");
-        }
-    }
 }
 
 error UnexpectedPositiveAmount();
