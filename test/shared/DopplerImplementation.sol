@@ -174,4 +174,8 @@ contract DopplerImplementation is Doppler {
     function getTotalProceeds() public view returns (uint256) {
         return state.totalProceeds;
     }
+
+    function getTotalTokensSold() public view returns (uint256) {
+        return state.totalTokensSold;
+    }
 }
