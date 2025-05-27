@@ -1395,6 +1395,13 @@ contract Doppler is BaseHook {
      * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
      * @dev This function can only be called by the Airlock contract under specific conditions
      * @return sqrtPriceX96 Square root of the price of the pool in the Q96 format
+     * @return token0 Address of the token0
+     * @return fees0 Total fees accrued for token0 (for informational purposes)
+     * @return balance0 Total balance of token0 migrated (including fees0)
+     * @return token1 Address of the token1
+     * @return fees1 Total fees accrued for token1 (for informational purposes)
+     * @return balance1 Total balance of token1 migrated (including fees1)
+     *
      */
     function migrate(
         address recipient
