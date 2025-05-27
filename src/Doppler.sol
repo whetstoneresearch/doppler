@@ -1423,11 +1423,15 @@ contract Doppler is BaseHook {
             revert CannotMigrate();
         }
 
-        // close out the remaining slugs
+        // Close out the remaining slugs
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true }))
         );
+
+        // These amounts were already transferred to the recipient in the unlock callback
         (BalanceDelta slugCallerDelta, BalanceDelta slugsFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
+
+        // Update the total fees accrued (only for informational purposes)
         BalanceDelta totalFeesAccrued = state.feesAccrued + slugsFeesAccrued;
 
         // In case some dust tokens are still left in the contract
