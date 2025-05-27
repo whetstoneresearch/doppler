@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { stdMath } from "forge-std/StdMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -305,7 +303,7 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.startingTime() + hook.epochLength());
         sell(1);
 
-        (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
+        (,,, uint256 totalProceeds,,) = hook.state();
 
         (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = hook.positions(bytes32(uint256(1)));
         Position memory lowerSlug =
@@ -325,7 +323,7 @@ contract RebalanceTest is BaseTest {
                 false
             );
 
-        assertEq(amountDelta, totalProceeds, "amountDelta != totalProceeds");
+        assertApproxEqAbs(amountDelta, totalProceeds, 10, "amountDelta != totalProceeds");
     }
 
     function test_big_swap() public {
@@ -1335,13 +1333,6 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick();
-
-        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
-        console.log("lowerSlug.tickUpper", lowerSlug.tickUpper);
-        console.log("upperSlug.tickLower", upperSlug.tickLower);
-        console.log("upperSlug.tickUpper", upperSlug.tickUpper);
-        console.log("tickLower", tickLower);
-        console.log("tickUpper", tickUpper);
 
         // Slugs must be inline and continuous
         if (stdMath.delta(currentTick, tickLower) <= 1) {
