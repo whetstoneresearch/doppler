@@ -41,7 +41,7 @@ struct SlugData {
 /// @param totalTokensSold Total tokens sold by the hook
 /// @param totalProceeds Total amount earned from selling tokens (in numeraire token)
 /// @param totalTokensSoldLastEpoch Total tokens sold at the end of the last epoch
-/// @param feesAccrued Fees accrued to the pool since last collection
+/// @param feesAccrued Fees accrued to the pool since last collection (these values won't be updated durin migration)
 struct State {
     uint40 lastEpoch;
     int256 tickAccumulator;
