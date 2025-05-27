@@ -15,14 +15,14 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Pool } from "@v4-core/libraries/Pool.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { Pool } from "@v4-core/libraries/Pool.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
-import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
-import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
-import { Pool } from "@v4-core/libraries/Pool.sol";
+import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
 
 uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
@@ -224,10 +224,6 @@ contract DopplerHandler is Test {
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
         assertLe(assetsToSell, assetBalanceOf[currentActor]);
-        uint256 numeraireBalanceOfManager = numeraire.balanceOf(address(hook.poolManager()));
-
-        console.log("numeraireBalanceOfManager", numeraireBalanceOfManager);
-        console.log("assetsToSell", assetsToSell);
 
         TestERC20(asset).approve(address(swapRouter), assetsToSell);
 
