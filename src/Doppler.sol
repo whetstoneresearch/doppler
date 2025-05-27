@@ -425,7 +425,7 @@ contract Doppler is BaseHook {
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
-                (BalanceDelta delta, BalanceDelta feeDelta) = _clearPositions(prevPositions, key);
+                (BalanceDelta delta,) = _clearPositions(prevPositions, key);
                 uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()));
 
                 SlugData memory lowerSlug =
