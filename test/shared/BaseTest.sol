@@ -60,7 +60,7 @@ contract BaseTest is Test, Deployers {
 
     // default to feeless case for now
     uint24 constant DEFAULT_FEE = 20_000;
-    int24 constant DEFAULT_TICK_SPACING = 8;
+    int24 constant DEFAULT_TICK_SPACING = 2;
     uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
     int24 constant DEFAULT_START_TICK = 172_504;
@@ -326,8 +326,8 @@ contract BaseTest is Test, Deployers {
 
     function sellExactIn(
         uint256 amount
-    ) public {
-        sell(-int256(amount));
+    ) public returns (uint256, uint256) {
+        return sell(-int256(amount));
     }
 
     function sellExactOut(
