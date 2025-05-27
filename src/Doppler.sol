@@ -1155,9 +1155,10 @@ contract Doppler is BaseHook {
                 );
                 deltas = add(deltas, positionDeltas);
                 feeDeltas = add(feeDeltas, positionFeeDeltas);
-                state.feesAccrued = add(state.feesAccrued, positionFeeDeltas);
             }
         }
+
+        state.feesAccrued = add(state.feesAccrued, feeDeltas);
     }
 
     /// @notice Updates the positions in the pool, accounts for accrued fees, and swaps to new price if necessary
