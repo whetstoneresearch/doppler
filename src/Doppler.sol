@@ -424,8 +424,10 @@ contract Doppler is BaseHook {
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
-                (BalanceDelta delta,) = _clearPositions(prevPositions, key);
-                uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()));
+                (BalanceDelta delta, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
+                uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()))
+                    - uint256(uint128(isToken0 ? feeDeltas.amount1() : feeDeltas.amount0()))
+                    + uint256(uint128(isToken0 ? state.feesAccrued.amount1() : state.feesAccrued.amount0()));
 
                 SlugData memory lowerSlug =
                     _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold, currentTick);
@@ -486,6 +488,9 @@ contract Doppler is BaseHook {
         BalanceDelta swapDelta,
         bytes calldata
     ) internal override returns (bytes4, int128) {
+        if (insufficientProceeds) {
+            return (BaseHook.afterSwap.selector, 0);
+        }
         // Get current tick
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
