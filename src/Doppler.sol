@@ -63,6 +63,7 @@ struct Position {
     uint8 salt;
 }
 
+/// @notice Thrown when the gamma value is invalid
 error InvalidGamma();
 
 /// @notice Thrown when the time range is invalid (likely start is after end)

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { Test } from "forge-std/Test.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
@@ -119,7 +117,7 @@ contract DopplerHandler is Test {
     function buyExactAmountIn(
         uint256 amount
     ) public createActor {
-        vm.assume(amount > 0.00001 ether && amount <= 10 ether);
+        amount = amount % 10 ether + 0.001 ether;
 
         if (ghost_totalTokensSold > 0 && block.timestamp > hook.startingTime()) {
             ghost_hasRebalanced = true;
