@@ -10,7 +10,10 @@ foo:
 coverage:
 	forge coverage --ir-minimum --report lcov
 
-test-fuzz:
+fuzz:
+	forge test --mt invariant_ --show-progress
+
+deep-fuzz:
 	FOUNDRY_PROFILE=deep forge test --mt invariant_ --show-progress
 
 # Mainnet deployments
@@ -23,8 +26,8 @@ deploy-unichain:
 
 # Testnet deployments
 
-deploy-unichain-sepolia:
-	@forge script ./script/deploy/DeployUnichainSepolia.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(UNICHAIN_SEPOLIA_RPC_URL) --verify --etherscan-api-key ${UNISCAN_API_KEY} --broadcast --slow
-
 deploy-base-sepolia:
 	@forge script ./script/deploy/DeployBaseSepolia.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(BASE_SEPOLIA_RPC_URL) --verify --etherscan-api-key ${BASESCAN_API_KEY} --broadcast --slow
+
+deploy-unichain-sepolia:
+	@forge script ./script/deploy/DeployUnichainSepolia.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(UNICHAIN_SEPOLIA_RPC_URL) --verify --etherscan-api-key ${UNISCAN_API_KEY} --broadcast --slow
