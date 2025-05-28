@@ -117,7 +117,7 @@ contract DopplerHandler is Test {
     function buyExactAmountIn(
         uint256 amount
     ) public createActor {
-        vm.assume(amount > 0.00001 ether && amount <= 10 ether);
+        amount = amount % 10 ether + 0.001 ether;
 
         if (ghost_totalTokensSold > 0 && block.timestamp > hook.startingTime()) {
             ghost_hasRebalanced = true;
