@@ -113,11 +113,8 @@ function mineV4(
             uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
                 && ((isToken0 && asset < params.numeraire) || (!isToken0 && asset > params.numeraire))
         ) {
-            console.log("Found salt: %s", salt);
             return (bytes32(salt), hook, asset);
         }
-
-        console.log("Salt not found, starting again");
     }
 
     revert("AirlockMiner: could not find salt");

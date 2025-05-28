@@ -12,7 +12,7 @@ contract BeforeSwapTest is BaseTest {
         hook.beforeSwap(
             address(this),
             key,
-            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1 }),
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: 0 }),
             ""
         );
     }
@@ -24,7 +24,7 @@ contract BeforeSwapTest is BaseTest {
         hook.beforeSwap(
             address(this),
             key,
-            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1 }),
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: 0 }),
             ""
         );
     }
@@ -36,7 +36,7 @@ contract BeforeSwapTest is BaseTest {
         hook.beforeSwap(
             address(this),
             key,
-            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: SQRT_RATIO_2_1 }),
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: 0 }),
             ""
         );
     }

@@ -36,7 +36,7 @@ contract Governance is
         Governor(name_)
         GovernorSettings(initialVotingDelay, initialVotingPeriod, initialProposalThreshold)
         GovernorVotes(_token)
-        GovernorVotesQuorumFraction(4)
+        GovernorVotesQuorumFraction(8)
         GovernorTimelockControl(_timelock)
     {
         proposalPeriodStart = uint32(block.timestamp + 90 days);

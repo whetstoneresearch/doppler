@@ -50,26 +50,24 @@ contract BaseTest is Test, Deployers {
 
     // Constants
 
-    uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
-    uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
-    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
+    uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 600_000_000 ether;
+    uint256 constant DEFAULT_MINIMUM_PROCEEDS = 6.65 ether;
+    uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10 ether;
     uint256 constant DEFAULT_STARTING_TIME = 1 days;
-    uint256 constant DEFAULT_ENDING_TIME = 2 days;
+    uint256 constant DEFAULT_ENDING_TIME = 1 days + 6 hours;
     int24 constant DEFAULT_GAMMA = 800;
-    uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
+    uint256 constant DEFAULT_EPOCH_LENGTH = 200 seconds;
 
     // default to feeless case for now
-    uint24 constant DEFAULT_FEE = 0;
-    int24 constant DEFAULT_TICK_SPACING = 8;
-    uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
+    uint24 constant DEFAULT_FEE = 20_000;
+    int24 constant DEFAULT_TICK_SPACING = 2;
+    uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
-    int24 constant DEFAULT_START_TICK = 1600;
-    int24 constant DEFAULT_END_TICK = 171_200;
+    int24 constant DEFAULT_START_TICK = 174_312;
+    int24 constant DEFAULT_END_TICK = 186_840;
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
-
-    uint160 constant SQRT_RATIO_2_1 = 112_045_541_949_572_279_837_463_876_454;
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
         numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
@@ -196,14 +194,13 @@ contract BaseTest is Test, Deployers {
 
         // isToken0 ? startTick > endTick : endTick > startTick
         // In both cases, price(startTick) > price(endTick)
-        startTick = isToken0
-            ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
-            : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
-        endTick =
-            isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
-
-        // Default to feeless case because it's easier to reason about
-        config.fee = uint24(vm.envOr("FEE", uint24(0)));
+        // startTick = isToken0
+        //     ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
+        //     : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
+        // endTick =
+        //     isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
+        startTick = DEFAULT_START_TICK;
+        endTick = DEFAULT_END_TICK;
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -326,8 +323,8 @@ contract BaseTest is Test, Deployers {
 
     function sellExactIn(
         uint256 amount
-    ) public {
-        sell(-int256(amount));
+    ) public returns (uint256, uint256) {
+        return sell(-int256(amount));
     }
 
     function sellExactOut(
@@ -465,27 +462,11 @@ contract BaseTest is Test, Deployers {
         return (amount0ExpectedFee, amount1ExpectedFee);
     }
 
-    function _debugPositions(
-        string memory desc
-    ) internal view {
-        uint256 numPDSlugs = hook.getNumPDSlugs();
-
-        console.log("\n", desc);
-        console.log("--------------------");
-
-        for (uint256 i = 1; i < numPDSlugs + 3; i++) {
-            (int24 tickLower, int24 tickUpper, uint128 storedLiquidity,) = hook.positions(bytes32(i));
-            (uint128 actualLiquidity,,) = manager.getPositionInfo(
-                poolId, address(hook), isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower, bytes32(i)
-            );
-
-            console.log("Position %i", i);
-            console.log("tickLower %i", tickLower);
-            console.log("tickUpper %i", tickUpper);
-            console.log("storedLiquidity %e", storedLiquidity);
-            console.log("actualLiquidity %e", actualLiquidity);
-            console.log("------");
-        }
+    function goToEpoch(
+        uint256 epoch
+    ) internal {
+        vm.warp(hook.startingTime() + ((epoch - 1) * hook.epochLength()));
+        assertEq(hook.getCurrentEpoch(), epoch, "Current epoch mismatch");
     }
 }
 

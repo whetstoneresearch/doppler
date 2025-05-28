@@ -170,4 +170,12 @@ contract DopplerImplementation is Doppler {
     function getFeesAccrued() public view returns (BalanceDelta) {
         return state.feesAccrued;
     }
+
+    function getTotalProceeds() public view returns (uint256) {
+        return state.totalProceeds;
+    }
+
+    function getTotalTokensSold() public view returns (uint256) {
+        return state.totalTokensSold;
+    }
 }

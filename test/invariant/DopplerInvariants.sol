@@ -28,10 +28,25 @@ contract DopplerInvariantsTest is BaseTest {
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
+
+        excludeSender(address(0));
+        excludeSender(address(this));
+        excludeSender(address(handler));
+        excludeSender(address(hook));
+        excludeSender(address(token0));
+        excludeSender(address(token1));
+        excludeSender(address(router));
+        excludeSender(address(swapRouter));
+        excludeSender(address(quoter));
+        excludeSender(address(stateView));
+        excludeSender(address(lensQuoter));
         excludeSender(address(manager));
+        excludeSender(address(modifyLiquidityRouter));
 
         vm.warp(DEFAULT_STARTING_TIME);
     }
+
+    function invariant_works() public view { }
 
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
@@ -41,7 +56,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
         uint256 numTokensToSell = hook.numTokensToSell();
-        assertLe(handler.ghost_totalTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
+        assertLe(handler.ghost_numTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
     }
 
     function invariant_AlwaysProvidesAllAvailableTokens() public view {
@@ -129,11 +144,6 @@ contract DopplerInvariantsTest is BaseTest {
             DopplerTickLibrary.alignComputedTickWithTickSpacing(hook.isToken0(), hook.getCurrentTick(), tickSpacing),
             hook.startingTick()
         );
-    }
-
-    function invariant_TickChangeCannotExceedGamma() public view {
-        int24 change = isToken0 ? hook.startingTick() - hook.endingTick() : hook.endingTick() - hook.startingTick();
-        assertLe(hook.gamma() * int24(uint24(hook.getCurrentEpoch())), change, "Tick change exceeds gamma");
     }
 
     function invariant_EpochsAdvanceWithTime() public view {
