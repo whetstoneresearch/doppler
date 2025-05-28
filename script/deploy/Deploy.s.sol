@@ -37,9 +37,14 @@ struct ScriptData {
     address stateView;
 }
 
+/**
+ * @notice Main script that will deploy the Airlock contract, the modules and the periphery contracts.
+ * @dev This contract is meant to be inherited to target specific chains.
+ */
 abstract contract DeployScript is Script {
     ScriptData internal _scriptData;
 
+    /// @dev This function is meant to be overridden in the child contract to set up the script data.
     function setUp() public virtual;
 
     function run() public {

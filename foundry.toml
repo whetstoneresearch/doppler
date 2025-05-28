@@ -20,11 +20,6 @@ max_test_rejects = 10000000
 runs = 32
 depth = 512
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
-
-[profile.coverage]
-# use the --ir-minimum flag to get coverage to run. there's no foundry config for this yet.
-
 [fmt]
 bracket_spacing = true
 int_types = 'long'
@@ -39,10 +34,23 @@ wrap_comments = false
 show_metrics = true
 fail_on_revert = true
 
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}" }
 
-[profile.degen]
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
+unichain = "${UNICHAIN_MAINNET_RPC_UR}"
+base = "${BASE_MAINNET_RPC_UR}"
+ink = "${INK_MAINNET_RPC_UR}"
+unichain_sepolia = "${UNICHAIN_SEPOLIA_RPC_UR}"
+base_sepolia = "${BASE_SEPOLIA_RPC_UR}"
+ink_sepolia = "${INK_SEPOLIA_RPC_UR}"
+world_sepolia = "${WORLD_SEPOLIA_RPC_UR}"
+arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_UR}"
 
-[profile.degen.invariant]
+[profile.deep]
+
+[profile.deep.invariant]
 show_metrics = true
 fail_on_revert = true
 runs = 2048

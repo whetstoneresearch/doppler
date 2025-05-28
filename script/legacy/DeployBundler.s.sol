@@ -25,7 +25,7 @@ contract DeployBundlerScript is Script {
         console.log(unicode"🚀 Deploying Bundler on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
 
         // Let's check if we have the script data for this chain
-        string memory path = "./script/addresses.toml";
+        string memory path = "./script/legacy/addresses.toml";
         string memory raw = vm.readFile(path);
         bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
         require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
