@@ -7,6 +7,9 @@ foo:
 
 # Test
 
+test:
+	forge test --show-progress
+
 coverage:
 	forge coverage --ir-minimum --report lcov
 
