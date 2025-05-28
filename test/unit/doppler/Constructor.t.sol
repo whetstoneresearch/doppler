@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { HookConfig, HookConfigs } from "test/shared/HookConfigs.sol";
 import {
     Doppler,
     MAX_TICK_SPACING,
@@ -20,36 +21,26 @@ import {
 
 contract DopplerNoValidateHook is Doppler {
     constructor(
-        IPoolManager poolManager_,
-        uint256 numTokensToSell_,
-        uint256 minimumProceeds_,
-        uint256 maximumProceeds_,
-        uint256 startingTime_,
-        uint256 endingTime_,
-        int24 startingTick_,
-        int24 endingTick_,
-        uint256 epochLength_,
-        int24 gamma_,
-        bool isToken0_,
-        uint256 numPDSlugs_,
-        address initializer_,
-        uint24 initialLpFee_
+        HookConfig memory config,
+        address poolManager,
+        address initializer,
+        bytes32 salt
     )
         Doppler(
-            poolManager_,
-            numTokensToSell_,
-            minimumProceeds_,
-            maximumProceeds_,
-            startingTime_,
-            endingTime_,
-            startingTick_,
-            endingTick_,
-            epochLength_,
-            gamma_,
-            isToken0_,
-            numPDSlugs_,
-            initializer_,
-            initialLpFee_
+            IPoolManager(poolManager),
+            config.numTokensToSell,
+            config.minimumProceeds,
+            config.maximumProceeds,
+            config.startingTime,
+            config.endingTime,
+            config.startingTick,
+            config.endingTick,
+            config.epochLength,
+            config.gamma,
+            config.isToken0,
+            config.numPDSlugs,
+            initializer,
+            config.initialLpFee
         )
     { }
 
@@ -60,343 +51,127 @@ contract DopplerNoValidateHook is Doppler {
 
 /// @dev Just a small contract to deploy Doppler contracts and be able to use `vm.expectRevert` easily
 contract Deployer {
-    // TODO: Use a struct to clean this up
     function deploy(
+        HookConfig memory config,
         address poolManager,
-        uint256 numTokensToSell,
-        uint256 minimumProceeds,
-        uint256 maximumProceeds,
-        uint256 startingTime,
-        uint256 endingTime,
-        int24 startingTick,
-        int24 endingTick,
-        uint256 epochLength,
-        int24 gamma,
-        bool isToken0,
-        uint256 numPDSlugs,
-        address airlock,
-        uint24 lpFee,
+        address initializer,
         bytes32 salt
     ) external returns (DopplerNoValidateHook) {
-        DopplerNoValidateHook doppler = new DopplerNoValidateHook{ salt: salt }(
-            IPoolManager(poolManager),
-            numTokensToSell,
-            minimumProceeds,
-            maximumProceeds,
-            startingTime,
-            endingTime,
-            startingTick,
-            endingTick,
-            epochLength,
-            gamma,
-            isToken0,
-            numPDSlugs,
-            airlock,
-            lpFee
-        );
-
+        DopplerNoValidateHook doppler = new DopplerNoValidateHook{ salt: salt }(config, poolManager, initializer, salt);
         return doppler;
     }
 }
 
-contract ConstructorTest is BaseTest {
+contract ConstructorTest is Test {
     Deployer deployer;
+    address manager = address(0x1234);
+    address initializer = address(0x5678);
+    bytes32 salt = salt;
 
-    function setUp() public override {
+    function setUp() public {
         deployer = new Deployer();
     }
 
     function test_constructor_RevertsWhenStartingTimeLowerThanBlockTimestamp() public {
         vm.warp(1);
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.startingTime = 0;
         vm.expectRevert(InvalidStartTime.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            0,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
-    }
-
-    function test_constructor_RevertsInvalidTickRange_WhenIsToken0_AndStartingTickLEEndingTick() public {
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        vm.expectRevert(InvalidTickRange.selector);
-        deployer.deploy(
-            address(manager),
-            config.numTokensToSell,
-            config.minimumProceeds,
-            config.maximumProceeds,
-            config.startingTime,
-            config.endingTime,
-            100,
-            101,
-            config.epochLength,
-            config.gamma,
-            true,
-            config.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
-    }
-
-    function test_constructor_RevertsInvalidTickRange_WhenNotIsToken0_AndStartingTickGEEndingTick() public {
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        vm.expectRevert(InvalidTickRange.selector);
-        deployer.deploy(
-            address(manager),
-            config.numTokensToSell,
-            config.minimumProceeds,
-            config.maximumProceeds,
-            config.startingTime,
-            config.endingTime,
-            200,
-            100,
-            config.epochLength,
-            config.gamma,
-            false,
-            config.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidTimeRange_WhenStartingTimeEqualToEndingTime() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.startingTime = config.endingTime;
         vm.expectRevert(InvalidTimeRange.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            1000,
-            1000,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidTimeRange_WhenStartingTimeGreaterThanToEndingTime() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.startingTime = config.endingTime + 1;
         vm.expectRevert(InvalidTimeRange.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            1001,
-            1000,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
+    }
+
+    function test_constructor_RevertsInvalidTickRange_WhenIsToken0_AndStartingTickLowerThanEndingTick() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        (config.startingTick, config.endingTick) = (config.endingTick, config.startingTick);
+        vm.expectRevert(InvalidTickRange.selector);
+        deployer.deploy(config, manager, initializer, salt);
+    }
+
+    function test_constructor_RevertsInvalidTickRange_WhenIsToken1_AndStartingTickGreaterThanEndingTick() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_1();
+        (config.startingTick, config.endingTick) = (config.endingTick, config.startingTick);
+        vm.expectRevert(InvalidTickRange.selector);
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidGamma_WhenGammaZero() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_1();
+        config.gamma = 0;
         vm.expectRevert(InvalidGamma.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            0,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidGamma_WhenGammaIsNegative() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_1();
+        config.gamma = -1;
         vm.expectRevert(InvalidGamma.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            int24(-1),
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidGamma_WhenInvalidUpperSlugCalculation() public {
-        DopplerConfig memory config = DEFAULT_DOPPLER_CONFIG;
-        config.gamma = 5;
-        config.startingTime = 1000;
-        config.endingTime = 5000;
-        config.epochLength = 1000;
-
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.gamma = 3;
         vm.expectRevert(InvalidGamma.selector);
-        deployer.deploy(
-            address(manager),
-            config.numTokensToSell,
-            config.minimumProceeds,
-            config.maximumProceeds,
-            config.startingTime,
-            config.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            0,
-            config.gamma,
-            false,
-            config.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidEpochLength_WhenTimeDeltaNotDivisibleByEpochLength() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.epochLength = 3000;
         vm.expectRevert(InvalidEpochLength.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            3000,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidNumPDSlugs_WithZeroSlugs() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.numPDSlugs = 0;
         vm.expectRevert(InvalidNumPDSlugs.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            0,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidNumPDSlugs_GreaterThanMax() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        config.numPDSlugs = MAX_PRICE_DISCOVERY_SLUGS + 1;
         vm.expectRevert(InvalidNumPDSlugs.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            MAX_PRICE_DISCOVERY_SLUGS + 1,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_RevertsInvalidProceedLimits_WhenMinimumProceedsGreaterThanMaximumProceeds() public {
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        (config.minimumProceeds, config.maximumProceeds) = (config.maximumProceeds, config.minimumProceeds);
         vm.expectRevert(InvalidProceedLimits.selector);
-        deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            100 ether,
-            1 ether,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        deployer.deploy(config, manager, initializer, salt);
     }
 
     function test_constructor_Succeeds_WithValidParameters() public {
-        DopplerNoValidateHook doppler = deployer.deploy(
-            address(manager),
-            DEFAULT_DOPPLER_CONFIG.numTokensToSell,
-            DEFAULT_DOPPLER_CONFIG.minimumProceeds,
-            DEFAULT_DOPPLER_CONFIG.maximumProceeds,
-            DEFAULT_DOPPLER_CONFIG.startingTime,
-            DEFAULT_DOPPLER_CONFIG.endingTime,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_DOPPLER_CONFIG.epochLength,
-            DEFAULT_DOPPLER_CONFIG.gamma,
-            isToken0,
-            DEFAULT_DOPPLER_CONFIG.numPDSlugs,
-            address(0xbeef),
-            3000,
-            bytes32(0)
-        );
+        HookConfig memory config = HookConfigs.DEFAULT_CONFIG_0();
+        DopplerNoValidateHook doppler = deployer.deploy(config, manager, initializer, salt);
 
-        assertEq(doppler.numTokensToSell(), DEFAULT_DOPPLER_CONFIG.numTokensToSell);
-        assertEq(doppler.minimumProceeds(), DEFAULT_DOPPLER_CONFIG.minimumProceeds);
-        assertEq(doppler.maximumProceeds(), DEFAULT_DOPPLER_CONFIG.maximumProceeds);
-        assertEq(doppler.startingTime(), DEFAULT_DOPPLER_CONFIG.startingTime);
-        assertEq(doppler.endingTime(), DEFAULT_DOPPLER_CONFIG.endingTime);
-        assertEq(doppler.startingTick(), DEFAULT_START_TICK);
-        assertEq(doppler.endingTick(), DEFAULT_END_TICK);
-        assertEq(doppler.epochLength(), DEFAULT_DOPPLER_CONFIG.epochLength);
-        assertEq(doppler.gamma(), DEFAULT_DOPPLER_CONFIG.gamma);
-        assertEq(doppler.isToken0(), isToken0);
-        assertEq(doppler.numPDSlugs(), DEFAULT_DOPPLER_CONFIG.numPDSlugs);
-        assertEq(doppler.initialLpFee(), 3000);
+        assertEq(doppler.numTokensToSell(), config.numTokensToSell);
+        assertEq(doppler.minimumProceeds(), config.minimumProceeds);
+        assertEq(doppler.maximumProceeds(), config.maximumProceeds);
+        assertEq(doppler.startingTime(), config.startingTime);
+        assertEq(doppler.endingTime(), config.endingTime);
+        assertEq(doppler.startingTick(), config.startingTick);
+        assertEq(doppler.endingTick(), config.endingTick);
+        assertEq(doppler.epochLength(), config.epochLength);
+        assertEq(doppler.gamma(), config.gamma);
+        assertEq(doppler.isToken0(), config.isToken0);
+        assertEq(doppler.numPDSlugs(), config.numPDSlugs);
+        assertEq(doppler.initialLpFee(), config.initialLpFee);
     }
 }

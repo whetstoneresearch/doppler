@@ -40,7 +40,7 @@ struct SlugData {
 /// @param totalTokensSold Total tokens sold by the hook
 /// @param totalProceeds Total amount earned from selling tokens (in numeraire token)
 /// @param totalTokensSoldLastEpoch Total tokens sold at the end of the last epoch
-/// @param feesAccrued Fees accrued to the pool since last collection
+/// @param feesAccrued Fees accrued to the pool since last collection (these values won't be updated durin migration)
 struct State {
     uint40 lastEpoch;
     int256 tickAccumulator;
@@ -158,7 +158,7 @@ int256 constant I_WAD = 1e18;
 int24 constant MAX_TICK_SPACING = 30;
 
 /// @dev Maximum number of price discovery slugs
-uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 10;
+uint256 constant MAX_PRICE_DISCOVERY_SLUGS = 15;
 
 /// @dev Number of default slugs
 uint256 constant NUM_DEFAULT_SLUGS = 3;
@@ -424,8 +424,10 @@ contract Doppler is BaseHook {
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
-                BalanceDelta delta = _clearPositions(prevPositions, key);
-                uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()));
+                (BalanceDelta delta, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
+                uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()))
+                    - uint256(uint128(isToken0 ? feeDeltas.amount1() : feeDeltas.amount0()))
+                    + uint256(uint128(isToken0 ? state.feesAccrued.amount1() : state.feesAccrued.amount0()));
 
                 SlugData memory lowerSlug =
                     _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold, currentTick);
@@ -486,6 +488,9 @@ contract Doppler is BaseHook {
         BalanceDelta swapDelta,
         bytes calldata
     ) internal override returns (bytes4, int128) {
+        if (insufficientProceeds) {
+            return (BaseHook.afterSwap.selector, 0);
+        }
         // Get current tick
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
@@ -493,8 +498,11 @@ contract Doppler is BaseHook {
 
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
-        uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
-            .calculateSwapFee(lpFee);
+        uint24 swapFee = insufficientProceeds
+            ? 0
+            : (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee()).calculateSwapFee(
+                lpFee
+            );
 
         if (isToken0) {
             if (currentTick < tickLower) revert SwapBelowRange();
@@ -743,18 +751,19 @@ contract Doppler is BaseHook {
         }
 
         // Remove existing positions, track removed tokens
-        BalanceDelta tokensRemoved = _clearPositions(prevPositions, key);
+        (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
 
         uint256 numeraireAvailable;
         uint256 assetAvailable;
+
         if (isToken0) {
-            numeraireAvailable = uint256(uint128(tokensRemoved.amount1()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount0())) + key.currency0.balanceOfSelf()
-                - uint128(state.feesAccrued.amount0());
+            numeraireAvailable = uint256(uint128(positionDeltas.amount1())) - uint128(feeDeltas.amount1());
+            assetAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
+                - uint128(feeDeltas.amount0());
         } else {
-            numeraireAvailable = uint256(uint128(tokensRemoved.amount0()));
-            assetAvailable = uint256(uint128(tokensRemoved.amount1())) + key.currency1.balanceOfSelf()
-                - uint128(state.feesAccrued.amount1());
+            numeraireAvailable = uint256(uint128(positionDeltas.amount0())) - uint128(feeDeltas.amount0());
+            assetAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
+                - uint128(feeDeltas.amount1());
         }
 
         // Compute new positions
@@ -1138,10 +1147,10 @@ contract Doppler is BaseHook {
     function _clearPositions(
         Position[] memory lastEpochPositions,
         PoolKey memory key
-    ) internal returns (BalanceDelta deltas) {
+    ) internal returns (BalanceDelta deltas, BalanceDelta feeDeltas) {
         for (uint256 i; i < lastEpochPositions.length; ++i) {
             if (lastEpochPositions[i].liquidity != 0) {
-                (BalanceDelta positionDeltas, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(
+                (BalanceDelta positionDeltas, BalanceDelta positionFeeDeltas) = poolManager.modifyLiquidity(
                     key,
                     IPoolManager.ModifyLiquidityParams({
                         tickLower: isToken0 ? lastEpochPositions[i].tickLower : lastEpochPositions[i].tickUpper,
@@ -1152,9 +1161,11 @@ contract Doppler is BaseHook {
                     ""
                 );
                 deltas = add(deltas, positionDeltas);
-                state.feesAccrued = add(state.feesAccrued, feesAccrued);
+                feeDeltas = add(feeDeltas, positionFeeDeltas);
             }
         }
+
+        state.feesAccrued = add(state.feesAccrued, feeDeltas);
     }
 
     /// @notice Updates the positions in the pool, accounts for accrued fees, and swaps to new price if necessary
@@ -1391,6 +1402,13 @@ contract Doppler is BaseHook {
      * @notice Removes the liquidity from the pool and transfers the tokens to the Airlock contract for a migration
      * @dev This function can only be called by the Airlock contract under specific conditions
      * @return sqrtPriceX96 Square root of the price of the pool in the Q96 format
+     * @return token0 Address of the token0
+     * @return fees0 Total fees accrued for token0 (for informational purposes)
+     * @return balance0 Total balance of token0 migrated (including fees0)
+     * @return token1 Address of the token1
+     * @return fees1 Total fees accrued for token1 (for informational purposes)
+     * @return balance1 Total balance of token1 migrated (including fees1)
+     *
      */
     function migrate(
         address recipient
@@ -1412,11 +1430,15 @@ contract Doppler is BaseHook {
             revert CannotMigrate();
         }
 
-        // close out the remaining slugs
+        // Close out the remaining slugs
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ key: poolKey, sender: recipient, tick: 0, isMigration: true }))
         );
+
+        // These amounts were already transferred to the recipient in the unlock callback
         (BalanceDelta slugCallerDelta, BalanceDelta slugsFeesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
+
+        // Update the total fees accrued (only for informational purposes)
         BalanceDelta totalFeesAccrued = state.feesAccrued + slugsFeesAccrued;
 
         // In case some dust tokens are still left in the contract

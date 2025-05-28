@@ -181,11 +181,12 @@ contract SwapTest is BaseTest {
 
     function test_swap_ZeroFeesWhenInsufficientProceeds() public {
         vm.warp(hook.startingTime());
-        (uint256 bought,) = buy(1 ether);
+        (uint256 bought, uint256 used) = buyExactIn(1 ether);
         vm.warp(hook.endingTime() + 1);
-
         (uint256 beforeFeeGrowthGlobal0, uint256 beforeFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
-        sell(int256(bought));
+        (uint256 sold, uint256 received) = sellExactIn(bought);
+        assertEq(bought, sold, "Should sell back the tokens");
+        assertApproxEqRel(used, received, 0.001 ether, "Should receive the same amount as used");
         (uint256 afterFeeGrowthGlobal0, uint256 afterFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
         assertEq(beforeFeeGrowthGlobal0, afterFeeGrowthGlobal0, "Token 0 fee growth should not change");
         assertEq(beforeFeeGrowthGlobal1, afterFeeGrowthGlobal1, "Token 1 fee growth should not change");

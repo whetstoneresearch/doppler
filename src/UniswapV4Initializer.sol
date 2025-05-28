@@ -93,7 +93,7 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
         bytes32 salt,
         bytes calldata data
     ) external onlyAirlock returns (address) {
-        (,,,, int24 startingTick, int24 endingTick,,, bool isToken0,,, int24 tickSpacing) = abi.decode(
+        (,,,, int24 startingTick,,,, bool isToken0,,, int24 tickSpacing) = abi.decode(
             data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
 

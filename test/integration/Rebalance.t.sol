@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { stdMath } from "forge-std/StdMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -14,9 +12,11 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
+import { Position, MAX_SWAP_FEE, WAD, I_WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { DERC20 } from "src/DERC20.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -186,6 +186,7 @@ contract RebalanceTest is BaseTest {
 
         // We sell 90% of the expected amount so we stay in range but trigger insufficient proceeds case
         buy(int256(expectedAmountSold * 9 / 10));
+        // buy(-int256(1 ether));
 
         vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
@@ -296,19 +297,49 @@ contract RebalanceTest is BaseTest {
         assertEq(lowerSlug.liquidity, 0);
     }
 
+    function test_totalProceeds_EqualAmountDeltaLowerSlug() public {
+        vm.warp(hook.startingTime());
+        buy(-1 ether);
+        vm.warp(hook.startingTime() + hook.epochLength());
+        sell(1);
+
+        (,,, uint256 totalProceeds,,) = hook.state();
+
+        (int24 tickLower0, int24 tickUpper0, uint128 liquidity0,) = hook.positions(bytes32(uint256(1)));
+        Position memory lowerSlug =
+            Position({ tickLower: tickLower0, tickUpper: tickUpper0, liquidity: liquidity0, salt: uint8(uint256(1)) });
+
+        uint256 amountDelta = isToken0
+            ? SqrtPriceMath.getAmount1Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            )
+            : SqrtPriceMath.getAmount0Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            );
+
+        assertApproxEqAbs(amountDelta, totalProceeds, 10, "amountDelta != totalProceeds");
+    }
+
     function test_big_swap() public {
         vm.warp(hook.startingTime());
         // buy the tokens for epoch 3
         uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
         buyExactOut(amountToBuy);
+
         // warp to epoch 3
-        vm.warp(hook.startingTime() + hook.epochLength() * 3);
+        goToEpoch(3);
         // get the tick for epoch 3
         DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
         // warp to epoch 6
-        vm.warp(hook.startingTime() + hook.epochLength() * 6);
+        goToEpoch(6);
         // get the tick for epoch 6
         DopplerLensReturnData memory data2 = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
@@ -316,9 +347,11 @@ contract RebalanceTest is BaseTest {
 
         assertApproxEqAbs(
             data2.tick,
-            isToken0 ? data.tick - 800 * 2 : data.tick + 800 * 2,
+            isToken0
+                ? data.tick - (hook.getMaxTickDeltaPerEpoch() / I_WAD) * 2
+                : data.tick + (hook.getMaxTickDeltaPerEpoch() / I_WAD) * 2,
             1000,
-            "tickAtEpoch6 != tickAtEpoch3 - 800 * 2"
+            "tickAtEpoch6 != tickAtEpoch3 - maxTickDeltaPerEpoch * 2"
         );
     }
 
@@ -326,7 +359,6 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.startingTime());
 
         bool isToken0 = hook.isToken0();
-        int256 I_WAD = 1e18;
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
@@ -1301,13 +1333,6 @@ contract RebalanceTest is BaseTest {
 
         // Get current tick
         currentTick = hook.getCurrentTick();
-
-        console.log("lowerSlug.tickLower", lowerSlug.tickLower);
-        console.log("lowerSlug.tickUpper", lowerSlug.tickUpper);
-        console.log("upperSlug.tickLower", upperSlug.tickLower);
-        console.log("upperSlug.tickUpper", upperSlug.tickUpper);
-        console.log("tickLower", tickLower);
-        console.log("tickUpper", tickUpper);
 
         // Slugs must be inline and continuous
         if (stdMath.delta(currentTick, tickLower) <= 1) {

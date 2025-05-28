@@ -15,14 +15,14 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Pool } from "@v4-core/libraries/Pool.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { Pool } from "@v4-core/libraries/Pool.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
-import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange } from "src/Doppler.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
-import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
-import { Pool } from "@v4-core/libraries/Pool.sol";
+import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
 
 uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
@@ -49,6 +49,7 @@ contract DopplerHandler is Test {
     uint256 public ghost_reserve1;
     uint256 public ghost_totalTokensSold;
     uint256 public ghost_totalProceeds;
+    uint256 public ghost_numTokensSold;
 
     bool public ghost_hasRebalanced;
 
@@ -142,6 +143,7 @@ contract DopplerHandler is Test {
 
             uint256 bought = isToken0 ? delta0 : delta1;
             uint256 spent = isToken0 ? delta1 : delta0;
+            ghost_numTokensSold += bought;
 
             assetBalanceOf[currentActor] += bought;
             ghost_totalTokensSold += bought;
@@ -164,6 +166,8 @@ contract DopplerHandler is Test {
                     revert("ticks misordered");
                 } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
                     revert("invalid sqrt price");
+                } else if (revertReasonSelector == MaximumProceedsReached.selector) {
+                    return;
                 } else {
                     revert("Unimplemented error");
                 }
@@ -217,7 +221,8 @@ contract DopplerHandler is Test {
         uint256 seed
     ) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
-        vm.assume(currentActor != address(0) && assetBalanceOf[currentActor] > 0);
+        // vm.assume(currentActor != address(0) && assetBalanceOf[currentActor] > 0);
+        if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
         uint256 assetsToSell = seed % assetBalanceOf[currentActor] + 1;
         assertLe(assetsToSell, assetBalanceOf[currentActor]);
@@ -237,6 +242,7 @@ contract DopplerHandler is Test {
             uint256 received = isToken0 ? delta1 : delta0;
             uint256 soldLessFee = FullMath.mulDiv(uint128(sold), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
 
+            ghost_numTokensSold -= sold;
             ghost_totalTokensSold -= soldLessFee;
             ghost_totalProceeds -= received;
             assetBalanceOf[currentActor] -= sold;
@@ -250,12 +256,14 @@ contract DopplerHandler is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
 
-                if (revertReasonSelector == SwapBelowRange.selector) { } else if (
-                    revertReasonSelector == TickMath.InvalidSqrtPrice.selector
-                ) {
+                if (revertReasonSelector == SwapBelowRange.selector) {
+                    revert("swap below range");
+                } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
                     revert("invalid sqrt price");
+                } else if (revertReasonSelector == MaximumProceedsReached.selector) {
+                    return;
                 } else if (revertReasonSelector == bytes4(0)) {
-                    revert();
+                    revert("Wrapped error without revert reason");
                 } else {
                     revert("Unimplemented wrapped error");
                 }

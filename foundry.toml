@@ -18,6 +18,7 @@ gas_limit = "8000000000"
 [fuzz]
 max_test_rejects = 10000000
 runs = 32
+depth = 512
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 

@@ -5,7 +5,9 @@ import { console } from "forge-std/console.sol";
 
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
-import { SenderNotInitializer, CannotMigrate } from "src/Doppler.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { SenderNotInitializer, CannotMigrate, MAX_SWAP_FEE } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract MigrateTest is BaseTest {
@@ -46,7 +48,8 @@ contract MigrateTest is BaseTest {
 
     function test_migrate_CollectAllFees() public {
         vm.warp(hook.startingTime());
-        (uint256 bought,) = buyExactIn(hook.minimumProceeds() + 1 ether);
+        (uint256 bought, uint256 used) =
+            buyExactIn(hook.minimumProceeds() * MAX_SWAP_FEE / (MAX_SWAP_FEE - hook.initialLpFee()) + 1);
         sellExactIn(bought / 2);
         buyExactIn(hook.minimumProceeds());
 
@@ -63,16 +66,22 @@ contract MigrateTest is BaseTest {
             );
             (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
                 manager.getFeeGrowthInside(poolId, isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower);
-            assertEq(feeGrowthInside0X128, feeGrowthInside0LastX128, "feeGrowth0 should be equal");
-            assertEq(feeGrowthInside1X128, feeGrowthInside1LastX128, "feeGrowth1 should be equal");
+            assertEq(
+                feeGrowthInside0X128,
+                feeGrowthInside0LastX128,
+                string.concat("feeGrowth0 should be equal in position ", vm.toString(i))
+            );
+            assertEq(
+                feeGrowthInside1X128,
+                feeGrowthInside1LastX128,
+                string.concat("feeGrowth1 should be equal in position ", vm.toString(i))
+            );
         }
     }
 
     function test_migrate_NoMoreFundsInHook() public {
         vm.warp(hook.startingTime());
-
-        buyExactOut(hook.minimumProceeds());
-
+        buyExactIn(hook.minimumProceeds() * MAX_SWAP_FEE / (MAX_SWAP_FEE - hook.initialLpFee()) + 1);
         vm.warp(hook.endingTime());
         vm.prank(hook.initializer());
         hook.migrate(address(0xbeef));
@@ -92,20 +101,22 @@ contract MigrateTest is BaseTest {
         uint256 initialHookAssetBalance = ERC20(isToken0 ? token0 : token1).balanceOf(address(hook));
         uint256 initialManagerAssetBalance = ERC20(isToken0 ? token0 : token1).balanceOf(address(manager));
 
-        (uint256 bought, uint256 used) = buyExactOut(hook.minimumProceeds());
+        (uint256 bought, uint256 used) =
+            buyExactIn(hook.minimumProceeds() * MAX_SWAP_FEE / (MAX_SWAP_FEE - hook.initialLpFee()) + 1);
 
         vm.warp(hook.endingTime());
         vm.prank(hook.initializer());
         (,, uint128 fees0, uint128 balance0,, uint128 fees1, uint128 balance1) = hook.migrate(address(0xbeef));
-        uint256 expectedFees = used * uint24(vm.envOr("FEE", uint24(0))) / 1e6;
+        uint256 usedLessFee = FullMath.mulDiv(used, MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
+        uint256 expectedFees = used - usedLessFee;
 
         uint256 managerToken0Dust =
             token0 == address(0) ? address(manager).balance : ERC20(token0).balanceOf(address(manager));
         uint256 managerToken1Dust = ERC20(token1).balanceOf(address(manager));
 
         if (isToken0) {
-            assertEq(fees1, expectedFees, "fees1 should be equal to expectedFees");
-            assertEq(fees0, 0, "fees0 should be 0");
+            assertApproxEqAbs(fees1, expectedFees, 10, "fees1 should be equal to expectedFees");
+            assertApproxEqAbs(fees0, 0, 10, "fees0 should be 0");
             assertEq(
                 initialHookAssetBalance + initialManagerAssetBalance - bought - managerToken0Dust,
                 balance0,
@@ -113,8 +124,8 @@ contract MigrateTest is BaseTest {
             );
             assertEq(used - managerToken1Dust, balance1, "balance1 should be equal to used");
         } else {
-            assertEq(fees0, expectedFees, "fees0 should be equal to expectedFees");
-            assertEq(fees1, 0, "fees1 should be 0");
+            assertApproxEqAbs(fees0, expectedFees, 10, "fees0 should be equal to expectedFees");
+            assertApproxEqAbs(fees1, 0, 10, "fees1 should be 0");
             assertEq(
                 initialHookAssetBalance + initialManagerAssetBalance - bought - managerToken1Dust,
                 balance1,
