@@ -54,3 +54,4 @@ arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_UR}"
 show_metrics = true
 fail_on_revert = true
 runs = 2048
+depth = 512
