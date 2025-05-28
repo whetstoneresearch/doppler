@@ -7,6 +7,9 @@ foo:
 
 # Test
 
+coverage:
+	forge coverage --ir-minimum --report lcov
+
 test-fuzz:
 	FOUNDRY_PROFILE=deep forge test --mt invariant_ --show-progress
 
