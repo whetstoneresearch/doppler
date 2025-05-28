@@ -49,6 +49,7 @@ contract DopplerHandler is Test {
     uint256 public ghost_reserve1;
     uint256 public ghost_totalTokensSold;
     uint256 public ghost_totalProceeds;
+    uint256 public ghost_numTokensSold;
 
     bool public ghost_hasRebalanced;
 
@@ -142,6 +143,7 @@ contract DopplerHandler is Test {
 
             uint256 bought = isToken0 ? delta0 : delta1;
             uint256 spent = isToken0 ? delta1 : delta0;
+            ghost_numTokensSold += bought;
 
             assetBalanceOf[currentActor] += bought;
             ghost_totalTokensSold += bought;
@@ -240,6 +242,7 @@ contract DopplerHandler is Test {
             uint256 received = isToken0 ? delta1 : delta0;
             uint256 soldLessFee = FullMath.mulDiv(uint128(sold), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
 
+            ghost_numTokensSold -= sold;
             ghost_totalTokensSold -= soldLessFee;
             ghost_totalProceeds -= received;
             assetBalanceOf[currentActor] -= sold;

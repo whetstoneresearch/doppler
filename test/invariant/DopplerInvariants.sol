@@ -28,8 +28,21 @@ contract DopplerInvariantsTest is BaseTest {
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
-        excludeSender(address(manager));
-        excludeSender(address(0));
+
+        address[] memory excludedSenders = new address[](13);
+        excludedSenders[0] = address(0);
+        excludedSenders[1] = address(this);
+        excludedSenders[2] = address(handler);
+        excludedSenders[3] = address(hook);
+        excludedSenders[4] = address(token0);
+        excludedSenders[5] = address(token1);
+        excludedSenders[6] = address(router);
+        excludedSenders[7] = address(swapRouter);
+        excludedSenders[8] = address(quoter);
+        excludedSenders[9] = address(stateView);
+        excludedSenders[10] = address(lensQuoter);
+        excludedSenders[11] = address(manager);
+        excludedSenders[12] = address(modifyLiquidityRouter);
 
         vm.warp(DEFAULT_STARTING_TIME);
     }
@@ -44,7 +57,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
         uint256 numTokensToSell = hook.numTokensToSell();
-        assertLe(handler.ghost_totalTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
+        assertLe(handler.ghost_numTokensSold(), numTokensToSell, "Total tokens sold exceeds numTokensToSell");
     }
 
     function invariant_AlwaysProvidesAllAvailableTokens() public view {
