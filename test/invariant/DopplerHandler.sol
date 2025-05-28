@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { Test } from "forge-std/Test.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
