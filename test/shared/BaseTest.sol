@@ -468,6 +468,10 @@ contract BaseTest is Test, Deployers {
         vm.warp(hook.startingTime() + ((epoch - 1) * hook.epochLength()));
         assertEq(hook.getCurrentEpoch(), epoch, "Current epoch mismatch");
     }
+
+    function goToNextEpoch() internal {
+        vm.warp(block.timestamp + hook.epochLength());
+    }
 }
 
 error UnexpectedPositiveAmount();
