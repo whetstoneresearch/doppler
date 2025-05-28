@@ -29,20 +29,19 @@ contract DopplerInvariantsTest is BaseTest {
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
 
-        address[] memory excludedSenders = new address[](13);
-        excludedSenders[0] = address(0);
-        excludedSenders[1] = address(this);
-        excludedSenders[2] = address(handler);
-        excludedSenders[3] = address(hook);
-        excludedSenders[4] = address(token0);
-        excludedSenders[5] = address(token1);
-        excludedSenders[6] = address(router);
-        excludedSenders[7] = address(swapRouter);
-        excludedSenders[8] = address(quoter);
-        excludedSenders[9] = address(stateView);
-        excludedSenders[10] = address(lensQuoter);
-        excludedSenders[11] = address(manager);
-        excludedSenders[12] = address(modifyLiquidityRouter);
+        excludeSender(address(0));
+        excludeSender(address(this));
+        excludeSender(address(handler));
+        excludeSender(address(hook));
+        excludeSender(address(token0));
+        excludeSender(address(token1));
+        excludeSender(address(router));
+        excludeSender(address(swapRouter));
+        excludeSender(address(quoter));
+        excludeSender(address(stateView));
+        excludeSender(address(lensQuoter));
+        excludeSender(address(manager));
+        excludeSender(address(modifyLiquidityRouter));
 
         vm.warp(DEFAULT_STARTING_TIME);
     }
