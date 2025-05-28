@@ -461,6 +461,13 @@ contract BaseTest is Test, Deployers {
 
         return (amount0ExpectedFee, amount1ExpectedFee);
     }
+
+    function goToEpoch(
+        uint256 epoch
+    ) internal {
+        vm.warp(hook.startingTime() + ((epoch - 1) * hook.epochLength()));
+        assertEq(hook.getCurrentEpoch(), epoch, "Current epoch mismatch");
+    }
 }
 
 error UnexpectedPositiveAmount();
