@@ -12,7 +12,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { Position, MAX_SWAP_FEE, WAD } from "src/Doppler.sol";
+import { Position, MAX_SWAP_FEE, WAD, I_WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
@@ -329,18 +329,17 @@ contract RebalanceTest is BaseTest {
     function test_big_swap() public {
         vm.warp(hook.startingTime());
         // buy the tokens for epoch 3
-        uint256 balanceOfPool = DERC20(asset).balanceOf(address(this));
         uint256 amountToBuy = hook.getExpectedAmountSoldWithEpochOffset(3);
         buyExactOut(amountToBuy);
 
         // warp to epoch 3
-        vm.warp(hook.startingTime() + hook.epochLength() * 3);
+        goToEpoch(3);
         // get the tick for epoch 3
         DopplerLensReturnData memory data = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
         );
         // warp to epoch 6
-        vm.warp(hook.startingTime() + hook.epochLength() * 6);
+        goToEpoch(6);
         // get the tick for epoch 6
         DopplerLensReturnData memory data2 = lensQuoter.quoteDopplerLensData(
             IV4Quoter.QuoteExactSingleParams({ poolKey: key, zeroForOne: !isToken0, exactAmount: 1, hookData: "" })
@@ -348,7 +347,9 @@ contract RebalanceTest is BaseTest {
 
         assertApproxEqAbs(
             data2.tick,
-            isToken0 ? data.tick - hook.getMaxTickDeltaPerEpoch() * 2 : data.tick + hook.getMaxTickDeltaPerEpoch() * 2,
+            isToken0
+                ? data.tick - (hook.getMaxTickDeltaPerEpoch() / I_WAD) * 2
+                : data.tick + (hook.getMaxTickDeltaPerEpoch() / I_WAD) * 2,
             1000,
             "tickAtEpoch6 != tickAtEpoch3 - maxTickDeltaPerEpoch * 2"
         );
@@ -358,7 +359,6 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.startingTime());
 
         bool isToken0 = hook.isToken0();
-        int256 I_WAD = 1e18;
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
