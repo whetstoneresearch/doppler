@@ -5,5 +5,23 @@ export
 foo:
 	@echo "Hello $(FOUNDRY_PROFILE)"
 
+# Test
+
+test-fuzz:
+	FOUNDRY_PROFILE=deep forge test --mt invariant_ --show-progress
+
+# Mainnet deployments
+
+deploy-base:
+	@forge script ./script/deploy/DeployBase.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(BASE_RPC_URL) --verify --etherscan-api-key ${BASESCAN_API_KEY} --broadcast --slow
+
+deploy-unichain:
+	@forge script ./script/deploy/DeployUnichain.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(UNICHAIN_RPC_URL) --verify --etherscan-api-key ${UNISCAN_API_KEY} --broadcast --slow
+
+# Testnet deployments
+
 deploy-unichain-sepolia:
 	@forge script ./script/deploy/DeployUnichainSepolia.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(UNICHAIN_SEPOLIA_RPC_URL) --verify --etherscan-api-key ${UNISCAN_API_KEY} --broadcast --slow
+
+deploy-base-sepolia:
+	@forge script ./script/deploy/DeployBaseSepolia.s.sol --private-key $(PRIVATE_KEY) --rpc-url $(BASE_SEPOLIA_RPC_URL) --verify --etherscan-api-key ${BASESCAN_API_KEY} --broadcast --slow
