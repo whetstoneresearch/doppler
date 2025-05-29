@@ -21,13 +21,12 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { console } from "forge-std/console.sol";
+
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
 /// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
 /// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
 /// @param liquidity Amount of liquidity in the position
-
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
