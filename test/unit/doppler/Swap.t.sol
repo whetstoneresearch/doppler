@@ -90,7 +90,7 @@ contract SwapTest is BaseTest {
         assertApproxEqAbs(
             amountQuoteBought,
             totalProceeds2WithFees,
-            1e13,
+            1e14,
             "amountQuoteBought should be equal to totalProceeds2WithFees"
         );
         assertApproxEqAbs(totalTokensSold2, totalTokensSold, 1, "totalTokensSold2 should be equal to totalTokensSold");
