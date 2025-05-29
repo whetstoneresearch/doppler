@@ -21,12 +21,13 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-
+import { console } from "forge-std/console.sol";
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
 /// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
 /// @param tickUpper Upper tick boundary of the position (in terms of price numeraire/asset, not tick direction)
 /// @param liquidity Amount of liquidity in the position
+
 struct SlugData {
     int24 tickLower;
     int24 tickUpper;
@@ -425,10 +426,16 @@ contract Doppler is BaseHook {
                 }
 
                 // Place all available numeraire in the lower slug at the average clearing price
-                (BalanceDelta delta, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
-                uint256 numeraireAvailable = uint256(uint128(isToken0 ? delta.amount1() : delta.amount0()))
-                    - uint256(uint128(isToken0 ? feeDeltas.amount1() : feeDeltas.amount0()))
-                    + uint256(uint128(isToken0 ? state.feesAccrued.amount1() : state.feesAccrued.amount0()));
+                (BalanceDelta delta,) = _clearPositions(prevPositions, key);
+                // handle the case where token0 is native
+                uint256 numeraireAvailable;
+                if (isToken0) {
+                    int128 numeraireBalanceThis = int128(uint128(key.currency1.balanceOfSelf()));
+                    numeraireAvailable = uint256(uint128(numeraireBalanceThis + delta.amount1()));
+                } else {
+                    int128 numeraireBalanceThis = int128(uint128(key.currency0.balanceOfSelf()));
+                    numeraireAvailable = uint256(uint128(numeraireBalanceThis + delta.amount0()));
+                }
 
                 SlugData memory lowerSlug =
                     _computeLowerSlugInsufficientProceeds(key, numeraireAvailable, state.totalTokensSold, currentTick);
@@ -758,11 +765,13 @@ contract Doppler is BaseHook {
         uint256 assetAvailable;
 
         if (isToken0) {
-            numeraireAvailable = uint256(uint128(positionDeltas.amount1())) - uint128(feeDeltas.amount1());
+            numeraireAvailable =
+                uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf() - uint128(state.feesAccrued.amount1());
             assetAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
                 - uint128(feeDeltas.amount0());
         } else {
-            numeraireAvailable = uint256(uint128(positionDeltas.amount0())) - uint128(feeDeltas.amount0());
+            numeraireAvailable =
+                uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf() - uint128(state.feesAccrued.amount0());
             assetAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
                 - uint128(feeDeltas.amount1());
         }
@@ -1222,8 +1231,11 @@ contract Doppler is BaseHook {
 
         if (currency0Delta < 0) {
             poolManager.sync(key.currency0);
-            key.currency0.transfer(address(poolManager), uint256(-currency0Delta));
-            poolManager.settle();
+            if (Currency.unwrap(key.currency0) != address(0)) {
+                key.currency0.transfer(address(poolManager), uint256(-currency0Delta));
+            }
+
+            poolManager.settle{ value: Currency.unwrap(key.currency0) == address(0) ? uint256(-currency0Delta) : 0 }();
         }
 
         if (currency1Delta < 0) {

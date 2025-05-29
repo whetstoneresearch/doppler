@@ -18,19 +18,30 @@ contract RefundTest is BaseTest {
     using StateLibrary for IPoolManager;
 
     function test_refund_SellBackAllTokens() public {
-        vm.warp(hook.startingTime());
+        vm.warp(hook.startingTime() + hook.epochLength() * 8);
 
         // buy half of minimumProceeds In
-        (uint256 amountAsset, uint256 amountQuote) = buyExactIn(hook.minimumProceeds() / 2);
+        (uint256 amountAsset0, uint256 amountQuote) = buyExactIn(0.05 ether);
 
-        vm.warp(hook.endingTime());
+        vm.warp(hook.startingTime() + hook.epochLength() * 12);
+
+        (uint256 amountAsset1, uint256 amountQuote1) = buyExactIn(0.05 ether);
+
+        vm.warp(hook.startingTime() + hook.epochLength() * 16);
+
+        (uint256 amountAsset2, uint256 amountQuote2) = buyExactIn(0.05 ether);
+
+        vm.warp(hook.startingTime() + hook.epochLength() * 20);
+
+        (uint256 amountAsset3, uint256 amountQuote3) = buyExactIn(0.01 ether);
 
         sellExactIn(1);
+        vm.warp(hook.endingTime());
+        sellExactIn(1);
+
         Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
 
         (,,, uint256 totalProceeds,, BalanceDelta feesAccrued) = hook.state();
-
-        console.log("isToken0", isToken0);
 
         uint256 amountDeltaAsset = isToken0
             ? SqrtPriceMath.getAmount0Delta(
@@ -68,7 +79,7 @@ contract RefundTest is BaseTest {
 
         uint256 totalProceedsWithFees = totalProceeds + feesNumeraire;
 
-        sellExactIn(amountAsset);
+        sellExactIn(amountAsset0 + amountAsset1 + amountAsset2 + amountAsset3);
 
         assertApproxEqAbs(
             amountDeltaQuote,
@@ -76,6 +87,70 @@ contract RefundTest is BaseTest {
             50,
             "amountDeltaQuote should be equal to totalProceeds + feesAccrued"
         );
-        assertApproxEqAbs(amountDeltaAsset, amountAsset, 10_000e18, "amountDelta should be equal to assetBalance");
+        assertApproxEqAbs(
+            amountDeltaAsset,
+            amountAsset0 + amountAsset1 + amountAsset2 + amountAsset3,
+            10_000e18,
+            "amountDelta should be equal to assetBalance"
+        );
+    }
+
+    function test_scenario_breaking() public {
+        vm.warp(hook.startingTime());
+
+        // buy half of minimumProceeds In
+        (uint256 amountAsset0, uint256 amountQuote) = buyExactIn(0.0001 ether);
+
+        vm.warp(hook.startingTime() + hook.epochLength() * 62);
+        (uint256 amountAsset1, uint256 amountQuote1) = buyExactIn(0.001 ether);
+        vm.warp(hook.endingTime());
+        sellExactIn(1);
+        Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
+
+        (,,, uint256 totalProceeds,, BalanceDelta feesAccrued) = hook.state();
+
+        uint256 amountDeltaAsset = isToken0
+            ? SqrtPriceMath.getAmount0Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            )
+            : SqrtPriceMath.getAmount1Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            );
+
+        uint256 amountDeltaQuote = isToken0
+            ? SqrtPriceMath.getAmount1Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                true
+            )
+            : SqrtPriceMath.getAmount0Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                true
+            );
+
+        console.log("amountDeltaAsset", amountDeltaAsset);
+        console.log("amountDeltaQuote", amountDeltaQuote);
+
+        uint256 feesNumeraire =
+            isToken0 ? uint256(uint128(feesAccrued.amount1())) : uint256(uint128(feesAccrued.amount0()));
+
+        uint256 totalProceedsWithFees = totalProceeds + feesNumeraire;
+
+        (uint256 amountAssetUsed, uint256 amountQuoteOut) = sellExactIn(amountAsset0 + amountAsset1 - 1);
+
+        console.log("feesAccrued", feesAccrued.amount0());
+
+        assertApproxEqAbs(
+            amountQuoteOut, totalProceedsWithFees, 50, "amountDeltaQuote should be equal to totalProceeds + feesAccrued"
+        );
     }
 }
