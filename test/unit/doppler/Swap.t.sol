@@ -16,6 +16,10 @@ import {
     Position,
     LOWER_SLUG_SALT
 } from "src/Doppler.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import "forge-std/console.sol";
 
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;
@@ -45,27 +49,51 @@ contract SwapTest is BaseTest {
     function test_swap_CanRepurchaseNumeraireAfterEndTimeInsufficientProceeds() public {
         vm.warp(hook.startingTime()); // 1 second after the end time
 
-        int256 minimumProceeds = int256(hook.minimumProceeds());
+        uint256 minimumProceeds = hook.minimumProceeds();
 
-        buy(-minimumProceeds / 2);
+        (uint256 amountAssetBought,) = buyExactIn(minimumProceeds * 99 / 100);
 
         vm.warp(hook.endingTime() + 1); // 1 second after the end time
 
         (,, uint256 totalTokensSold,,,) = hook.state();
 
         assertGt(totalTokensSold, 0);
+        assertEq(totalTokensSold, amountAssetBought);
 
         // assert that we can sell back all tokens
-        sell(-int256(totalTokensSold));
+        (uint256 amountAssetSold, uint256 amountQuoteBought) = sellExactIn(totalTokensSold);
+        Position memory lowerSlug = hook.getPositions(bytes32(uint256(1)));
 
-        (,, uint256 totalTokensSold2, uint256 totalProceeds2,,) = hook.state();
+        uint256 amountDeltaQuote = isToken0
+            ? SqrtPriceMath.getAmount1Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            )
+            : SqrtPriceMath.getAmount0Delta(
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                lowerSlug.liquidity,
+                false
+            );
+        (,, uint256 totalTokensSold2, uint256 totalProceeds2,, BalanceDelta feesAccrued) = hook.state();
+
+        int128 feesNumeraire = isToken0 ? feesAccrued.amount1() : feesAccrued.amount0();
+        uint256 totalProceeds2WithFees = totalProceeds2 + uint256(uint128(feesNumeraire));
 
         // assert that we get the totalProceeds near 0
-        (uint256 amount0ExpectedFee, uint256 amount1ExpectedFee) = isToken0
-            ? computeFees(uint256(totalTokensSold), uint256(minimumProceeds / 2))
-            : computeFees(uint256(minimumProceeds / 2), uint256(totalTokensSold));
-        assertGe(totalProceeds2, isToken0 ? amount1ExpectedFee : amount0ExpectedFee);
-        assertApproxEqAbs(totalTokensSold2, isToken0 ? amount0ExpectedFee : amount1ExpectedFee, 1);
+        assertEq(amountAssetSold, totalTokensSold, "amountAssetSold should be equal to totalTokensSold");
+        assertApproxEqAbs(
+            amountDeltaQuote, totalProceeds2WithFees, 1e12, "amountDeltaQuote should be equal to totalProceeds2WithFees"
+        );
+        assertApproxEqAbs(
+            amountQuoteBought,
+            totalProceeds2WithFees,
+            1e13,
+            "amountQuoteBought should be equal to totalProceeds2WithFees"
+        );
+        assertApproxEqAbs(totalTokensSold2, totalTokensSold, 1, "totalTokensSold2 should be equal to totalTokensSold");
     }
 
     function test_swap_RevertsAfterEndTimeSufficientProceeds() public {
