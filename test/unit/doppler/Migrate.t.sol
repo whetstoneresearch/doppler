@@ -6,7 +6,7 @@ import { console } from "forge-std/console.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { SenderNotInitializer, CannotMigrate, MAX_SWAP_FEE } from "src/Doppler.sol";
+import { SenderNotInitializer, CannotMigrate, MAX_SWAP_FEE, Position } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract MigrateTest is BaseTest {
@@ -25,20 +25,9 @@ contract MigrateTest is BaseTest {
 
     function test_migrate_RemovesAllLiquidity() public {
         goToStartingTime();
-
-        bool canMigrate;
-
-        do {
-            buyExactIn(hook.minimumProceeds());
-            (,,, uint256 totalProceeds,,) = hook.state();
-            canMigrate = totalProceeds > hook.minimumProceeds();
-
-            goToNextEpoch();
-        } while (!canMigrate);
-
+        buyUntilMinimumProceeds();
         goToEndingTime();
-        vm.prank(hook.initializer());
-        hook.migrate(address(0xbeef));
+        prankAndMigrate();
 
         uint256 numPDSlugs = hook.getNumPDSlugs();
         for (uint256 i = 1; i < numPDSlugs + 3; i++) {
@@ -52,24 +41,34 @@ contract MigrateTest is BaseTest {
 
     function test_migrate_CollectAllFees() public {
         vm.warp(hook.startingTime());
-        (uint256 bought, uint256 used) =
-            buyExactIn(hook.minimumProceeds() * MAX_SWAP_FEE / (MAX_SWAP_FEE - hook.initialLpFee()) + 1);
-        sellExactIn(bought / 2);
-        buyExactIn(hook.minimumProceeds());
+        (, uint256 totalSpent) = buyUntilMinimumProceeds();
+        sellExactOut(totalSpent / 20);
+        buyExactIn(totalSpent / 20);
+        goToEndingTime();
 
-        vm.warp(hook.endingTime());
-        vm.prank(hook.initializer());
-        hook.migrate(address(0xbeef));
+        uint256 positionsCount = hook.getNumPDSlugs() + 3;
+        Position[] memory positions = new Position[](positionsCount);
 
-        uint256 numPDSlugs = hook.getNumPDSlugs();
+        for (uint256 i = 1; i < positionsCount; i++) {
+            (int24 tickLower, int24 tickUpper,, uint8 salt) = hook.positions(bytes32(i));
+            positions[i - 1] = Position({
+                tickLower: isToken0 ? tickLower : tickUpper,
+                tickUpper: isToken0 ? tickUpper : tickLower,
+                liquidity: 0,
+                salt: salt
+            });
+        }
 
-        for (uint256 i = 1; i < numPDSlugs + 3; i++) {
-            (int24 tickLower, int24 tickUpper,,) = hook.positions(bytes32(i));
+        for (uint256 i; i < positions.length; i++) {
             (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = manager.getPositionInfo(
-                poolId, address(hook), isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower, bytes32(i)
+                poolId,
+                address(hook),
+                positions[i].tickLower,
+                positions[i].tickUpper,
+                bytes32(uint256(positions[i].salt))
             );
             (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-                manager.getFeeGrowthInside(poolId, isToken0 ? tickLower : tickUpper, isToken0 ? tickUpper : tickLower);
+                manager.getFeeGrowthInside(poolId, positions[i].tickLower, positions[i].tickUpper);
             assertEq(
                 feeGrowthInside0X128,
                 feeGrowthInside0LastX128,
@@ -81,14 +80,15 @@ contract MigrateTest is BaseTest {
                 string.concat("feeGrowth1 should be equal in position ", vm.toString(i))
             );
         }
+
+        prankAndMigrate();
     }
 
     function test_migrate_NoMoreFundsInHook() public {
-        vm.warp(hook.startingTime());
-        buyExactIn(hook.minimumProceeds() * MAX_SWAP_FEE / (MAX_SWAP_FEE - hook.initialLpFee()) + 1);
-        vm.warp(hook.endingTime());
-        vm.prank(hook.initializer());
-        hook.migrate(address(0xbeef));
+        goToStartingTime();
+        buyUntilMinimumProceeds();
+        goToEndingTime();
+        prankAndMigrate();
 
         if (usingEth) {
             assertEq(address(hook).balance, 0, "hook should have no ETH");
