@@ -472,6 +472,14 @@ contract BaseTest is Test, Deployers {
     function goToNextEpoch() internal {
         vm.warp(block.timestamp + hook.epochLength());
     }
+
+    function goToStartingTime() internal {
+        vm.warp(hook.startingTime());
+    }
+
+    function goToEndingTime() internal {
+        vm.warp(hook.endingTime() + 1);
+    }
 }
 
 error UnexpectedPositiveAmount();
