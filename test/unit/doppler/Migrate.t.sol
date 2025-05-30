@@ -6,7 +6,6 @@ import { console } from "forge-std/console.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { SenderNotInitializer, CannotMigrate, MAX_SWAP_FEE } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
