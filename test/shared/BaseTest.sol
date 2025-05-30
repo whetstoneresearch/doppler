@@ -494,9 +494,9 @@ contract BaseTest is Test, Deployers {
         }
     }
 
-    function prankAndMigrate() internal {
+    function prankAndMigrate() internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
         vm.prank(hook.initializer());
-        hook.migrate(address(0xbeef));
+        return hook.migrate(address(0xbeef));
     }
 }
 
