@@ -25,18 +25,23 @@ contract MigrateTest is BaseTest {
     }
 
     function test_migrate_RemovesAllLiquidity() public {
-        uint256 numPDSlugs = hook.getNumPDSlugs();
+        goToStartingTime();
 
-        vm.warp(hook.startingTime());
+        bool canMigrate;
 
-        // buy minimumProceeds In
-        // TODO: Check why buying only minimumProceeds is not enough
-        buyExactIn(hook.minimumProceeds() + 1 ether);
+        do {
+            buyExactIn(hook.minimumProceeds());
+            (,,, uint256 totalProceeds,,) = hook.state();
+            canMigrate = totalProceeds > hook.minimumProceeds();
 
-        vm.warp(hook.endingTime());
+            goToNextEpoch();
+        } while (!canMigrate);
+
+        goToEndingTime();
         vm.prank(hook.initializer());
         hook.migrate(address(0xbeef));
 
+        uint256 numPDSlugs = hook.getNumPDSlugs();
         for (uint256 i = 1; i < numPDSlugs + 3; i++) {
             (int24 tickLower, int24 tickUpper,,) = hook.positions(bytes32(i));
             (uint128 liquidity,,) = manager.getPositionInfo(
