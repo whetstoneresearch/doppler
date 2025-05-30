@@ -480,6 +480,24 @@ contract BaseTest is Test, Deployers {
     function goToEndingTime() internal {
         vm.warp(hook.endingTime() + 1);
     }
+
+    function buyUntilMinimumProceeds() internal returns (uint256 totalBought, uint256 totalSpent) {
+        while (true) {
+            (uint256 bought, uint256 spent) = buyExactIn(hook.minimumProceeds());
+            totalBought += bought;
+            totalSpent += spent;
+
+            (,,, uint256 totalProceeds,,) = hook.state();
+            if (totalProceeds > hook.minimumProceeds()) break;
+
+            goToNextEpoch();
+        }
+    }
+
+    function prankAndMigrate() internal {
+        vm.prank(hook.initializer());
+        hook.migrate(address(0xbeef));
+    }
 }
 
 error UnexpectedPositiveAmount();
