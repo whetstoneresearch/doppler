@@ -462,6 +462,8 @@ contract BaseTest is Test, Deployers {
         return (amount0ExpectedFee, amount1ExpectedFee);
     }
 
+    // Cheatcodes
+
     function goToEpoch(
         uint256 epoch
     ) internal {
@@ -494,9 +496,15 @@ contract BaseTest is Test, Deployers {
         }
     }
 
-    function prankAndMigrate() internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
+    function prankAndMigrate(
+        address recipient
+    ) internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
         vm.prank(hook.initializer());
-        return hook.migrate(address(0xbeef));
+        return hook.migrate(recipient);
+    }
+
+    function prankAndMigrate() internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
+        return prankAndMigrate(address(0x1234567890));
     }
 }
 
