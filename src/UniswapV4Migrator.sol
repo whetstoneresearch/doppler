@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
-
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -18,9 +16,13 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
+struct AssetData {
+    PoolKey poolKey;
+    address integrator;
+}
+
 contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     using StateLibrary for IPoolManager;
-
     using PoolIdLibrary for PoolKey;
 
     IPoolManager public immutable poolManager;
@@ -50,12 +52,6 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             tickSpacing: tickSpacing
         });
 
-        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
-
-        if (sqrtPriceX96 != 0) {
-            IPoolManager(poolManager).initialize(poolKey, TickMath.MIN_SQRT_PRICE);
-        }
-
         getPoolKeyForPair[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] = poolKey;
 
         return address(0);
@@ -67,6 +63,19 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address token1,
         address recipient
     ) external payable onlyAirlock returns (uint256 liquidity) {
+        // TODO: Define these guys
+        address timelock;
+        address protocolLocker;
+
+        PoolKey memory poolKey = getPoolKeyForPair[token0][token1];
+
+        // Let's check if the pool was initialized
+        (uint160 currentSqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+
+        if (currentSqrtPriceX96 == 0) {
+            IPoolManager(poolManager).initialize(poolKey, sqrtPriceX96);
+        }
+
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
         uint256 balance0;
@@ -74,41 +83,82 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         bytes[] memory params;
 
         if (token0 == address(0)) {
-            params = new bytes[](3);
-            params[2] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, recipient);
+            params = new bytes[](4);
+            params[3] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
             balance0 = address(this).balance;
-            actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP));
+            actions = abi.encodePacked(
+                uint8(Actions.MINT_POSITION),
+                uint8(Actions.MINT_POSITION),
+                uint8(Actions.SETTLE_PAIR),
+                uint8(Actions.SWEEP)
+            );
         } else {
-            params = new bytes[](2);
+            params = new bytes[](3);
             balance0 = ERC20(token0).balanceOf(address(this));
-            actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+            actions =
+                abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
         }
 
-        PoolKey memory poolKey = getPoolKeyForPair[token0][token1];
+        int24 lowerTick =
+            ((TickMath.MIN_TICK + 1) - poolKey.tickSpacing + 1) / poolKey.tickSpacing * poolKey.tickSpacing;
+        int24 upperTick = (TickMath.MAX_TICK - 1) / poolKey.tickSpacing * poolKey.tickSpacing;
+
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+        require(currentTick >= lowerTick && currentTick <= upperTick, "UniswapV4Migrator: TICK_OUT_OF_RANGE");
 
         liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
-            TickMath.getSqrtPriceAtTick(TickMath.MAX_TICK),
-            TickMath.getSqrtPriceAtTick(TickMath.MAX_TICK),
+            TickMath.getSqrtPriceAtTick(lowerTick),
+            TickMath.getSqrtPriceAtTick(upperTick),
             uint128(balance0),
             uint128(balance1)
         );
 
+        require(liquidity > 0, "UniswapV4Migrator: ZERO_LIQUIDITY");
+
+        uint256 protocolLockerLiquidity = liquidity / 20;
+        uint256 timeLockLiquidity = liquidity - protocolLockerLiquidity;
+
+        // Liquidity for the protocol locker
         params[0] = abi.encode(
-            getPoolKeyForPair[token0][token1],
-            TickMath.MIN_TICK,
-            TickMath.MAX_TICK,
-            liquidity,
-            uint128(balance0),
-            uint128(balance1),
-            recipient,
+            poolKey,
+            lowerTick,
+            upperTick,
+            uint128(protocolLockerLiquidity),
+            uint128(balance0) / 20,
+            uint128(balance1) / 20,
+            protocolLocker,
             new bytes(0)
         );
 
-        params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+        // Liquidity for the Timelock
+        params[1] = abi.encode(
+            poolKey,
+            lowerTick,
+            upperTick,
+            uint128(timeLockLiquidity),
+            uint128(balance0),
+            uint128(balance1),
+            timelock,
+            new bytes(0)
+        );
+
+        params[2] = abi.encode(poolKey.currency0, poolKey.currency1);
+
+        if (token0 != address(0)) {
+            ERC20(token0).approve(address(positionManager.permit2()), balance0);
+            positionManager.permit2().approve(token0, address(positionManager), uint160(balance0), type(uint48).max);
+        }
+
+        ERC20(token1).approve(address(positionManager.permit2()), balance1);
+        positionManager.permit2().approve(token1, address(positionManager), uint160(balance1), type(uint48).max);
 
         positionManager.modifyLiquidities{ value: token0 == address(0) ? balance0 : 0 }(
             abi.encode(actions, params), block.timestamp
         );
+
+        uint256 tokenId = positionManager.nextTokenId() - 1;
+
+        positionManager.transferFrom(address(this), recipient, tokenId);
     }
 }
