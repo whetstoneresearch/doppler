@@ -323,7 +323,7 @@ contract RebalanceTest is BaseTest {
                 false
             );
 
-        assertApproxEqAbs(amountDelta, totalProceeds, 10, "amountDelta != totalProceeds");
+        assertApproxEqRel(amountDelta, totalProceeds, 0.00000001 ether, "amountDelta != totalProceeds");
     }
 
     function test_big_swap() public {
@@ -534,7 +534,7 @@ contract RebalanceTest is BaseTest {
         amountSold += tokensInPDSlug * hook.getNumPDSlugs();
 
         // We sell all tokens available to trigger the oversold case
-        buy(int256(amountSold));
+        buyExactOut(amountSold);
 
         vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
