@@ -462,6 +462,8 @@ contract BaseTest is Test, Deployers {
         return (amount0ExpectedFee, amount1ExpectedFee);
     }
 
+    // Cheatcodes
+
     function goToEpoch(
         uint256 epoch
     ) internal {
@@ -471,6 +473,38 @@ contract BaseTest is Test, Deployers {
 
     function goToNextEpoch() internal {
         vm.warp(block.timestamp + hook.epochLength());
+    }
+
+    function goToStartingTime() internal {
+        vm.warp(hook.startingTime());
+    }
+
+    function goToEndingTime() internal {
+        vm.warp(hook.endingTime() + 1);
+    }
+
+    function buyUntilMinimumProceeds() internal returns (uint256 totalBought, uint256 totalSpent) {
+        while (true) {
+            (uint256 bought, uint256 spent) = buyExactIn(hook.minimumProceeds());
+            totalBought += bought;
+            totalSpent += spent;
+
+            (,,, uint256 totalProceeds,,) = hook.state();
+            if (totalProceeds > hook.minimumProceeds()) break;
+
+            goToNextEpoch();
+        }
+    }
+
+    function prankAndMigrate(
+        address recipient
+    ) internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
+        vm.prank(hook.initializer());
+        return hook.migrate(recipient);
+    }
+
+    function prankAndMigrate() internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
+        return prankAndMigrate(address(0x1234567890));
     }
 }
 

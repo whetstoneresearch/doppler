@@ -97,14 +97,9 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_RevertsAfterEndTimeSufficientProceeds() public {
-        vm.warp(hook.startingTime());
-
-        int256 minimumProceeds = int256(hook.minimumProceeds());
-
-        buy(-minimumProceeds * 11 / 10);
-
-        vm.warp(hook.endingTime() + 1); // 1 second after the end time
-
+        goToStartingTime();
+        buyUntilMinimumProceeds();
+        goToEndingTime();
         buyExpectRevert(-1 ether, InvalidSwapAfterMaturitySufficientProceeds.selector, true);
     }
 
