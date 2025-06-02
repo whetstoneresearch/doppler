@@ -49,6 +49,9 @@ contract DopplerHandler is Test {
     uint256 public ghost_totalProceeds;
     uint256 public ghost_numTokensSold;
 
+    uint256 public ghost_token0Fees;
+    uint256 public ghost_token1Fees;
+
     bool public ghost_hasRebalanced;
 
     uint256 public ghost_currentEpoch;
@@ -148,6 +151,12 @@ contract DopplerHandler is Test {
 
             uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
             ghost_totalProceeds += proceedsLessFee;
+
+            if (isToken0) {
+                ghost_token1Fees += spent - proceedsLessFee;
+            } else {
+                ghost_token0Fees += spent - proceedsLessFee;
+            }
         } catch (bytes memory err) {
             bytes4 selector;
 
@@ -244,6 +253,12 @@ contract DopplerHandler is Test {
             ghost_totalTokensSold -= soldLessFee;
             ghost_totalProceeds -= received;
             assetBalanceOf[currentActor] -= sold;
+
+            if (isToken0) {
+                ghost_token0Fees += sold - soldLessFee;
+            } else {
+                ghost_token1Fees += sold - soldLessFee;
+            }
         } catch (bytes memory err) {
             bytes4 selector;
 
