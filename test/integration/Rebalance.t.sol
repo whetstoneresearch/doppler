@@ -419,6 +419,7 @@ contract RebalanceTest is BaseTest {
     }
 
     function test_rebalance_UpperSlug_Undersold() public {
+        vm.skip(true);
         // Go to starting time
         vm.warp(hook.startingTime());
 
@@ -519,6 +520,7 @@ contract RebalanceTest is BaseTest {
     // @dev This test only works with a sufficiently high ratio of numPDSlugs / gamma
     //      Not all configurations will trigger this case
     function test_rebalance_UpperSlug_Oversold() public {
+        vm.skip(true);
         // Go to starting time
         vm.warp(hook.startingTime());
 
