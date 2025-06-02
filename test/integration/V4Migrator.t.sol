@@ -7,6 +7,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
+import { ERC721 } from "@solady/tokens/ERC721.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
@@ -111,19 +112,22 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             salt: salt
         });
 
-        airlock.create(createParams);
+        (, address pool, address governance, address timelock, address migrationPool) = airlock.create(createParams);
 
         bool canMigrated;
 
+        uint256 i;
+
         do {
+            i++;
             deal(address(this), 0.1 ether);
 
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(hook)).poolKey();
 
-            BalanceDelta delta = swapRouter.swap{ value: 0.1 ether }(
+            BalanceDelta delta = swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
-                IPoolManager.SwapParams(true, -int256(0.1 ether), TickMath.MIN_SQRT_PRICE + 1),
+                IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
                 ""
             );
@@ -132,12 +136,9 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             canMigrated = totalProceeds > Doppler(payable(hook)).minimumProceeds();
 
             vm.warp(block.timestamp + 200);
-
-            console.log("delta0", delta.amount0());
-            console.log("delta1", delta.amount1());
         } while (!canMigrated);
 
-        vm.warp(block.timestamp + 1 days + 1);
+        goToEndingTime();
         airlock.migrate(asset);
     }
 }
