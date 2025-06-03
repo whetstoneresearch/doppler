@@ -4,13 +4,21 @@ pragma solidity ^0.8.24;
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
+
+struct BeneficiaryData {
+    address beneficiary;
+    uint256 shares;
+}
 
 struct LockData {
-    address beneficiary;
+    BeneficiaryData[] beneficiaries;
     uint256 unlockDate;
 }
 
-contract StreamableFeesLocker {
+event Lock(uint256 indexed tokenId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
+
+contract StreamableFeesLocker is ERC721TokenReceiver {
     IPositionManager public immutable positionManager;
 
     mapping(uint256 tokenId => LockData data) public getLockData;
@@ -21,8 +29,30 @@ contract StreamableFeesLocker {
         positionManager = positionManager_;
     }
 
-    function lock(uint256 tokenId, address beneficiary) external {
-        getLockData[tokenId] = LockData({ beneficiary: address(beneficiary), unlockDate: block.timestamp + 30 days });
+    function onERC721Received(
+        address,
+        address,
+        uint256 tokenId,
+        bytes calldata lockData
+    ) external override returns (bytes4) {
+        // TODO: Should we restrict this call to the PositionManager?
+        (BeneficiaryData[] memory beneficiaries) = abi.decode(lockData, (BeneficiaryData[]));
+
+        require(beneficiaries.length > 0, "No beneficiaries provided");
+
+        uint256 totalShares;
+
+        for (uint256 i; i != beneficiaries.length; ++i) {
+            require(beneficiaries[i].beneficiary != address(0), "Beneficiary cannot be zero address");
+            require(beneficiaries[i].shares > 0, "Shares must be greater than zero");
+            totalShares += beneficiaries[i].shares;
+        }
+
+        require(totalShares == 1e18, "Total shares must equal 1e18");
+
+        getLockData[tokenId] = LockData({ beneficiaries: beneficiaries, unlockDate: block.timestamp + 30 days });
+
+        return ERC721TokenReceiver.onERC721Received.selector;
     }
 
     function claim(
@@ -36,14 +66,22 @@ contract StreamableFeesLocker {
         params[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
         positionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp);
 
-        address integrator;
-        // Transfers the fees to the integrator
-        poolKey.currency0.transfer(integrator, poolKey.currency0.balanceOfSelf() / 20);
-        poolKey.currency1.transfer(integrator, poolKey.currency1.balanceOfSelf() / 20);
+        BeneficiaryData[] memory beneficiaries = getLockData[tokenId].beneficiaries;
 
-        address beneficiary = getLockData[tokenId].beneficiary;
-        poolKey.currency0.transfer(beneficiary, poolKey.currency0.balanceOfSelf());
-        poolKey.currency1.transfer(beneficiary, poolKey.currency1.balanceOfSelf());
+        uint256 length = beneficiaries.length;
+
+        for (uint256 i; i != length; ++i) {
+            address beneficiary = beneficiaries[i].beneficiary;
+            uint256 shares = beneficiaries[i].shares;
+
+            // TODO: This might leave some dust, so we might want to check the pre / post balances
+            // and send the dust to the last beneficiary
+            uint256 amount0 = poolKey.currency0.balanceOfSelf() * shares / 1e18;
+            uint256 amount1 = poolKey.currency1.balanceOfSelf() * shares / 1e18;
+
+            poolKey.currency0.transfer(beneficiary, amount0);
+            poolKey.currency1.transfer(beneficiary, amount1);
+        }
     }
 
     function unlock(
