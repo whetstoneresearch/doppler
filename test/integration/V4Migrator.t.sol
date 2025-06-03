@@ -22,6 +22,7 @@ import { DopplerDeployer, UniswapV4Initializer, IPoolInitializer } from "src/Uni
 import { UniswapV4Migrator, ILiquidityMigrator } from "src/UniswapV4Migrator.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
+import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
@@ -33,6 +34,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     UniswapV4Initializer public initializer;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
+    StreamableFeesLocker public locker;
 
     function test_migrate_v4() public {
         permit2 = IAllowanceTransfer(deployPermit2());
@@ -43,10 +45,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         positionManager = Deploy.positionManager(
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
-
-        migrator = new UniswapV4Migrator(address(airlock), address(manager), payable(address(positionManager)));
+        locker = new StreamableFeesLocker(positionManager);
+        migrator = new UniswapV4Migrator(address(airlock), address(manager), payable(address(positionManager)), locker);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
+
+        address integrator = makeAddr("integrator");
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
@@ -80,7 +84,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             2
         );
 
-        bytes memory migratorData = abi.encode(2000, 8);
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(airlock), shares: 0.05e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
+
+        bytes memory migratorData = abi.encode(2000, 8, beneficiaries);
 
         MineV4Params memory params = MineV4Params({
             airlock: address(airlock),
@@ -108,7 +117,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             poolInitializerData: poolInitializerData,
             liquidityMigrator: ILiquidityMigrator(migrator),
             liquidityMigratorData: migratorData,
-            integrator: address(0),
+            integrator: integrator,
             salt: salt
         });
 
