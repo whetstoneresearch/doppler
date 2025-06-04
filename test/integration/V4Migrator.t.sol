@@ -149,5 +149,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
 
         goToEndingTime();
         airlock.migrate(asset);
+
+        assertEq(ERC721(address(positionManager)).balanceOf(timelock), 1, "Timelock should have one token");
+        assertEq(ERC721(address(positionManager)).ownerOf(2), timelock, "Timelock should be the owner of the token");
+        assertEq(ERC721(address(positionManager)).balanceOf(address(locker)), 1, "Locker should have one token");
+        assertEq(
+            ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should be the owner of the token"
+        );
     }
 }
