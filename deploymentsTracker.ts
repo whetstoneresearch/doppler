@@ -4,7 +4,7 @@ type Deployment = {
   contractName: string;
   contractAddress: `0x${string}`;
   hash: `0x${string}`;
-  arguments: `0x${string}`[];
+  arguments: `0x${string}`[];  
 };
 
 type Deployments = {
