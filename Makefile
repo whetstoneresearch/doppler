@@ -5,6 +5,11 @@ export
 foo:
 	@echo "Hello $(FOUNDRY_PROFILE)"
 
+# Install
+
+install:
+	forge install
+
 # Test
 
 test:
