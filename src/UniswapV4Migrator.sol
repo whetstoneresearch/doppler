@@ -165,7 +165,10 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         );
 
         positionManager.safeTransferFrom(
-            address(this), address(locker), positionManager.nextTokenId() - 2, abi.encode(assetData.beneficiaries)
+            address(this),
+            address(locker),
+            positionManager.nextTokenId() - 2,
+            abi.encode(recipient, assetData.beneficiaries)
         );
 
         if (poolKey.currency0.balanceOfSelf() > 0) {
