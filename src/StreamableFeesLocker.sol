@@ -35,7 +35,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         uint256 tokenId,
         bytes calldata lockData
     ) external override returns (bytes4) {
-        // TODO: Should we restrict this call to the PositionManager?
+        require(msg.sender == address(positionManager), "Only PositionManager can call this");
         (BeneficiaryData[] memory beneficiaries) = abi.decode(lockData, (BeneficiaryData[]));
 
         require(beneficiaries.length > 0, "No beneficiaries provided");
