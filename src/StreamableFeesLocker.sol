@@ -132,6 +132,9 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
                 position.isUnlocked = true;
             }
         }
+        
+        // Update the position in storage
+        positions[tokenId] = position;
     }
 
     function releaseFees(
