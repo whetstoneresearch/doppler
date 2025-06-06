@@ -108,14 +108,35 @@ type Tracker = {
 
   // Now we generate the markdown file for the history
 
-  let historyContent = `# History\n`;
-  historyContent += `## Chain ${chains[values.chainId].name}\n`;
+  let historyContent = `# Deployments on ${chains[values.chainId].name} (${values.chainId})\n`;
 
-  trackerContent.history.forEach((deployment, index) => {
+  historyContent += `## Latest deployments\n`;
+  historyContent += `| Contract | Address | Transaction | Commit |\n`;
+  historyContent += '|---|---|---|---|\n';
+
+  const deployedContracts: {[key: string]: Deployment} = {};
+
+  /*
+  trackerContent.history.forEach((deployments) => {
+    deployments.deployments.forEach((deployment) => {
+      if (!deployedContracts[deployment.contractName]) {
+        deployedContracts[deployment.contractName] = deployment;
+      } else {
+        if (deployedContracts[deployment.contractName].timestamp < deployments.timestamp) {
+          deployedContracts[deployment.contractName] = deployment;
+        }
+      }
+    });
+  });
+  */
+
+  historyContent += `## History\n`;
+
+  trackerContent.history.forEach((deployment) => {
     console.log(deployment.timestamp * 1000);
-    historyContent += `## ${new Date(deployment.timestamp * 1000).toUTCString()} \n`;
+    historyContent += `### ${new Date(deployment.timestamp * 1000).toUTCString()} \n`;
     historyContent += '| Contract | Address | Transaction | Commit |\n';
-    historyContent += '| --- | --- | --- | --- |\n';
+    historyContent += '|---|---|---|---|\n';
     deployment.deployments.map((d) => {
       historyContent += `| ${d.contractName}`;
       historyContent += ` | [${d.contractAddress}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
