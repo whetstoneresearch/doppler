@@ -61,7 +61,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     ) external override onlyPositionManager returns (bytes4) {
         (address recipient, BeneficiaryData[] memory beneficiaries) =
             abi.decode(positionData, (address, BeneficiaryData[]));
-        require(beneficiaries.length > 0, "No beneficiaries provided");
+        require(beneficiaries.length > 0, "StreamableFeesLocker: ZERO_BENEFICIARIES");
         require(recipient != address(0), "StreamableFeesLocker: RECIPIENT_CANNOT_BE_ZERO_ADDRESS");
 
         uint256 totalShares;
@@ -70,7 +70,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
                 beneficiaries[i].beneficiary != address(0), "StreamableFeesLocker: BENEFICIARY_CANNOT_BE_ZERO_ADDRESS"
             );
             require(beneficiaries[i].shares > 0, "StreamableFeesLocker: SHARES_MUST_BE_GREATER_THAN_ZERO");
-            
+
             totalShares += beneficiaries[i].shares;
         }
 
@@ -94,7 +94,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, "StreamableFeesLocker: POSITION_NOT_FOUND");
         require(position.isUnlocked != true, "StreamableFeesLocker: POSITION_ALREADY_UNLOCKED");
-        
+
         // Get pool info
         (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
 
@@ -127,7 +127,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
 
             beneficiaries[i].amountClaimed0 += amount0Claimable;
             beneficiaries[i].amountClaimed1 += amount1Claimable;
-            
+
             // Update the position's beneficiary data
             position.beneficiaries[i].amountClaimed0 = beneficiaries[i].amountClaimed0;
             position.beneficiaries[i].amountClaimed1 = beneficiaries[i].amountClaimed1;
@@ -139,7 +139,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
                 position.isUnlocked = true;
             }
         }
-        
+
         // Update the position in storage
         positions[tokenId] = position;
     }
@@ -150,7 +150,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         // Check if position exists
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, "StreamableFeesLocker: POSITION_NOT_FOUND");
-        
+
         // Check if sender is a beneficiary
         bool isBeneficiary = false;
         for (uint256 i = 0; i < position.beneficiaries.length; i++) {
@@ -160,7 +160,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
             }
         }
         require(isBeneficiary, "StreamableFeesLocker: NOT_BENEFICIARY");
-        
+
         // Get pool info
         (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
 
