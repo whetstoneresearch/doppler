@@ -71,14 +71,6 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
             );
             require(beneficiaries[i].shares > 0, "StreamableFeesLocker: SHARES_MUST_BE_GREATER_THAN_ZERO");
             
-            // Check for duplicate beneficiaries
-            for (uint256 j = 0; j < i; ++j) {
-                require(
-                    beneficiaries[i].beneficiary != beneficiaries[j].beneficiary,
-                    "StreamableFeesLocker: DUPLICATE_BENEFICIARY"
-                );
-            }
-            
             totalShares += beneficiaries[i].shares;
         }
 

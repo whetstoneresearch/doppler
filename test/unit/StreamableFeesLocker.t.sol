@@ -548,31 +548,7 @@ contract StreamableFeesLockerTest is Test {
         
         assertEq(selector, ERC721TokenReceiver.onERC721Received.selector);
     }
-    
-    // === Missing Edge Case Tests ===
-    
-    function test_onERC721Received_RevertDuplicateBeneficiary() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({
-            beneficiary: BENEFICIARY_1,
-            shares: 0.5e18,
-            amountClaimed0: 0,
-            amountClaimed1: 0
-        });
-        beneficiaries[1] = BeneficiaryData({
-            beneficiary: BENEFICIARY_1, // Same beneficiary
-            shares: 0.5e18,
-            amountClaimed0: 0,
-            amountClaimed1: 0
-        });
-        
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
-        
-        vm.prank(address(positionManager));
-        vm.expectRevert("StreamableFeesLocker: DUPLICATE_BENEFICIARY");
-        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
-    }
-    
+
     function test_onERC721Received_RevertZeroRecipient() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({
