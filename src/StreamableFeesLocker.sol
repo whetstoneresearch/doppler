@@ -6,7 +6,6 @@ import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import { EnumerableSet } from "@openzeppelin/utils/structs/EnumerableSet.sol";
 
 struct BeneficiaryData {
     address beneficiary;
