@@ -5,7 +5,7 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
+import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
 import { EnumerableSet } from "@openzeppelin/utils/structs/EnumerableSet.sol";
 
 struct BeneficiaryData {
@@ -34,7 +34,7 @@ uint256 constant WAD = 1e18;
 
 uint256 constant LOCK_DURATION = 30 days;
 
-contract StreamableFeesLocker is ERC721TokenReceiver, EnumerableSet {
+contract StreamableFeesLocker is ERC721TokenReceiver {
     IPositionManager public immutable positionManager;
 
     mapping(uint256 tokenId => PositionData) public positions;
@@ -76,7 +76,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, EnumerableSet {
 
         positions[tokenId] = PositionData({
             beneficiaries: beneficiaries,
-            startDate: block.timestamp,
+            startDate: uint64(block.timestamp),
             isUnlocked: false,
             recipient: recipient
         });
@@ -119,10 +119,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver, EnumerableSet {
             uint256 amount0 = poolKey.currency0.balanceOfSelf() * shares / WAD;
             uint256 amount1 = poolKey.currency1.balanceOfSelf() * shares / WAD;
 
-            uint256 amount0Claimable =
-                amount0 * timeElapsed / LOCK_DURATION - beneficiaries[i].claimedAmounts.amountClaimed0;
-            uint256 amount1Claimable =
-                amount1 * timeElapsed / LOCK_DURATION - beneficiaries[i].claimedAmounts.amountClaimed1;
+            uint256 amount0Claimable = amount0 * timeElapsed / LOCK_DURATION - beneficiaries[i].amountClaimed0;
+            uint256 amount1Claimable = amount1 * timeElapsed / LOCK_DURATION - beneficiaries[i].amountClaimed1;
 
             beneficiaries[i].amountClaimed0 += amount0Claimable;
             beneficiaries[i].amountClaimed1 += amount1Claimable;
@@ -183,7 +181,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, EnumerableSet {
         require(position.isUnlocked == true, "StreamableFeesLocker: POSITION_NOT_UNLOCKED");
 
         // Transfer the position to the recipient
-        positionManager.safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
+        ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
 
         emit Unlock(tokenId, position.recipient);
     }
