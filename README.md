@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/whetstoneresearch/doppler/actions/workflows/test.yml/badge.svg)](https://github.com/whetstoneresearch/doppler/actions/workflows/test.yml)
 
-This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts.
+This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts. Learn more about it in the [documentation](https://docs.doppler.lol).
 
 ## Usage
 
@@ -15,7 +15,7 @@ First, you will need to install [Foundry](https://book.getfoundry.sh/getting-sta
 $ git clone git@github.com:whetstoneresearch/doppler.git
 
 # Install the dependencies
-$ forge install
+$ make install
 ```
 
 ### Test
