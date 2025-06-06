@@ -46,6 +46,7 @@ contract UniswapV4MigratorTest is Test {
         address token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
 
+        vm.prank(airlock);
         migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing));
 
         /*
@@ -67,6 +68,7 @@ contract UniswapV4MigratorTest is Test {
         address token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
 
+        vm.prank(airlock);
         migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing));
 
         PoolKey memory poolKey = PoolKey({
