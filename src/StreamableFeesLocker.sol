@@ -5,7 +5,7 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { EnumerableSet } from "@openzeppelin/utils/structs/EnumerableSet.sol";
 
 struct BeneficiaryData {
     address beneficiary;
