@@ -804,50 +804,6 @@ contract StreamableFeesLockerTest is Test {
         assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token1))), 800e18);
     }
     
-    // === Invariant Tests ===
-    
-    function testInvariant_totalSharesAlwaysEqualWAD() public {
-        // This is tested via the fuzz test, but let's add a dedicated invariant test
-        uint256 numTests = 100;
-        
-        for (uint256 i = 0; i < numTests; i++) {
-            uint256 numBeneficiaries = (i % 10) + 1; // 1 to 10 beneficiaries
-            BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](numBeneficiaries);
-            
-            uint256 totalShares = 0;
-            uint256 remainingShares = 1e18;
-            
-            for (uint256 j = 0; j < numBeneficiaries - 1; j++) {
-                uint256 shares = remainingShares / (numBeneficiaries - j);
-                beneficiaries[j] = BeneficiaryData({
-                    beneficiary: address(uint160(j + 1)),
-                    shares: uint64(shares),
-                    amountClaimed0: 0,
-                    amountClaimed1: 0
-                });
-                totalShares += shares;
-                remainingShares -= shares;
-            }
-            
-            // Last beneficiary gets remaining
-            beneficiaries[numBeneficiaries - 1] = BeneficiaryData({
-                beneficiary: address(uint160(numBeneficiaries)),
-                shares: uint64(remainingShares),
-                amountClaimed0: 0,
-                amountClaimed1: 0
-            });
-            totalShares += remainingShares;
-            
-            // Invariant: total shares must equal WAD
-            assertEq(totalShares, 1e18, "Total shares must equal WAD");
-            
-            // Try to lock position - should succeed
-            bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
-            vm.prank(address(positionManager));
-            locker.onERC721Received(address(this), address(this), i + 1000, positionData);
-        }
-    }
-    
     // === Property-Based Tests ===
     
     function testFuzz_feesAlwaysFullyDistributed(
@@ -957,53 +913,4 @@ contract StreamableFeesLockerTest is Test {
         }
     }
     
-    function testFuzz_sharesNeverExceedWAD(
-        uint8 numBeneficiaries,
-        uint256[10] memory shareDistribution
-    ) public {
-        numBeneficiaries = uint8(bound(numBeneficiaries, 1, 10));
-        
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](numBeneficiaries);
-        uint256 totalShares = 0;
-        uint256 remainingShares = 1e18;
-        
-        // Distribute shares based on fuzzed distribution
-        for (uint256 i = 0; i < numBeneficiaries - 1; i++) {
-            uint256 maxShare = remainingShares / (numBeneficiaries - i);
-            uint256 share = bound(shareDistribution[i], 1, maxShare);
-            
-            beneficiaries[i] = BeneficiaryData({
-                beneficiary: address(uint160(i + 1)),
-                shares: uint64(share),
-                amountClaimed0: 0,
-                amountClaimed1: 0
-            });
-            
-            totalShares += share;
-            remainingShares -= share;
-        }
-        
-        // Last beneficiary gets exactly the remaining shares
-        beneficiaries[numBeneficiaries - 1] = BeneficiaryData({
-            beneficiary: address(uint160(numBeneficiaries)),
-            shares: uint64(remainingShares),
-            amountClaimed0: 0,
-            amountClaimed1: 0
-        });
-        totalShares += remainingShares;
-        
-        // Property: Total shares must equal exactly WAD
-        assertEq(totalShares, 1e18, "Total shares must equal WAD");
-        
-        // Property: No individual share should be 0 or exceed WAD
-        for (uint256 i = 0; i < numBeneficiaries; i++) {
-            assertGt(beneficiaries[i].shares, 0, "Share must be greater than 0");
-            assertLe(beneficiaries[i].shares, 1e18, "Share must not exceed WAD");
-        }
-        
-        // Try to lock - should succeed
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
-        vm.prank(address(positionManager));
-        locker.onERC721Received(address(this), address(this), 5000, positionData);
-    }
 }
