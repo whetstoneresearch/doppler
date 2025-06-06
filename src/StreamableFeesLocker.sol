@@ -147,8 +147,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver, EnumerableSet {
         uint256 amount1ToRelease = beneficiariesClaims[msg.sender][poolKey.currency1];
 
         // Release the fees
-        poolKey.currency0.transfer(beneficiary, amount0ToRelease);
-        poolKey.currency1.transfer(beneficiary, amount1ToRelease);
+        poolKey.currency0.transfer(msg.sender, amount0ToRelease);
+        poolKey.currency1.transfer(msg.sender, amount1ToRelease);
 
         beneficiariesClaims[msg.sender][poolKey.currency0] = 0;
         beneficiariesClaims[msg.sender][poolKey.currency1] = 0;
