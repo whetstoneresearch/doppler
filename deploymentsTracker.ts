@@ -133,7 +133,6 @@ type Tracker = {
   historyContent += `## History\n`;
 
   trackerContent.history.forEach((deployment) => {
-    console.log(deployment.timestamp * 1000);
     historyContent += `### ${new Date(deployment.timestamp * 1000).toUTCString()} \n`;
     historyContent += '| Contract | Address | Transaction | Commit |\n';
     historyContent += '|---|---|---|---|\n';
