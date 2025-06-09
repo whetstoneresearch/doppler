@@ -2,7 +2,11 @@
 
 [![Test](https://github.com/whetstoneresearch/doppler/actions/workflows/test.yml/badge.svg)](https://github.com/whetstoneresearch/doppler/actions/workflows/test.yml)
 
-This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts. Learn more about it in the [documentation](https://docs.doppler.lol).
+This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts You can learn more about the technical aspects in the [documentation](https://docs.doppler.lol).
+
+## Deployments
+
+Deployments are listed in the [Deployments](https://docs.doppler.lol/resources/contract-addresses) section of the documentation.
 
 ## Usage
 
@@ -18,14 +22,20 @@ $ git clone git@github.com:whetstoneresearch/doppler.git
 $ make install
 ```
 
-### Test
+### Testing
 
 ```shell
-# Create a .env file for the configuration, don't forget to add an RPC endpoint for Mainnet
+# Copy the example a .env file and fill the RPC endpoints
 $ cp .env.example .env
 
 # Then run the tests
-$ forge test
+$ make test
+
+# You can also only run the invariant tests
+$ make fuzz
+
+# And even run longer fuzz tests
+$ make deep-fuzz
 ```
 
 Tests can be tweaked from the `.env` file, this is a nice way to try different testing scenarios without recompiling the contracts:
@@ -36,76 +46,28 @@ USING_ETH=FALSE
 FEE=30
 ```
 
-### Deploy
+### Deploying
 
-Deploying can take different forms depending on what one wants to do, the three main cases being:
+Deployment scripts are provided to either deploy the whole protocol or only some specific modules, if you find them in the [script](/script) folder. Note that you will also need to install [Bun](https://bun.sh/), as some internal scripts are written in TypeScript to update the deploment logs and the documentation.
 
-- Deploying the whole protocol, for example on a testnet or on a new production chain
-- Deploying a new _periphery_ contract, (e.g. `Bundler`)
-- Deploying a new module, (e.g. `UniswapV4Initializer`)
-
-In most cases, dedicated scripts are provided in the `script` folder and all require some base set up:
+Then make sure to set the required environment variables in the `.env` file before running the deployment scripts, once you're done, you can run the following command to deploy the contracts:
 
 ```shell
-# If you haven't done it yet, create your own .env file by copying the given example
-$ cp .env.example .env
-```
+# Deploy the protocol on Base
+make deploy-base
 
-Then using your favorite editor, edit the `.env` file and set the following variables:
+# Deploy the protocol on Unichain
+make deploy-unichain
 
-```shell
-# Private key of the wallet used to deploy the contracts
-PRIVATE_KEY=0x...
+# Deploy the protocol on Ink
+make deploy-ink
 
+# Deploy V4 support on Base
+make deploy-v4-base
 
-```
+# Deploy V4 support on Unichain
+make deploy-v4-unichain
 
-#### Deploying the whole protocol
-
-See `Deploy.s.sol`.
-
-#### Deploying a new periphery contract
-
-Deploying a new periphery contract should be as simple as running its script. For example,
-
-#### Deploying a new module
-
-Deploying a new module is slightly different than deploying a periphery contract, as an extra step is required: the module must be registered in the `Airlock` contract. This is done by calling the `setModuleState` function of the `Airlock` contract and passing the address of the new module along its type (`TokenFactory` or `PoolInitializer` for example).
-In our case, the protocol multisig being the admin of the `Airlock`, the transaction must be executed via the Safe interface.
-
-```shell
-# --rpc-url is the chain you want to deploy to
-# --private-key is the deployer wallet (not the owner)
-forge script ./script/V1DeploymentScript.s.sol --rpc-url https://... --private-key 0x... --broadcast
-```
-
-```shell
-# First load the environment variables
-source .env
-
-# Then use any of the following commands to deploy the contracts on the desired network
-
-# Ink Mainnet
-forge script ./script/DeployMainnet.s.sol --private-key $PRIVATE_KEY --rpc-url $INK_MAINNET_RPC_URL --verify --verifier blockscout --verifier-url $INK_MAINNET_VERIFIER_URL --broadcast --slow
-
-# Base Mainnet
-forge script ./script/DeployMainnet.s.sol --private-key $PRIVATE_KEY --rpc-url $BASE_MAINNET_RPC_URL --verify --verifier blockscout --verifier-url $BASE_MAINNET_VERIFIER_URL --broadcast --slow
-
-# Unichain Sepolia
-forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $UNICHAIN_SEPOLIA_VERIFIER_URL --broadcast --slow
-
-# Base Sepolia
-forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $BASE_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $BASE_SEPOLIA_VERIFIER_URL --broadcast --slow
-
-# World Sepolia
-forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $WORLD_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $WORLD_SEPOLIA_VERIFIER_URL --broadcast --slow
-
-# Ink Sepolia
-forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $INK_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $INK_SEPOLIA_VERIFIER_URL --broadcast --slow
-
-# Arbitrum Sepolia
-forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $ARBITRUM_SEPOLIA_RPC_URL --verify --verifier blockscout --verifier-url $ARBITRUM_SEPOLIA_VERIFIER_URL --broadcast --slow
-
-# Monad Testnet
-forge script ./script/DeployTestnet.s.sol --private-key $PRIVATE_KEY --rpc-url $MONAD_TESTNET_RPC_URL --verify --verifier sourcify --verifier-url $MONAD_TESTNET_VERIFIER_URL --broadcast --slow
+# Deploy V4 support on Ink
+make deploy-v4-ink
 ```
