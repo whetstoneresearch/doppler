@@ -79,9 +79,9 @@ const chains: {[chainId: string]: ChainDetails } = {
   });
 
   // Then we're making a list of historical deployments
-  content += `## Previous deployments\n`;
+  content += `## History\n`;
 
-  const timestamps: {[key: number]: Deployment[]} = {};
+  let timestamps: {[key: number]: Deployment[]} = {};
 
   tracker.deployments.forEach((d) => {
     if (!timestamps[d.timestamp]) {
@@ -90,19 +90,20 @@ const chains: {[chainId: string]: ChainDetails } = {
     timestamps[d.timestamp].push(d);
   });
 
-  Object.values(timestamps).forEach((t) => {
-      content += `### ${new Date(t[0].timestamp * 1000).toUTCString()}\n`;
-      content += `| Contract | Address | Transaction | Commit |\n`;
-      content += '|---|---|---|---|\n';
-
-      t.forEach((d) => {
-        content += `| ${d.contractName}`;
-        content += ` | [${d.contractAddress}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
-        content += ` | [${d.hash.slice(0, 6)}...${d.hash.substring(d.hash.length - 5, d.hash.length - 1)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
-        content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
-        content += ` | \n`;
-      });
-  });    
+  for (let i = Object.values(timestamps).length - 1; i != 0; i--) {
+    const t = Object.values(timestamps)[i];
+    content += `### ${new Date(t[0].timestamp).toUTCString()}\n`;
+    content += `| Contract | Address | Transaction | Commit |\n`;
+    content += '|---|---|---|---|\n';
+  
+    t.forEach((d) => {
+      content += `| ${d.contractName}`;
+      content += ` | [${d.contractAddress}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
+      content += ` | [${d.hash.slice(0, 6)}...${d.hash.substring(d.hash.length - 5, d.hash.length - 1)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
+      content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
+      content += ` | \n`;
+    });
+  }  
 
   // And we save the file!
   await Bun.write(
