@@ -113,7 +113,7 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
         
         vm.prank(address(positionManager));
-        vm.expectRevert("No beneficiaries provided");
+        vm.expectRevert("StreamableFeesLocker: ZERO_BENEFICIARIES");
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
     
