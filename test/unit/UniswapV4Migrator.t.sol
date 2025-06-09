@@ -11,8 +11,8 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { UniswapV4Migrator, AssetData } from "src/UniswapV4Migrator.sol";
+import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
 contract UniswapV4MigratorTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -42,22 +42,35 @@ contract UniswapV4MigratorTest is Test {
         int24 tickSpacing = 8;
         uint24 fee = 3000;
 
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({
+            beneficiary: address(0x1),
+            shares: 1e18,
+            amountClaimed0: 0,
+            amountClaimed1: 0
+        });
+
         address token0 = address(asset);
         address token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
 
         vm.prank(airlock);
-        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing));
+        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, beneficiaries));
 
-        /*
-        (Currency currency0_, Currency currency1_, uint24 fee_, int24 tickSpacing_, IHooks hooks_) =
-            migrator.getPoolKeyForPair(token0, token1);
-        assertEq(Currency.unwrap(currency0_), token0);
-        assertEq(Currency.unwrap(currency1_), token1);
-        assertEq(fee_, fee);
-        assertEq(tickSpacing_, tickSpacing);
-        assertEq(address(hooks_), address(0));
-        */
+        AssetData memory storedData = migrator.getAssetData(token0, token1);
+        assertEq(Currency.unwrap(storedData.poolKey.currency0), token0);
+        assertEq(Currency.unwrap(storedData.poolKey.currency1), token1);
+        assertEq(storedData.poolKey.fee, fee);
+        assertEq(storedData.poolKey.tickSpacing, tickSpacing);
+        assertEq(address(storedData.poolKey.hooks), address(0));
+
+
+        // (PoolKey memory poolKey, BeneficiaryData[] memory beneficiaties) =  migrator.getAssetData(token0, token1);
+        // assertEq(Currency.unwrap(poolKey.currency0), token0);
+        // assertEq(Currency.unwrap(poolKey.currency1), token1);
+        // assertEq(poolKey.fee, fee);
+        // assertEq(poolKey.tickSpacing, tickSpacing);
+        // assertEq(address(poolKey.hooks), address(0));
     }
 
     function test_migrate_MigratesToUniV4() public {
