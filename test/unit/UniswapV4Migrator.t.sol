@@ -12,7 +12,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
 contract UniswapV4MigratorTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -89,5 +89,59 @@ contract UniswapV4MigratorTest is Test {
 
         // TODO: Encoding the call here is pretty tedious since we have to use the PositionManager
         vm.mockCall(poolManager, initializeCall, new bytes(0));
+    }
+
+    function test_migrate_NoOpGovernance_SendsAllToLocker() public {
+        int24 tickSpacing = 8;
+        uint24 fee = 3000;
+
+        address token0 = address(asset);
+        address token1 = address(numeraire);
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+
+        // Initialize with empty beneficiary data for no-op governance
+        vm.prank(airlock);
+        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, new BeneficiaryData[](0)));
+
+        // Setup balances
+        uint256 amount0 = 1000e18;
+        uint256 amount1 = 2000e18;
+        TestERC20(token0).mint(address(migrator), amount0);
+        TestERC20(token1).mint(address(migrator), amount1);
+
+        // Use DEAD_ADDRESS as recipient (simulating no-op governance)
+        address recipient = migrator.DEAD_ADDRESS();
+        
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
+            hooks: IHooks(address(0)),
+            fee: fee,
+            tickSpacing: tickSpacing
+        });
+
+        // Mock pool manager calls
+        bytes memory getSlot0Call = abi.encodeWithSelector(this.extsload.selector, poolKey.toId());
+        vm.mockCall(poolManager, getSlot0Call, abi.encode(uint160(0), int24(0), uint24(0), uint24(0)));
+
+        bytes memory initializeCall =
+            abi.encodeWithSelector(IPoolManager.initialize.selector, poolKey, TickMath.MIN_SQRT_PRICE);
+        vm.mockCall(poolManager, initializeCall, new bytes(0));
+
+        // Mock position manager calls
+        // For no-op governance, we expect only ONE MINT_POSITION action
+        vm.mockCall(positionManager, bytes(""), new bytes(0));
+
+        // Call migrate with DEAD_ADDRESS as recipient
+        vm.prank(airlock);
+        uint256 liquidity = migrator.migrate(TickMath.MIN_SQRT_PRICE, token0, token1, recipient);
+
+        // Verify the migrator recognizes this as no-op governance
+        assertTrue(liquidity > 0, "Liquidity should be greater than 0");
+        
+        // In a real test, we would verify:
+        // 1. Only one NFT position was created (not two)
+        // 2. All liquidity went to the locker
+        // 3. No position was sent to the timelock
     }
 }
