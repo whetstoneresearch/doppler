@@ -57,20 +57,21 @@ contract UniswapV4MigratorTest is Test {
         vm.prank(airlock);
         migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, beneficiaries));
 
-        AssetData memory storedData = migrator.getAssetData(token0, token1);
-        assertEq(Currency.unwrap(storedData.poolKey.currency0), token0);
-        assertEq(Currency.unwrap(storedData.poolKey.currency1), token1);
-        assertEq(storedData.poolKey.fee, fee);
-        assertEq(storedData.poolKey.tickSpacing, tickSpacing);
-        assertEq(address(storedData.poolKey.hooks), address(0));
+        // AssetData memory storedData = migrator.getAssetData(token0, token1);
+        // assertEq(Currency.unwrap(storedData.poolKey.currency0), token0);
+        // assertEq(Currency.unwrap(storedData.poolKey.currency1), token1);
+        // assertEq(storedData.poolKey.fee, fee);
+        // assertEq(storedData.poolKey.tickSpacing, tickSpacing);
+        // assertEq(address(storedData.poolKey.hooks), address(0));
 
 
-        // (PoolKey memory poolKey, BeneficiaryData[] memory beneficiaties) =  migrator.getAssetData(token0, token1);
-        // assertEq(Currency.unwrap(poolKey.currency0), token0);
-        // assertEq(Currency.unwrap(poolKey.currency1), token1);
-        // assertEq(poolKey.fee, fee);
-        // assertEq(poolKey.tickSpacing, tickSpacing);
-        // assertEq(address(poolKey.hooks), address(0));
+        //(PoolKey memory poolKey, BeneficiaryData[] memory beneficiaties) =  migrator.getAssetData(token0, token1);
+        PoolKey memory poolKey =  migrator.getAssetData(token0, token1);
+        assertEq(Currency.unwrap(poolKey.currency0), token0);
+        assertEq(Currency.unwrap(poolKey.currency1), token1);
+        assertEq(poolKey.fee, fee);
+        assertEq(poolKey.tickSpacing, tickSpacing);
+        assertEq(address(poolKey.hooks), address(0));
     }
 
     function test_migrate_MigratesToUniV4() public {
