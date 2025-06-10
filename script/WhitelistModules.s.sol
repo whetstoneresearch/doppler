@@ -34,7 +34,7 @@ contract WhitelistModulesScript is Script {
         require(modules.length == states.length, "Modules and states arrays must have the same length");
         require(modules.length > 0, "Must provide at least one module to whitelist");
         
-        Airlock airlock = Airlock(airlockAddress);
+        Airlock airlock = Airlock(payable(airlockAddress));
         
         // Convert uint8 array to ModuleState array
         ModuleState[] memory moduleStates = new ModuleState[](states.length);
