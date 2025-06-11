@@ -827,8 +827,9 @@ contract StreamableFeesLockerTest is Test {
         locker.distributeFees(TOKEN_ID);
         
         // Verify the position is marked as unlocked but NFT not transferred
-        (,, bool isUnlocked,) = locker.positions(TOKEN_ID);
+        (, uint64 startDate, bool isUnlocked, address recipient) = locker.positions(TOKEN_ID);
         assertTrue(isUnlocked, "Position should be marked as unlocked");
+        assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");
         
         // Verify beneficiaries received their shares
         uint256 expectedClaim0_B1 = 600e18; // 60% of 1000e18
