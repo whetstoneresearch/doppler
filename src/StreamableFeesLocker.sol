@@ -7,13 +7,19 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
 
+/// @notice Data structure for beneficiary information
+/// @param beneficiary Address of the beneficiary
+/// @param shares Share of fees allocated to this beneficiary (in WAD)
 struct BeneficiaryData {
     address beneficiary;
     uint64 shares;
-    uint256 amountClaimed0;
-    uint256 amountClaimed1;
 }
 
+/// @notice Data structure for position information
+/// @param beneficiaries Array of beneficiaries and their shares
+/// @param startDate Timestamp when the position was locked
+/// @param isUnlocked Whether the position has been unlocked
+/// @param recipient Address that will receive the NFT after unlocking
 struct PositionData {
     BeneficiaryData[] beneficiaries;
     uint64 startDate;
@@ -21,30 +27,62 @@ struct PositionData {
     address recipient;
 }
 
-event Lock(uint256 indexed tokenId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
-
-event Unlock(uint256 indexed tokenId, address recipient);
-
-event Release(uint256 indexed tokenId, address beneficiary, uint256 amount0, uint256 amount1);
-
-event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address newBeneficiary);
-
-uint256 constant WAD = 1e18;
-
-uint256 constant LOCK_DURATION = 30 days;
-
+/// @title StreamableFeesLocker
+/// @notice A contract that manages fee streaming for Uniswap V4 positions
+/// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
+/// @dev Uses a time-based distribution mechanism to ensure fair fee distribution
 contract StreamableFeesLocker is ERC721TokenReceiver {
+    /// @notice Emitted when a position is locked
+    /// @param tokenId The ID of the locked position
+    /// @param beneficiaries Array of beneficiaries and their shares
+    /// @param unlockDate Timestamp when the position will be unlocked
+    event Lock(uint256 indexed tokenId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
+
+    /// @notice Emitted when a position is unlocked
+    /// @param tokenId The ID of the unlocked position
+    /// @param recipient Address that received the NFT
+    event Unlock(uint256 indexed tokenId, address recipient);
+
+    /// @notice Emitted when fees are released to a beneficiary
+    /// @param tokenId The ID of the position
+    /// @param beneficiary Address that received the fees
+    /// @param amount0 Amount of token0 released
+    /// @param amount1 Amount of token1 released
+    event Release(uint256 indexed tokenId, address beneficiary, uint256 amount0, uint256 amount1);
+
+    /// @notice Emitted when a beneficiary is updated
+    /// @param tokenId The ID of the position
+    /// @param oldBeneficiary Previous beneficiary address
+    /// @param newBeneficiary New beneficiary address
+    event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address newBeneficiary);
+
+    /// @notice WAD constant for precise decimal calculations
+    uint256 constant WAD = 1e18;
+
+    /// @notice Duration for which positions are locked
+    uint256 constant LOCK_DURATION = 30 days;
+
+    /// @notice Address of the Uniswap V4 position manager
     IPositionManager public immutable positionManager;
 
+    /// @notice Mapping of token IDs to their position data
     mapping(uint256 tokenId => PositionData) public positions;
+
+    /// @notice Mapping of beneficiary addresses to their claimable balances for each currency
     mapping(address beneficiary => mapping(Currency currency => uint256 releasableBalance)) public beneficiariesClaims;
 
+    /// @notice Mapping of currency balances in the contract
+    mapping(Currency currency => uint256 balanceOfSelf) public currencyBalances;
+
+    /// @notice Constructor
+    /// @param positionManager_ Address of the Uniswap V4 position manager
     constructor(
         IPositionManager positionManager_
     ) {
         positionManager = positionManager_;
     }
 
+    /// @notice Modifier to restrict function access to the position manager
     modifier onlyPositionManager() {
         if (msg.sender != address(positionManager)) {
             revert("StreamableFeesLocker: ONLY_POSITION_MANAGER");
@@ -52,6 +90,10 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         _;
     }
 
+    /// @notice Handles incoming ERC721 tokens and initializes position data
+    /// @param tokenId ID of the token being transferred
+    /// @param positionData Encoded data containing recipient and beneficiaries
+    /// @return bytes4 The ERC721 receiver selector
     function onERC721Received(
         address,
         address,
@@ -87,7 +129,9 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         return ERC721TokenReceiver.onERC721Received.selector;
     }
 
-    function accrueFees(
+    /// @notice Accrues and distributes fees for a position
+    /// @param tokenId ID of the position to accrue fees for
+    function distributeFees(
         uint256 tokenId
     ) external {
         PositionData memory position = positions[tokenId];
@@ -107,42 +151,47 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
 
         BeneficiaryData[] memory beneficiaries = position.beneficiaries;
 
-        uint256 length = beneficiaries.length;
-        for (uint256 i; i != length; ++i) {
-            address beneficiary = beneficiaries[i].beneficiary;
+        (uint256 currency0ToDistribute, uint256 currency1ToDistribute) = _updateCurrencyBalances(position, poolKey);
+
+        uint256 amount0Distributed;
+        uint256 amount1Distributed;
+        address beneficiary;
+        for (uint256 i; i < beneficiaries.length; ++i) {
+            beneficiary = beneficiaries[i].beneficiary;
             uint256 shares = beneficiaries[i].shares;
 
-            uint256 timeElapsed = block.timestamp > position.startDate + LOCK_DURATION
-                ? LOCK_DURATION
-                : block.timestamp - position.startDate;
+            // Calculate share of fees for this beneficiary
+            uint256 amount0 = currency0ToDistribute * shares / WAD;
+            uint256 amount1 = currency1ToDistribute * shares / WAD;
 
-            // TODO: This might leave some dust, so we might want to check the pre / post balances
-            // and send the dust to the last beneficiary
-            uint256 amount0 = poolKey.currency0.balanceOfSelf() * shares / WAD;
-            uint256 amount1 = poolKey.currency1.balanceOfSelf() * shares / WAD;
+            _distributeFees(beneficiary, poolKey, amount0, amount1);
 
-            uint256 amount0Claimable = amount0 * timeElapsed / LOCK_DURATION - beneficiaries[i].amountClaimed0;
-            uint256 amount1Claimable = amount1 * timeElapsed / LOCK_DURATION - beneficiaries[i].amountClaimed1;
+            amount0Distributed += amount0;
+            amount1Distributed += amount1;
+        }
 
-            beneficiaries[i].amountClaimed0 += amount0Claimable;
-            beneficiaries[i].amountClaimed1 += amount1Claimable;
+        // Distribute the remaining fees to the last beneficiary
+        uint256 amount0Remaining =
+            currency0ToDistribute > amount0Distributed ? currency0ToDistribute - amount0Distributed : 0;
+        uint256 amount1Remaining =
+            currency1ToDistribute > amount1Distributed ? currency1ToDistribute - amount1Distributed : 0;
+        _distributeFees(beneficiary, poolKey, amount0Remaining, amount1Remaining);
 
-            // Update the position's beneficiary data
-            position.beneficiaries[i].amountClaimed0 = beneficiaries[i].amountClaimed0;
-            position.beneficiaries[i].amountClaimed1 = beneficiaries[i].amountClaimed1;
+        if (block.timestamp >= position.startDate + LOCK_DURATION) {
+            position.isUnlocked = true;
 
-            beneficiariesClaims[beneficiary][poolKey.currency0] += amount0Claimable;
-            beneficiariesClaims[beneficiary][poolKey.currency1] += amount1Claimable;
+            // Transfer the position to the recipient
+            ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
 
-            if (timeElapsed == LOCK_DURATION) {
-                position.isUnlocked = true;
-            }
+            emit Unlock(tokenId, position.recipient);
         }
 
         // Update the position in storage
         positions[tokenId] = position;
     }
 
+    /// @notice Releases accrued fees to the caller
+    /// @param tokenId ID of the position to release fees from
     function releaseFees(
         uint256 tokenId
     ) external {
@@ -160,23 +209,66 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         }
         require(isBeneficiary, "StreamableFeesLocker: NOT_BENEFICIARY");
 
+        _releaseFees(tokenId, msg.sender);
+    }
+
+    /// @notice Updates currency balances and calculates distributable amounts
+    /// @param position Current position data
+    /// @param poolKey Pool information
+    /// @return amount0ToDistribute Amount of token0 to distribute
+    /// @return amount1ToDistribute Amount of token1 to distribute
+    function _updateCurrencyBalances(
+        PositionData memory position,
+        PoolKey memory poolKey
+    ) internal returns (uint256 amount0ToDistribute, uint256 amount1ToDistribute) {
+        // Calculate the amount of fees to distribute
+        amount0ToDistribute = poolKey.currency0.balanceOfSelf() - currencyBalances[poolKey.currency0];
+        amount1ToDistribute = poolKey.currency1.balanceOfSelf() - currencyBalances[poolKey.currency1];
+
+        // Update the global balance
+        currencyBalances[poolKey.currency0] += amount0ToDistribute;
+        currencyBalances[poolKey.currency1] += amount1ToDistribute;
+    }
+
+    /// @notice Distributes fees to a beneficiary
+    /// @param beneficiary Address to distribute fees to
+    /// @param poolKey Pool information
+    /// @param amount0 Amount of token0 to distribute
+    /// @param amount1 Amount of token1 to distribute
+    function _distributeFees(address beneficiary, PoolKey memory poolKey, uint256 amount0, uint256 amount1) internal {
+        beneficiariesClaims[beneficiary][poolKey.currency0] += amount0;
+        beneficiariesClaims[beneficiary][poolKey.currency1] += amount1;
+    }
+
+    /// @notice Releases fees to a beneficiary
+    /// @param tokenId ID of the position
+    /// @param beneficiary Address to release fees to
+    function _releaseFees(uint256 tokenId, address beneficiary) internal {
         // Get pool info
         (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
 
         // Get the amount of fees to release
-        uint256 amount0ToRelease = beneficiariesClaims[msg.sender][poolKey.currency0];
-        uint256 amount1ToRelease = beneficiariesClaims[msg.sender][poolKey.currency1];
+        uint256 amount0ToRelease = beneficiariesClaims[beneficiary][poolKey.currency0];
+        uint256 amount1ToRelease = beneficiariesClaims[beneficiary][poolKey.currency1];
 
         // Release the fees
-        poolKey.currency0.transfer(msg.sender, amount0ToRelease);
-        poolKey.currency1.transfer(msg.sender, amount1ToRelease);
+        poolKey.currency0.transfer(beneficiary, amount0ToRelease);
+        poolKey.currency1.transfer(beneficiary, amount1ToRelease);
 
-        beneficiariesClaims[msg.sender][poolKey.currency0] = 0;
-        beneficiariesClaims[msg.sender][poolKey.currency1] = 0;
+        // Reset the claims
+        beneficiariesClaims[beneficiary][poolKey.currency0] = 0;
+        beneficiariesClaims[beneficiary][poolKey.currency1] = 0;
 
-        emit Release(tokenId, msg.sender, amount0ToRelease, amount1ToRelease);
+        // Update currency balances
+        currencyBalances[poolKey.currency0] -= amount0ToRelease;
+        currencyBalances[poolKey.currency1] -= amount1ToRelease;
+
+        emit Release(tokenId, beneficiary, amount0ToRelease, amount1ToRelease);
     }
 
+    /// @notice Updates the beneficiary address for a position
+    /// @param tokenId ID of the position
+    /// @param newBeneficiary New beneficiary address
     function updateBeneficiary(uint256 tokenId, address newBeneficiary) external {
         // Get position data
         PositionData memory position = positions[tokenId];
@@ -188,6 +280,10 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         bool found = false;
         for (uint256 i; i != length; ++i) {
             if (position.beneficiaries[i].beneficiary == msg.sender) {
+                // Release fees for the old beneficiary
+                _releaseFees(tokenId, msg.sender);
+
+                // Update the beneficiary
                 position.beneficiaries[i].beneficiary = newBeneficiary;
                 found = true;
                 break;
@@ -199,19 +295,5 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         positions[tokenId] = position;
 
         emit UpdateBeneficiary(tokenId, msg.sender, newBeneficiary);
-    }
-
-    function unlock(
-        uint256 tokenId
-    ) external {
-        // Get token position and unlock it
-        PositionData memory position = positions[tokenId];
-        require(position.startDate != 0, "StreamableFeesLocker: POSITION_NOT_FOUND");
-        require(position.isUnlocked == true, "StreamableFeesLocker: POSITION_NOT_UNLOCKED");
-
-        // Transfer the position to the recipient
-        ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
-
-        emit Unlock(tokenId, position.recipient);
     }
 }
