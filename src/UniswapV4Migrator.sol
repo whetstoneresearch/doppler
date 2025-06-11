@@ -17,27 +17,52 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 
+/**
+ * @notice Data to use for the migration
+ * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
+ * @param beneficiaries Array of beneficiaries used by the locker contract
+ */
 struct AssetData {
     PoolKey poolKey;
     BeneficiaryData[] beneficiaries;
 }
 
+/// @dev Thrown when the tick is out of range for the pool
 error TickOutOfRange();
 
+/// @dev Thrown when the computed liquidity is zero
 error ZeroLiquidity();
 
+/**
+ * @title Uniswap V4 Migrator
+ * @author Whetstone Research
+ * @notice Module contract to migrate liquidity from a Doppler Dutch auction pool to a
+ * regular Uniswap V4 pool
+ */
 contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
+    /// @notice Address of the Uniswap V4 Pool Manager contract
     IPoolManager public immutable poolManager;
+
+    /// @notice Address of the Uniswap V4 Position Manager contract
     PositionManager public immutable positionManager;
+
+    /// @notice Address of the Streamable Fees Locker
     StreamableFeesLocker public immutable locker;
 
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
 
     receive() external payable { }
 
+    /**
+     *
+     * @param airlock_ Address of the Airlock contract
+     * @param poolManager_ Address of the Uniswap V4 Pool Manager contract
+     * @param positionManager_ Address of the Uniswap V4 Position Manager contract
+     * @param locker_ Address of the Streamable Fees Locker contract
+     */
     constructor(
         address airlock_,
         address poolManager_,
@@ -49,6 +74,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         locker = locker_;
     }
 
+    /// @inheritdoc ILiquidityMigrator
     function initialize(
         address asset,
         address numeraire,
@@ -71,6 +97,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         return address(0);
     }
 
+    /// @inheritdoc ILiquidityMigrator
     function migrate(
         uint160 sqrtPriceX96,
         address token0,
