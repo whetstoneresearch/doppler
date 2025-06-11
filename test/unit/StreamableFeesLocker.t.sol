@@ -792,7 +792,6 @@ contract StreamableFeesLockerTest is Test {
 
         // Lock the position
         vm.prank(address(positionManager));
-        vm.prank(address(positionManager));
         locker.onERC721Received(address(0), address(0), TOKEN_ID, positionData);
 
         // Setup mocks
