@@ -85,9 +85,9 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         );
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(airlock), shares: 0.05e18, amountClaimed0: 0, amountClaimed1: 0 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18, amountClaimed0: 0, amountClaimed1: 0 });
-        beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18, amountClaimed0: 0, amountClaimed1: 0 });
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(airlock), shares: 0.05e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
 
         bytes memory migratorData = abi.encode(2000, 8, beneficiaries);
 
