@@ -128,8 +128,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     /// @param positionData Encoded data containing recipient and beneficiaries
     /// @return bytes4 The ERC721 receiver selector
     function onERC721Received(
-        address,
-        address,
+        address, // operator (unused)
+        address, // from (unused)
         uint256 tokenId,
         bytes calldata positionData
     ) external override onlyPositionManager returns (bytes4) {
@@ -137,12 +137,6 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
             abi.decode(positionData, (address, BeneficiaryData[]));
         require(beneficiaries.length > 0, InvalidLength());
         require(recipient != address(0), InvalidAddress());
-
-        // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
-        // and beneficiaries can collect fees in perpetuity
-
-        // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
-        // and beneficiaries can collect fees in perpetuity
 
         uint256 totalShares;
         for (uint256 i; i != beneficiaries.length; ++i) {
@@ -154,6 +148,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
 
         require(totalShares == WAD, InvalidTotalShares());
 
+        // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
+        // and beneficiaries can collect fees in perpetuity
         positions[tokenId] = PositionData({
             beneficiaries: beneficiaries,
             startDate: uint64(block.timestamp),
@@ -214,19 +210,15 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
             currency1ToDistribute > amount1Distributed ? currency1ToDistribute - amount1Distributed : 0;
         _distributeFees(beneficiary, poolKey, amount0Remaining, amount1Remaining);
 
-        if (block.timestamp >= position.startDate + LOCK_DURATION) {
+        // Note: For no-op governance, if recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
+        // and beneficiaries can collect fees in perpetuity
+        if (block.timestamp >= position.startDate + LOCK_DURATION && position.recipient != DEAD_ADDRESS) {
             position.isUnlocked = true;
 
-            // For no-op governance (recipient is dead address), keep the NFT locked forever
-            // This allows beneficiaries to collect fees in perpetuity
-            if (position.recipient != DEAD_ADDRESS) {
-                // Transfer the position to the recipient
-                ERC721(address(positionManager)).safeTransferFrom(
-                    address(this), position.recipient, tokenId, new bytes(0)
-                );
+            // Transfer the position to the recipient
+            ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
 
-                emit Unlock(tokenId, position.recipient);
-            }
+            emit Unlock(tokenId, position.recipient);
         }
 
         // Update the position in storage

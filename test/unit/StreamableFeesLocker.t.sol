@@ -835,9 +835,10 @@ contract StreamableFeesLockerTest is Test {
         // Distribute fees - should NOT transfer the NFT because recipient is DEAD_ADDRESS
         locker.distributeFees(TOKEN_ID);
 
-        // Verify the position is marked as unlocked but NFT not transferred
+        // Verify the position is marked as locked and NFT not transferred
         (uint64 startDate, bool isUnlocked, address recipient) = locker.positions(TOKEN_ID);
-        assertTrue(isUnlocked, "Position should be marked as unlocked");
+        assertGt(startDate, 0, "Start date should be greater than 0");
+        assertFalse(isUnlocked, "Position should remain locked after we pass lock duration");
         assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");
 
         // Verify beneficiaries received their shares
@@ -856,8 +857,27 @@ contract StreamableFeesLockerTest is Test {
         token0.transfer(address(locker), 500e18);
         token1.transfer(address(locker), 300e18);
 
-        // Try to distribute fees again - should fail because position is already unlocked
-        vm.expectRevert(abi.encodeWithSelector(PositionAlreadyUnlocked.selector));
+        // Fast forward past lock duration
+        vm.warp(block.timestamp + (LOCK_DURATION * 2));
+
+        // Try to distribute fees again which should succeed because the NFT is permanently locked.
         locker.distributeFees(TOKEN_ID);
+
+        // Verify the position is marked as locked and NFT not transferred
+        (startDate, isUnlocked, recipient) = locker.positions(TOKEN_ID);
+        assertGt(startDate, 0, "Start date should be greater than 0");
+        assertFalse(isUnlocked, "Position should remain locked after we pass lock duration");
+        assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");
+
+        // Verify beneficiaries received their shares
+        expectedClaim0_B1 = 900e18; // 60% of 1000e18
+        expectedClaim1_B1 = 1380e18; // 60% of 2000e18
+        expectedClaim0_B2 = 600e18; // 40% of 1000e18
+        expectedClaim1_B2 = 920e18; // 40% of 2000e18
+
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token0))), expectedClaim0_B1);
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token1))), expectedClaim1_B1);
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_2, Currency.wrap(address(token0))), expectedClaim0_B2);
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_2, Currency.wrap(address(token1))), expectedClaim1_B2);
     }
 }
