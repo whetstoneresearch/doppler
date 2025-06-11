@@ -773,4 +773,81 @@ contract StreamableFeesLockerTest is Test {
             );
         }
     }
+
+    function test_NoOpGovernance_PermanentLock() public {
+        // Create beneficiaries for a no-op governance position
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({
+            beneficiary: BENEFICIARY_1,
+            shares: 0.6e18  // 60%
+        });
+        beneficiaries[1] = BeneficiaryData({
+            beneficiary: BENEFICIARY_2,
+            shares: 0.4e18  // 40%
+        });
+        
+        // Use DEAD_ADDRESS as recipient for no-op governance
+        address DEAD_ADDRESS = address(0xdead);
+        bytes memory positionData = abi.encode(DEAD_ADDRESS, beneficiaries);
+        
+        // Lock the position
+        vm.prank(address(positionManager));
+        vm.prank(address(positionManager));
+        locker.onERC721Received(address(0), address(0), TOKEN_ID, positionData);
+        
+        // Setup mocks
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+        
+        vm.mockCall(
+            address(positionManager),
+            abi.encodeWithSelector(IPositionManager.getPoolAndPositionInfo.selector, TOKEN_ID),
+            abi.encode(poolKey, 0)
+        );
+        
+        vm.mockCall(
+            address(positionManager),
+            abi.encodeWithSelector(IPositionManager.modifyLiquidities.selector),
+            abi.encode()
+        );
+        
+        // Send tokens to locker to simulate fees
+        token0.transfer(address(locker), 1000e18);
+        token1.transfer(address(locker), 2000e18);
+        
+        // Fast forward past lock duration
+        vm.warp(block.timestamp + LOCK_DURATION + 1);
+        
+        // Distribute fees - should NOT transfer the NFT because recipient is DEAD_ADDRESS
+        locker.distributeFees(TOKEN_ID);
+        
+        // Verify the position is marked as unlocked but NFT not transferred
+        (,, bool isUnlocked,) = locker.positions(TOKEN_ID);
+        assertTrue(isUnlocked, "Position should be marked as unlocked");
+        
+        // Verify beneficiaries received their shares
+        uint256 expectedClaim0_B1 = 600e18; // 60% of 1000e18
+        uint256 expectedClaim1_B1 = 1200e18; // 60% of 2000e18
+        uint256 expectedClaim0_B2 = 400e18; // 40% of 1000e18
+        uint256 expectedClaim1_B2 = 800e18; // 40% of 2000e18
+        
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token0))), expectedClaim0_B1);
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token1))), expectedClaim1_B1);
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_2, Currency.wrap(address(token0))), expectedClaim0_B2);
+        assertEq(locker.beneficiariesClaims(BENEFICIARY_2, Currency.wrap(address(token1))), expectedClaim1_B2);
+        
+        // Beneficiaries should still be able to collect more fees in the future
+        // Send more tokens and distribute again
+        token0.transfer(address(locker), 500e18);
+        token1.transfer(address(locker), 300e18);
+        
+        // Try to distribute fees again - should fail because position is already unlocked
+        vm.expectRevert("StreamableFeesLocker: POSITION_ALREADY_UNLOCKED");
+        locker.distributeFees(TOKEN_ID);
+    }
 }

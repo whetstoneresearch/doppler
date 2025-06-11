@@ -30,7 +30,7 @@ struct PositionData {
 /// @title StreamableFeesLocker
 /// @notice A contract that manages fee streaming for Uniswap V4 positions
 /// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
-/// @dev Uses a time-based distribution mechanism to ensure fair fee distribution
+/// @dev Uses instant distribution mechanism for fees
 contract StreamableFeesLocker is ERC721TokenReceiver {
     /// @notice Emitted when a position is locked
     /// @param tokenId The ID of the locked position
@@ -67,6 +67,9 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
 
     /// @notice Duration for which positions are locked
     uint256 constant LOCK_DURATION = 30 days;
+
+    /// @notice The dead address used for no-op governance
+    address constant DEAD_ADDRESS = address(0xdead);
 
     /// @notice Address of the Uniswap V4 position manager
     IPositionManager public immutable positionManager;
@@ -110,6 +113,12 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
             abi.decode(positionData, (address, BeneficiaryData[]));
         require(beneficiaries.length > 0, "StreamableFeesLocker: ZERO_BENEFICIARIES");
         require(recipient != address(0), "StreamableFeesLocker: RECIPIENT_CANNOT_BE_ZERO_ADDRESS");
+        
+        // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
+        // and beneficiaries can collect fees in perpetuity
+        
+        // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
+        // and beneficiaries can collect fees in perpetuity
 
         uint256 totalShares;
         for (uint256 i; i != beneficiaries.length; ++i) {
@@ -186,10 +195,14 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         if (block.timestamp >= position.startDate + LOCK_DURATION) {
             position.isUnlocked = true;
 
-            // Transfer the position to the recipient
-            ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
+            // For no-op governance (recipient is dead address), keep the NFT locked forever
+            // This allows beneficiaries to collect fees in perpetuity
+            if (position.recipient != DEAD_ADDRESS) {
+                // Transfer the position to the recipient
+                ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
 
-            emit Unlock(tokenId, position.recipient);
+                emit Unlock(tokenId, position.recipient);
+            }
         }
 
         // Update the position in storage
