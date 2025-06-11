@@ -22,6 +22,10 @@ struct AssetData {
     BeneficiaryData[] beneficiaries;
 }
 
+error TickOutOfRange();
+
+error ZeroLiquidity();
+
 contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
@@ -111,7 +115,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         int24 upperTick = (TickMath.MAX_TICK - 1) / poolKey.tickSpacing * poolKey.tickSpacing;
 
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        require(currentTick >= lowerTick && currentTick <= upperTick, "UniswapV4Migrator: TICK_OUT_OF_RANGE");
+
+        if (currentTick < lowerTick || currentTick > upperTick) revert TickOutOfRange();
 
         liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
@@ -121,7 +126,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             uint128(balance1)
         );
 
-        require(liquidity > 0, "UniswapV4Migrator: ZERO_LIQUIDITY");
+        if (liquidity == 0) revert ZeroLiquidity();
 
         uint256 lockedLiquidity = liquidity / 10;
         uint256 timeLockLiquidity = liquidity - lockedLiquidity;
