@@ -8,8 +8,20 @@ import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { StreamableFeesLocker, BeneficiaryData, PositionData } from "src/StreamableFeesLocker.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
+import {
+    StreamableFeesLocker,
+    BeneficiaryData,
+    PositionData,
+    NonPositionManager,
+    PositionNotFound,
+    PositionAlreadyUnlocked,
+    InvalidAddress,
+    InvalidShares,
+    InvalidTotalShares,
+    InvalidLength,
+    NotBeneficiary
+} from "src/StreamableFeesLocker.sol";
 
 import { console } from "forge-std/console.sol";
 
@@ -87,7 +99,7 @@ contract StreamableFeesLockerTest is Test {
 
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
 
-        vm.expectRevert("StreamableFeesLocker: ONLY_POSITION_MANAGER");
+        vm.expectRevert(abi.encodeWithSelector(NonPositionManager.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -96,7 +108,7 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
 
         vm.prank(address(positionManager));
-        vm.expectRevert("StreamableFeesLocker: ZERO_BENEFICIARIES");
+        vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -107,7 +119,7 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
 
         vm.prank(address(positionManager));
-        vm.expectRevert("StreamableFeesLocker: BENEFICIARY_CANNOT_BE_ZERO_ADDRESS");
+        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -118,7 +130,7 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
 
         vm.prank(address(positionManager));
-        vm.expectRevert("StreamableFeesLocker: SHARES_MUST_BE_GREATER_THAN_ZERO");
+        vm.expectRevert(abi.encodeWithSelector(InvalidShares.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -133,7 +145,7 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
 
         vm.prank(address(positionManager));
-        vm.expectRevert("StreamableFeesLocker: TOTAL_SHARES_NOT_EQUAL_TO_WAD");
+        vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -414,7 +426,7 @@ contract StreamableFeesLockerTest is Test {
         locker.distributeFees(TOKEN_ID);
 
         // Try to accrue fees again
-        vm.expectRevert("StreamableFeesLocker: POSITION_ALREADY_UNLOCKED");
+        vm.expectRevert(abi.encodeWithSelector(PositionAlreadyUnlocked.selector));
         locker.distributeFees(TOKEN_ID);
     }
 
@@ -455,7 +467,7 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(address(0), beneficiaries); // Zero recipient
 
         vm.prank(address(positionManager));
-        vm.expectRevert("StreamableFeesLocker: RECIPIENT_CANNOT_BE_ZERO_ADDRESS");
+        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -504,7 +516,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Try to update as non-beneficiary
         vm.prank(BENEFICIARY_2);
-        vm.expectRevert("StreamableFeesLocker: NOT_BENEFICIARY");
+        vm.expectRevert(abi.encodeWithSelector(NotBeneficiary.selector));
         locker.updateBeneficiary(TOKEN_ID, BENEFICIARY_3);
     }
 
@@ -519,7 +531,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Try to release as non-beneficiary
         vm.prank(BENEFICIARY_2);
-        vm.expectRevert("StreamableFeesLocker: NOT_BENEFICIARY");
+        vm.expectRevert(abi.encodeWithSelector(NotBeneficiary.selector));
         locker.releaseFees(TOKEN_ID);
     }
 
@@ -534,7 +546,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Try to update to zero address
         vm.prank(BENEFICIARY_1);
-        vm.expectRevert("StreamableFeesLocker: NEW_BENEFICIARY_CANNOT_BE_ZERO_ADDRESS");
+        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
         locker.updateBeneficiary(TOKEN_ID, address(0));
     }
 
@@ -542,15 +554,15 @@ contract StreamableFeesLockerTest is Test {
         uint256 invalidTokenId = 999;
 
         // Test distributeFees with invalid token
-        vm.expectRevert("StreamableFeesLocker: POSITION_NOT_FOUND");
+        vm.expectRevert(abi.encodeWithSelector(PositionNotFound.selector));
         locker.distributeFees(invalidTokenId);
 
         // Test releaseFees with invalid token
-        vm.expectRevert("StreamableFeesLocker: POSITION_NOT_FOUND");
+        vm.expectRevert(abi.encodeWithSelector(PositionNotFound.selector));
         locker.releaseFees(invalidTokenId);
 
         // Test updateBeneficiary with invalid token
-        vm.expectRevert("StreamableFeesLocker: POSITION_NOT_FOUND");
+        vm.expectRevert(abi.encodeWithSelector(PositionNotFound.selector));
         locker.updateBeneficiary(invalidTokenId, BENEFICIARY_1);
     }
 
@@ -672,7 +684,7 @@ contract StreamableFeesLockerTest is Test {
         assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token1))), 1700e18);
 
         // Fee distribution should revert now that it is unlocked
-        vm.expectRevert("StreamableFeesLocker: POSITION_ALREADY_UNLOCKED");
+        vm.expectRevert(abi.encodeWithSelector(PositionAlreadyUnlocked.selector));
         locker.distributeFees(TOKEN_ID);
     }
 
@@ -845,7 +857,7 @@ contract StreamableFeesLockerTest is Test {
         token1.transfer(address(locker), 300e18);
 
         // Try to distribute fees again - should fail because position is already unlocked
-        vm.expectRevert("StreamableFeesLocker: POSITION_ALREADY_UNLOCKED");
+        vm.expectRevert(abi.encodeWithSelector(PositionAlreadyUnlocked.selector));
         locker.distributeFees(TOKEN_ID);
     }
 }

@@ -27,50 +27,74 @@ struct PositionData {
     address recipient;
 }
 
+/// @notice Thrown when a non-position manager calls a function
+error NonPositionManager();
+
+/// @notice Thrown when a position is not found
+error PositionNotFound();
+
+/// @notice Thrown when a position is already unlocked
+error PositionAlreadyUnlocked();
+
+/// @notice Thrown when an invalid address is used
+error InvalidAddress();
+
+/// @notice Thrown when shares are invalid
+error InvalidShares();
+
+/// @notice Thrown when total shares are not equal to WAD
+error InvalidTotalShares();
+
+/// @notice Thrown when an invalid length is used
+error InvalidLength();
+
+/// @notice Thrown when a beneficiary is not found
+error NotBeneficiary();
+
+/// @notice Emitted when a position is locked
+/// @param tokenId The ID of the locked position
+/// @param beneficiaries Array of beneficiaries and their shares
+/// @param unlockDate Timestamp when the position will be unlocked
+event Lock(uint256 indexed tokenId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
+
+/// @notice Emitted when a position is unlocked
+/// @param tokenId The ID of the unlocked position
+/// @param recipient Address that received the NFT
+event Unlock(uint256 indexed tokenId, address recipient);
+
+/// @notice Emitted when fees are distributed to a beneficiary
+/// @param tokenId The ID of the position
+/// @param amount0 Amount of token0 distributed
+/// @param amount1 Amount of token1 distributed
+event DistributeFees(uint256 indexed tokenId, uint256 amount0, uint256 amount1);
+
+/// @notice Emitted when fees are released to a beneficiary
+/// @param tokenId The ID of the position
+/// @param beneficiary Address that received the fees
+/// @param amount0 Amount of token0 released
+/// @param amount1 Amount of token1 released
+event Release(uint256 indexed tokenId, address beneficiary, uint256 amount0, uint256 amount1);
+
+/// @notice Emitted when a beneficiary is updated
+/// @param tokenId The ID of the position
+/// @param oldBeneficiary Previous beneficiary address
+/// @param newBeneficiary New beneficiary address
+event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address newBeneficiary);
+
+/// @dev WAD constant for precise decimal calculations
+uint256 constant WAD = 1e18;
+
+/// @dev Duration for which positions are locked
+uint256 constant LOCK_DURATION = 30 days;
+
+/// @dev The dead address used for no-op governance
+address constant DEAD_ADDRESS = address(0xdead);
+
 /// @title StreamableFeesLocker
 /// @notice A contract that manages fee streaming for Uniswap V4 positions
 /// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
 /// @dev Uses instant distribution mechanism for fees
 contract StreamableFeesLocker is ERC721TokenReceiver {
-    /// @notice Emitted when a position is locked
-    /// @param tokenId The ID of the locked position
-    /// @param beneficiaries Array of beneficiaries and their shares
-    /// @param unlockDate Timestamp when the position will be unlocked
-    event Lock(uint256 indexed tokenId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
-
-    /// @notice Emitted when a position is unlocked
-    /// @param tokenId The ID of the unlocked position
-    /// @param recipient Address that received the NFT
-    event Unlock(uint256 indexed tokenId, address recipient);
-
-    /// @notice Emitted when fees are distributed to a beneficiary
-    /// @param tokenId The ID of the position
-    /// @param amount0 Amount of token0 distributed
-    /// @param amount1 Amount of token1 distributed
-    event DistributeFees(uint256 indexed tokenId, uint256 amount0, uint256 amount1);
-
-    /// @notice Emitted when fees are released to a beneficiary
-    /// @param tokenId The ID of the position
-    /// @param beneficiary Address that received the fees
-    /// @param amount0 Amount of token0 released
-    /// @param amount1 Amount of token1 released
-    event Release(uint256 indexed tokenId, address beneficiary, uint256 amount0, uint256 amount1);
-
-    /// @notice Emitted when a beneficiary is updated
-    /// @param tokenId The ID of the position
-    /// @param oldBeneficiary Previous beneficiary address
-    /// @param newBeneficiary New beneficiary address
-    event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address newBeneficiary);
-
-    /// @notice WAD constant for precise decimal calculations
-    uint256 constant WAD = 1e18;
-
-    /// @notice Duration for which positions are locked
-    uint256 constant LOCK_DURATION = 30 days;
-
-    /// @notice The dead address used for no-op governance
-    address constant DEAD_ADDRESS = address(0xdead);
-
     /// @notice Address of the Uniswap V4 position manager
     IPositionManager public immutable positionManager;
 
@@ -94,7 +118,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     /// @notice Modifier to restrict function access to the position manager
     modifier onlyPositionManager() {
         if (msg.sender != address(positionManager)) {
-            revert("StreamableFeesLocker: ONLY_POSITION_MANAGER");
+            revert NonPositionManager();
         }
         _;
     }
@@ -111,26 +135,24 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     ) external override onlyPositionManager returns (bytes4) {
         (address recipient, BeneficiaryData[] memory beneficiaries) =
             abi.decode(positionData, (address, BeneficiaryData[]));
-        require(beneficiaries.length > 0, "StreamableFeesLocker: ZERO_BENEFICIARIES");
-        require(recipient != address(0), "StreamableFeesLocker: RECIPIENT_CANNOT_BE_ZERO_ADDRESS");
-        
+        require(beneficiaries.length > 0, InvalidLength());
+        require(recipient != address(0), InvalidAddress());
+
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
-        
+
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
 
         uint256 totalShares;
         for (uint256 i; i != beneficiaries.length; ++i) {
-            require(
-                beneficiaries[i].beneficiary != address(0), "StreamableFeesLocker: BENEFICIARY_CANNOT_BE_ZERO_ADDRESS"
-            );
-            require(beneficiaries[i].shares > 0, "StreamableFeesLocker: SHARES_MUST_BE_GREATER_THAN_ZERO");
+            require(beneficiaries[i].beneficiary != address(0), InvalidAddress());
+            require(beneficiaries[i].shares > 0, InvalidShares());
 
             totalShares += beneficiaries[i].shares;
         }
 
-        require(totalShares == WAD, "StreamableFeesLocker: TOTAL_SHARES_NOT_EQUAL_TO_WAD");
+        require(totalShares == WAD, InvalidTotalShares());
 
         positions[tokenId] = PositionData({
             beneficiaries: beneficiaries,
@@ -150,8 +172,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         uint256 tokenId
     ) external {
         PositionData memory position = positions[tokenId];
-        require(position.startDate != 0, "StreamableFeesLocker: POSITION_NOT_FOUND");
-        require(position.isUnlocked != true, "StreamableFeesLocker: POSITION_ALREADY_UNLOCKED");
+        require(position.startDate != 0, PositionNotFound());
+        require(position.isUnlocked != true, PositionAlreadyUnlocked());
 
         // Get pool info
         (PoolKey memory poolKey,) = positionManager.getPoolAndPositionInfo(tokenId);
@@ -199,7 +221,9 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
             // This allows beneficiaries to collect fees in perpetuity
             if (position.recipient != DEAD_ADDRESS) {
                 // Transfer the position to the recipient
-                ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
+                ERC721(address(positionManager)).safeTransferFrom(
+                    address(this), position.recipient, tokenId, new bytes(0)
+                );
 
                 emit Unlock(tokenId, position.recipient);
             }
@@ -218,7 +242,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     ) external {
         // Check if position exists
         PositionData memory position = positions[tokenId];
-        require(position.startDate != 0, "StreamableFeesLocker: POSITION_NOT_FOUND");
+        require(position.startDate != 0, PositionNotFound());
 
         // Check if sender is a beneficiary
         bool isBeneficiary = false;
@@ -228,7 +252,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
                 break;
             }
         }
-        require(isBeneficiary, "StreamableFeesLocker: NOT_BENEFICIARY");
+        require(isBeneficiary, NotBeneficiary());
 
         _releaseFees(tokenId, msg.sender);
     }
@@ -293,8 +317,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     function updateBeneficiary(uint256 tokenId, address newBeneficiary) external {
         // Get position data
         PositionData memory position = positions[tokenId];
-        require(position.startDate != 0, "StreamableFeesLocker: POSITION_NOT_FOUND");
-        require(newBeneficiary != address(0), "StreamableFeesLocker: NEW_BENEFICIARY_CANNOT_BE_ZERO_ADDRESS");
+        require(position.startDate != 0, PositionNotFound());
+        require(newBeneficiary != address(0), InvalidAddress());
 
         // Get the index of the beneficiary to transfer ownership to `newBeneficiary`
         uint256 length = position.beneficiaries.length;
@@ -310,7 +334,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
                 break;
             }
         }
-        require(found, "StreamableFeesLocker: NOT_BENEFICIARY");
+        require(found, NotBeneficiary());
 
         // Update the position data
         positions[tokenId] = position;
