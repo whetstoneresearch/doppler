@@ -43,6 +43,12 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     /// @param recipient Address that received the NFT
     event Unlock(uint256 indexed tokenId, address recipient);
 
+    /// @notice Emitted when fees are distributed to a beneficiary
+    /// @param tokenId The ID of the position
+    /// @param amount0 Amount of token0 distributed
+    /// @param amount1 Amount of token1 distributed
+    event DistributeFees(uint256 indexed tokenId, uint256 amount0, uint256 amount1);
+
     /// @notice Emitted when fees are released to a beneficiary
     /// @param tokenId The ID of the position
     /// @param beneficiary Address that received the fees
@@ -188,6 +194,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
 
         // Update the position in storage
         positions[tokenId] = position;
+
+        emit DistributeFees(tokenId, currency0ToDistribute, currency1ToDistribute);
     }
 
     /// @notice Releases accrued fees to the caller
