@@ -24,6 +24,7 @@ import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.
  */
 struct AssetData {
     PoolKey poolKey;
+    uint256 lockDuration;
     BeneficiaryData[] beneficiaries;
 }
 
@@ -51,7 +52,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     /// @notice Address of the Streamable Fees Locker
     StreamableFeesLocker public immutable locker;
-    
+
     /// @notice The dead address used for no-op governance
     address public constant DEAD_ADDRESS = address(0xdead);
 
@@ -83,8 +84,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address numeraire,
         bytes calldata liquidityMigratorData
     ) external onlyAirlock returns (address) {
-        (uint24 fee, int24 tickSpacing, BeneficiaryData[] memory data) =
-            abi.decode(liquidityMigratorData, (uint24, int24, BeneficiaryData[]));
+        (uint24 fee, int24 tickSpacing, uint256 lockDuration, BeneficiaryData[] memory data) =
+            abi.decode(liquidityMigratorData, (uint24, int24, uint256, BeneficiaryData[]));
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -95,7 +96,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         });
 
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
-            AssetData({ poolKey: poolKey, beneficiaries: data });
+            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: data });
 
         return address(0);
     }
@@ -109,7 +110,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     ) external payable onlyAirlock returns (uint256 liquidity) {
         AssetData memory assetData = getAssetData[token0][token1];
         PoolKey memory poolKey = assetData.poolKey;
-        
+
         // Check if this is no-op governance
         bool isNoOpGovernance = recipient == DEAD_ADDRESS;
 
@@ -131,11 +132,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 params = new bytes[](3);
                 params[2] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
                 balance0 = address(this).balance;
-                actions = abi.encodePacked(
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.SETTLE_PAIR),
-                    uint8(Actions.SWEEP)
-                );
+                actions =
+                    abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP));
             } else {
                 params = new bytes[](4);
                 params[3] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
@@ -155,8 +153,9 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             } else {
                 params = new bytes[](3);
                 balance0 = ERC20(token0).balanceOf(address(this));
-                actions =
-                    abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+                actions = abi.encodePacked(
+                    uint8(Actions.MINT_POSITION), uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR)
+                );
             }
         }
 
@@ -190,7 +189,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 address(this),
                 new bytes(0)
             );
-            
+
             params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
         } else {
             // Standard case: split liquidity 10/90
@@ -242,7 +241,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 address(this),
                 address(locker),
                 positionManager.nextTokenId() - 1,
-                abi.encode(recipient, assetData.beneficiaries)
+                abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
         } else {
             // Standard case: two NFTs were minted, transfer the first one to the locker
@@ -250,7 +249,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 address(this),
                 address(locker),
                 positionManager.nextTokenId() - 2,
-                abi.encode(recipient, assetData.beneficiaries)
+                abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
         }
 
