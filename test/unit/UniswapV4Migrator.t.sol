@@ -41,23 +41,22 @@ contract UniswapV4MigratorTest is Test {
     function test_initialize_StoresPoolKey() public {
         int24 tickSpacing = 8;
         uint24 fee = 3000;
-
         address token0 = address(asset);
         address token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
 
-        vm.prank(airlock);
-        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing));
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x123), shares: uint64(1 ether) });
 
-        /*
-        (Currency currency0_, Currency currency1_, uint24 fee_, int24 tickSpacing_, IHooks hooks_) =
-            migrator.getPoolKeyForPair(token0, token1);
-        assertEq(Currency.unwrap(currency0_), token0);
-        assertEq(Currency.unwrap(currency1_), token1);
-        assertEq(fee_, fee);
-        assertEq(tickSpacing_, tickSpacing);
-        assertEq(address(hooks_), address(0));
-        */
+        vm.prank(airlock);
+        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, beneficiaries));
+
+        (PoolKey memory poolKey) = migrator.getAssetData(token0, token1);
+        assertEq(Currency.unwrap(poolKey.currency0), token0);
+        assertEq(Currency.unwrap(poolKey.currency1), token1);
+        assertEq(poolKey.fee, fee);
+        assertEq(poolKey.tickSpacing, tickSpacing);
+        assertEq(address(poolKey.hooks), address(0));
     }
 
     function test_migrate_MigratesToUniV4() public {
@@ -111,7 +110,7 @@ contract UniswapV4MigratorTest is Test {
 
         // Use DEAD_ADDRESS as recipient (simulating no-op governance)
         address recipient = migrator.DEAD_ADDRESS();
-        
+
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(token0),
             currency1: Currency.wrap(token1),
@@ -138,7 +137,7 @@ contract UniswapV4MigratorTest is Test {
 
         // Verify the migrator recognizes this as no-op governance
         assertTrue(liquidity > 0, "Liquidity should be greater than 0");
-        
+
         // In a real test, we would verify:
         // 1. Only one NFT position was created (not two)
         // 2. All liquidity went to the locker
