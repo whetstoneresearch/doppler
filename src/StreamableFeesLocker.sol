@@ -142,8 +142,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
         uint256 tokenId,
         bytes calldata positionData
     ) external override onlyPositionManager onlyApprovedMigrator(from) returns (bytes4) {
-        (address recipient, uint256 lockDuration, BeneficiaryData[] memory beneficiaries) =
-            abi.decode(positionData, (address, uint256, BeneficiaryData[]));
+        (address recipient, uint32 lockDuration, BeneficiaryData[] memory beneficiaries) =
+            abi.decode(positionData, (address, uint32, BeneficiaryData[]));
 
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
@@ -152,7 +152,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
             startDate: uint32(block.timestamp),
             isUnlocked: false,
             recipient: recipient,
-            lockDuration: uint32(lockDuration)
+            lockDuration: lockDuration
         });
 
         emit Lock(tokenId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + lockDuration : 0);

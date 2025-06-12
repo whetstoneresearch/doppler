@@ -25,7 +25,7 @@ import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.
  */
 struct AssetData {
     PoolKey poolKey;
-    uint256 lockDuration;
+    uint32 lockDuration;
     BeneficiaryData[] beneficiaries;
 }
 
@@ -100,8 +100,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address numeraire,
         bytes calldata liquidityMigratorData
     ) external onlyAirlock returns (address) {
-        (uint24 fee, int24 tickSpacing, uint256 lockDuration, BeneficiaryData[] memory beneficiaries) =
-            abi.decode(liquidityMigratorData, (uint24, int24, uint256, BeneficiaryData[]));
+        (uint24 fee, int24 tickSpacing, uint32 lockDuration, BeneficiaryData[] memory beneficiaries) =
+            abi.decode(liquidityMigratorData, (uint24, int24, uint32, BeneficiaryData[]));
 
         require(beneficiaries.length > 0, InvalidLength());
 
