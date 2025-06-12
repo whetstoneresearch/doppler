@@ -20,6 +20,7 @@ import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.
 /**
  * @notice Data to use for the migration
  * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
+ * @param lockDuration Duration for which the liquidity will be locked in the locker contract
  * @param beneficiaries Array of beneficiaries used by the locker contract
  */
 struct AssetData {
