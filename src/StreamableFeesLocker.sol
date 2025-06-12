@@ -22,11 +22,11 @@ struct BeneficiaryData {
 /// @param isUnlocked Whether the position has been unlocked
 /// @param recipient Address that will receive the NFT after unlocking
 struct PositionData {
-    BeneficiaryData[] beneficiaries;
-    uint64 startDate;
-    uint64 lockDuration;
-    bool isUnlocked;
     address recipient;
+    uint32 startDate;
+    uint32 lockDuration;
+    bool isUnlocked;
+    BeneficiaryData[] beneficiaries;
 }
 
 /// @notice Thrown when a non-position manager calls a function
@@ -151,10 +151,10 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
         // and beneficiaries can collect fees in perpetuity
         positions[tokenId] = PositionData({
             beneficiaries: beneficiaries,
-            startDate: uint64(block.timestamp),
+            startDate: uint32(block.timestamp),
             isUnlocked: false,
             recipient: recipient,
-            lockDuration: uint64(lockDuration)
+            lockDuration: uint32(lockDuration)
         });
 
         emit Lock(tokenId, beneficiaries, block.timestamp + lockDuration);

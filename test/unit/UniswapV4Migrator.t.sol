@@ -41,7 +41,7 @@ contract UniswapV4MigratorTest is Test {
     function test_initialize_StoresPoolKey() public {
         int24 tickSpacing = 8;
         uint24 fee = 3000;
-        uint256 lockDuration = 30 days;
+        uint32 lockDuration = 30 days;
 
         address token0 = address(asset);
         address token1 = address(numeraire);
@@ -69,7 +69,7 @@ contract UniswapV4MigratorTest is Test {
         vm.skip(true);
         int24 tickSpacing = 8;
         uint24 fee = 3000;
-        uint256 lockDuration = 30 days;
+        uint32 lockDuration = 30 days;
 
         address token0 = address(asset);
         address token1 = address(numeraire);
@@ -108,7 +108,7 @@ contract UniswapV4MigratorTest is Test {
         vm.skip(true);
         int24 tickSpacing = 8;
         uint24 fee = 3000;
-        uint256 lockDuration = 30 days;
+        uint32 lockDuration = 30 days;
 
         address token0 = address(asset);
         address token1 = address(numeraire);

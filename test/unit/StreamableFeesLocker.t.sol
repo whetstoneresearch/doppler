@@ -836,7 +836,7 @@ contract StreamableFeesLockerTest is Test {
         locker.distributeFees(TOKEN_ID);
 
         // Verify the position is marked as locked and NFT not transferred
-        (uint64 startDate, uint64 lockDuration, bool isUnlocked, address recipient) = locker.positions(TOKEN_ID);
+        (address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) = locker.positions(TOKEN_ID);
         assertGt(startDate, 0, "Start date should be greater than 0");
         assertFalse(isUnlocked, "Position should remain locked after we pass lock duration");
         assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");
@@ -864,7 +864,7 @@ contract StreamableFeesLockerTest is Test {
         locker.distributeFees(TOKEN_ID);
 
         // Verify the position is marked as locked and NFT not transferred
-        (startDate, lockDuration, isUnlocked, recipient) = locker.positions(TOKEN_ID);
+        (recipient, startDate, lockDuration, isUnlocked) = locker.positions(TOKEN_ID);
         assertGt(startDate, 0, "Start date should be greater than 0");
         assertFalse(isUnlocked, "Position should remain locked after we pass lock duration");
         assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");
