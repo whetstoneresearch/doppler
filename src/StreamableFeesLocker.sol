@@ -6,10 +6,11 @@ import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 /// @notice Data structure for beneficiary information
 /// @param beneficiary Address of the beneficiary
 /// @param shares Share of fees allocated to this beneficiary (in WAD)
+
 struct BeneficiaryData {
     address beneficiary;
     uint64 shares;
@@ -94,7 +95,7 @@ address constant DEAD_ADDRESS = address(0xdead);
 /// @notice A contract that manages fee streaming for Uniswap V4 positions
 /// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
 /// @dev Uses instant distribution mechanism for fees
-contract StreamableFeesLocker is ERC721TokenReceiver {
+contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
     /// @notice Address of the Uniswap V4 position manager
     IPositionManager public immutable positionManager;
 
@@ -166,7 +167,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     /// @param tokenId ID of the position to accrue fees for
     function distributeFees(
         uint256 tokenId
-    ) external {
+    ) external nonReentrant {
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, PositionNotFound());
         require(position.isUnlocked != true, PositionAlreadyUnlocked());
@@ -231,7 +232,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
     /// @param tokenId ID of the position to release fees from
     function releaseFees(
         uint256 tokenId
-    ) external {
+    ) external nonReentrant {
         // Check if position exists
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, PositionNotFound());
@@ -258,9 +259,13 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         PositionData memory position,
         PoolKey memory poolKey
     ) internal returns (uint256 amount0ToDistribute, uint256 amount1ToDistribute) {
+        // Cache currency balances for reentrancy protection
+        uint256 currency0Balance = poolKey.currency0.balanceOfSelf();
+        uint256 currency1Balance = poolKey.currency1.balanceOfSelf();
+
         // Calculate the amount of fees to distribute
-        amount0ToDistribute = poolKey.currency0.balanceOfSelf() - currencyBalances[poolKey.currency0];
-        amount1ToDistribute = poolKey.currency1.balanceOfSelf() - currencyBalances[poolKey.currency1];
+        amount0ToDistribute = currency0Balance - currencyBalances[poolKey.currency0];
+        amount1ToDistribute = currency1Balance - currencyBalances[poolKey.currency1];
 
         // Update the global balance
         currencyBalances[poolKey.currency0] += amount0ToDistribute;
@@ -288,10 +293,6 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         uint256 amount0ToRelease = beneficiariesClaims[beneficiary][poolKey.currency0];
         uint256 amount1ToRelease = beneficiariesClaims[beneficiary][poolKey.currency1];
 
-        // Release the fees
-        poolKey.currency0.transfer(beneficiary, amount0ToRelease);
-        poolKey.currency1.transfer(beneficiary, amount1ToRelease);
-
         // Reset the claims
         beneficiariesClaims[beneficiary][poolKey.currency0] = 0;
         beneficiariesClaims[beneficiary][poolKey.currency1] = 0;
@@ -300,13 +301,17 @@ contract StreamableFeesLocker is ERC721TokenReceiver {
         currencyBalances[poolKey.currency0] -= amount0ToRelease;
         currencyBalances[poolKey.currency1] -= amount1ToRelease;
 
+        // Release the fees
+        poolKey.currency0.transfer(beneficiary, amount0ToRelease);
+        poolKey.currency1.transfer(beneficiary, amount1ToRelease);
+
         emit Release(tokenId, beneficiary, amount0ToRelease, amount1ToRelease);
     }
 
     /// @notice Updates the beneficiary address for a position
     /// @param tokenId ID of the position
     /// @param newBeneficiary New beneficiary address
-    function updateBeneficiary(uint256 tokenId, address newBeneficiary) external {
+    function updateBeneficiary(uint256 tokenId, address newBeneficiary) external nonReentrant {
         // Get position data
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, PositionNotFound());
