@@ -89,7 +89,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
 
-        bytes memory migratorData = abi.encode(2000, 8, beneficiaries);
+        bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries);
 
         MineV4Params memory params = MineV4Params({
             airlock: address(airlock),
