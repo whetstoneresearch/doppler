@@ -68,7 +68,7 @@ contract StreamableFeesLockerTest is Test {
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.7e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: BENEFICIARY_2, shares: 0.3e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         // Mock the call from position manager
         vm.prank(address(positionManager));
@@ -84,7 +84,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.expectEmit(true, false, false, true);
         emit Lock(TOKEN_ID, beneficiaries, block.timestamp + 30 days);
@@ -97,7 +97,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.expectRevert(abi.encodeWithSelector(NonPositionManager.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
@@ -105,7 +105,7 @@ contract StreamableFeesLockerTest is Test {
 
     function test_onERC721Received_RevertNoBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.prank(address(positionManager));
         vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
@@ -116,7 +116,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.prank(address(positionManager));
         vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
@@ -127,7 +127,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.prank(address(positionManager));
         vm.expectRevert(abi.encodeWithSelector(InvalidShares.selector));
@@ -142,7 +142,7 @@ contract StreamableFeesLockerTest is Test {
             shares: 0.4e18 // Total is 0.9e18, not 1e18
          });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.prank(address(positionManager));
         vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));
@@ -154,7 +154,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -210,7 +210,7 @@ contract StreamableFeesLockerTest is Test {
             shares: 0.2e18 // 20%
          });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -260,7 +260,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -320,7 +320,7 @@ contract StreamableFeesLockerTest is Test {
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.6e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: BENEFICIARY_2, shares: 0.4e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -356,7 +356,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -396,7 +396,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -452,7 +452,7 @@ contract StreamableFeesLockerTest is Test {
         beneficiaries[numBeneficiaries - 1] =
             BeneficiaryData({ beneficiary: lastBeneficiary, shares: uint64(remainingShares) });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.prank(address(positionManager));
         bytes4 selector = locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
@@ -464,7 +464,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(address(0), beneficiaries); // Zero recipient
+        bytes memory positionData = abi.encode(address(0), LOCK_DURATION, beneficiaries); // Zero recipient
 
         vm.prank(address(positionManager));
         vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
@@ -476,7 +476,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -510,7 +510,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -525,7 +525,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -540,7 +540,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -573,7 +573,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -613,7 +613,7 @@ contract StreamableFeesLockerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -712,7 +712,7 @@ contract StreamableFeesLockerTest is Test {
          });
 
         // Lock position
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
@@ -800,7 +800,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Use DEAD_ADDRESS as recipient for no-op governance
         address DEAD_ADDRESS = address(0xdead);
-        bytes memory positionData = abi.encode(DEAD_ADDRESS, beneficiaries);
+        bytes memory positionData = abi.encode(DEAD_ADDRESS, LOCK_DURATION, beneficiaries);
 
         // Lock the position
         vm.prank(address(positionManager));
@@ -836,7 +836,7 @@ contract StreamableFeesLockerTest is Test {
         locker.distributeFees(TOKEN_ID);
 
         // Verify the position is marked as locked and NFT not transferred
-        (uint64 startDate, bool isUnlocked, address recipient) = locker.positions(TOKEN_ID);
+        (uint64 startDate, uint64 lockDuration, bool isUnlocked, address recipient) = locker.positions(TOKEN_ID);
         assertGt(startDate, 0, "Start date should be greater than 0");
         assertFalse(isUnlocked, "Position should remain locked after we pass lock duration");
         assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");
@@ -864,7 +864,7 @@ contract StreamableFeesLockerTest is Test {
         locker.distributeFees(TOKEN_ID);
 
         // Verify the position is marked as locked and NFT not transferred
-        (startDate, isUnlocked, recipient) = locker.positions(TOKEN_ID);
+        (startDate, lockDuration, isUnlocked, recipient) = locker.positions(TOKEN_ID);
         assertGt(startDate, 0, "Start date should be greater than 0");
         assertFalse(isUnlocked, "Position should remain locked after we pass lock duration");
         assertEq(recipient, DEAD_ADDRESS, "Recipient should still be DEAD_ADDRESS");

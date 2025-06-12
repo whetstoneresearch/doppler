@@ -41,6 +41,7 @@ contract UniswapV4MigratorTest is Test {
     function test_initialize_StoresPoolKey() public {
         int24 tickSpacing = 8;
         uint24 fee = 3000;
+        uint256 lockDuration = 30 days;
 
         address token0 = address(asset);
         address token1 = address(numeraire);
@@ -50,14 +51,17 @@ contract UniswapV4MigratorTest is Test {
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x123), shares: uint64(1 ether) });
 
         vm.prank(airlock);
-        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, beneficiaries));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(fee, tickSpacing, lockDuration, beneficiaries)
+        );
 
-        (PoolKey memory poolKey) = migrator.getAssetData(token0, token1);
+        (PoolKey memory poolKey, uint256 lockDuration_) = migrator.getAssetData(token0, token1);
         assertEq(Currency.unwrap(poolKey.currency0), token0);
         assertEq(Currency.unwrap(poolKey.currency1), token1);
         assertEq(poolKey.fee, fee);
         assertEq(poolKey.tickSpacing, tickSpacing);
         assertEq(address(poolKey.hooks), address(0));
+        assertEq(lockDuration_, lockDuration);
     }
 
     // TODO: Update this test
@@ -65,6 +69,7 @@ contract UniswapV4MigratorTest is Test {
         vm.skip(true);
         int24 tickSpacing = 8;
         uint24 fee = 3000;
+        uint256 lockDuration = 30 days;
 
         address token0 = address(asset);
         address token1 = address(numeraire);
@@ -74,7 +79,9 @@ contract UniswapV4MigratorTest is Test {
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x123), shares: uint64(1 ether) });
 
         vm.prank(airlock);
-        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, beneficiaries));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(fee, tickSpacing, lockDuration, beneficiaries)
+        );
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(token0),
@@ -101,6 +108,7 @@ contract UniswapV4MigratorTest is Test {
         vm.skip(true);
         int24 tickSpacing = 8;
         uint24 fee = 3000;
+        uint256 lockDuration = 30 days;
 
         address token0 = address(asset);
         address token1 = address(numeraire);
@@ -108,7 +116,9 @@ contract UniswapV4MigratorTest is Test {
 
         // Initialize with empty beneficiary data for no-op governance
         vm.prank(airlock);
-        migrator.initialize(address(asset), address(numeraire), abi.encode(fee, tickSpacing, new BeneficiaryData[](0)));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(fee, tickSpacing, lockDuration, new BeneficiaryData[](0))
+        );
 
         // Setup balances
         uint256 amount0 = 1000e18;

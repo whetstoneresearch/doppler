@@ -24,6 +24,7 @@ struct BeneficiaryData {
 struct PositionData {
     BeneficiaryData[] beneficiaries;
     uint64 startDate;
+    uint64 lockDuration;
     bool isUnlocked;
     address recipient;
 }
@@ -85,9 +86,6 @@ event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address
 /// @dev WAD constant for precise decimal calculations
 uint256 constant WAD = 1e18;
 
-/// @dev Duration for which positions are locked
-uint256 constant LOCK_DURATION = 30 days;
-
 /// @dev The dead address used for no-op governance
 address constant DEAD_ADDRESS = address(0xdead);
 
@@ -134,8 +132,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
         uint256 tokenId,
         bytes calldata positionData
     ) external override onlyPositionManager returns (bytes4) {
-        (address recipient, BeneficiaryData[] memory beneficiaries) =
-            abi.decode(positionData, (address, BeneficiaryData[]));
+        (address recipient, uint256 lockDuration, BeneficiaryData[] memory beneficiaries) =
+            abi.decode(positionData, (address, uint256, BeneficiaryData[]));
         require(beneficiaries.length > 0, InvalidLength());
         require(recipient != address(0), InvalidAddress());
 
@@ -155,10 +153,11 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
             beneficiaries: beneficiaries,
             startDate: uint64(block.timestamp),
             isUnlocked: false,
-            recipient: recipient
+            recipient: recipient,
+            lockDuration: uint64(lockDuration)
         });
 
-        emit Lock(tokenId, beneficiaries, block.timestamp + LOCK_DURATION);
+        emit Lock(tokenId, beneficiaries, block.timestamp + lockDuration);
 
         return ERC721TokenReceiver.onERC721Received.selector;
     }
@@ -213,7 +212,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
 
         // Note: For no-op governance, if recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
-        if (block.timestamp >= position.startDate + LOCK_DURATION && position.recipient != DEAD_ADDRESS) {
+        if (block.timestamp >= position.startDate + position.lockDuration && position.recipient != DEAD_ADDRESS) {
             position.isUnlocked = true;
 
             // Transfer the position to the recipient
