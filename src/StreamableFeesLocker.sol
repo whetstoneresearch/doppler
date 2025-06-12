@@ -23,10 +23,11 @@ struct BeneficiaryData {
 /// @param isUnlocked Whether the position has been unlocked
 /// @param recipient Address that will receive the NFT after unlocking
 struct PositionData {
-    BeneficiaryData[] beneficiaries;
-    uint64 startDate;
-    bool isUnlocked;
     address recipient;
+    uint32 startDate;
+    uint32 lockDuration;
+    bool isUnlocked;
+    BeneficiaryData[] beneficiaries;
 }
 
 /// @notice Thrown when a non-position manager calls a function
@@ -81,9 +82,6 @@ event MigratorApproval(address indexed migrator, bool approval);
 
 /// @dev WAD constant for precise decimal calculations
 uint256 constant WAD = 1e18;
-
-/// @dev Duration for which positions are locked
-uint256 constant LOCK_DURATION = 30 days;
 
 /// @dev The dead address used for no-op governance
 address constant DEAD_ADDRESS = address(0xdead);
@@ -151,9 +149,10 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
         // and beneficiaries can collect fees in perpetuity
         positions[tokenId] = PositionData({
             beneficiaries: beneficiaries,
-            startDate: uint64(block.timestamp),
+            startDate: uint32(block.timestamp),
             isUnlocked: false,
-            recipient: recipient
+            recipient: recipient,
+            lockDuration: uint32(lockDuration)
         });
 
         emit Lock(tokenId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + LOCK_DURATION : 0);
@@ -211,7 +210,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
         // Note: For no-op governance, if recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
-        if (block.timestamp >= position.startDate + LOCK_DURATION && position.recipient != DEAD_ADDRESS) {
+        if (block.timestamp >= position.startDate + position.lockDuration && position.recipient != DEAD_ADDRESS) {
             position.isUnlocked = true;
 
             // Transfer the position to the recipient
