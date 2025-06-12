@@ -7,6 +7,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
 import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
 /// @notice Data structure for beneficiary information
 /// @param beneficiary Address of the beneficiary
 /// @param shares Share of fees allocated to this beneficiary (in WAD)
@@ -31,26 +32,17 @@ struct PositionData {
 /// @notice Thrown when a non-position manager calls a function
 error NonPositionManager();
 
+/// @notice Thrown when a migrator is not approved
+error NotApprovedMigrator();
+
 /// @notice Thrown when a position is not found
 error PositionNotFound();
 
 /// @notice Thrown when a position is already unlocked
 error PositionAlreadyUnlocked();
 
-/// @notice Thrown when an invalid address is used
-error InvalidAddress();
-
-/// @notice Thrown when shares are invalid
-error InvalidShares();
-
-/// @notice Thrown when total shares are not equal to WAD
-error InvalidTotalShares();
-
-/// @notice Thrown when an invalid length is used
-error InvalidLength();
-
-/// @notice Thrown when a beneficiary is not found
-error NotBeneficiary();
+/// @notice Thrown when a beneficiary is invalid
+error InvalidBeneficiary();
 
 /// @notice Emitted when a position is locked
 /// @param tokenId The ID of the locked position
@@ -82,6 +74,11 @@ event Release(uint256 indexed tokenId, address beneficiary, uint256 amount0, uin
 /// @param newBeneficiary New beneficiary address
 event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address newBeneficiary);
 
+/// @notice Emitted when a migrator is approved
+/// @param migrator Address of the migrator
+/// @param approval Whether the migrator is approved
+event MigratorApproval(address indexed migrator, bool approval);
+
 /// @dev WAD constant for precise decimal calculations
 uint256 constant WAD = 1e18;
 
@@ -95,7 +92,7 @@ address constant DEAD_ADDRESS = address(0xdead);
 /// @notice A contract that manages fee streaming for Uniswap V4 positions
 /// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
 /// @dev Uses instant distribution mechanism for fees
-contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
+contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
     /// @notice Address of the Uniswap V4 position manager
     IPositionManager public immutable positionManager;
 
@@ -108,11 +105,13 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
     /// @notice Mapping of currency balances in the contract
     mapping(Currency currency => uint256 balanceOfSelf) public currencyBalances;
 
+    /// @notice Mapping of approved migrators
+    mapping(address migrator => bool approved) public approvedMigrators;
+
     /// @notice Constructor
     /// @param positionManager_ Address of the Uniswap V4 position manager
-    constructor(
-        IPositionManager positionManager_
-    ) {
+    /// @param owner_ Address of the owner of the contract
+    constructor(IPositionManager positionManager_, address owner_) Ownable(owner_) {
         positionManager = positionManager_;
     }
 
@@ -124,30 +123,29 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
         _;
     }
 
+    /// @notice Modifier to restrict sender to approved migrators only
+    /// @param migrator Address of the migrator
+    modifier onlyApprovedMigrator(
+        address migrator
+    ) {
+        if (!approvedMigrators[migrator]) {
+            revert NotApprovedMigrator();
+        }
+        _;
+    }
+
     /// @notice Handles incoming ERC721 tokens and initializes position data
     /// @param tokenId ID of the token being transferred
     /// @param positionData Encoded data containing recipient and beneficiaries
     /// @return bytes4 The ERC721 receiver selector
     function onERC721Received(
         address, // operator (unused)
-        address, // from (unused)
+        address from,
         uint256 tokenId,
         bytes calldata positionData
-    ) external override onlyPositionManager returns (bytes4) {
+    ) external override onlyPositionManager onlyApprovedMigrator(from) returns (bytes4) {
         (address recipient, BeneficiaryData[] memory beneficiaries) =
             abi.decode(positionData, (address, BeneficiaryData[]));
-        require(beneficiaries.length > 0, InvalidLength());
-        require(recipient != address(0), InvalidAddress());
-
-        uint256 totalShares;
-        for (uint256 i; i != beneficiaries.length; ++i) {
-            require(beneficiaries[i].beneficiary != address(0), InvalidAddress());
-            require(beneficiaries[i].shares > 0, InvalidShares());
-
-            totalShares += beneficiaries[i].shares;
-        }
-
-        require(totalShares == WAD, InvalidTotalShares());
 
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
@@ -158,7 +156,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
             recipient: recipient
         });
 
-        emit Lock(tokenId, beneficiaries, block.timestamp + LOCK_DURATION);
+        emit Lock(tokenId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + LOCK_DURATION : 0);
 
         return ERC721TokenReceiver.onERC721Received.selector;
     }
@@ -245,7 +243,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
                 break;
             }
         }
-        require(isBeneficiary, NotBeneficiary());
+        require(isBeneficiary, InvalidBeneficiary());
 
         _releaseFees(tokenId, msg.sender);
     }
@@ -302,8 +300,12 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
         currencyBalances[poolKey.currency1] -= amount1ToRelease;
 
         // Release the fees
-        poolKey.currency0.transfer(beneficiary, amount0ToRelease);
-        poolKey.currency1.transfer(beneficiary, amount1ToRelease);
+        if (amount0ToRelease > 0) {
+            poolKey.currency0.transfer(beneficiary, amount0ToRelease);
+        }
+        if (amount1ToRelease > 0) {
+            poolKey.currency1.transfer(beneficiary, amount1ToRelease);
+        }
 
         emit Release(tokenId, beneficiary, amount0ToRelease, amount1ToRelease);
     }
@@ -315,7 +317,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
         // Get position data
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, PositionNotFound());
-        require(newBeneficiary != address(0), InvalidAddress());
+        require(newBeneficiary != address(0), InvalidBeneficiary());
 
         // Get the index of the beneficiary to transfer ownership to `newBeneficiary`
         uint256 length = position.beneficiaries.length;
@@ -331,11 +333,33 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard {
                 break;
             }
         }
-        require(found, NotBeneficiary());
+        require(found, InvalidBeneficiary());
 
         // Update the position data
         positions[tokenId] = position;
 
         emit UpdateBeneficiary(tokenId, msg.sender, newBeneficiary);
+    }
+
+    /// @notice Approves a migrator
+    /// @param migrator Address of the migrator
+    function approveMigrator(
+        address migrator
+    ) external onlyOwner {
+        if (!approvedMigrators[migrator]) {
+            approvedMigrators[migrator] = true;
+            emit MigratorApproval(address(migrator), true);
+        }
+    }
+
+    /// @notice Revokes a migrator
+    /// @param migrator Address of the migrator
+    function revokeMigrator(
+        address migrator
+    ) external onlyOwner {
+        if (approvedMigrators[migrator]) {
+            approvedMigrators[migrator] = false;
+            emit MigratorApproval(address(migrator), false);
+        }
     }
 }
