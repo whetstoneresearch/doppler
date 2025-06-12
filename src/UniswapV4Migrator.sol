@@ -35,6 +35,21 @@ error TickOutOfRange();
 /// @dev Thrown when the computed liquidity is zero
 error ZeroLiquidity();
 
+/// @dev Thrown when the beneficiaries are not in ascending order
+error UnorderedBeneficiaries();
+
+/// @notice Thrown when shares are invalid
+error InvalidShares();
+
+/// @notice Thrown when total shares are not equal to WAD
+error InvalidTotalShares();
+
+/// @notice Thrown when an invalid length is used
+error InvalidLength();
+
+/// @dev WAD constant for precise decimal calculations
+uint256 constant WAD = 1e18;
+
 /**
  * @title Uniswap V4 Migrator
  * @author Whetstone Research
@@ -85,8 +100,23 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address numeraire,
         bytes calldata liquidityMigratorData
     ) external onlyAirlock returns (address) {
-        (uint24 fee, int24 tickSpacing, uint256 lockDuration, BeneficiaryData[] memory data) =
-            abi.decode(liquidityMigratorData, (uint24, int24, uint256, BeneficiaryData[]));
+        (uint24 fee, int24 tickSpacing, BeneficiaryData[] memory data) =
+            abi.decode(liquidityMigratorData, (uint24, int24, BeneficiaryData[]));
+
+        require(beneficiaries.length > 0, InvalidLength());
+
+        address prevBeneficiary = address(0);
+        uint256 totalShares;
+        for (uint256 i = 0; i < beneficiaries.length; i++) {
+            require(prevBeneficiary < beneficiaries[i].beneficiary, UnorderedBeneficiaries());
+            require(beneficiaries[i].shares > 0, InvalidShares());
+
+            prevBeneficiary = beneficiaries[i].beneficiary;
+
+            totalShares += beneficiaries[i].shares;
+        }
+
+        require(totalShares == WAD, InvalidTotalShares());
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),

@@ -9,21 +9,14 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import {
-    StreamableFeesLocker,
-    BeneficiaryData,
-    PositionData,
-    NonPositionManager,
-    PositionNotFound,
-    PositionAlreadyUnlocked,
-    InvalidAddress,
-    InvalidShares,
-    InvalidTotalShares,
-    InvalidLength,
-    NotBeneficiary
-} from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLocker, BeneficiaryData, PositionData } from "src/StreamableFeesLocker.sol";
+import { console2 } from "forge-std/console2.sol";
 
-import { console } from "forge-std/console.sol";
+error NonPositionManager();
+error NotApprovedMigrator();
+error PositionNotFound();
+error PositionAlreadyUnlocked();
+error InvalidBeneficiary();
 
 contract StreamableFeesLockerTest is Test {
     StreamableFeesLocker public locker;
@@ -37,6 +30,7 @@ contract StreamableFeesLockerTest is Test {
     address constant BENEFICIARY_2 = address(0x2222);
     address constant BENEFICIARY_3 = address(0x3333);
     address constant RECIPIENT = address(0x4444);
+
     uint256 constant WAD = 1e18;
     uint256 constant LOCK_DURATION = 30 days;
 
@@ -45,10 +39,13 @@ contract StreamableFeesLockerTest is Test {
     event DistributeFees(uint256 indexed tokenId, uint256 amount0, uint256 amount1);
     event Release(uint256 indexed tokenId, address beneficiary, uint256 amount0, uint256 amount1);
     event UpdateBeneficiary(uint256 indexed tokenId, address oldBeneficiary, address newBeneficiary);
+    event MigratorApproval(address indexed migrator, bool approval);
 
     function setUp() public {
         positionManager = IPositionManager(makeAddr("positionManager"));
-        locker = new StreamableFeesLocker(positionManager);
+        locker = new StreamableFeesLocker(positionManager, address(this));
+
+        locker.approveMigrator(address(this));
 
         token0 = new TestERC20(1e27);
         token1 = new TestERC20(1e27);
@@ -61,6 +58,7 @@ contract StreamableFeesLockerTest is Test {
 
     function test_constructor() public view {
         assertEq(address(locker.positionManager()), address(positionManager));
+        assertEq(address(locker.owner()), address(this));
     }
 
     function test_onERC721Received_Success() public {
@@ -78,6 +76,10 @@ contract StreamableFeesLockerTest is Test {
 
         // Verify position data was stored
         // Note: Weird bug with getter for lockData
+        bytes memory data = abi.encodeWithSignature("positions(uint256)", TOKEN_ID);
+        (bool success, bytes memory returnData) = address(locker).staticcall(data);
+        PositionData memory position = abi.decode(returnData, (PositionData));
+        // assertEq(position.beneficiaries, beneficiaries);
     }
 
     function test_onERC721Received_EmitsEvent() public {
@@ -100,52 +102,6 @@ contract StreamableFeesLockerTest is Test {
         bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
         vm.expectRevert(abi.encodeWithSelector(NonPositionManager.selector));
-        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
-    }
-
-    function test_onERC721Received_RevertNoBeneficiaries() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
-        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
-
-        vm.prank(address(positionManager));
-        vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
-        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
-    }
-
-    function test_onERC721Received_RevertZeroAddressBeneficiary() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 1e18 });
-
-        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
-
-        vm.prank(address(positionManager));
-        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
-        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
-    }
-
-    function test_onERC721Received_RevertZeroShares() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0 });
-
-        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
-
-        vm.prank(address(positionManager));
-        vm.expectRevert(abi.encodeWithSelector(InvalidShares.selector));
-        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
-    }
-
-    function test_onERC721Received_RevertIncorrectTotalShares() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.5e18 });
-        beneficiaries[1] = BeneficiaryData({
-            beneficiary: BENEFICIARY_2,
-            shares: 0.4e18 // Total is 0.9e18, not 1e18
-         });
-
-        bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
-
-        vm.prank(address(positionManager));
-        vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
 
@@ -460,17 +416,6 @@ contract StreamableFeesLockerTest is Test {
         assertEq(selector, ERC721TokenReceiver.onERC721Received.selector);
     }
 
-    function test_onERC721Received_RevertZeroRecipient() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
-
-        bytes memory positionData = abi.encode(address(0), LOCK_DURATION, beneficiaries); // Zero recipient
-
-        vm.prank(address(positionManager));
-        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
-        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
-    }
-
     function test_releaseFees_NothingToClaim() public {
         // First lock the position
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
@@ -505,7 +450,7 @@ contract StreamableFeesLockerTest is Test {
         assertEq(token1.balanceOf(BENEFICIARY_1), 0);
     }
 
-    function test_updateBeneficiary_RevertNotBeneficiary() public {
+    function test_updateBeneficiary_RevertInvalidBeneficiary() public {
         // First lock the position
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
@@ -516,11 +461,11 @@ contract StreamableFeesLockerTest is Test {
 
         // Try to update as non-beneficiary
         vm.prank(BENEFICIARY_2);
-        vm.expectRevert(abi.encodeWithSelector(NotBeneficiary.selector));
+        vm.expectRevert(abi.encodeWithSelector(InvalidBeneficiary.selector));
         locker.updateBeneficiary(TOKEN_ID, BENEFICIARY_3);
     }
 
-    function test_releaseFees_RevertNotBeneficiary() public {
+    function test_releaseFees_RevertInvalidBeneficiary() public {
         // First lock the position
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
@@ -531,7 +476,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Try to release as non-beneficiary
         vm.prank(BENEFICIARY_2);
-        vm.expectRevert(abi.encodeWithSelector(NotBeneficiary.selector));
+        vm.expectRevert(abi.encodeWithSelector(InvalidBeneficiary.selector));
         locker.releaseFees(TOKEN_ID);
     }
 
@@ -546,7 +491,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Try to update to zero address
         vm.prank(BENEFICIARY_1);
-        vm.expectRevert(abi.encodeWithSelector(InvalidAddress.selector));
+        vm.expectRevert(abi.encodeWithSelector(InvalidBeneficiary.selector));
         locker.updateBeneficiary(TOKEN_ID, address(0));
     }
 
@@ -804,7 +749,7 @@ contract StreamableFeesLockerTest is Test {
 
         // Lock the position
         vm.prank(address(positionManager));
-        locker.onERC721Received(address(0), address(0), TOKEN_ID, positionData);
+        locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
 
         // Setup mocks
         PoolKey memory poolKey = PoolKey({
