@@ -14,6 +14,13 @@ import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
+error TickOutOfRange();
+error ZeroLiquidity();
+error UnorderedBeneficiaries();
+error InvalidShares();
+error InvalidTotalShares();
+error InvalidLength();
+
 contract UniswapV4MigratorTest is Test {
     using PoolIdLibrary for PoolKey;
 
@@ -25,11 +32,27 @@ contract UniswapV4MigratorTest is Test {
     UniswapV4Migrator public migrator;
     TestERC20 public asset;
     TestERC20 public numeraire;
+    address public token0;
+    address public token1;
+
+    uint256 constant TOKEN_ID = 1;
+    address constant BENEFICIARY_1 = address(0x1111);
+    address constant BENEFICIARY_2 = address(0x2222);
+    address constant BENEFICIARY_3 = address(0x3333);
+    address constant RECIPIENT = address(0x4444);
+
+    int24 constant TICK_SPACING = 8;
+    uint24 constant FEE = 3000;
+    uint32 constant LOCK_DURATION = 30 days;
 
     function setUp() public {
         asset = new TestERC20(1e27);
         numeraire = new TestERC20(1e27);
         migrator = new UniswapV4Migrator(airlock, poolManager, payable(positionManager), StreamableFeesLocker(locker));
+
+        token0 = address(asset);
+        token1 = address(numeraire);
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
     }
 
     /// @dev We're defining `extsload` here again (from `IExtslod`) because solc is not able to
@@ -39,56 +62,41 @@ contract UniswapV4MigratorTest is Test {
     ) external view returns (bytes32 value) { }
 
     function test_initialize_StoresPoolKey() public {
-        int24 tickSpacing = 8;
-        uint24 fee = 3000;
-        uint32 lockDuration = 30 days;
-
-        address token0 = address(asset);
-        address token1 = address(numeraire);
-        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
-
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x123), shares: uint64(1 ether) });
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
         vm.prank(airlock);
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(fee, tickSpacing, lockDuration, beneficiaries)
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );
 
-        (PoolKey memory poolKey, uint256 lockDuration_) = migrator.getAssetData(token0, token1);
+        (PoolKey memory poolKey, uint256 lockDuration) = migrator.getAssetData(token0, token1);
         assertEq(Currency.unwrap(poolKey.currency0), token0);
         assertEq(Currency.unwrap(poolKey.currency1), token1);
-        assertEq(poolKey.fee, fee);
-        assertEq(poolKey.tickSpacing, tickSpacing);
+        assertEq(poolKey.fee, FEE);
+        assertEq(poolKey.tickSpacing, TICK_SPACING);
         assertEq(address(poolKey.hooks), address(0));
-        assertEq(lockDuration_, lockDuration);
+        assertEq(lockDuration, LOCK_DURATION);
     }
 
     // TODO: Update this test
     function test_migrate_MigratesToUniV4() public {
         vm.skip(true);
-        int24 tickSpacing = 8;
-        uint24 fee = 3000;
-        uint32 lockDuration = 30 days;
-
-        address token0 = address(asset);
-        address token1 = address(numeraire);
-        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x123), shares: uint64(1 ether) });
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
 
         vm.prank(airlock);
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(fee, tickSpacing, lockDuration, beneficiaries)
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(token0),
             currency1: Currency.wrap(token1),
             hooks: IHooks(address(0)),
-            fee: fee,
-            tickSpacing: tickSpacing
+            fee: FEE,
+            tickSpacing: TICK_SPACING
         });
 
         bytes memory getSlot0Call = abi.encodeWithSelector(this.extsload.selector, poolKey.toId());
@@ -106,18 +114,11 @@ contract UniswapV4MigratorTest is Test {
     // TODO: Update this test
     function test_migrate_NoOpGovernance_SendsAllToLocker() public {
         vm.skip(true);
-        int24 tickSpacing = 8;
-        uint24 fee = 3000;
-        uint32 lockDuration = 30 days;
-
-        address token0 = address(asset);
-        address token1 = address(numeraire);
-        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
 
         // Initialize with empty beneficiary data for no-op governance
         vm.prank(airlock);
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(fee, tickSpacing, lockDuration, new BeneficiaryData[](0))
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, new BeneficiaryData[](0))
         );
 
         // Setup balances
@@ -133,8 +134,8 @@ contract UniswapV4MigratorTest is Test {
             currency0: Currency.wrap(token0),
             currency1: Currency.wrap(token1),
             hooks: IHooks(address(0)),
-            fee: fee,
-            tickSpacing: tickSpacing
+            fee: FEE,
+            tickSpacing: TICK_SPACING
         });
 
         // Mock pool manager calls
@@ -160,5 +161,53 @@ contract UniswapV4MigratorTest is Test {
         // 1. Only one NFT position was created (not two)
         // 2. All liquidity went to the locker
         // 3. No position was sent to the timelock
+    }
+
+    function test_initialize_RevertZeroAddressBeneficiary() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 1e18 });
+
+        vm.prank(airlock);
+        vm.expectRevert(abi.encodeWithSelector(UnorderedBeneficiaries.selector));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
+    }
+
+    function test_initialize_RevertNoBeneficiaries() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
+        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
+
+        vm.prank(airlock);
+        vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
+    }
+
+    function test_initialize_RevertZeroShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0 });
+
+        vm.prank(airlock);
+        vm.expectRevert(abi.encodeWithSelector(InvalidShares.selector));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
+    }
+
+    function test_initialize_RevertIncorrectTotalShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.5e18 });
+        beneficiaries[1] = BeneficiaryData({
+            beneficiary: BENEFICIARY_2,
+            shares: 0.4e18 // Total is 0.9e18, not 1e18
+         });
+
+        vm.prank(airlock);
+        vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
     }
 }

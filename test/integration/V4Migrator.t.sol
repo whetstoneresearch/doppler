@@ -45,8 +45,9 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         positionManager = Deploy.positionManager(
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
-        locker = new StreamableFeesLocker(positionManager);
+        locker = new StreamableFeesLocker(positionManager, address(this));
         migrator = new UniswapV4Migrator(address(airlock), address(manager), payable(address(positionManager)), locker);
+        locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
 
