@@ -100,8 +100,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address numeraire,
         bytes calldata liquidityMigratorData
     ) external onlyAirlock returns (address) {
-        (uint24 fee, int24 tickSpacing, BeneficiaryData[] memory data) =
-            abi.decode(liquidityMigratorData, (uint24, int24, BeneficiaryData[]));
+        (uint24 fee, int24 tickSpacing, uint256 lockDuration, BeneficiaryData[] memory beneficiaries) =
+            abi.decode(liquidityMigratorData, (uint24, int24, uint256, BeneficiaryData[]));
 
         require(beneficiaries.length > 0, InvalidLength());
 
@@ -127,7 +127,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         });
 
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
-            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: data });
+            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
 
         return address(0);
     }

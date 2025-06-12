@@ -14,7 +14,7 @@ import { Ownable } from "@openzeppelin/access/Ownable.sol";
 
 struct BeneficiaryData {
     address beneficiary;
-    uint64 shares;
+    uint96 shares;
 }
 
 /// @notice Data structure for position information
@@ -142,8 +142,8 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
         uint256 tokenId,
         bytes calldata positionData
     ) external override onlyPositionManager onlyApprovedMigrator(from) returns (bytes4) {
-        (address recipient, BeneficiaryData[] memory beneficiaries) =
-            abi.decode(positionData, (address, BeneficiaryData[]));
+        (address recipient, uint256 lockDuration, BeneficiaryData[] memory beneficiaries) =
+            abi.decode(positionData, (address, uint256, BeneficiaryData[]));
 
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
@@ -155,7 +155,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
             lockDuration: uint32(lockDuration)
         });
 
-        emit Lock(tokenId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + LOCK_DURATION : 0);
+        emit Lock(tokenId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + lockDuration : 0);
 
         return ERC721TokenReceiver.onERC721Received.selector;
     }

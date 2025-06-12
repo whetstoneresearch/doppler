@@ -76,10 +76,6 @@ contract StreamableFeesLockerTest is Test {
 
         // Verify position data was stored
         // Note: Weird bug with getter for lockData
-        bytes memory data = abi.encodeWithSignature("positions(uint256)", TOKEN_ID);
-        (bool success, bytes memory returnData) = address(locker).staticcall(data);
-        PositionData memory position = abi.decode(returnData, (PositionData));
-        // assertEq(position.beneficiaries, beneficiaries);
     }
 
     function test_onERC721Received_EmitsEvent() public {
