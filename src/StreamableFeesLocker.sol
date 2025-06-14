@@ -215,14 +215,17 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
         if (block.timestamp >= position.startDate + position.lockDuration && position.recipient != DEAD_ADDRESS) {
             position.isUnlocked = true;
 
+            // Update the position in storage
+            positions[tokenId] = position;
+
             // Transfer the position to the recipient
             ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
 
             emit Unlock(tokenId, position.recipient);
+        } else {
+            // Update the position in storage
+            positions[tokenId] = position;
         }
-
-        // Update the position in storage
-        positions[tokenId] = position;
 
         emit DistributeFees(tokenId, currency0ToDistribute, currency1ToDistribute);
     }
