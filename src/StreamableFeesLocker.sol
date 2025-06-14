@@ -184,7 +184,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
         BeneficiaryData[] memory beneficiaries = position.beneficiaries;
 
-        (uint256 currency0ToDistribute, uint256 currency1ToDistribute) = _updateCurrencyBalances(position, poolKey);
+        (uint256 currency0ToDistribute, uint256 currency1ToDistribute) = _updateCurrencyBalances(poolKey);
 
         uint256 amount0Distributed;
         uint256 amount1Distributed;
@@ -252,12 +252,10 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
     }
 
     /// @notice Updates currency balances and calculates distributable amounts
-    /// @param position Current position data
     /// @param poolKey Pool information
     /// @return amount0ToDistribute Amount of token0 to distribute
     /// @return amount1ToDistribute Amount of token1 to distribute
     function _updateCurrencyBalances(
-        PositionData memory position,
         PoolKey memory poolKey
     ) internal returns (uint256 amount0ToDistribute, uint256 amount1ToDistribute) {
         // Cache currency balances for reentrancy protection
