@@ -197,18 +197,17 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
             uint256 amount0 = currency0ToDistribute * shares / WAD;
             uint256 amount1 = currency1ToDistribute * shares / WAD;
 
-            _distributeFees(beneficiary, poolKey, amount0, amount1);
-
             amount0Distributed += amount0;
             amount1Distributed += amount1;
-        }
 
-        // Distribute the remaining fees to the last beneficiary
-        uint256 amount0Remaining =
-            currency0ToDistribute > amount0Distributed ? currency0ToDistribute - amount0Distributed : 0;
-        uint256 amount1Remaining =
-            currency1ToDistribute > amount1Distributed ? currency1ToDistribute - amount1Distributed : 0;
-        _distributeFees(beneficiary, poolKey, amount0Remaining, amount1Remaining);
+            if (i == beneficiaries.length - 1) {
+                // Distribute the remaining fees to the last beneficiary
+                amount0 += currency0ToDistribute > amount0Distributed ? currency0ToDistribute - amount0Distributed : 0;
+                amount1 += currency1ToDistribute > amount1Distributed ? currency1ToDistribute - amount1Distributed : 0;
+            }
+
+            _distributeFees(beneficiary, poolKey, amount0, amount1);
+        }
 
         // Note: For no-op governance, if recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
