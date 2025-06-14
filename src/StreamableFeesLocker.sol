@@ -18,10 +18,11 @@ struct BeneficiaryData {
 }
 
 /// @notice Data structure for position information
-/// @param beneficiaries Array of beneficiaries and their shares
-/// @param startDate Timestamp when the position was locked
-/// @param isUnlocked Whether the position has been unlocked
 /// @param recipient Address that will receive the NFT after unlocking
+/// @param startDate Timestamp when the position was locked
+/// @param lockDuration Duration of the position lock
+/// @param isUnlocked Whether the position has been unlocked
+/// @param beneficiaries Array of beneficiaries and their shares
 struct PositionData {
     address recipient;
     uint32 startDate;
@@ -133,6 +134,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
     }
 
     /// @notice Handles incoming ERC721 tokens and initializes position data
+    /// @param from Address that is transferring the token
     /// @param tokenId ID of the token being transferred
     /// @param positionData Encoded data containing recipient and beneficiaries
     /// @return bytes4 The ERC721 receiver selector

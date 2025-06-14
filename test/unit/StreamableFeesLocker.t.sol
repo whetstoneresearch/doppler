@@ -30,6 +30,7 @@ contract StreamableFeesLockerTest is Test {
     address constant BENEFICIARY_2 = address(0x2222);
     address constant BENEFICIARY_3 = address(0x3333);
     address constant RECIPIENT = address(0x4444);
+    address constant MIGRATOR = address(0x5555);
 
     uint256 constant WAD = 1e18;
     uint256 constant LOCK_DURATION = 30 days;
@@ -75,7 +76,12 @@ contract StreamableFeesLockerTest is Test {
         assertEq(selector, ERC721TokenReceiver.onERC721Received.selector);
 
         // Verify position data was stored
-        // Note: Weird bug with getter for lockData
+        // Note: Weird bug with getter for positions
+        (address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) = locker.positions(TOKEN_ID);
+        assertEq(recipient, RECIPIENT);
+        assertEq(startDate, block.timestamp);
+        assertEq(lockDuration, LOCK_DURATION);
+        assertFalse(isUnlocked);
     }
 
     function test_onERC721Received_EmitsEvent() public {
@@ -84,8 +90,9 @@ contract StreamableFeesLockerTest is Test {
 
         bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
+        // Verify Lock event was emitted
         vm.expectEmit(true, false, false, true);
-        emit Lock(TOKEN_ID, beneficiaries, block.timestamp + 30 days);
+        emit Lock(TOKEN_ID, beneficiaries, block.timestamp + LOCK_DURATION);
 
         vm.prank(address(positionManager));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
@@ -97,6 +104,7 @@ contract StreamableFeesLockerTest is Test {
 
         bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
 
+        // Verify onERC721Received reverts when called by non-position manager
         vm.expectRevert(abi.encodeWithSelector(NonPositionManager.selector));
         locker.onERC721Received(address(this), address(this), TOKEN_ID, positionData);
     }
@@ -820,5 +828,26 @@ contract StreamableFeesLockerTest is Test {
         assertEq(locker.beneficiariesClaims(BENEFICIARY_1, Currency.wrap(address(token1))), expectedClaim1_B1);
         assertEq(locker.beneficiariesClaims(BENEFICIARY_2, Currency.wrap(address(token0))), expectedClaim0_B2);
         assertEq(locker.beneficiariesClaims(BENEFICIARY_2, Currency.wrap(address(token1))), expectedClaim1_B2);
+    }
+
+    function test_approveMigrator_SuccessAndEmitsEvent() public {
+        vm.expectEmit(true, false, false, true);
+        emit MigratorApproval(MIGRATOR, true);
+
+        // Verify approval was made and event was emitted
+        locker.approveMigrator(MIGRATOR);
+        assertTrue(locker.approvedMigrators(MIGRATOR));
+    }
+
+    function test_revokeMigrator_SuccessAndEmitsEvent() public {
+        // First approve migrator
+        locker.approveMigrator(MIGRATOR);
+
+        vm.expectEmit(true, false, false, true);
+        emit MigratorApproval(MIGRATOR, false);
+
+        // Verify approval was revoked and event was emitted
+        locker.revokeMigrator(MIGRATOR);
+        assertFalse(locker.approvedMigrators(MIGRATOR));
     }
 }
