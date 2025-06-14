@@ -16,6 +16,7 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 
 /**
  * @notice Data to use for the migration
@@ -118,10 +119,12 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         require(totalShares == WAD, InvalidTotalShares());
 
+        UniswapV4MigratorHook migratorHook = new UniswapV4MigratorHook(poolManager, address(this));
+
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: IHooks(address(0)),
+            hooks: IHooks(migratorHook),
             fee: fee,
             tickSpacing: tickSpacing
         });
