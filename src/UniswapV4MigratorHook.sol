@@ -20,8 +20,10 @@ contract UniswapV4MigratorHook is BaseHook {
     address public immutable migrator;
 
     /// @notice Modifier to ensure the caller is the Uniswap V4 Migrator
-    modifier onlyMigrator() {
-        if (msg.sender != migrator) revert OnlyMigrator();
+    modifier onlyMigrator(
+        address sender
+    ) {
+        if (sender != migrator) revert OnlyMigrator();
         _;
     }
 
@@ -31,10 +33,10 @@ contract UniswapV4MigratorHook is BaseHook {
     }
 
     function _beforeInitialize(
-        address,
+        address sender,
         PoolKey calldata,
         uint160
-    ) internal view override onlyMigrator returns (bytes4) {
+    ) internal view override onlyMigrator(sender) returns (bytes4) {
         return BaseHook.beforeInitialize.selector;
     }
 
