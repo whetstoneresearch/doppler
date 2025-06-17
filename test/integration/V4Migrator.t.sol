@@ -20,14 +20,17 @@ import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { DopplerDeployer, UniswapV4Initializer, IPoolInitializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV4Migrator, ILiquidityMigrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Doppler } from "src/Doppler.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
     IAllowanceTransfer public permit2;
     UniswapV4Migrator public migrator;
+    UniswapV4MigratorHook public migratorHook;
     IPositionManager public positionManager;
     Airlock public airlock;
     DopplerDeployer public deployer;
@@ -46,7 +49,11 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
         locker = new StreamableFeesLocker(positionManager, address(this));
-        migrator = new UniswapV4Migrator(address(airlock), address(manager), payable(address(positionManager)), locker);
+        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migrator = new UniswapV4Migrator(
+            address(airlock), address(manager), payable(address(positionManager)), locker, migratorHook
+        );
+        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));

@@ -13,6 +13,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 
 error TickOutOfRange();
 error ZeroLiquidity();
@@ -30,6 +32,7 @@ contract UniswapV4MigratorTest is Test {
     address public locker = makeAddr("locker");
 
     UniswapV4Migrator public migrator;
+    UniswapV4MigratorHook public migratorHook;
     TestERC20 public asset;
     TestERC20 public numeraire;
     address public token0;
@@ -48,7 +51,11 @@ contract UniswapV4MigratorTest is Test {
     function setUp() public {
         asset = new TestERC20(1e27);
         numeraire = new TestERC20(1e27);
-        migrator = new UniswapV4Migrator(airlock, poolManager, payable(positionManager), StreamableFeesLocker(locker));
+        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migrator = new UniswapV4Migrator(
+            airlock, poolManager, payable(positionManager), StreamableFeesLocker(locker), migratorHook
+        );
+        deployCodeTo("UniswapV4MigratorHook", abi.encode(poolManager, migrator), address(migratorHook));
 
         token0 = address(asset);
         token1 = address(numeraire);

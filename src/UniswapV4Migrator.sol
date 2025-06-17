@@ -16,7 +16,6 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 
 /**
  * @notice Data to use for the migration
@@ -70,6 +69,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     /// @notice Address of the Streamable Fees Locker
     StreamableFeesLocker public immutable locker;
 
+    IHooks public immutable migratorHook;
+
     /// @notice The dead address used for no-op governance
     address public constant DEAD_ADDRESS = address(0xdead);
 
@@ -88,11 +89,13 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address airlock_,
         address poolManager_,
         address payable positionManager_,
-        StreamableFeesLocker locker_
+        StreamableFeesLocker locker_,
+        IHooks migratorHook_
     ) ImmutableAirlock(airlock_) {
         poolManager = IPoolManager(poolManager_);
         positionManager = PositionManager(positionManager_);
         locker = locker_;
+        migratorHook = migratorHook_;
     }
 
     /// @inheritdoc ILiquidityMigrator
@@ -119,12 +122,10 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         require(totalShares == WAD, InvalidTotalShares());
 
-        UniswapV4MigratorHook migratorHook = new UniswapV4MigratorHook(poolManager, address(this));
-
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: IHooks(migratorHook),
+            hooks: migratorHook,
             fee: fee,
             tickSpacing: tickSpacing
         });
@@ -148,12 +149,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         // Check if this is no-op governance
         bool isNoOpGovernance = recipient == DEAD_ADDRESS;
 
-        // Let's check if the pool was initialized
-        (uint160 currentSqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
-
-        if (currentSqrtPriceX96 == 0) {
-            IPoolManager(poolManager).initialize(poolKey, sqrtPriceX96);
-        }
+        IPoolManager(poolManager).initialize(poolKey, sqrtPriceX96);
 
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
