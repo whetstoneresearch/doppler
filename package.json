@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "viem": "^2.30.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.2.15"
   }
 }
