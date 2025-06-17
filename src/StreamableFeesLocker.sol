@@ -107,6 +107,9 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
     /// @notice Mapping of approved migrators
     mapping(address migrator => bool approved) public approvedMigrators;
 
+    /// @notice Anyone can send ETH to this contract
+    receive() external payable { }
+
     /// @notice Constructor
     /// @param positionManager_ Address of the Uniswap V4 position manager
     /// @param owner_ Address of the owner of the contract
