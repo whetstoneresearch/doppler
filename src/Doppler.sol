@@ -503,6 +503,28 @@ contract Doppler is BaseHook {
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
+        if (currentTick == TickMath.MIN_TICK || currentTick == TickMath.MAX_TICK) {
+            // We sold all the asset tokens and the pool has reached the MIN or MAX tick, so we need to set the price
+            // back to the top of the higher PD slug
+            Position memory position = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + numPDSlugs - 1))];
+            int24 targetTick = isToken0 ? position.tickLower : position.tickUpper;
+
+            // Then we swap from the MIN or MAX tick to the target tick
+            BalanceDelta resetSwapDelta = poolManager.swap(
+                key,
+                IPoolManager.SwapParams({
+                    zeroForOne: isToken0,
+                    amountSpecified: 1,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(targetTick)
+                }),
+                ""
+            );
+
+            require(resetSwapDelta.amount0() == 0 && resetSwapDelta.amount1() == 0, "Invalid swap delta");
+            (, int24 newTick,,) = poolManager.getSlot0(poolId);
+            require(newTick == targetTick, "Invalid new tick after swap");
+        }
+
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
         uint24 swapFee = insufficientProceeds

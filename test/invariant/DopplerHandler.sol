@@ -181,7 +181,7 @@ contract DopplerHandler is Test {
             } else if (selector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
                 revert("invalid swap after maturity");
             } else if (selector == Pool.PriceLimitAlreadyExceeded.selector) {
-                // revert("price limit already exceeded");
+                revert("price limit already exceeded");
             } else {
                 revert("Unknown error");
             }
