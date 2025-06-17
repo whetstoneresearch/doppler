@@ -7,7 +7,7 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { IExtsload } from "@v4-core/interfaces/IExtsload.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -28,8 +28,8 @@ contract UniswapV4MigratorTest is Test {
 
     address public airlock = makeAddr("airlock");
     address public poolManager = makeAddr("poolManager");
-    address public positionManager = makeAddr("positionManager");
-    address public locker = makeAddr("locker");
+    address payable public positionManager = payable(makeAddr("positionManager"));
+    address payable public locker = payable(makeAddr("locker"));
 
     UniswapV4Migrator public migrator;
     UniswapV4MigratorHook public migratorHook;
@@ -53,7 +53,11 @@ contract UniswapV4MigratorTest is Test {
         numeraire = new TestERC20(1e27);
         migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
         migrator = new UniswapV4Migrator(
-            airlock, poolManager, payable(positionManager), StreamableFeesLocker(locker), migratorHook
+            airlock,
+            IPoolManager(poolManager),
+            PositionManager(positionManager),
+            StreamableFeesLocker(locker),
+            IHooks(migratorHook)
         );
         deployCodeTo("UniswapV4MigratorHook", abi.encode(poolManager, migrator), address(migratorHook));
 
@@ -82,7 +86,7 @@ contract UniswapV4MigratorTest is Test {
         assertEq(Currency.unwrap(poolKey.currency1), token1);
         assertEq(poolKey.fee, FEE);
         assertEq(poolKey.tickSpacing, TICK_SPACING);
-        assertEq(address(poolKey.hooks), address(0));
+        assertEq(address(poolKey.hooks), address(migratorHook));
         assertEq(lockDuration, LOCK_DURATION);
     }
 

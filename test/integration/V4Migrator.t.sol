@@ -7,6 +7,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { ERC721 } from "@solady/tokens/ERC721.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -51,9 +52,13 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         locker = new StreamableFeesLocker(positionManager, address(this));
         migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
         migrator = new UniswapV4Migrator(
-            address(airlock), address(manager), payable(address(positionManager)), locker, migratorHook
+            address(airlock),
+            IPoolManager(manager),
+            PositionManager(payable(address(positionManager))),
+            locker,
+            IHooks(migratorHook)
         );
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
+        deployCodeTo("UniswapV4MigratorHook", abi.encode(address(manager), address(migrator)), address(migratorHook));
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
@@ -96,6 +101,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(airlock), shares: 0.05e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
+        beneficiaries = sortBeneficiaries(beneficiaries);
 
         bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries);
 
@@ -164,5 +170,21 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         assertEq(
             ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should be the owner of the token"
         );
+    }
+
+    function sortBeneficiaries(
+        BeneficiaryData[] memory beneficiaries
+    ) internal pure returns (BeneficiaryData[] memory) {
+        uint256 length = beneficiaries.length;
+        for (uint256 i = 0; i < length - 1; i++) {
+            for (uint256 j = 0; j < length - i - 1; j++) {
+                if (uint160(beneficiaries[j].beneficiary) > uint160(beneficiaries[j + 1].beneficiary)) {
+                    BeneficiaryData memory temp = beneficiaries[j];
+                    beneficiaries[j] = beneficiaries[j + 1];
+                    beneficiaries[j + 1] = temp;
+                }
+            }
+        }
+        return beneficiaries;
     }
 }
