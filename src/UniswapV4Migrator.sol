@@ -69,13 +69,16 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     /// @notice Address of the Streamable Fees Locker
     StreamableFeesLocker public immutable locker;
 
+    /// @notice Address of the Uniswap V4 Migrator Hook
     IHooks public immutable migratorHook;
 
     /// @notice The dead address used for no-op governance
     address public constant DEAD_ADDRESS = address(0xdead);
 
+    /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
 
+    /// @notice Anyone can send ETH to this contract
     receive() external payable { }
 
     /**
@@ -84,16 +87,17 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
      * @param poolManager_ Address of the Uniswap V4 Pool Manager contract
      * @param positionManager_ Address of the Uniswap V4 Position Manager contract
      * @param locker_ Address of the Streamable Fees Locker contract
+     * @param migratorHook_ Address of the Uniswap V4 Migrator Hook contract
      */
     constructor(
         address airlock_,
-        address poolManager_,
-        address payable positionManager_,
+        IPoolManager poolManager_,
+        PositionManager positionManager_,
         StreamableFeesLocker locker_,
         IHooks migratorHook_
     ) ImmutableAirlock(airlock_) {
-        poolManager = IPoolManager(poolManager_);
-        positionManager = PositionManager(positionManager_);
+        poolManager = poolManager_;
+        positionManager = positionManager_;
         locker = locker_;
         migratorHook = migratorHook_;
     }
@@ -149,7 +153,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         // Check if this is no-op governance
         bool isNoOpGovernance = recipient == DEAD_ADDRESS;
 
-        IPoolManager(poolManager).initialize(poolKey, sqrtPriceX96);
+        poolManager.initialize(poolKey, sqrtPriceX96);
 
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
