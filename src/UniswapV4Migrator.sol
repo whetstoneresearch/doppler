@@ -242,7 +242,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 new bytes(0)
             );
 
-            // Liquidity for the Timelock
+            // Liquidity for the Timelock, we can pass the full balances as maximum
+            // amounts here since the protocol locker already received its share
             params[1] = abi.encode(
                 poolKey,
                 lowerTick,
