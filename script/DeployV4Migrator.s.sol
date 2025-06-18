@@ -8,21 +8,13 @@ import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
-import { MineV4MigratorHookParams, mineV4MigratorHook, computeCreate2Address } from "test/shared/AirlockMiner.sol";
+import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {
     address airlock;
     address poolManager;
     address positionManager;
     address airlockOwner;
-}
-
-struct MigratorSaltParams {
-    address airlock;
-    IPoolManager poolManager;
-    IPositionManager positionManager;
-    StreamableFeesLocker locker;
-    IHooks migratorHook;
 }
 
 /**
@@ -42,39 +34,32 @@ abstract contract DeployV4MigratorScript is Script {
         StreamableFeesLocker streamableFeesLocker =
             new StreamableFeesLocker(IPositionManager(_scriptData.positionManager), _scriptData.airlockOwner);
 
+        // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
+        address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
+
+        /// Mine salt for migrator hook address
         (bytes32 salt, address minedMigratorHook) = mineV4MigratorHook(
-            MineV4MigratorHookParams({ poolManager: _scriptData.poolManager, hookDeployer: msg.sender })
+            MineV4MigratorHookParams({
+                poolManager: _scriptData.poolManager,
+                migrator: precomputedUniswapV4Migrator,
+                hookDeployer: msg.sender
+            })
         );
 
-        MigratorSaltParams memory migratorSaltParams = MigratorSaltParams({
-            airlock: _scriptData.airlock,
-            poolManager: IPoolManager(_scriptData.poolManager),
-            positionManager: IPositionManager(_scriptData.positionManager),
-            locker: streamableFeesLocker,
-            migratorHook: IHooks(minedMigratorHook)
-        });
-
-        // Pre-compute migrator address
-        bytes32 migratorSalt = keccak256(abi.encode(migratorSaltParams));
-
-        bytes32 migratorInitHash =
-            keccak256(abi.encodePacked(type(UniswapV4Migrator).creationCode, abi.encode(migratorSaltParams)));
-        address minedMigrator = computeCreate2Address(migratorSalt, migratorInitHash);
-
-        // Deploy hook with pre-computed migrator address
-        UniswapV4MigratorHook migratorHook = new UniswapV4MigratorHook{ salt: salt }(
-            IPoolManager(_scriptData.poolManager), UniswapV4Migrator(payable(minedMigrator))
+        // Deploy migrator with pre-mined hook address
+        UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
+            _scriptData.airlock,
+            IPoolManager(_scriptData.poolManager),
+            PositionManager(payable(_scriptData.positionManager)),
+            streamableFeesLocker,
+            IHooks(minedMigratorHook)
         );
 
-        // Deploy migrator with actual hook address
-        UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator{ salt: migratorSalt }(
-            migratorSaltParams.airlock,
-            migratorSaltParams.poolManager,
-            PositionManager(payable(address(migratorSaltParams.positionManager))),
-            migratorSaltParams.locker,
-            migratorSaltParams.migratorHook
-        );
+        // Deploy hook with deployed migrator address
+        UniswapV4MigratorHook migratorHook =
+            new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
 
+        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
         require(
             address(uniswapV4Migrator.migratorHook()) == address(migratorHook),
             "Migrator hook is not the expected address"

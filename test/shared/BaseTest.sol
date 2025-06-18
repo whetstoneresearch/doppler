@@ -192,14 +192,14 @@ contract BaseTest is Test, Deployers {
 
         TestERC20(asset).transfer(address(hook), config.numTokensToSell);
 
-        isToken0 ? startTick > endTick : endTick > startTick;
-        startTick = isToken0
-            ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
-            : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
-        endTick =
-            isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
-        // startTick = DEFAULT_START_TICK;
-        // endTick = DEFAULT_END_TICK;
+        // isToken0 ? startTick > endTick : endTick > startTick;
+        // startTick = isToken0
+        //     ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
+        //     : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
+        // endTick =
+        //     isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
+        startTick = DEFAULT_START_TICK;
+        endTick = DEFAULT_END_TICK;
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),

@@ -39,14 +39,16 @@ struct MineV4Params {
 
 struct MineV4MigratorHookParams {
     address poolManager;
+    address migrator;
     address hookDeployer;
 }
 
 function mineV4MigratorHook(
     MineV4MigratorHookParams memory params
 ) view returns (bytes32, address) {
-    bytes32 migratorHookInitHash =
-        keccak256(abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager)));
+    bytes32 migratorHookInitHash = keccak256(
+        abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager, params.migrator))
+    );
 
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), migratorHookInitHash, address(params.hookDeployer));
