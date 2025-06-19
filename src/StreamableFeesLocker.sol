@@ -220,7 +220,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
             // Update the position in storage
             positions[tokenId] = position;
 
-            // Transfer the position to the recipient
+            // Transfer the position to the recipient (if the recipient is a contract, it must implement `onERC721Received`)
             ERC721(address(positionManager)).safeTransferFrom(address(this), position.recipient, tokenId, new bytes(0));
 
             emit Unlock(tokenId, position.recipient);
