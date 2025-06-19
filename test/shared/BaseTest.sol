@@ -192,8 +192,7 @@ contract BaseTest is Test, Deployers {
 
         TestERC20(asset).transfer(address(hook), config.numTokensToSell);
 
-        // isToken0 ? startTick > endTick : endTick > startTick
-        // In both cases, price(startTick) > price(endTick)
+        // isToken0 ? startTick > endTick : endTick > startTick;
         // startTick = isToken0
         //     ? int24(vm.envOr("START_TICK", DEFAULT_START_TICK))
         //     : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
