@@ -34,6 +34,10 @@ const chains: {[chainId: string]: ChainDetails } = {
   },
 };
 
+function shorten(a: string, length: number = 4): string {
+  return `${a.slice(0, length + 2)}...${a.slice(-length)}`;
+}
+
 (async () => {
   const { values } = parseArgs({
     args: Bun.argv,
@@ -72,8 +76,8 @@ const chains: {[chainId: string]: ChainDetails } = {
 
   Object.values(names).forEach((d) => {
       content += `| ${d.contractName}`;
-      content += ` | [${d.contractAddress}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
-      content += ` | [${d.hash.slice(0, 6)}...${d.hash.substring(d.hash.length - 5, d.hash.length - 1)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
+      content += ` | [${shorten(d.contractAddress)}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
+      content += ` | [${shorten(d.hash, 4)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
       content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
       content += ` | \n`;  
   });
@@ -90,16 +94,17 @@ const chains: {[chainId: string]: ChainDetails } = {
     timestamps[d.timestamp].push(d);
   });
 
-  for (let i = Object.values(timestamps).length - 1; i != 0; i--) {
+  for (let i = Object.values(timestamps).length - 1; i >= 0; i--) {
     const t = Object.values(timestamps)[i];
+
     content += `### ${new Date(t[0].timestamp).toUTCString()}\n`;
     content += `| Contract | Address | Transaction | Commit |\n`;
     content += '|---|---|---|---|\n';
   
     t.forEach((d) => {
       content += `| ${d.contractName}`;
-      content += ` | [${d.contractAddress}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
-      content += ` | [${d.hash.slice(0, 6)}...${d.hash.substring(d.hash.length - 5, d.hash.length - 1)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
+      content += ` | [${shorten(d.contractAddress)}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
+      content += ` | [${shorten(d.hash, 4)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
       content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
       content += ` | \n`;
     });
