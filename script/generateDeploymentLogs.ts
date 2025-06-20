@@ -39,14 +39,16 @@ export type Tracker = {
     timestamp: number;
   } = await file.json();
 
-  const deployments: Deployment[] = broadcast.transactions.map((transactions: Deployment) => ({
-    contractName: transactions.contractName,
-    contractAddress: transactions.contractAddress,
-    hash: transactions.hash,
-    arguments: transactions.arguments,
-    commit: broadcast.commit,
-    timestamp: broadcast.timestamp,
-  }));
+  const deployments: Deployment[] = broadcast.transactions
+    .filter((transaction: Deployment & {transactionType: 'CREATE' | 'CALL'}) => transaction.transactionType === 'CREATE')
+    .map((transactions: Deployment) => ({
+      contractName: transactions.contractName,
+      contractAddress: transactions.contractAddress,
+      hash: transactions.hash,
+      arguments: transactions.arguments,
+      commit: broadcast.commit,
+      timestamp: broadcast.timestamp,
+    }));
 
   // Then we generate the json file with the deployments history
   const tracker = Bun.file(`deployments/${values.chainId}.json`);
