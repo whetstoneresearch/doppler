@@ -38,6 +38,39 @@ function shorten(a: string, length: number = 4): string {
   return `${a.slice(0, length + 2)}...${a.slice(-length)}`;
 }
 
+export function generateTable(deployments: Deployment[], chainId: string): string {
+  const explorerUrl = chains[chainId].explorerUrl;
+
+  let content = `| Contract | Address | Transaction | Commit |\n`;
+  content += '|---|---|---|---|\n';
+
+  deployments.forEach((d) => {
+    content += `| ${d.contractName}`;
+    content += ` | [${shorten(d.contractAddress)}](${explorerUrl}/address/${d.contractAddress})`;
+    content += ` | [${shorten(d.hash, 4)}](${explorerUrl}/tx/${d.hash})`;
+    content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
+    content += ` | \n`;
+  });
+
+  return content;
+}
+
+export function getLatestDeployments(tracker: Tracker): Deployment[] {
+  const latestDeployments: {[key: string]: Deployment} = {};
+
+  tracker.deployments.forEach((deployment) => {
+    if (!latestDeployments[deployment.contractName]) {
+      latestDeployments[deployment.contractName] = deployment;
+    } else {
+      if (latestDeployments[deployment.contractName].timestamp < deployment.timestamp) {
+        latestDeployments[deployment.contractName] = deployment;
+      }
+    }
+  });
+
+  return Object.values(latestDeployments);
+}
+
 (async () => {
   const { values } = parseArgs({
     args: Bun.argv,
@@ -59,28 +92,9 @@ function shorten(a: string, length: number = 4): string {
 
   // We start by making a nice table for the latest deployments
   content += `## Latest deployments\n`;
-  content += `| Contract | Address | Transaction | Commit |\n`;
-  content += '|---|---|---|---|\n';
 
-  const names: {[key: string]: Deployment} = {};
-
-  tracker.deployments.forEach((deployment) => {
-    if (!names[deployment.contractName]) {
-      names[deployment.contractName] = deployment;
-    } else {
-      if (names[deployment.contractName].timestamp < deployment.timestamp) {
-        names[deployment.contractName] = deployment;
-      }
-    }
-  });
-
-  Object.values(names).forEach((d) => {
-      content += `| ${d.contractName}`;
-      content += ` | [${shorten(d.contractAddress)}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
-      content += ` | [${shorten(d.hash, 4)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
-      content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
-      content += ` | \n`;  
-  });
+  const latestDeployments = getLatestDeployments(tracker);
+  content += generateTable(latestDeployments, values.chainId);
 
   // Then we're making a list of historical deployments
   content += `## History\n`;
@@ -98,17 +112,8 @@ function shorten(a: string, length: number = 4): string {
     const t = Object.values(timestamps)[i];
 
     content += `### ${new Date(t[0].timestamp).toUTCString()}\n`;
-    content += `| Contract | Address | Transaction | Commit |\n`;
-    content += '|---|---|---|---|\n';
-  
-    t.forEach((d) => {
-      content += `| ${d.contractName}`;
-      content += ` | [${shorten(d.contractAddress)}](${chains[values.chainId].explorerUrl}/address/${d.contractAddress})`;
-      content += ` | [${shorten(d.hash, 4)}](${chains[values.chainId].explorerUrl}/tx/${d.hash})`;
-      content += ` | [${d.commit.slice(0, 8)}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
-      content += ` | \n`;
-    });
-  }  
+    content += generateTable(t, values.chainId);
+  }
 
   // And we save the file!
   await Bun.write(
