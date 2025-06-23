@@ -179,7 +179,7 @@ abstract contract DeployScript is Script {
             MineV4MigratorHookParams({
                 poolManager: _scriptData.poolManager,
                 migrator: precomputedUniswapV4Migrator,
-                hookDeployer: msg.sender
+                hookDeployer: 0x4e59b44847b379578588920cA78FbF26c0B4956C
             })
         );
 
