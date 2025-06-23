@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository A
+      - name: Checkout Contracts repository
         uses: actions/checkout@v4
         with:
           path: contracts
 
-      - name: Checkout Repository B
+      - name: Checkout Docs repository
         uses: actions/checkout@v4
         with:
           repository: whetstoneresearch/doppler-docs
@@ -24,7 +24,7 @@ jobs:
 
       - name: Copy deployments file from contracts to docs
         run: |
-          cp contracts/Deployments.mds docs/resources/contract-addresses.md
+          cp contracts/Deployments.md docs/resources/contract-addresses.md
 
       - name: Commit and push to the docs repository
         run: |
