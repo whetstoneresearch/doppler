@@ -66,6 +66,9 @@ abstract contract DeployScript is Script {
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2Migrator,
             DopplerDeployer dopplerDeployer,
+            StreamableFeesLocker streamableFeesLocker,
+            UniswapV4Migrator uniswapV4Migrator,
+            UniswapV4MigratorHook migratorHook
         ) = _deployDoppler(_scriptData);
 
         console.log(unicode"✨ Contracts were successfully deployed!");
@@ -96,7 +99,15 @@ abstract contract DeployScript is Script {
             " |\n",
             "| UniswapV2LiquidityMigrator | ",
             _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV2Migrator)),
-            " |\n"
+            " |\n",
+            "| StreamableFeesLocker | ",
+            _toMarkdownLink(_scriptData.explorerUrl, address(streamableFeesLocker)),
+            " |\n",
+            "| UniswapV4MigratorHook | ",
+            _toMarkdownLink(_scriptData.explorerUrl, address(migratorHook)),
+            " |\n",
+            "| UniswapV4Migrator | ",
+            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV4Migrator))
         );
 
         if (_scriptData.deployBundler) {
@@ -126,7 +137,9 @@ abstract contract DeployScript is Script {
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2LiquidityMigrator,
             DopplerDeployer dopplerDeployer,
-            StreamableFeesLocker streamableFeesLocker
+            StreamableFeesLocker streamableFeesLocker,
+            UniswapV4Migrator uniswapV4Migrator,
+            UniswapV4MigratorHook migratorHook
         )
     {
         // Let's check that a valid protocol owner is set
@@ -171,7 +184,7 @@ abstract contract DeployScript is Script {
         );
 
         // Deploy migrator with pre-mined hook address
-        UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
+        uniswapV4Migrator = new UniswapV4Migrator(
             address(airlock),
             IPoolManager(_scriptData.poolManager),
             PositionManager(payable(_scriptData.positionManager)),
@@ -180,8 +193,7 @@ abstract contract DeployScript is Script {
         );
 
         // Deploy hook with deployed migrator address
-        UniswapV4MigratorHook migratorHook =
-            new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+        migratorHook = new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
 
         /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
         require(
