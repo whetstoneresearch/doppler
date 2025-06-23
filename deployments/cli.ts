@@ -167,19 +167,34 @@ async function generateDocs(chainId: string): Promise<void> {
   );
 }
 
+const finalDocsTemplate = `---
+icon: pen-field
+---
+
+# Contract addresses
+
+Here are the networks that Doppler is officially deployed to:
+
+- Mainnets: Unichain Mainnet, Ink Mainnet
+- Testnets: Unichain Sepolia, Base Sepolia, Ink Sepolia, Monad Testnet&#x20;
+
+{% hint style="danger" %}
+If there are contracts not reflected here but claiming to be instances of Doppler, they are not considered canonical. Use with caution. :rotating_light:
+{% endhint %}\n`;
+
 async function generateFinalDocs(): Promise<void> {
   const fileList = readdirSync('./deployments');
   const deploymentFiles = fileList
     .filter((file) => file.endsWith('.json'));
 
-  let content = `# Deployments\n`;
+  let content = finalDocsTemplate;
 
   for (const file of deploymentFiles) {
     const filePath = `./deployments/${file}`;
     const raw = Bun.file(filePath);
     const tracker = await raw.json() as Tracker;
     const deployments = getLatestDeployments(tracker);
-    content += `## ${chains[tracker.chainId].name} (${tracker.chainId})\n`;
+    content += `\n## ${chains[tracker.chainId].name} (${tracker.chainId})\n\n`;
     content += generateTable(deployments, tracker.chainId);
   };
 
