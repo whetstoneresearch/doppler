@@ -193,7 +193,7 @@ async function main() {
   const { values } = parseArgs({
     args: Bun.argv,
     options: {
-      command: {
+      output: {
         type: 'string',
       },
       chainId: {
@@ -207,18 +207,18 @@ async function main() {
     allowPositionals: true,
   });
 
-  switch (values.command) {
-    case 'track':
+  switch (values.output) {
+    case 'json':
       await generateLogs(values.chainId, values.script);
       break;
-    case 'docs':
+    case 'markdown':
       await generateDocs(values.chainId);
       break;
-    case 'final':
+    case 'docs':
       await generateFinalDocs();
       break;
     default:
-      console.error(`Unknown command: ${values.command}`);
+      console.error(`Unknown command: ${values.output}`);
       process.exit(1);
   }
 }
