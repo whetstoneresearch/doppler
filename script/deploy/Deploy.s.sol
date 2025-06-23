@@ -190,19 +190,21 @@ abstract contract DeployScript is Script {
         );
 
         // Whitelisting the initial modules
-        address[] memory modules = new address[](5);
+        address[] memory modules = new address[](6);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
         modules[2] = address(governanceFactory);
         modules[3] = address(uniswapV2LiquidityMigrator);
         modules[4] = address(uniswapV4Initializer);
+        modules[5] = address(uniswapV4Migrator);
 
-        ModuleState[] memory states = new ModuleState[](5);
+        ModuleState[] memory states = new ModuleState[](6);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.PoolInitializer;
         states[2] = ModuleState.GovernanceFactory;
         states[3] = ModuleState.LiquidityMigrator;
         states[4] = ModuleState.PoolInitializer;
+        states[5] = ModuleState.LiquidityMigrator;
 
         airlock.setModuleState(modules, states);
 
