@@ -4,8 +4,10 @@ pragma solidity ^0.8.24;
 import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
+import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 import {
     Airlock,
     ModuleState,
@@ -17,7 +19,10 @@ import {
 } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
@@ -35,6 +40,7 @@ struct ScriptData {
     address uniswapV3Factory;
     address universalRouter;
     address stateView;
+    address positionManager;
 }
 
 /**
@@ -59,7 +65,7 @@ abstract contract DeployScript is Script {
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2Migrator,
-            DopplerDeployer dopplerDeployer
+            DopplerDeployer dopplerDeployer,
         ) = _deployDoppler(_scriptData);
 
         console.log(unicode"✨ Contracts were successfully deployed!");
@@ -119,7 +125,8 @@ abstract contract DeployScript is Script {
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
             UniswapV2Migrator uniswapV2LiquidityMigrator,
-            DopplerDeployer dopplerDeployer
+            DopplerDeployer dopplerDeployer,
+            StreamableFeesLocker streamableFeesLocker
         )
     {
         // Let's check that a valid protocol owner is set
@@ -147,6 +154,40 @@ abstract contract DeployScript is Script {
         dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
         uniswapV4Initializer =
             new UniswapV4Initializer(address(airlock), IPoolManager(scriptData.poolManager), dopplerDeployer);
+
+        streamableFeesLocker =
+            new StreamableFeesLocker(IPositionManager(_scriptData.positionManager), _scriptData.protocolOwner);
+
+        // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
+        address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
+
+        /// Mine salt for migrator hook address
+        (bytes32 salt, address minedMigratorHook) = mineV4MigratorHook(
+            MineV4MigratorHookParams({
+                poolManager: _scriptData.poolManager,
+                migrator: precomputedUniswapV4Migrator,
+                hookDeployer: msg.sender
+            })
+        );
+
+        // Deploy migrator with pre-mined hook address
+        UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
+            address(airlock),
+            IPoolManager(_scriptData.poolManager),
+            PositionManager(payable(_scriptData.positionManager)),
+            streamableFeesLocker,
+            IHooks(minedMigratorHook)
+        );
+
+        // Deploy hook with deployed migrator address
+        UniswapV4MigratorHook migratorHook =
+            new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+
+        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        require(
+            address(uniswapV4Migrator.migratorHook()) == address(migratorHook),
+            "Migrator hook is not the expected address"
+        );
 
         // Whitelisting the initial modules
         address[] memory modules = new address[](5);
