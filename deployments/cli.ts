@@ -4,48 +4,59 @@ import { readdir } from 'node:fs/promises';
 type ChainDetails = {
   name: string;
   explorerUrl: string;
+  isTestnet: boolean;
 }
 
 const chains: {[chainId: number]: ChainDetails } = {
   8453: {
     name: 'Base',
     explorerUrl: 'https://basescan.org',
+    isTestnet: false,
   },
   84532: {
     name: 'Base Sepolia',
     explorerUrl: 'https://sepolia.basescan.org',
+    isTestnet: true,
   },
   130: {
     name: 'Unichain',
     explorerUrl: 'https://uniscan.xyz',
+    isTestnet: false,
   },
   1301: {
     name: 'Unichain Sepolia',
     explorerUrl: 'https://sepolia.uniscan.xyz/',
+    isTestnet: true,
   },
   57073: {
     name: 'Ink',
     explorerUrl: 'https://explorer.inkonchain.com/',
+    isTestnet: false,
   },
   763373: {
     name: 'Ink Sepolia',
     explorerUrl: 'https://explorer-sepolia.inkonchain.com/',
+    isTestnet: true,
   },
   480: {
     name: 'World Chain',
     explorerUrl: 'https://worldscan.org',
+    isTestnet: false,
   },
   4801: {
     name: 'World Chain Sepolia',
     explorerUrl: 'https://worldchain-sepolia.explorer.alchemy.com',
+    isTestnet: true,
   },
   10143: {
     name: 'Monad Testnet',
     explorerUrl: 'https://testnet.monadexplorer.com',
+    isTestnet: true,
   },
   421614: {
     name: 'Arbitrum Sepolia',
     explorerUrl: 'https://sepolia.arbiscan.io/',
+    isTestnet: true,
   }
 };
 
@@ -137,7 +148,8 @@ async function generateHistoryLogs(): Promise<void> {
     }
 
     const transactions = broadcast.transactions
-      .filter((transaction) => transaction.transactionType === 'CREATE' && transaction.hash !== null)
+      .filter((transaction) => transaction.transactionType === 'CREATE'
+        && transaction.hash !== null && transaction.contractName !== null)
       .map(transaction => ({
         contractName: transaction.contractName,
         contractAddress: transaction.contractAddress,
@@ -152,6 +164,10 @@ async function generateHistoryLogs(): Promise<void> {
 
   // Now we're going to generate the history logs for each chain
   for (const chainId in deployments) {
+    if (deployments[chainId].length === 0) {  
+      continue;
+    }
+
     let content = `# Deployments on ${chains[chainId].name} (${chainId})\n`;
     let timestamps: {[key: number]: Deployment[]} = {};
 
@@ -164,33 +180,52 @@ async function generateHistoryLogs(): Promise<void> {
 
     for (let i = Object.values(timestamps).length - 1; i >= 0; i--) {
       const t = Object.values(timestamps)[i];
-      content += `### ${new Date(t[0].timestamp * 1000).toUTCString()}\n`;\
+      content += `### ${new Date(t[0].timestamp * 1000).toUTCString()}\n`;
       content += generateTable(t, chainId);
     }
 
     await Bun.write(`deployments/logs/${chainId}.md`, content);
   }
 
-  let content = `# Contract Addresses\n`;
+  let content = finalDocsTemplate;  
   
+  content += '## Mainnet Deployments\n';
+
   for (const chainId in deployments) {
+    if (deployments[chainId].length === 0 || chains[chainId].isTestnet) {
+      continue;
+    }
+
     const latestDeployments = getLatestDeployments(deployments[chainId]);
     content += `## ${chains[chainId].name} (${chainId})\n`;
+    content += generateTable(latestDeployments, chainId);
+  }
+
+  content += `## Testnet Deployments\n`;
+
+  for (const chainId in deployments) {
+    if (deployments[chainId].length === 0 || !chains[chainId].isTestnet) {
+      continue;
+    }
+
+    const latestDeployments = getLatestDeployments(deployments[chainId]);
+    content += `### ${chains[chainId].name} (${chainId})\n`;
     content += generateTable(latestDeployments, chainId);
   }
 
   await Bun.write(`./Deployments.md`, content);
 }
 
+// TODO: We should generate the list of deployed networks from the chain ids
 const finalDocsTemplate = `---
 icon: pen-field
 ---
 
-# Contract addresses
+# Contract Addresses
 
 Here are the networks that Doppler is officially deployed to:
 
-- Mainnets: Unichain Mainnet, Ink Mainnet
+- Mainnets: Unichain, Base, Ink
 - Testnets: Unichain Sepolia, Base Sepolia, Ink Sepolia, Monad Testnet&#x20;
 
 {% hint style="danger" %}
