@@ -184,7 +184,7 @@ async function generateHistoryLogs(): Promise<void> {
       content += generateTable(t, chainId);
     }
 
-    await Bun.write(`deployments/logs/${chainId}.md`, content);
+    await Bun.write(`deployments/${chainId}.md`, content);
   }
 
   let content = finalDocsTemplate;  
