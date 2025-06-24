@@ -30,12 +30,7 @@ contract CustomLPUniswapV2Migrator is ICustomLPUniswapV2Migrator, ImmutableAirlo
     IWETH public immutable WETH;
     CustomLPUniswapV2Locker public immutable CUSTOM_LP_LOCKER;
 
-    /// @dev Lock up period for the LP tokens allocated to `customLPRecipient`
-    uint32 public lockUpPeriod;
-    /// @dev Allow custom allocation of LP tokens other than `LP_TO_LOCK_WAD` (% expressed in WAD)
-    uint64 public customLPWad;
-    /// @dev Address of the recipient of the custom LP allocation
-    address public customLPRecipient;
+    mapping(address pool => CustomLPState state) public customLPStates;
 
     receive() external payable onlyAirlock { }
 
@@ -62,18 +57,18 @@ contract CustomLPUniswapV2Migrator is ICustomLPUniswapV2Migrator, ImmutableAirlo
         address numeraire,
         bytes calldata liquidityMigratorData
     ) external onlyAirlock returns (address) {
+        uint64 customLPWad_;
+        address customLPRecipient_;
+        uint32 lockUpPeriod_;
+
         if (liquidityMigratorData.length > 0) {
-            (uint64 customLPWad_, address customLPRecipient_, uint32 lockUpPeriod_) =
+            (customLPWad_, customLPRecipient_, lockUpPeriod_) =
                 abi.decode(liquidityMigratorData, (uint64, address, uint32));
             require(customLPWad_ > 0 && customLPRecipient_ != address(0), InvalidInput());
             require(customLPWad_ <= MAX_CUSTOM_LP_WAD, MaxCustomLPWadExceeded());
             // initially only allow EOA to receive the lp allocation
             require(customLPRecipient_.code.length == 0, RecipientNotEOA());
             require(lockUpPeriod_ >= MIN_LOCK_PERIOD, LessThanMinLockPeriod());
-
-            customLPWad = customLPWad_;
-            customLPRecipient = customLPRecipient_;
-            lockUpPeriod = lockUpPeriod_;
         }
 
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
@@ -85,6 +80,12 @@ contract CustomLPUniswapV2Migrator is ICustomLPUniswapV2Migrator, ImmutableAirlo
         if (pool == address(0)) {
             pool = FACTORY.createPair(token0, token1);
         }
+
+        customLPStates[pool] = CustomLPState({
+            lockUpPeriod: lockUpPeriod_,
+            customLPWad: customLPWad_,
+            customLPRecipient: customLPRecipient_
+        });
 
         return pool;
     }
@@ -133,14 +134,15 @@ contract CustomLPUniswapV2Migrator is ICustomLPUniswapV2Migrator, ImmutableAirlo
         ERC20(token0).safeTransfer(pool, depositAmount0);
         ERC20(token1).safeTransfer(pool, depositAmount1);
 
+        CustomLPState memory state = customLPStates[pool];
         // Custom LP allocation: (n <= `MAX_CUSTOM_LP_WAD`)% to `customLPRecipient` after `lockUpPeriod`, rest will be sent to timelock
         liquidity = IUniswapV2Pair(pool).mint(address(this));
-        uint256 customLiquidityToLock = liquidity * customLPWad / WAD;
+        uint256 customLiquidityToLock = liquidity * state.customLPWad / WAD;
         uint256 liquidityToTransfer = liquidity - customLiquidityToLock;
 
         IUniswapV2Pair(pool).transfer(recipient, liquidityToTransfer);
         IUniswapV2Pair(pool).transfer(address(CUSTOM_LP_LOCKER), customLiquidityToLock);
-        CUSTOM_LP_LOCKER.receiveAndLock(pool, customLPRecipient, lockUpPeriod);
+        CUSTOM_LP_LOCKER.receiveAndLock(pool, state.customLPRecipient, state.lockUpPeriod);
 
         if (address(this).balance > 0) {
             SafeTransferLib.safeTransferETH(recipient, address(this).balance);
