@@ -30,6 +30,22 @@ const chains: {[chainId: number]: ChainDetails } = {
   763373: {
     name: 'Ink Sepolia',
     explorerUrl: 'https://explorer-sepolia.inkonchain.com/',
+  },
+  480: {
+    name: 'World Chain',
+    explorerUrl: 'https://worldscan.org',
+  },
+  4801: {
+    name: 'World Chain Sepolia',
+    explorerUrl: 'https://worldchain-sepolia.explorer.alchemy.com',
+  },
+  10143: {
+    name: 'Monad Testnet',
+    explorerUrl: 'https://testnet.monadexplorer.com',
+  },
+  421614: {
+    name: 'Arbitrum Sepolia',
+    explorerUrl: 'https://sepolia.arbiscan.io/',
   }
 };
 
@@ -148,8 +164,7 @@ async function generateHistoryLogs(): Promise<void> {
 
     for (let i = Object.values(timestamps).length - 1; i >= 0; i--) {
       const t = Object.values(timestamps)[i];
-      content += `### ${new Date(t[0].timestamp * 1000).toUTCString()}\n`;
-      console.log(JSON.stringify(t, null, 2));
+      content += `### ${new Date(t[0].timestamp * 1000).toUTCString()}\n`;\
       content += generateTable(t, chainId);
     }
 
