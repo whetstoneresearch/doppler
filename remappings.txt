@@ -11,6 +11,7 @@ src:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
 test:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
 
 @v4-periphery/=lib/v4-periphery/src/
+@v4-periphery-test/=lib/v4-periphery/test/
 
 
 @v4-core-test/=lib/v4-periphery/lib/v4-core/test/
