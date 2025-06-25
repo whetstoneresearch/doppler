@@ -85,7 +85,7 @@ contract DeployV4MigratorBaseScript is DeployV4MigratorScript {
             airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
             poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
             positionManager: 0x7C5f5A4bBd8fD63184577525326123B519429bDc,
-            create2Factory: 0xa7D3b1C5F4F8b6E9e2C8Ad3Bf5C6A7D3B1c5F4f8
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
         });
     }
 }
@@ -96,7 +96,7 @@ contract DeployV4MigratorUnichainScript is DeployV4MigratorScript {
             airlock: 0x77EbfBAE15AD200758E9E2E61597c0B07d731254,
             poolManager: 0x1F98400000000000000000000000000000000004,
             positionManager: 0x4529A01c7A0410167c5740C487A8DE60232617bf,
-            create2Factory: 0xa7D3b1C5F4F8b6E9e2C8Ad3Bf5C6A7D3B1c5F4f8
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
         });
     }
 }
