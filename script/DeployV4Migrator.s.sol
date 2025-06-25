@@ -90,6 +90,17 @@ contract DeployV4MigratorBaseScript is DeployV4MigratorScript {
     }
 }
 
+contract DeployV4MigratorBaseSepoliaScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e,
+            poolManager: 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408,
+            positionManager: 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
 contract DeployV4MigratorUnichainScript is DeployV4MigratorScript {
     function setUp() public override {
         _scriptData = ScriptData({
