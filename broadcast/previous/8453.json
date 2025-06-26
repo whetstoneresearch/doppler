@@ -1,0 +1,37 @@
+{
+    "transactions": [
+        {
+            "hash": "0x029b03e1549bf6a8e115b9d961c62a75ba4869a912c0f13bdaa2da7d1f0a5d24",
+            "transactionType": "CREATE",
+            "contractName": "Airlock",
+            "contractAddress": "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12"
+        },
+        {
+            "hash": "0x953ce1d03c960f0440bc73d1779260438c43ae500219aeb4045da3ca9b3eef43",
+            "transactionType": "CREATE",
+            "contractName": "TokenFactory",
+            "contractAddress": "0xFAafdE6a5b658684cC5eb0C5c2c755B00A246F45"
+        },
+        {
+            "hash": "0xedd8814aa44488f429e5df618335cf0281001b4b545b9d2be292fd43bb876178",
+            "transactionType": "CREATE",
+            "contractName": "UniswapV3Initializer",
+            "contractAddress": "0xaA47D2977d622DBdFD33eeF6a8276727c52EB4e5"
+        },
+        {
+            "hash": "0x7ac54a46394134807ec1f687fe2f7ca21994fbd9eb8684189adf58b001dcfbd6",
+            "transactionType": "CREATE",
+            "contractName": "UniswapV2Migrator",
+            "contractAddress": "0x5F3bA43D44375286296Cb85F1EA2EBfa25dde731"
+        },
+        {
+            "hash": "0xac9d54a5beabc34315e5c0969d6e13809460b9e1fcaaef1946c6f4d0ce6abd21",
+            "transactionType": "CREATE",
+            "contractName": "Bundler",
+            "contractAddress": "0x136191B46478cAB023cbC01a36160C4Aad81677a"
+        }
+    ],
+    "timestamp": 1743620379,
+    "chain": 8453,
+    "commit": "9b23399"
+}
