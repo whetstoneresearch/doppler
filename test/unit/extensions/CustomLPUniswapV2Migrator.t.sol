@@ -36,9 +36,11 @@ contract CustomLPUniswapV2MigratorTest is Test {
         bytes memory liquidityMigratorData = abi.encode(customLPWad, alice, lockUpPeriod);
         address pool = migrator.initialize(address(token0), address(token1), liquidityMigratorData);
 
-        assertEq(migrator.customLPWad(), customLPWad, "Wrong custom LP wad");
-        assertEq(migrator.lockUpPeriod(), lockUpPeriod, "Wrong lock up period");
-        assertEq(migrator.customLPRecipient(), alice, "Wrong custom LP recipient");
+        (uint32 actualLockUpPeriod, uint64 actualCustomLPWad, address actualCustomLPRecipient) =
+            migrator.customLPStates(pool);
+        assertEq(actualCustomLPWad, customLPWad, "Wrong custom LP wad");
+        assertEq(actualCustomLPRecipient, alice, "Wrong custom LP recipient");
+        assertEq(actualLockUpPeriod, lockUpPeriod, "Wrong lock up period");
 
         token0.transfer(address(migrator), 1000 ether);
         token1.transfer(address(migrator), 1000 ether);

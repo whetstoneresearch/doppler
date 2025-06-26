@@ -10,6 +10,7 @@ import { DERC20 } from "src/DERC20.sol";
 import { Doppler } from "src/Doppler.sol";
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -17,10 +18,12 @@ uint160 constant FLAG_MASK = 0x3FFF;
 // Maximum number of iterations to find a salt, avoid infinite loops
 uint256 constant MAX_LOOP = 100_000;
 
-uint160 constant flags = uint160(
+uint160 constant flagsDopplerHook = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
 );
+
+uint160 constant flagsMigratorHook = uint160(Hooks.BEFORE_INITIALIZE_FLAG);
 
 struct MineV4Params {
     address airlock;
@@ -32,6 +35,28 @@ struct MineV4Params {
     bytes tokenFactoryData;
     UniswapV4Initializer poolInitializer;
     bytes poolInitializerData;
+}
+
+struct MineV4MigratorHookParams {
+    address poolManager;
+    address migrator;
+    address hookDeployer;
+}
+
+function mineV4MigratorHook(
+    MineV4MigratorHookParams memory params
+) view returns (bytes32, address) {
+    bytes32 migratorHookInitHash = keccak256(
+        abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager, params.migrator))
+    );
+
+    for (uint256 salt; salt < 200_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), migratorHookInitHash, address(params.hookDeployer));
+        if (uint160(hook) & FLAG_MASK == flagsMigratorHook && hook.code.length == 0) {
+            return (bytes32(salt), hook);
+        }
+    }
+    revert("AirlockMiner: could not find salt");
 }
 
 function mineV4(
@@ -105,12 +130,14 @@ function mineV4(
         )
     );
 
+    address deployer = address(params.poolInitializer.deployer());
+
     for (uint256 salt; salt < 200_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, address(params.poolInitializer.deployer()));
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, deployer);
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
 
         if (
-            uint160(hook) & FLAG_MASK == flags && hook.code.length == 0
+            uint160(hook) & FLAG_MASK == flagsDopplerHook && hook.code.length == 0
                 && ((isToken0 && asset < params.numeraire) || (!isToken0 && asset > params.numeraire))
         ) {
             return (bytes32(salt), hook, asset);
