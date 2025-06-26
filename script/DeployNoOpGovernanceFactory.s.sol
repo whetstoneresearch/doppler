@@ -32,3 +32,9 @@ contract DeployNoOpGovernanceFactoryBaseScript is DeployNoOpGovernanceFactoryScr
         _scriptData = ScriptData({ airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12 });
     }
 }
+
+contract DeployNoOpGovernanceFactoryBaseSepoliaScript is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _scriptData = ScriptData({ airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e });
+    }
+}

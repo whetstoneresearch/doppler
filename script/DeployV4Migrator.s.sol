@@ -14,7 +14,7 @@ struct ScriptData {
     address airlock;
     address poolManager;
     address positionManager;
-    address airlockOwner;
+    address create2Factory;
 }
 
 /**
@@ -31,8 +31,9 @@ abstract contract DeployV4MigratorScript is Script {
 
         vm.startBroadcast();
 
-        StreamableFeesLocker streamableFeesLocker =
-            new StreamableFeesLocker(IPositionManager(_scriptData.positionManager), _scriptData.airlockOwner);
+        StreamableFeesLocker streamableFeesLocker = new StreamableFeesLocker(
+            IPositionManager(_scriptData.positionManager), Airlock(payable(_scriptData.airlock)).owner()
+        );
 
         // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
         address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
@@ -42,7 +43,7 @@ abstract contract DeployV4MigratorScript is Script {
             MineV4MigratorHookParams({
                 poolManager: _scriptData.poolManager,
                 migrator: precomputedUniswapV4Migrator,
-                hookDeployer: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+                hookDeployer: _scriptData.create2Factory
             })
         );
 
@@ -80,14 +81,33 @@ abstract contract DeployV4MigratorScript is Script {
 
 contract DeployV4MigratorBaseScript is DeployV4MigratorScript {
     function setUp() public override {
-        address airlockOwner = Airlock(payable(0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12)).owner();
-        require(airlockOwner == 0x21E2ce70511e4FE542a97708e89520471DAa7A66, "Airlock owner is not the expected address");
-
         _scriptData = ScriptData({
             airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
             poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
             positionManager: 0x7C5f5A4bBd8fD63184577525326123B519429bDc,
-            airlockOwner: 0x21E2ce70511e4FE542a97708e89520471DAa7A66
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+contract DeployV4MigratorBaseSepoliaScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e,
+            poolManager: 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408,
+            positionManager: 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+contract DeployV4MigratorUnichainScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x77EbfBAE15AD200758E9E2E61597c0B07d731254,
+            poolManager: 0x1F98400000000000000000000000000000000004,
+            positionManager: 0x4529A01c7A0410167c5740C487A8DE60232617bf,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
         });
     }
 }

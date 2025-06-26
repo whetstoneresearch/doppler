@@ -141,7 +141,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
             AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
 
-        return address(0);
+        return DEAD_ADDRESS;
     }
 
     /// @inheritdoc ILiquidityMigrator
