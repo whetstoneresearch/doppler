@@ -187,37 +187,42 @@ async function generateHistoryLogs(): Promise<void> {
     await Bun.write(`deployments/${chainId}.md`, content);
   }
 
-  let content = finalDocsTemplate;  
-  
-  content += '## Mainnet Deployments\n';
+  // Finally we generate the main Deployments.md file
+  const mainnetLabels: string[] = [];
+  let mainnetDeployments = '## Mainnet Deployments\n';
 
   for (const chainId in deployments) {
     if (deployments[chainId].length === 0 || chains[chainId].isTestnet) {
       continue;
     }
 
+    deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     const latestDeployments = getLatestDeployments(deployments[chainId]);
-    content += `## ${chains[chainId].name} (${chainId})\n`;
-    content += generateTable(latestDeployments, chainId);
+    mainnetDeployments += `## ${chains[chainId].name} (${chainId})\n`;
+    mainnetDeployments += generateTable(latestDeployments, chainId);
+    mainnetLabels.push(chains[chainId].name);
   }
 
-  content += `## Testnet Deployments\n`;
+  const testnetLabels: string[] = [];
+  let testnetDeployments = '## Testnet Deployments\n';
 
   for (const chainId in deployments) {
     if (deployments[chainId].length === 0 || !chains[chainId].isTestnet) {
       continue;
     }
 
+    deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     const latestDeployments = getLatestDeployments(deployments[chainId]);
-    content += `### ${chains[chainId].name} (${chainId})\n`;
-    content += generateTable(latestDeployments, chainId);
+    testnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
+    testnetDeployments += generateTable(latestDeployments, chainId);
+    testnetLabels.push(chains[chainId].name);
   }
 
-  await Bun.write(`./Deployments.md`, content);
+  await Bun.write(`./Deployments.md`, generateDeploymentsFile(mainnetLabels, mainnetDeployments, testnetLabels, testnetDeployments));
 }
 
-// TODO: We should generate the list of deployed networks from the chain ids
-const finalDocsTemplate = `---
+function generateDeploymentsFile(mainnetLabels: string[], mainnets: string, testnetLabels: string[], testnets): string {
+  return `---
 icon: pen-field
 ---
 
@@ -225,12 +230,16 @@ icon: pen-field
 
 Here are the networks that Doppler is officially deployed to:
 
-- Mainnets: Unichain, Base, Ink
-- Testnets: Unichain Sepolia, Base Sepolia, Ink Sepolia, Monad Testnet&#x20;
+- Mainnets: ${mainnetLabels.join(', ')}
+- Testnets: ${testnetLabels.join(', ')}
 
 {% hint style="danger" %}
 If there are contracts not reflected here but claiming to be instances of Doppler, they are not considered canonical. Use with caution. :rotating_light:
-{% endhint %}\n`;
+{% endhint %}\n
+${mainnets}
+${testnets}
+`;
+}
 
 async function main() {
   const { values } = parseArgs({
