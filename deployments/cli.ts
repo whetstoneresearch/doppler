@@ -205,7 +205,7 @@ async function generateHistoryLogs(): Promise<void> {
 
     deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     const latestDeployments = getLatestDeployments(deployments[chainId]);
-    mainnetDeployments += `## ${chains[chainId].name} (${chainId})\n`;
+    mainnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     mainnetDeployments += generateTable(latestDeployments, chainId);
     mainnetLabels.push(chains[chainId].name);
   }
