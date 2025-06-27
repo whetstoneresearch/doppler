@@ -76,6 +76,9 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     /// @notice The dead address used for no-op governance
     address public constant DEAD_ADDRESS = address(0xdead);
 
+    /// @notice The empty address used to indicate no pool exists (bc v4 is a singleton)
+    address public constant EMPTY_ADDRESS = address(0x0);
+
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
 
@@ -141,7 +144,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
             AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
 
-        return DEAD_ADDRESS;
+        return EMPTY_ADDRESS; // v4 pools are represented by their PoolKey, so we return an empty address
     }
 
     /// @inheritdoc ILiquidityMigrator
