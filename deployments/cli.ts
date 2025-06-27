@@ -92,7 +92,7 @@ function shorten(a: string, length: number = 4): string {
 function convertTimestamp(timestamp: number): string {
   return new Date(
     new Date(timestamp).getFullYear() === 1970 ? timestamp * 1000 :timestamp
-  ).toISOString();
+  ).toUTCString();
 }
 
 function generateTable(deployments: Deployment[], chainId: string): string {
