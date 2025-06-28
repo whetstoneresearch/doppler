@@ -63,7 +63,7 @@ const chains: {[chainId: number]: ChainDetails } = {
 type Transaction = {
   hash: `0x${string}`;
   contractName: string;
-  transactionType: 'CREATE' | 'CALL';
+  transactionType: 'CREATE' | 'CREATE2' | 'CALL';
   contractAddress: `0x${string}`;
   arguments: `0x${string}`[];
 }
@@ -155,7 +155,8 @@ async function generateHistoryLogs(): Promise<void> {
     }
 
     const transactions = broadcast.transactions
-      .filter((transaction) => transaction.transactionType === 'CREATE'
+      .filter((transaction) => (transaction.transactionType === 'CREATE'
+        || transaction.transactionType === 'CREATE2')
         && transaction.hash !== null && transaction.contractName !== null)
       .map(transaction => ({
         contractName: transaction.contractName,
