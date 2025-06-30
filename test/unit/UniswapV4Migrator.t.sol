@@ -11,7 +11,7 @@ import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4Migrator, AssetData } from "src/UniswapV4Migrator.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -22,14 +22,27 @@ error UnorderedBeneficiaries();
 error InvalidShares();
 error InvalidTotalShares();
 error InvalidLength();
+error InvalidProtocolOwnerShares();
+error InvalidProtocolOwnerBeneficiary();
+
+contract MockAirlock {
+    address public owner;
+
+    constructor(
+        address _owner
+    ) {
+        owner = _owner;
+    }
+}
 
 contract UniswapV4MigratorTest is Test {
     using PoolIdLibrary for PoolKey;
 
-    address public airlock = makeAddr("airlock");
+    MockAirlock public airlock;
     address public poolManager = makeAddr("poolManager");
     address payable public positionManager = payable(makeAddr("positionManager"));
     address payable public locker = payable(makeAddr("locker"));
+    address public protocolOwner = makeAddr("protocolOwner");
 
     UniswapV4Migrator public migrator;
     UniswapV4MigratorHook public migratorHook;
@@ -49,11 +62,12 @@ contract UniswapV4MigratorTest is Test {
     uint32 constant LOCK_DURATION = 30 days;
 
     function setUp() public {
+        airlock = new MockAirlock(protocolOwner);
         asset = new TestERC20(1e27);
         numeraire = new TestERC20(1e27);
         migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
         migrator = new UniswapV4Migrator(
-            airlock,
+            address(airlock),
             IPoolManager(poolManager),
             PositionManager(positionManager),
             StreamableFeesLocker(locker),
@@ -73,10 +87,11 @@ contract UniswapV4MigratorTest is Test {
     ) external view returns (bytes32 value) { }
 
     function test_initialize_StoresPoolKey() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
 
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );
@@ -94,10 +109,11 @@ contract UniswapV4MigratorTest is Test {
     function test_migrate_MigratesToUniV4() public {
         vm.skip(true);
 
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 1e18 });
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
 
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );
@@ -127,7 +143,7 @@ contract UniswapV4MigratorTest is Test {
         vm.skip(true);
 
         // Initialize with empty beneficiary data for no-op governance
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, new BeneficiaryData[](0))
         );
@@ -162,7 +178,7 @@ contract UniswapV4MigratorTest is Test {
         vm.mockCall(positionManager, bytes(""), new bytes(0));
 
         // Call migrate with DEAD_ADDRESS as recipient
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         uint256 liquidity = migrator.migrate(TickMath.MIN_SQRT_PRICE, token0, token1, recipient);
 
         // Verify the migrator recognizes this as no-op governance
@@ -175,10 +191,11 @@ contract UniswapV4MigratorTest is Test {
     }
 
     function test_initialize_RevertZeroAddressBeneficiary() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 1e18 });
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
 
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(UnorderedBeneficiaries.selector));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
@@ -189,7 +206,7 @@ contract UniswapV4MigratorTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
         bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
 
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
@@ -198,9 +215,9 @@ contract UniswapV4MigratorTest is Test {
 
     function test_initialize_RevertZeroShares() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0 });
+        beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0 });
 
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidShares.selector));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
@@ -208,15 +225,53 @@ contract UniswapV4MigratorTest is Test {
     }
 
     function test_initialize_RevertIncorrectTotalShares() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.5e18 });
-        beneficiaries[1] = BeneficiaryData({
-            beneficiary: BENEFICIARY_2,
-            shares: 0.4e18 // Total is 0.9e18, not 1e18
+        beneficiaries[1] = BeneficiaryData({ beneficiary: BENEFICIARY_2, shares: 0.35e18 });
+        beneficiaries[2] = BeneficiaryData({
+            beneficiary: airlock.owner(),
+            shares: 0.05e18 // Total is 0.9e18, not 1e18
          });
 
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
+    }
+
+    function test_initialize_IncludesDopplerOwnerBeneficiary() public {
+        // Set up beneficiaries without protocol owner
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.5e18 }); // 50%
+        beneficiaries[1] = BeneficiaryData({ beneficiary: BENEFICIARY_2, shares: 0.4e18 }); // 40%
+        beneficiaries[2] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.1e18 }); // 10%
+
+        vm.prank(address(airlock));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
+    }
+
+    function test_initialize_RevertInvalidProtocolOwnerShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.951e18 }); // 95.1%
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.049e18 }); // 4.9%
+
+        vm.prank(address(airlock));
+        vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerShares.selector));
+        migrator.initialize(
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+        );
+    }
+
+    function test_initialize_RevertProtocolOwnerNotFound() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.4e18 }); // 40%
+        beneficiaries[1] = BeneficiaryData({ beneficiary: BENEFICIARY_2, shares: 0.6e18 }); // 60%
+
+        vm.prank(address(airlock));
+        vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerBeneficiary.selector));
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );

@@ -17,13 +17,14 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-
+import { Airlock } from "src/Airlock.sol";
 /**
  * @notice Data to use for the migration
  * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
  * @param lockDuration Duration for which the liquidity will be locked in the locker contract
  * @param beneficiaries Array of beneficiaries used by the locker contract
  */
+
 struct AssetData {
     PoolKey poolKey;
     uint32 lockDuration;
@@ -41,6 +42,12 @@ error UnorderedBeneficiaries();
 
 /// @notice Thrown when shares are invalid
 error InvalidShares();
+
+/// @notice Thrown when protocol owner shares are invalid
+error InvalidProtocolOwnerShares();
+
+/// @notice Thrown when protocol owner beneficiary is not found
+error InvalidProtocolOwnerBeneficiary();
 
 /// @notice Thrown when total shares are not equal to WAD
 error InvalidTotalShares();
@@ -122,9 +129,15 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         address prevBeneficiary = address(0);
         uint256 totalShares;
+        bool foundProtocolOwnerBeneficiary;
         for (uint256 i = 0; i < beneficiaries.length; i++) {
             require(prevBeneficiary < beneficiaries[i].beneficiary, UnorderedBeneficiaries());
             require(beneficiaries[i].shares > 0, InvalidShares());
+
+            if (beneficiaries[i].beneficiary == Airlock(airlock).owner()) {
+                require(beneficiaries[i].shares >= WAD / 20, InvalidProtocolOwnerShares());
+                foundProtocolOwnerBeneficiary = true;
+            }
 
             prevBeneficiary = beneficiaries[i].beneficiary;
 
@@ -132,6 +145,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         }
 
         require(totalShares == WAD, InvalidTotalShares());
+        require(foundProtocolOwnerBeneficiary, InvalidProtocolOwnerBeneficiary());
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
