@@ -6,7 +6,7 @@ This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [A
 
 ## Deployments
 
-Deployments are listed in the [Deployments](https://docs.doppler.lol/resources/contract-addresses) section of the documentation.
+Latest deployments can be found [here](./Deployments.md), which is a mirror of the [documentation page](https://docs.doppler.lol/resources/contract-addresses). For historical deployments, you can check the [deployments](./deployments/) folder, which contains the deployment logs for each network.
 
 ## Usage
 
