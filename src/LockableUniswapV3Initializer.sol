@@ -248,13 +248,13 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
     function collectFees(
         address pool
-    ) external {
+    ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
         require(getState[pool].isExited == false, PoolAlreadyExited());
         require(getState[pool].isLocked == true, PoolLockMismatch(pool, getState[pool].isLocked));
 
         // TODO: abstract this logic to a seperate function?
-        token0 = IUniswapV3Pool(pool).token0();
-        token1 = IUniswapV3Pool(pool).token1();
+        address token0 = IUniswapV3Pool(pool).token0();
+        address token1 = IUniswapV3Pool(pool).token1();
         int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
         address asset = getState[pool].asset;
@@ -281,8 +281,6 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
             tickSpacing
         );
 
-        uint256 fees0ToDistribute;
-        uint256 fees1ToDistribute;
         (fees0ToDistribute, fees1ToDistribute) = collectPositionsMultiple(pool, lbpPositions, numPositions);
 
         BeneficiaryData[] memory beneficiaries = getState[pool].beneficiaries;
@@ -488,9 +486,11 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         uint16 numPositions
     ) internal returns (uint256 fees0, uint256 fees1) {
         for (uint256 i; i <= numPositions; i++) {
+            uint256 posFees0;
+            uint256 posFees1;
+
             // you must poke the position via burning it to collecting fees
-            (posAmount0, posAmount1) =
-                IUniswapV3Pool(pool).burn(newPositions[i].tickLower, newPositions[i].tickUpper, 0);
+            IUniswapV3Pool(pool).burn(newPositions[i].tickLower, newPositions[i].tickUpper, 0);
 
             (posFees0, posFees1) = IUniswapV3Pool(pool).collect(
                 address(this),
