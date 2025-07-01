@@ -17,13 +17,14 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-
+import { Airlock } from "src/Airlock.sol";
 /**
  * @notice Data to use for the migration
  * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
  * @param lockDuration Duration for which the liquidity will be locked in the locker contract
  * @param beneficiaries Array of beneficiaries used by the locker contract
  */
+
 struct AssetData {
     PoolKey poolKey;
     uint32 lockDuration;
@@ -41,6 +42,12 @@ error UnorderedBeneficiaries();
 
 /// @notice Thrown when shares are invalid
 error InvalidShares();
+
+/// @notice Thrown when protocol owner shares are invalid
+error InvalidProtocolOwnerShares();
+
+/// @notice Thrown when protocol owner beneficiary is not found
+error InvalidProtocolOwnerBeneficiary();
 
 /// @notice Thrown when total shares are not equal to WAD
 error InvalidTotalShares();
@@ -114,37 +121,86 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     ) external onlyAirlock returns (address) {
         (uint24 fee, int24 tickSpacing, uint32 lockDuration, BeneficiaryData[] memory beneficiaries) =
             abi.decode(liquidityMigratorData, (uint24, int24, uint32, BeneficiaryData[]));
+
+        _validateTickSpacing(tickSpacing);
+        LPFeeLibrary.validate(fee);
+        _validateBeneficiaries(beneficiaries);
+
+        PoolKey memory poolKey = _createPoolKey(asset, numeraire, fee, tickSpacing);
+
+        getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
+            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
+
+        return EMPTY_ADDRESS; // v4 pools are represented by their PoolKey, so we return an empty address
+    }
+
+    /**
+     * @dev Validates tick spacing parameters
+     * @param tickSpacing The tick spacing to validate
+     */
+    function _validateTickSpacing(
+        int24 tickSpacing
+    ) internal pure {
         require(tickSpacing <= TickMath.MAX_TICK_SPACING, IPoolManager.TickSpacingTooLarge(tickSpacing));
         require(tickSpacing >= TickMath.MIN_TICK_SPACING, IPoolManager.TickSpacingTooSmall(tickSpacing));
-        LPFeeLibrary.validate(fee);
+    }
 
+    /**
+     * @dev Validates beneficiaries array and ensures protocol owner compliance
+     * @param beneficiaries Array of beneficiaries to validate
+     */
+    function _validateBeneficiaries(
+        BeneficiaryData[] memory beneficiaries
+    ) internal view {
         require(beneficiaries.length > 0, InvalidLength());
 
+        address protocolOwner = Airlock(airlock).owner();
         address prevBeneficiary = address(0);
         uint256 totalShares;
+        bool foundProtocolOwner;
+
         for (uint256 i = 0; i < beneficiaries.length; i++) {
-            require(prevBeneficiary < beneficiaries[i].beneficiary, UnorderedBeneficiaries());
-            require(beneficiaries[i].shares > 0, InvalidShares());
+            BeneficiaryData memory beneficiary = beneficiaries[i];
 
-            prevBeneficiary = beneficiaries[i].beneficiary;
+            // Validate ordering and shares
+            require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
+            require(beneficiary.shares > 0, InvalidShares());
 
-            totalShares += beneficiaries[i].shares;
+            // Check for protocol owner and validate minimum share requirement
+            if (beneficiary.beneficiary == protocolOwner) {
+                require(beneficiary.shares >= WAD / 20, InvalidProtocolOwnerShares());
+                foundProtocolOwner = true;
+            }
+
+            prevBeneficiary = beneficiary.beneficiary;
+            totalShares += beneficiary.shares;
         }
 
         require(totalShares == WAD, InvalidTotalShares());
+        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
+    }
 
-        PoolKey memory poolKey = PoolKey({
+    /**
+     * @dev Creates a PoolKey struct with proper currency ordering
+     * @param asset The asset token address
+     * @param numeraire The numeraire token address
+     * @param fee The pool fee
+     * @param tickSpacing The tick spacing
+     * @return poolKey The constructed PoolKey
+     */
+    function _createPoolKey(
+        address asset,
+        address numeraire,
+        uint24 fee,
+        int24 tickSpacing
+    ) internal view returns (PoolKey memory poolKey) {
+        poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: migratorHook,
             fee: fee,
             tickSpacing: tickSpacing
         });
-
-        getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
-            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
-
-        return EMPTY_ADDRESS; // v4 pools are represented by their PoolKey, so we return an empty address
     }
 
     /// @inheritdoc ILiquidityMigrator
