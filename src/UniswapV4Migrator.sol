@@ -18,13 +18,13 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { Airlock } from "src/Airlock.sol";
+
 /**
  * @notice Data to use for the migration
  * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
  * @param lockDuration Duration for which the liquidity will be locked in the locker contract
  * @param beneficiaries Array of beneficiaries used by the locker contract
  */
-
 struct AssetData {
     PoolKey poolKey;
     uint32 lockDuration;
