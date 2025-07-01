@@ -7,7 +7,7 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
-import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {
@@ -16,11 +16,10 @@ struct ScriptData {
     address positionManager;
     address create2Factory;
     address streamableFeesLocker;
-    address migratorHook;
 }
 
 /**
- * @title Doppler V4 Migrator Deployment Script
+ * @title Doppler V4 Migrator (and hook) Deployment Script
  * @notice Use this script if the rest of the protocol (Airlock and co) is already deployed
  */
 abstract contract DeployV4MigratorOnlyScript is Script {
@@ -33,17 +32,36 @@ abstract contract DeployV4MigratorOnlyScript is Script {
 
         vm.startBroadcast();
 
+        // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
+        address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
+
+        /// Mine salt for migrator hook address
+        (bytes32 salt, address minedMigratorHook) = mineV4MigratorHook(
+            MineV4MigratorHookParams({
+                poolManager: _scriptData.poolManager,
+                migrator: precomputedUniswapV4Migrator,
+                hookDeployer: _scriptData.create2Factory
+            })
+        );
+
         // Deploy migrator with pre-mined hook address
         UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
             _scriptData.airlock,
             IPoolManager(_scriptData.poolManager),
             PositionManager(payable(_scriptData.positionManager)),
             StreamableFeesLocker(payable(_scriptData.streamableFeesLocker)),
-            IHooks(_scriptData.migratorHook)
+            IHooks(minedMigratorHook)
         );
 
-        console.log(unicode"✨ UniswapV4Migrator was successfully deployed!");
-        console.log("UniswapV4Migrator address: %s", address(uniswapV4Migrator));
+        // Deploy hook with deployed migrator address
+        UniswapV4MigratorHook migratorHook =
+            new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+
+        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        require(
+            address(uniswapV4Migrator.migratorHook()) == address(migratorHook),
+            "Migrator hook is not the expected address"
+        );
 
         vm.stopBroadcast();
     }
@@ -56,8 +74,7 @@ contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
             poolManager: 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408,
             positionManager: 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            streamableFeesLocker: 0x3345E557c5C0b474bE1eb4693264008B8562Aa9c,
-            migratorHook: 0x5D71D3a029Ff2e86831b3bA5fbb05F3703c2e000
+            streamableFeesLocker: 0x3345E557c5C0b474bE1eb4693264008B8562Aa9c
         });
     }
 }
