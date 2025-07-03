@@ -33,7 +33,7 @@ struct AssetData {
 
 /**
  * @dev Emitted when liquidity is migrated
- * @param sqrtPrice Square root price of the pool at the time of migration
+ * @param sqrtPriceX96 Square root price of the pool at the time of migration
  * @param lowerTick Lower tick of the full range position
  * @param upperTick Upper tick of the full range position
  * @param liquidity Amount of liquidity added into the new pool
@@ -41,7 +41,7 @@ struct AssetData {
  * @param reserves1 Amount of token1 reserves in the new pool
  */
 event Migrate(
-    uint160 sqrtPrice, int24 lowerTick, int24 upperTick, uint256 liquidity, uint256 reserves0, uint256 reserves1
+    uint160 sqrtPriceX96, int24 lowerTick, int24 upperTick, uint256 liquidity, uint256 reserves0, uint256 reserves1
 );
 
 /// @dev Thrown when the tick is out of range for the pool
