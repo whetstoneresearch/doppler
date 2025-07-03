@@ -21,6 +21,9 @@ struct ScriptData {
 /**
  * @title Doppler V4 Migrator (and hook) Deployment Script
  * @notice Use this script if the rest of the protocol (Airlock and co) is already deployed
+ * @dev Note that after deploying, the following steps must be performed:
+ * - Approve the `UniswapV4Migrator` as a `LiquidityMigrator` module in the Airlock
+ * - Approve the `UniswapV4Migrator` as a migrator in the `StreamableFeesLocker`
  */
 abstract contract DeployV4MigratorOnlyScript is Script {
     ScriptData internal _scriptData;
