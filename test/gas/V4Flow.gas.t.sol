@@ -83,24 +83,15 @@ contract V4FlowGas is Deployers, DeployPermit2 {
     }
 
     function test_v4_flow_gas() public {
+        uint256 startingTime = block.timestamp;
+        uint256 endingTime = startingTime + 1 days;
+
         uint256 initialSupply = 1e23;
 
         bytes memory tokenFactoryData =
             abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
-        bytes memory poolInitializerData = abi.encode(
-            0.01 ether,
-            10 ether,
-            block.timestamp,
-            block.timestamp + 1 days,
-            174_312,
-            186_840,
-            200,
-            800,
-            false,
-            10,
-            200,
-            2
-        );
+        bytes memory poolInitializerData =
+            abi.encode(0.01 ether, 10 ether, startingTime, endingTime, 174_312, 186_840, 200, 800, false, 10, 200, 2);
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(airlock), shares: 0.05e18 });
@@ -144,18 +135,69 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         (, address pool, address governance, address timelock, address migrationPool) = airlock.create(createParams);
         vm.stopSnapshotGas("V4 Flow", "AirlockCreateCall");
 
+        (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
+            Doppler(payable(hook)).poolKey();
+
+        vm.startSnapshotGas("V4 Flow", "First buy");
+        swapRouter.swap{ value: 0.0001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "First buy");
+
+        uint256 epochLength = Doppler(payable(hook)).epochLength();
+
+        vm.warp(startingTime + epochLength);
+        vm.startSnapshotGas("V4 Flow", "Second buy (new epoch)");
+        swapRouter.swap{ value: 0.0001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Second buy (new epoch)");
+
+        vm.startSnapshotGas("V4 Flow", "Third buy (same epoch)");
+        swapRouter.swap{ value: 0.0001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Third buy (same epoch)");
+
+        uint256 totalEpochs = (endingTime - startingTime) / epochLength;
+
+        vm.warp(startingTime + epochLength * (totalEpochs / 2));
+        vm.startSnapshotGas("V4 Flow", "Fourth buy (epoch #10)");
+        swapRouter.swap{ value: 0.0001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Fourth buy (epoch #10)");
+
+        /*
+        vm.warp(startingTime + epochLength * (totalEpochs - 1));
+        vm.startSnapshotGas("V4 Flow", "Last buy (final epoch)");
+        swapRouter.swap{ value: 0.0001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Last buy (final epoch)");
+        */
+
         bool canMigrated;
 
-        uint256 i;
-
         do {
-            i++;
             deal(address(this), 0.1 ether);
 
-            (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
-                Doppler(payable(hook)).poolKey();
-
-            BalanceDelta delta = swapRouter.swap{ value: 0.0001 ether }(
+            swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
                 IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
