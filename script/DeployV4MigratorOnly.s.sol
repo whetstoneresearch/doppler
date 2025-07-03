@@ -78,3 +78,15 @@ contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
         });
     }
 }
+
+contract DeployV4MigratorOnlyBaseScript is DeployV4MigratorOnlyScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
+            poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
+            positionManager: 0x7C5f5A4bBd8fD63184577525326123B519429bDc,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
+            streamableFeesLocker: 0x0A00775D71a42cd33D62780003035e7F5b47bD3A
+        });
+    }
+}
