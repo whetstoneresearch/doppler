@@ -21,6 +21,9 @@ struct ScriptData {
 /**
  * @title Doppler V4 Migrator (and hook) Deployment Script
  * @notice Use this script if the rest of the protocol (Airlock and co) is already deployed
+ * @dev Note that after deploying, the following steps must be performed:
+ * - Approve the `UniswapV4Migrator` as a `LiquidityMigrator` module in the Airlock
+ * - Approve the `UniswapV4Migrator` as a migrator in the `StreamableFeesLocker`
  */
 abstract contract DeployV4MigratorOnlyScript is Script {
     ScriptData internal _scriptData;
@@ -75,6 +78,18 @@ contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
             positionManager: 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
             streamableFeesLocker: 0x3345E557c5C0b474bE1eb4693264008B8562Aa9c
+        });
+    }
+}
+
+contract DeployV4MigratorOnlyBaseScript is DeployV4MigratorOnlyScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
+            poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
+            positionManager: 0x7C5f5A4bBd8fD63184577525326123B519429bDc,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
+            streamableFeesLocker: 0x0A00775D71a42cd33D62780003035e7F5b47bD3A
         });
     }
 }

@@ -256,9 +256,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             }
         }
 
-        int24 lowerTick =
-            ((TickMath.MIN_TICK + 1) - poolKey.tickSpacing + 1) / poolKey.tickSpacing * poolKey.tickSpacing;
-        int24 upperTick = (TickMath.MAX_TICK - 1) / poolKey.tickSpacing * poolKey.tickSpacing;
+        int24 lowerTick = TickMath.minUsableTick(poolKey.tickSpacing);
+        int24 upperTick = TickMath.maxUsableTick(poolKey.tickSpacing);
 
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
 

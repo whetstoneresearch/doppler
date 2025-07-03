@@ -14,6 +14,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
@@ -25,7 +27,6 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Doppler } from "src/Doppler.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
@@ -40,7 +41,11 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    function test_migrate_v4() public {
+    function test_migrate_v4(
+        int16 tickSpacing
+    ) public {
+        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
+
         permit2 = IAllowanceTransfer(deployPermit2());
 
         airlock = new Airlock(address(this));
@@ -103,7 +108,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
         beneficiaries = sortBeneficiaries(beneficiaries);
 
-        bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries);
+        bytes memory migratorData = abi.encode(2000, tickSpacing, 30 days, beneficiaries);
 
         MineV4Params memory params = MineV4Params({
             airlock: address(airlock),
