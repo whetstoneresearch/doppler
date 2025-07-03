@@ -31,6 +31,19 @@ struct AssetData {
     BeneficiaryData[] beneficiaries;
 }
 
+/**
+ * @dev Emitted when liquidity is migrated
+ * @param sqrtPrice Square root price of the pool at the time of migration
+ * @param lowerTick Lower tick of the full range position
+ * @param upperTick Upper tick of the full range position
+ * @param liquidity Amount of liquidity added into the new pool
+ * @param reserves0 Amount of token0 reserves in the new pool
+ * @param reserves1 Amount of token1 reserves in the new pool
+ */
+event Migrate(
+    uint160 sqrtPrice, int24 lowerTick, int24 upperTick, uint256 liquidity, uint256 reserves0, uint256 reserves1
+);
+
 /// @dev Thrown when the tick is out of range for the pool
 error TickOutOfRange();
 
@@ -359,5 +372,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         if (poolKey.currency1.balanceOfSelf() > 0) {
             poolKey.currency1.transfer(dustRecipient, poolKey.currency1.balanceOfSelf());
         }
+
+        emit Migrate(sqrtPriceX96, lowerTick, upperTick, liquidity, balance0, balance1);
     }
 }
