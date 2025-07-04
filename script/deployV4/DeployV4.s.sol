@@ -31,8 +31,8 @@ abstract contract DeployV4Script is Script {
         DopplerDeployer dopplerDeployer = new DopplerDeployer(IPoolManager(_scriptData.poolManager));
         UniswapV4Initializer uniswapV4Initializer =
             new UniswapV4Initializer(_scriptData.airlock, IPoolManager(_scriptData.poolManager), dopplerDeployer);
-        DopplerLensQuoter quoter =
-            new DopplerLensQuoter(IPoolManager(_scriptData.poolManager), IStateView(_scriptData.stateView));
+        // DopplerLensQuoter quoter =
+        //  new DopplerLensQuoter(IPoolManager(_scriptData.poolManager), IStateView(_scriptData.stateView));
 
         console.log(unicode"✨ Contracts were successfully deployed!");
 
@@ -41,7 +41,7 @@ abstract contract DeployV4Script is Script {
         console.log("+----------------------------+--------------------------------------------+");
         console.log("| UniswapV4Initializer       | %s |", address(uniswapV4Initializer));
         console.log("| DopplerDeployer            | %s |", address(dopplerDeployer));
-        console.log("| DopplerLensQuoter          | %s |", address(quoter));
+        // console.log("| DopplerLensQuoter          | %s |", address(quoter));
         console.log("+----------------------------+--------------------------------------------+");
 
         vm.stopBroadcast();

@@ -510,7 +510,7 @@ contract Doppler is BaseHook {
             int24 targetTick = isToken0 ? position.tickLower : position.tickUpper;
 
             // Then we swap from the MIN or MAX tick to the target tick
-            BalanceDelta resetSwapDelta = poolManager.swap(
+            poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
                     zeroForOne: isToken0,
@@ -519,10 +519,6 @@ contract Doppler is BaseHook {
                 }),
                 ""
             );
-
-            require(resetSwapDelta.amount0() == 0 && resetSwapDelta.amount1() == 0, "Invalid swap delta");
-            (, int24 newTick,,) = poolManager.getSlot0(poolId);
-            require(newTick == targetTick, "Invalid new tick after swap");
         }
 
         // Get the lower tick of the lower slug
