@@ -6,6 +6,7 @@ import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
@@ -30,6 +31,26 @@ struct AssetData {
     uint32 lockDuration;
     BeneficiaryData[] beneficiaries;
 }
+
+/**
+ * @dev Emitted when liquidity is migrated
+ * @param poolId Pool ID of the new Uniswap V4 pool
+ * @param sqrtPriceX96 Square root price of the pool at the time of migration
+ * @param lowerTick Lower tick of the full range position
+ * @param upperTick Upper tick of the full range position
+ * @param liquidity Amount of liquidity added into the new pool
+ * @param reserves0 Amount of token0 reserves in the new pool
+ * @param reserves1 Amount of token1 reserves in the new pool
+ */
+event Migrate(
+    PoolId poolId,
+    uint160 sqrtPriceX96,
+    int24 lowerTick,
+    int24 upperTick,
+    uint256 liquidity,
+    uint256 reserves0,
+    uint256 reserves1
+);
 
 /// @dev Thrown when the tick is out of range for the pool
 error TickOutOfRange();
@@ -359,5 +380,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         if (poolKey.currency1.balanceOfSelf() > 0) {
             poolKey.currency1.transfer(dustRecipient, poolKey.currency1.balanceOfSelf());
         }
+
+        emit Migrate(poolKey.toId(), sqrtPriceX96, lowerTick, upperTick, liquidity, balance0, balance1);
     }
 }
