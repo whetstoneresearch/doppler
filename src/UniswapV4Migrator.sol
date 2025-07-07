@@ -43,7 +43,7 @@ struct AssetData {
  * @param reserves1 Amount of token1 reserves in the new pool
  */
 event Migrate(
-    PoolId poolId,
+    PoolId indexed poolId,
     uint160 sqrtPriceX96,
     int24 lowerTick,
     int24 upperTick,
