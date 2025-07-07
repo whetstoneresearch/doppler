@@ -21,6 +21,7 @@ import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pai
 import { DERC20 } from "src/DERC20.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import {
     WETH_MAINNET,
     UNISWAP_V3_FACTORY_MAINNET,
@@ -116,7 +117,8 @@ contract V3Test is Test {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 numPositions: 10,
-                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
+                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                beneficiaries: new BeneficiaryData[](0)
             })
         );
 
@@ -258,7 +260,8 @@ contract V3Test is Test {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 numPositions: numPositions,
-                maxShareToBeSold: maxShareToBeSold
+                maxShareToBeSold: maxShareToBeSold,
+                beneficiaries: new BeneficiaryData[](0)
             })
         );
 
@@ -340,7 +343,7 @@ contract V3Test is Test {
         uint256 assetBalBeforeMigration = DERC20(asset).balanceOf(pool);
 
         (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
-        (,, int24 _tickLower, int24 _tickUpper,,,,,) = initializer.getState(pool);
+        (,, int24 _tickLower, int24 _tickUpper,,,) = initializer.getState(pool);
         // console2.log(currentTick);
         // console2.log(_tickLower);
         // console2.log(_tickUpper);

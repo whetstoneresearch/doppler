@@ -17,6 +17,7 @@ import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
 import { InitData } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
+import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
 struct Params {
     Airlock airlock;
@@ -109,7 +110,8 @@ contract CreateTokenScript is Script {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 numPositions: 10,
-                maxShareToBeSold: MAX_SHARE_TO_BE_SOLD
+                maxShareToBeSold: MAX_SHARE_TO_BE_SOLD,
+                beneficiaries: new BeneficiaryData[](0)
             })
         );
 
