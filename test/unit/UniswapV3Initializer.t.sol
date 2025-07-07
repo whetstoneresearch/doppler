@@ -20,7 +20,6 @@ import {
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
@@ -58,8 +57,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    beneficiaries: new BeneficiaryData[](0)
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -92,8 +90,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    beneficiaries: new BeneficiaryData[](0)
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -110,8 +107,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: DEFAULT_LOWER_TICK,
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    beneficiaries: new BeneficiaryData[](0)
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -149,8 +145,7 @@ contract UniswapV3InitializerTest is Test {
                     tickLower: tickLower,
                     tickUpper: tickUpper,
                     numPositions: DEFAULT_NUM_POSITIONS,
-                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    beneficiaries: new BeneficiaryData[](0)
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                 })
             )
         );
@@ -254,8 +249,7 @@ contract UniswapV3InitializerTest is Test {
                         tickLower: -DEFAULT_UPPER_TICK,
                         tickUpper: -DEFAULT_LOWER_TICK,
                         numPositions: DEFAULT_NUM_POSITIONS,
-                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                        beneficiaries: new BeneficiaryData[](0)
+                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                     })
                 )
             )
@@ -272,8 +266,7 @@ contract UniswapV3InitializerTest is Test {
                         tickLower: DEFAULT_LOWER_TICK,
                         tickUpper: DEFAULT_UPPER_TICK,
                         numPositions: DEFAULT_NUM_POSITIONS,
-                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                        beneficiaries: new BeneficiaryData[](0)
+                        maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
                     })
                 )
             )
@@ -318,8 +311,8 @@ contract UniswapV3InitializerTest is Test {
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
         assertApproxEqAbs(isToken0Balance, notIsToken0Balance, 1e9, "isToken0 and notIsToken0 balances are not equal");
 
-        (,,, int24 tickUpperIsToken0,,,) = UniswapV3Initializer(initializer).getState(address(isToken0Pool));
-        (,, int24 tickLowerNotIsToken0,,,,) = UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
+        (,,, int24 tickUpperIsToken0,,,,,) = UniswapV3Initializer(initializer).getState(address(isToken0Pool));
+        (,, int24 tickLowerNotIsToken0,,,,,,) = UniswapV3Initializer(initializer).getState(address(notIsToken0Pool));
 
         uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(tickUpperIsToken0 + 1);
         uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0 - 1);

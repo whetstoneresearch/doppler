@@ -26,7 +26,6 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 // TODO: Reuse these constants from the BaseTest
@@ -417,8 +416,7 @@ contract AirlockTest is Test, Deployers {
                 tickLower: DEFAULT_START_TICK,
                 tickUpper: DEFAULT_END_TICK,
                 numPositions: 1,
-                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                beneficiaries: new BeneficiaryData[](0)
+                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
             })
         );
 

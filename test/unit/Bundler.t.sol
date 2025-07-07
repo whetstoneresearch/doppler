@@ -13,7 +13,6 @@ import { DERC20 } from "src/DERC20.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { InitData } from "src/UniswapV3Initializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { CreateParams } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 
@@ -66,8 +65,7 @@ contract BundlerTest is Test {
                     tickLower: -200_040,
                     tickUpper: -167_520,
                     numPositions: 10,
-                    maxShareToBeSold: 0.23 ether,
-                    beneficiaries: new BeneficiaryData[](0)
+                    maxShareToBeSold: 0.23 ether
                 })
             ),
             liquidityMigrator: ILiquidityMigrator(0xf6023127f6E937091D5B605680056A6D27524bad),

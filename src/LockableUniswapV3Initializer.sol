@@ -95,7 +95,7 @@ struct LpPosition {
     uint16 id;
 }
 
-contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, ImmutableAirlock {
+contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, ImmutableAirlock {
     using SafeTransferLib for ERC20;
 
     /// @notice Address of the Uniswap V3 factory
