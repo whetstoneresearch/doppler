@@ -70,6 +70,7 @@ abstract contract DeployV4MigratorOnlyScript is Script {
     }
 }
 
+/// @dev forge script DeployV4MigratorOnlyBaseSepoliaScript --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --slow --verify --private-key $PRIVATE_KEY
 contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
     function setUp() public override {
         _scriptData = ScriptData({
