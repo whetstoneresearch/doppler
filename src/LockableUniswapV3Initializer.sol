@@ -44,6 +44,14 @@ error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
 /// @dev Constant used to increase precision during calculations
 uint256 constant WAD = 1e18;
 
+/**
+ * @notice Emitted when a collect event is called
+ * @param pool Address of the pool
+ * @param fees0 Total fees collected in token0
+ * @param fees1 Total fees collected in token1
+ */
+event Collect(address indexed pool, uint256 fees0, uint256 fees1);
+
 struct InitData {
     uint24 fee;
     int24 tickLower;
@@ -308,6 +316,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
             ERC20(token0).safeTransfer(beneficiary, amount0);
             ERC20(token1).safeTransfer(beneficiary, amount1);
         }
+
+        emit Collect(pool, amount0Distributed, amount1Distributed);
     }
 
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
