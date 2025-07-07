@@ -13,6 +13,14 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
+/**
+ * @notice Emitted when a collect event is called
+ * @param pool Address of the pool
+ * @param fees0 Total fees collected in token0
+ * @param fees1 Total fees collected in token1
+ */
+event Collect(address indexed pool, uint256 fees0, uint256 fees1);
+
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
 
@@ -261,6 +269,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
             ERC20(token0).safeTransfer(beneficiary, amount0);
             ERC20(token1).safeTransfer(beneficiary, amount1);
         }
+
+        emit Collect(pool, amount0Distributed, amount1Distributed);
     }
 
     /// @inheritdoc IUniswapV3MintCallback

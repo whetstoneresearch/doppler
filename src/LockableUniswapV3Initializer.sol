@@ -11,6 +11,15 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
+
+/**
+ * @notice Emitted when a collect event is called
+ * @param pool Address of the pool
+ * @param fees0 Total fees collected in token0
+ * @param fees1 Total fees collected in token1
+ */
+event Collect(address indexed pool, uint256 fees0, uint256 fees1);
 
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
@@ -22,11 +31,12 @@ error PoolAlreadyInitialized();
 error PoolAlreadyExited();
 
 /// @notice Thrown when the pool is locked but collect is called
-error PoolLockMismatch(address pool, bool isLocked);
+error PoolLocked();
 
 /// @notice Thrown when the current tick is not sufficient to migrate
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 
+/// @notice Thrown when the computed liquidity to mint is zero
 error CannotMintZeroLiquidity();
 
 /// @notice Thrown when the specified fee is not set in the Uniswap V3 factory
@@ -44,14 +54,6 @@ error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
 /// @dev Constant used to increase precision during calculations
 uint256 constant WAD = 1e18;
 
-/**
- * @notice Emitted when a collect event is called
- * @param pool Address of the pool
- * @param fees0 Total fees collected in token0
- * @param fees1 Total fees collected in token1
- */
-event Collect(address indexed pool, uint256 fees0, uint256 fees1);
-
 struct InitData {
     uint24 fee;
     int24 tickLower;
@@ -67,9 +69,11 @@ struct CallbackData {
     uint24 fee;
 }
 
-struct BeneficiaryData {
-    address beneficiary;
-    uint96 shares;
+enum PoolStatus {
+    Uninitialized,
+    Initialized,
+    Locked,
+    Exited
 }
 
 struct PoolState {
@@ -77,13 +81,11 @@ struct PoolState {
     address numeraire;
     int24 tickLower;
     int24 tickUpper;
-    uint16 numPositions;
-    bool isInitialized;
-    bool isExited;
-    bool isLocked;
     uint256 maxShareToBeSold;
     uint256 totalTokensOnBondingCurve;
     BeneficiaryData[] beneficiaries;
+    LpPosition[] lpPositions;
+    PoolStatus status;
 }
 
 struct LpPosition {
@@ -141,8 +143,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         int24 tickSpacing = factory.feeAmountTickSpacing(fee);
         if (tickSpacing == 0) revert InvalidFee(fee);
 
-        checkPoolParams(tickLower, tickSpacing);
-        checkPoolParams(tickUpper, tickSpacing);
+        isValidTick(tickLower, tickSpacing);
+        isValidTick(tickUpper, tickSpacing);
 
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
@@ -150,7 +152,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         uint256 numTokensToBond = totalTokensOnBondingCurve - numTokensToSell;
 
         pool = factory.getPool(token0, token1, fee);
-        require(getState[pool].isInitialized == false, PoolAlreadyInitialized());
+        require(getState[pool].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
 
         bool isToken0 = asset == token0;
 
@@ -161,30 +163,25 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
         try IUniswapV3Pool(pool).initialize(sqrtPriceX96) { } catch { }
 
-        // if there are any provided migrators, the pool will lock and stream to them instead
-        bool isLocked = beneficiaries.length != 0;
+        (LpPosition[] memory lpPositions, uint256 reserves) =
+            calculateLogNormalDistribution(tickLower, tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell);
+
+        lpPositions[numPositions] =
+            calculateLpTail(numPositions, tickLower, tickUpper, isToken0, reserves, numTokensToBond, tickSpacing);
+
+        mintPositions(asset, numeraire, fee, pool, lpPositions, numPositions);
 
         getState[pool] = PoolState({
             asset: asset,
             numeraire: numeraire,
             tickLower: tickLower,
             tickUpper: tickUpper,
-            isInitialized: true,
-            isExited: false,
-            isLocked: isLocked,
-            numPositions: numPositions,
             maxShareToBeSold: maxShareToBeSold,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            beneficiaries: beneficiaries
+            beneficiaries: beneficiaries,
+            lpPositions: lpPositions,
+            status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized
         });
-
-        (LpPosition[] memory lbpPositions, uint256 reserves) =
-            calculateLogNormalDistribution(tickLower, tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell);
-
-        lbpPositions[numPositions] =
-            calculateLpTail(numPositions, tickLower, tickUpper, isToken0, reserves, numTokensToBond, tickSpacing);
-
-        mintPositions(asset, numeraire, fee, pool, lbpPositions, numPositions);
 
         emit Create(pool, asset, numeraire);
     }
@@ -205,47 +202,23 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
             uint128 balance1
         )
     {
-        require(getState[pool].isExited == false, PoolAlreadyExited());
-        require(getState[pool].isLocked == false, PoolLockMismatch(pool, getState[pool].isLocked));
-
-        getState[pool].isExited = true;
+        require(getState[pool].status == PoolStatus.Initialized, PoolAlreadyExited());
+        getState[pool].status = PoolStatus.Exited;
 
         token0 = IUniswapV3Pool(pool).token0();
         token1 = IUniswapV3Pool(pool).token1();
-        int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
         int24 tick;
         (sqrtPriceX96, tick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         address asset = getState[pool].asset;
-
         bool isToken0 = asset == token0;
 
         int24 farTick = isToken0 ? getState[pool].tickUpper : getState[pool].tickLower;
         require(asset == token0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
 
-        uint16 numPositions = getState[pool].numPositions;
-
-        uint256 numTokensToSell =
-            FullMath.mulDiv(getState[pool].totalTokensOnBondingCurve, getState[pool].maxShareToBeSold, WAD);
-        uint256 numTokensToBond = getState[pool].totalTokensOnBondingCurve - numTokensToSell;
-
-        (LpPosition[] memory lbpPositions, uint256 reserves) = calculateLogNormalDistribution(
-            getState[pool].tickLower, getState[pool].tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell
-        );
-
-        lbpPositions[numPositions] = calculateLpTail(
-            numPositions,
-            getState[pool].tickLower,
-            getState[pool].tickUpper,
-            isToken0,
-            reserves,
-            numTokensToBond,
-            tickSpacing
-        );
-
         uint256 amount0;
         uint256 amount1;
-        (amount0, amount1, balance0, balance1) = burnPositionsMultiple(pool, lbpPositions, numPositions);
+        (amount0, amount1, balance0, balance1) = burnPositionsMultiple(pool, getState[pool].lpPositions);
 
         fees0 = uint128(balance0 - amount0);
         fees1 = uint128(balance1 - amount1);
@@ -254,42 +227,22 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         ERC20(token1).safeTransfer(msg.sender, balance1);
     }
 
+    /**
+     * @notice Collects fees from a locked Uniswap V3 pool and distributes them to beneficiaries
+     * @param pool Address of the Uniswap V3 pool
+     * @return fees0ToDistribute Total fees collected in token0
+     * @return fees1ToDistribute Total fees collected in token1
+     */
     function collectFees(
         address pool
     ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
-        require(getState[pool].isExited == false, PoolAlreadyExited());
-        require(getState[pool].isLocked == true, PoolLockMismatch(pool, getState[pool].isLocked));
+        require(getState[pool].status == PoolStatus.Locked, PoolLocked());
 
         // TODO: abstract this logic to a seperate function?
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
-        int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
-        address asset = getState[pool].asset;
-
-        bool isToken0 = asset == token0;
-
-        uint16 numPositions = getState[pool].numPositions;
-
-        uint256 numTokensToSell =
-            FullMath.mulDiv(getState[pool].totalTokensOnBondingCurve, getState[pool].maxShareToBeSold, WAD);
-        uint256 numTokensToBond = getState[pool].totalTokensOnBondingCurve - numTokensToSell;
-
-        (LpPosition[] memory lbpPositions, uint256 reserves) = calculateLogNormalDistribution(
-            getState[pool].tickLower, getState[pool].tickUpper, tickSpacing, isToken0, numPositions, numTokensToSell
-        );
-
-        lbpPositions[numPositions] = calculateLpTail(
-            numPositions,
-            getState[pool].tickLower,
-            getState[pool].tickUpper,
-            isToken0,
-            reserves,
-            numTokensToBond,
-            tickSpacing
-        );
-
-        (fees0ToDistribute, fees1ToDistribute) = collectPositionsMultiple(pool, lbpPositions, numPositions);
+        (fees0ToDistribute, fees1ToDistribute) = collectPositionsMultiple(pool, getState[pool].lpPositions);
 
         BeneficiaryData[] memory beneficiaries = getState[pool].beneficiaries;
 
@@ -320,6 +273,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         emit Collect(pool, amount0Distributed, amount1Distributed);
     }
 
+    /// @inheritdoc IUniswapV3MintCallback
     function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         address pool = factory.getPool(callbackData.asset, callbackData.numeraire, callbackData.fee);
@@ -329,32 +283,10 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         ERC20(callbackData.asset).safeTransferFrom(address(airlock), pool, amount0Owed == 0 ? amount1Owed : amount0Owed);
     }
 
-    function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
-        if (isToken0) {
-            // Round down if isToken0
-            if (tick < 0) {
-                // If the tick is negative, we round up (negatively) the negative result to round down
-                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
-            } else {
-                // Else if positive, we simply round down
-                return tick / tickSpacing * tickSpacing;
-            }
-        } else {
-            // Round up if isToken1
-            if (tick < 0) {
-                // If the tick is negative, we round down the negative result to round up
-                return tick / tickSpacing * tickSpacing;
-            } else {
-                // Else if positive, we simply round up
-                return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
-            }
-        }
-    }
-
     /// @notice Calculates the final LP position that extends from the far tick to the pool's min/max tick
     /// @dev This position ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
     function calculateLpTail(
-        uint16 id,
+        uint256 id,
         int24 tickLower,
         int24 tickUpper,
         bool isToken0,
@@ -379,7 +311,8 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
         require(posTickLower < posTickUpper, InvalidTickRangeMisordered(posTickLower, posTickUpper));
 
-        lpTail = LpPosition({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, id: id });
+        lpTail =
+            LpPosition({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, id: uint16(id) });
     }
 
     /// @notice Calculates the distribution of liquidity positions across tick ranges
@@ -392,7 +325,7 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         int24 tickUpper,
         int24 tickSpacing,
         bool isToken0,
-        uint16 totalPositions,
+        uint256 totalPositions,
         uint256 totalAmtToBeSold
     ) internal pure returns (LpPosition[] memory, uint256) {
         int24 farTick = isToken0 ? tickUpper : tickLower;
@@ -467,6 +400,15 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         return (newPositions, reserves);
     }
 
+    /**
+     * @dev Mint new positions in the Uniswap V3 pool
+     * @param asset Address of the token being sold
+     * @param numeraire Address of the numeraire token
+     * @param fee Fee tier of the Uniswap V3 pool
+     * @param pool Address of the Uniswap V3 pool
+     * @param newPositions Array of new positions to mint
+     * @param numPositions Number of positions to mint (might be cheaper than `newPositions.length`)
+     */
     function mintPositions(
         address asset,
         address numeraire,
@@ -486,28 +428,26 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         }
     }
 
-    function checkPoolParams(int24 tick, int24 tickSpacing) internal pure {
-        if (tick % tickSpacing != 0) revert InvalidTickRange(tick, tickSpacing);
-    }
-
+    /**
+     * @dev Collects fees from multiple positions in a Uniswap V3 pool
+     * @param pool Address of the Uniswap V3 pool
+     * @param positions Array of positions to collect fees from
+     * @return fees0 Total fees collected in token0
+     * @return fees1 Total fees collected in token1
+     */
     function collectPositionsMultiple(
         address pool,
-        LpPosition[] memory newPositions,
-        uint16 numPositions
+        LpPosition[] memory positions
     ) internal returns (uint256 fees0, uint256 fees1) {
-        for (uint256 i; i <= numPositions; i++) {
+        for (uint256 i; i < positions.length; i++) {
             uint256 posFees0;
             uint256 posFees1;
 
             // you must poke the position via burning it to collecting fees
-            IUniswapV3Pool(pool).burn(newPositions[i].tickLower, newPositions[i].tickUpper, 0);
+            IUniswapV3Pool(pool).burn(positions[i].tickLower, positions[i].tickUpper, 0);
 
             (posFees0, posFees1) = IUniswapV3Pool(pool).collect(
-                address(this),
-                newPositions[i].tickLower,
-                newPositions[i].tickUpper,
-                type(uint128).max,
-                type(uint128).max
+                address(this), positions[i].tickLower, positions[i].tickUpper, type(uint128).max, type(uint128).max
             );
 
             fees0 += posFees0;
@@ -515,25 +455,29 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
         }
     }
 
+    /**
+     * @dev Burns multiple positions in a Uniswap V3 pool and collects fees
+     * @param pool Address of the Uniswap V3 pool
+     * @param positions Array of positions to burn
+     * @return amount0 Amount of token0 received from burning
+     * @return amount1 Amount of token1 received from burning
+     * @return balance0 Total balance of token0 received
+     * @return balance1 Total balance of token1 received
+     */
     function burnPositionsMultiple(
         address pool,
-        LpPosition[] memory newPositions,
-        uint16 numPositions
+        LpPosition[] memory positions
     ) internal returns (uint256 amount0, uint256 amount1, uint128 balance0, uint128 balance1) {
         uint256 posAmount0;
         uint256 posAmount1;
         uint128 posBalance0;
         uint128 posBalance1;
-        for (uint256 i; i <= numPositions; i++) {
-            (posAmount0, posAmount1) = IUniswapV3Pool(pool).burn(
-                newPositions[i].tickLower, newPositions[i].tickUpper, newPositions[i].liquidity
-            );
+
+        for (uint256 i; i < positions.length; i++) {
+            (posAmount0, posAmount1) =
+                IUniswapV3Pool(pool).burn(positions[i].tickLower, positions[i].tickUpper, positions[i].liquidity);
             (posBalance0, posBalance1) = IUniswapV3Pool(pool).collect(
-                address(this),
-                newPositions[i].tickLower,
-                newPositions[i].tickUpper,
-                type(uint128).max,
-                type(uint128).max
+                address(this), positions[i].tickLower, positions[i].tickUpper, type(uint128).max, type(uint128).max
             );
 
             amount0 += posAmount0;
@@ -541,6 +485,44 @@ contract UniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallback, Immut
 
             balance0 += posBalance0;
             balance1 += posBalance1;
+        }
+    }
+
+    /**
+     * @dev Checks if a tick is valid according to the tick spacing
+     * @param tick Tick to check
+     * @param tickSpacing Tick spacing to check against
+     */
+    function isValidTick(int24 tick, int24 tickSpacing) internal pure {
+        if (tick % tickSpacing != 0) revert InvalidTickRange(tick, tickSpacing);
+    }
+
+    /**
+     * @dev Aligns a tick to the nearest tick spacing
+     * @param isToken0 True if we're selling token 0, this impacts the rounding direction
+     * @param tick Tick to align
+     * @param tickSpacing Tick spacing to align against
+     * @return Aligned tick
+     */
+    function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
+        if (isToken0) {
+            // Round down if isToken0
+            if (tick < 0) {
+                // If the tick is negative, we round up (negatively) the negative result to round down
+                return (tick - tickSpacing + 1) / tickSpacing * tickSpacing;
+            } else {
+                // Else if positive, we simply round down
+                return tick / tickSpacing * tickSpacing;
+            }
+        } else {
+            // Round up if isToken1
+            if (tick < 0) {
+                // If the tick is negative, we round down the negative result to round up
+                return tick / tickSpacing * tickSpacing;
+            } else {
+                // Else if positive, we simply round up
+                return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
+            }
         }
     }
 }
