@@ -41,11 +41,7 @@ contract BundlerTest is Test {
         Airlock(airlock).setModuleState(modules, states);
     }
 
-    // TODO: I'm skipping this test for now, we have a new V3Initializer with different InitData
-    // and the contract at that address is an older version
     function test_bundle() public {
-        vm.skip(true);
-
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e30;
