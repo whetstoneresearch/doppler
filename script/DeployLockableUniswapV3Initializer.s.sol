@@ -25,6 +25,7 @@ abstract contract DeployLockableUniswapV3InitializerScript is Script {
     }
 }
 
+/// @dev forge script DeployLockableUniswapV3InitializerBaseSepolia --private-key $PRIVATE_KEY --verify --rpc-url $BASE_SEPOLIA_RPC_URL --slow --broadcast
 contract DeployLockableUniswapV3InitializerBaseSepolia is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
         _scriptData = ScriptData({
