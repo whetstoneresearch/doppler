@@ -21,6 +21,14 @@ import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
  */
 event Collect(address indexed pool, uint256 fees0, uint256 fees1);
 
+/**
+ * @notice Emitted when a new pool is locked
+ * @param pool Address of the pool
+ * @param asset Address of the asset
+ * @param beneficiaries Array of beneficiaries with their shares
+ */
+event Lock(address indexed pool, address indexed asset, BeneficiaryData[] beneficiaries);
+
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();
 
@@ -184,6 +192,10 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
         });
 
         emit Create(pool, asset, numeraire);
+
+        if (beneficiaries.length != 0) {
+            emit Lock(pool, asset, beneficiaries);
+        }
     }
 
     /// @inheritdoc IPoolInitializer
