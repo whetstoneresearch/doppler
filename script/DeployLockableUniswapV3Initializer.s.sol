@@ -34,3 +34,13 @@ contract DeployLockableUniswapV3InitializerBaseSepolia is DeployLockableUniswapV
         });
     }
 }
+
+/// @dev forge script DeployLockableUniswapV3InitializerBase --private-key $PRIVATE_KEY --verify --rpc-url $BASE_MAINNET_RPC_URL --slow --broadcast
+contract DeployLockableUniswapV3InitializerBase is DeployLockableUniswapV3InitializerScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
+            uniswapV3Factory: 0x33128a8fC17869897dcE68Ed026d694621f6FDfD
+        });
+    }
+}
