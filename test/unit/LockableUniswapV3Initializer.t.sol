@@ -50,6 +50,11 @@ contract LockableUniswapV3InitializerTest is Test {
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.approve(address(initializer), type(uint256).max);
 
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.1 ether });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x2), shares: 0.4 ether });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: address(0x3), shares: 0.5 ether });
+
         address pool = initializer.initialize(
             address(token),
             address(0x4200000000000000000000000000000000000006),
@@ -62,7 +67,7 @@ contract LockableUniswapV3InitializerTest is Test {
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
                     maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    beneficiaries: new BeneficiaryData[](0)
+                    beneficiaries: beneficiaries
                 })
             )
         );
@@ -72,7 +77,6 @@ contract LockableUniswapV3InitializerTest is Test {
         uint128 totalLiquidity = IUniswapV3Pool(pool).liquidity();
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
 
-        // FIXME: The test fails because the call is looking at the wrong range (ticks were negated and flipped)
         (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
             keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
         );
