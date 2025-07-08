@@ -16,14 +16,15 @@ import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 /**
  * @notice Emitted when a collect event is called
  * @param pool Address of the pool
- * @param fees0 Total fees collected in token0
- * @param fees1 Total fees collected in token1
+ * @param beneficiary Address of the beneficiary receiving the fees
+ * @param fees0 Amount of fees collected in token0
+ * @param fees1 Amount of fees collected in token1
  */
-event Collect(address indexed pool, uint256 fees0, uint256 fees1);
+event Collect(address indexed pool, address indexed beneficiary, uint256 fees0, uint256 fees1);
 
 /**
  * @notice Emitted when a new pool is locked
- * @param pool Address of the pool
+ * @param pool Address of the Uniswap V3 pool
  * @param beneficiaries Array of beneficiaries with their shares
  */
 event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
@@ -277,9 +278,9 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
 
             ERC20(token0).safeTransfer(beneficiary, amount0);
             ERC20(token1).safeTransfer(beneficiary, amount1);
-        }
 
-        emit Collect(pool, amount0Distributed, amount1Distributed);
+            emit Collect(pool, beneficiary, amount0, amount1);
+        }
     }
 
     /// @inheritdoc IUniswapV3MintCallback
