@@ -63,7 +63,7 @@ const chains: {[chainId: number]: ChainDetails } = {
 type Transaction = {
   hash: `0x${string}`;
   contractName: string;
-  transactionType: 'CREATE' | 'CALL';
+  transactionType: 'CREATE' | 'CREATE2' | 'CALL';
   contractAddress: `0x${string}`;
   arguments: `0x${string}`[];
 }
@@ -86,6 +86,13 @@ type Deployment = {
 
 function shorten(a: string, length: number = 4): string {
   return `${a.slice(0, length + 2)}...${a.slice(-length)}`;
+}
+
+// Foundry changed the timestamp from s to ms so we need to handle both cases
+function convertTimestamp(timestamp: number): string {
+  return new Date(
+    new Date(timestamp).getFullYear() === 1970 ? timestamp * 1000 :timestamp
+  ).toUTCString();
 }
 
 function generateTable(deployments: Deployment[], chainId: string): string {
@@ -148,7 +155,8 @@ async function generateHistoryLogs(): Promise<void> {
     }
 
     const transactions = broadcast.transactions
-      .filter((transaction) => transaction.transactionType === 'CREATE'
+      .filter((transaction) => (transaction.transactionType === 'CREATE'
+        || transaction.transactionType === 'CREATE2')
         && transaction.hash !== null && transaction.contractName !== null)
       .map(transaction => ({
         contractName: transaction.contractName,
@@ -180,7 +188,7 @@ async function generateHistoryLogs(): Promise<void> {
 
     for (let i = Object.values(timestamps).length - 1; i >= 0; i--) {
       const t = Object.values(timestamps)[i];
-      content += `### ${new Date(t[0].timestamp * 1000).toUTCString()}\n`;
+      content += `### ${convertTimestamp(t[0].timestamp)}\n`;
       content += generateTable(t, chainId);
     }
 
@@ -198,7 +206,7 @@ async function generateHistoryLogs(): Promise<void> {
 
     deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     const latestDeployments = getLatestDeployments(deployments[chainId]);
-    mainnetDeployments += `## ${chains[chainId].name} (${chainId})\n`;
+    mainnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     mainnetDeployments += generateTable(latestDeployments, chainId);
     mainnetLabels.push(chains[chainId].name);
   }
