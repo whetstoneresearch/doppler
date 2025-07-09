@@ -267,7 +267,6 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
     ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
         require(getState[pool].status == PoolStatus.Locked, PoolLocked());
 
-        // TODO: abstract this logic to a seperate function?
         address token0 = IUniswapV3Pool(pool).token0();
         address token1 = IUniswapV3Pool(pool).token1();
 
