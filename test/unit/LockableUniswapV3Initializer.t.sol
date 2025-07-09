@@ -59,12 +59,12 @@ contract LockableUniswapV3InitializerTest is Test {
         assertEq(address(initializer.factory()), address(0x1F98431c8aD98523631AE4a59f267346ea31F984), "Wrong factory");
     }
 
-    function test_initialize_success() public {
+    function test_initialize() public returns (address pool) {
         DERC20 token =
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.approve(address(initializer), type(uint256).max);
 
-        address pool = initializer.initialize(
+        pool = initializer.initialize(
             address(token),
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             1e27,
@@ -397,6 +397,12 @@ contract LockableUniswapV3InitializerTest is Test {
 
     function test_exitLiquidity_RevertsWhenAlreadyExited() public {
         address pool = test_exitLiquidity();
+        vm.expectRevert(PoolAlreadyExited.selector);
+        initializer.exitLiquidity(pool);
+    }
+
+    function test_exitLiquidity_RevertsWhenPoolLocked() public {
+        address pool = test_initialize();
         vm.expectRevert(PoolAlreadyExited.selector);
         initializer.exitLiquidity(pool);
     }
