@@ -18,7 +18,9 @@ import {
     PoolAlreadyExited,
     OnlyPool,
     CallbackData,
-    InitData
+    InitData,
+    MaxShareToBeSoldExceeded,
+    WAD
 } from "src/LockableUniswapV3Initializer.sol";
 import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -43,6 +45,7 @@ contract LockableUniswapV3InitializerTest is Test {
         );
     }
 
+    /// @dev Used to mimic the Airlock `owner()` function
     function owner() public view returns (address) {
         return airlockOwner;
     }
@@ -130,6 +133,30 @@ contract LockableUniswapV3InitializerTest is Test {
         vm.prank(address(0xbeef));
         vm.expectRevert(SenderNotAirlock.selector);
         initializer.initialize(address(0), address(0), 0, bytes32(0), abi.encode());
+    }
+
+    function test_initialize_RevertsWhenMaxShareToBeSoldExceeded() public {
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        token.approve(address(initializer), type(uint256).max);
+
+        vm.expectRevert(abi.encodeWithSelector(MaxShareToBeSoldExceeded.selector, WAD + 1, WAD));
+        initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_LOWER_TICK,
+                    tickUpper: DEFAULT_UPPER_TICK,
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: WAD + 1,
+                    beneficiaries: new BeneficiaryData[](0)
+                })
+            )
+        );
     }
 
     function test_exitLiquidity() public returns (address pool) {
