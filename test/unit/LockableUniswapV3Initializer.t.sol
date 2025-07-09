@@ -32,12 +32,17 @@ uint16 constant DEFAULT_NUM_POSITIONS = 10;
 
 contract LockableUniswapV3InitializerTest is Test {
     LockableUniswapV3Initializer public initializer;
+    address public airlockOwner = makeAddr("airlockOwner");
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_SEPOLIA_RPC_URL"), 28_099_832);
         initializer = new LockableUniswapV3Initializer(
             address(this), IUniswapV3Factory(0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24)
         );
+    }
+
+    function owner() public view returns (address) {
+        return airlockOwner;
     }
 
     function test_constructor() public view {
