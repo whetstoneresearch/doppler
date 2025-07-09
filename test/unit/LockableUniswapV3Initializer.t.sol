@@ -20,7 +20,8 @@ import {
     CallbackData,
     InitData,
     MaxShareToBeSoldExceeded,
-    WAD
+    WAD,
+    InvalidTickRangeMisordered
 } from "src/LockableUniswapV3Initializer.sol";
 import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -153,6 +154,32 @@ contract LockableUniswapV3InitializerTest is Test {
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
                     maxShareToBeSold: WAD + 1,
+                    beneficiaries: new BeneficiaryData[](0)
+                })
+            )
+        );
+    }
+
+    function test_initialize_RevertsWhenInvalidTickRange() public {
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        token.approve(address(initializer), type(uint256).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(InvalidTickRangeMisordered.selector, DEFAULT_UPPER_TICK, DEFAULT_LOWER_TICK)
+        );
+        initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_UPPER_TICK,
+                    tickUpper: DEFAULT_LOWER_TICK,
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: WAD,
                     beneficiaries: new BeneficiaryData[](0)
                 })
             )
