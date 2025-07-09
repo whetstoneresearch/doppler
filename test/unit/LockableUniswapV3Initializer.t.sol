@@ -23,7 +23,8 @@ import {
     WAD,
     InvalidTickRangeMisordered,
     InvalidFee,
-    InvalidTickRange
+    InvalidTickRange,
+    PoolStatus
 } from "src/LockableUniswapV3Initializer.sol";
 import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -89,6 +90,58 @@ contract LockableUniswapV3InitializerTest is Test {
             keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
         );
         assertEq(liquidity, totalLiquidity, "Wrong liquidity");
+    }
+
+    function test_initialize_InitializedStatus() public {
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        token.approve(address(initializer), type(uint256).max);
+
+        address pool = initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_LOWER_TICK,
+                    tickUpper: DEFAULT_UPPER_TICK,
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    beneficiaries: new BeneficiaryData[](0)
+                })
+            )
+        );
+
+        (,,,,,, PoolStatus status) = initializer.getState(pool);
+        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status is not Initialized");
+    }
+
+    function test_initialize_LockedStatus() public {
+        DERC20 token =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        token.approve(address(initializer), type(uint256).max);
+
+        address pool = initializer.initialize(
+            address(token),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            1e27,
+            bytes32(0),
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: DEFAULT_LOWER_TICK,
+                    tickUpper: DEFAULT_UPPER_TICK,
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    beneficiaries: getDefaultBeneficiaries()
+                })
+            )
+        );
+
+        (,,,,,, PoolStatus status) = initializer.getState(pool);
+        assertEq(uint8(status), uint8(PoolStatus.Locked), "Pool status is not Locked");
     }
 
     function test_initialize_RevertsIfAlreadyInitialized() public {
