@@ -11,6 +11,7 @@ import { WETH } from "@solmate/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 import {
     LockableUniswapV3Initializer,
     PoolAlreadyInitialized,
@@ -35,9 +36,10 @@ contract LockableUniswapV3InitializerTest is Test {
     address public airlockOwner = makeAddr("airlockOwner");
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("BASE_SEPOLIA_RPC_URL"), 28_099_832);
+        // vm.createSelectFork(vm.envString("BASE_SEPOLIA_RPC_URL"), 28_099_832);
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
         initializer = new LockableUniswapV3Initializer(
-            address(this), IUniswapV3Factory(0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24)
+            address(this), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984)
         );
     }
 
@@ -47,7 +49,7 @@ contract LockableUniswapV3InitializerTest is Test {
 
     function test_constructor() public view {
         assertEq(address(initializer.airlock()), address(this), "Wrong airlock");
-        assertEq(address(initializer.factory()), address(0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24), "Wrong factory");
+        assertEq(address(initializer.factory()), address(0x1F98431c8aD98523631AE4a59f267346ea31F984), "Wrong factory");
     }
 
     function test_initialize_success() public {
@@ -55,14 +57,9 @@ contract LockableUniswapV3InitializerTest is Test {
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.approve(address(initializer), type(uint256).max);
 
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.1 ether });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x2), shares: 0.4 ether });
-        beneficiaries[2] = BeneficiaryData({ beneficiary: address(0x3), shares: 0.5 ether });
-
         address pool = initializer.initialize(
             address(token),
-            address(0x4200000000000000000000000000000000000006),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             1e27,
             bytes32(0),
             abi.encode(
@@ -72,7 +69,7 @@ contract LockableUniswapV3InitializerTest is Test {
                     tickUpper: DEFAULT_UPPER_TICK,
                     numPositions: DEFAULT_NUM_POSITIONS,
                     maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
-                    beneficiaries: beneficiaries
+                    beneficiaries: getDefaultBeneficiaries()
                 })
             )
         );
@@ -95,7 +92,7 @@ contract LockableUniswapV3InitializerTest is Test {
 
         initializer.initialize(
             address(token),
-            address(0x4200000000000000000000000000000000000006),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             1e27,
             bytes32(0),
             abi.encode(
@@ -113,7 +110,7 @@ contract LockableUniswapV3InitializerTest is Test {
         vm.expectRevert(PoolAlreadyInitialized.selector);
         initializer.initialize(
             address(token),
-            address(0x4200000000000000000000000000000000000006),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             1e27,
             bytes32(0),
             abi.encode(
@@ -135,16 +132,15 @@ contract LockableUniswapV3InitializerTest is Test {
         initializer.initialize(address(0), address(0), 0, bytes32(0), abi.encode());
     }
 
-    /*
     function test_exitLiquidity() public returns (address pool) {
         bool isToken0;
         DERC20 token =
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
-        while (address(token) < address(0x4200000000000000000000000000000000000006)) {
+        while (address(token) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
             token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         }
 
-        isToken0 = address(token) < address(0x4200000000000000000000000000000000000006);
+        isToken0 = address(token) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
         token.approve(address(initializer), type(uint256).max);
 
         int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
@@ -153,7 +149,7 @@ contract LockableUniswapV3InitializerTest is Test {
 
         pool = initializer.initialize(
             address(token),
-            address(0x4200000000000000000000000000000000000006),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             1e27,
             bytes32(0),
             abi.encode(
@@ -169,18 +165,16 @@ contract LockableUniswapV3InitializerTest is Test {
         );
 
         deal(address(this), 100_000_000 ether);
-        WETH(payable(0x4200000000000000000000000000000000000006)).deposit{ value: 100_000_000 ether }();
-        WETH(payable(0x4200000000000000000000000000000000000006)).approve(
-            0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4, type(uint256).max
-        );
+        WETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).deposit{ value: 100_000_000 ether }();
+        WETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
         // (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 60 : targetTick - 60);
 
-        ISwapRouter(0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4).exactInputSingle(
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
-                tokenIn: 0x4200000000000000000000000000000000000006,
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                 tokenOut: address(token),
                 fee: 3000,
                 recipient: address(0x666),
@@ -236,33 +230,31 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_Initialize_token0AndToken1SamePrice() public {
-        // FUCK this test!
-        // will be !isToken0
         DERC20 isToken0 =
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
-        while (address(isToken0) > address(0x4200000000000000000000000000000000000006)) {
+        while (address(isToken0) > address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
             isToken0 =
                 new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         }
         // will be isToken0
         DERC20 notIsToken0 =
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
-        while (address(notIsToken0) < address(0x4200000000000000000000000000000000000006)) {
+        while (address(notIsToken0) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
             notIsToken0 =
                 new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         }
         isToken0.approve(address(initializer), type(uint256).max);
         notIsToken0.approve(address(initializer), type(uint256).max);
 
-        assertTrue(address(isToken0) < address(0x4200000000000000000000000000000000000006), "isToken0 is not token0");
+        assertTrue(address(isToken0) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), "isToken0 is not token0");
         assertTrue(
-            address(notIsToken0) > address(0x4200000000000000000000000000000000000006), "notIsToken0 is not token1"
+            address(notIsToken0) > address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), "notIsToken0 is not token1"
         );
 
         IUniswapV3Pool isToken0Pool = IUniswapV3Pool(
             initializer.initialize(
                 address(isToken0),
-                address(0x4200000000000000000000000000000000000006),
+                address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
                 1e27,
                 bytes32(0),
                 abi.encode(
@@ -280,7 +272,7 @@ contract LockableUniswapV3InitializerTest is Test {
         IUniswapV3Pool notIsToken0Pool = IUniswapV3Pool(
             initializer.initialize(
                 address(notIsToken0),
-                address(0x4200000000000000000000000000000000000006),
+                address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
                 1e27,
                 bytes32(0),
                 abi.encode(
@@ -300,24 +292,22 @@ contract LockableUniswapV3InitializerTest is Test {
         assertEq(notIsToken0Pool.token1(), address(notIsToken0), "notIsToken0Pool token1 is not notIsToken0");
         assertEq(
             isToken0Pool.token1(),
-            address(0x4200000000000000000000000000000000000006),
-            "isToken0Pool token1 is not 0x4200000000000000000000000000000000000006"
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            "isToken0Pool token1 is not 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
         );
         assertEq(
             notIsToken0Pool.token0(),
-            address(0x4200000000000000000000000000000000000006),
-            "notIsToken0Pool token0 is not 0x4200000000000000000000000000000000000006"
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            "notIsToken0Pool token0 is not 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
         );
 
         deal(address(this), 1000 ether);
-        WETH(payable(0x4200000000000000000000000000000000000006)).deposit{ value: 1000 ether }();
-        WETH(payable(0x4200000000000000000000000000000000000006)).approve(
-            0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4, type(uint256).max
-        );
+        WETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).deposit{ value: 1000 ether }();
+        WETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
-        ISwapRouter(0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4).exactInputSingle(
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
-                tokenIn: 0x4200000000000000000000000000000000000006,
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                 tokenOut: address(isToken0),
                 fee: 3000,
                 recipient: address(0x666),
@@ -328,9 +318,9 @@ contract LockableUniswapV3InitializerTest is Test {
             })
         );
 
-        ISwapRouter(0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4).exactInputSingle(
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
-                tokenIn: 0x4200000000000000000000000000000000000006,
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                 tokenOut: address(notIsToken0),
                 fee: 3000,
                 recipient: address(0x666),
@@ -351,14 +341,14 @@ contract LockableUniswapV3InitializerTest is Test {
         uint160 sqrtPriceTargetTickIsToken0 = TickMath.getSqrtPriceAtTick(tickUpperIsToken0 + 1);
         uint160 sqrtPriceTargetTickNotIsToken0 = TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0 - 1);
 
-        IQuoterV2 quoter = IQuoterV2(0xC5290058841028F1614F3A6F0F5816cAd0df5E27);
+        IQuoterV2 quoter = IQuoterV2(0x61fFE014bA17989E743c5F6cB21bF9697530B21e);
 
         uint256 poolBalanceIsToken0 = isToken0.balanceOf(address(isToken0Pool));
         uint256 poolBalanceNotIsToken0 = notIsToken0.balanceOf(address(notIsToken0Pool));
 
         (uint256 maxWethIsToken0,,,) = quoter.quoteExactOutputSingle(
             IQuoterV2.QuoteExactOutputSingleParams({
-                tokenIn: 0x4200000000000000000000000000000000000006,
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                 tokenOut: address(isToken0),
                 fee: 3000,
                 amount: poolBalanceIsToken0,
@@ -368,7 +358,7 @@ contract LockableUniswapV3InitializerTest is Test {
 
         (uint256 maxWethNotIsToken0,,,) = quoter.quoteExactOutputSingle(
             IQuoterV2.QuoteExactOutputSingleParams({
-                tokenIn: 0x4200000000000000000000000000000000000006,
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                 tokenOut: address(notIsToken0),
                 fee: 3000,
                 amount: poolBalanceNotIsToken0,
@@ -388,7 +378,7 @@ contract LockableUniswapV3InitializerTest is Test {
             (amountReceivedIsToken0, sqrtPriceX96AfterIsToken0, initializedTicksCrossedIsToken0, gasEstimateIsToken0) =
             quoter.quoteExactInputSingle(
                 IQuoterV2.QuoteExactInputSingleParams({
-                    tokenIn: 0x4200000000000000000000000000000000000006,
+                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                     tokenOut: address(isToken0),
                     fee: 3000,
                     amountIn: mid,
@@ -421,7 +411,7 @@ contract LockableUniswapV3InitializerTest is Test {
                 gasEstimateNotIsToken0
             ) = quoter.quoteExactInputSingle(
                 IQuoterV2.QuoteExactInputSingleParams({
-                    tokenIn: 0x4200000000000000000000000000000000000006,
+                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
                     tokenOut: address(notIsToken0),
                     fee: 3000,
                     amountIn: mid,
@@ -444,5 +434,11 @@ contract LockableUniswapV3InitializerTest is Test {
             "amountReceivedIsToken0 and amountReceivedNotIsToken0 are not equal"
         );
     }
-    */
+
+    function getDefaultBeneficiaries() internal view returns (BeneficiaryData[] memory beneficiaries) {
+        beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x2), shares: 0.4 ether });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x3), shares: 0.55 ether });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: airlockOwner, shares: 0.05 ether });
+    }
 }
