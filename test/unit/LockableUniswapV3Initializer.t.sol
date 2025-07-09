@@ -1,6 +1,7 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { console } from "forge-std/console.sol";
 import { Test } from "forge-std/Test.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
@@ -315,6 +316,79 @@ contract LockableUniswapV3InitializerTest is Test {
         );
     }
 
+    function test_collectFees() public returns (address pool) {
+        DERC20 token0 =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DERC20 token1 =
+            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+
+        address asset = address(token0);
+        address numeraire = address(token1);
+
+        token0.approve(address(initializer), type(uint256).max);
+
+        bool isToken0 = true;
+
+        int24 tickLower = isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK;
+        int24 tickUpper = isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK;
+
+        BeneficiaryData[] memory beneficiaries = getDefaultBeneficiaries();
+
+        pool = initializer.initialize(
+            asset,
+            numeraire,
+            1e27,
+            bytes32(0),
+            abi.encode(
+                InitData({
+                    fee: 3000,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    numPositions: DEFAULT_NUM_POSITIONS,
+                    maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                    beneficiaries: beneficiaries
+                })
+            )
+        );
+
+        token1.approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
+
+        uint256 amountIn = 1 ether;
+
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: numeraire,
+                tokenOut: asset,
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        uint256 expectedFees1 = amountIn - amountIn * 3000 / 1_000_000;
+
+        (uint256 fees0ToDistribute, uint256 fees1ToDistribute) = initializer.collectFees(pool);
+
+        console.log("fees0ToDistribute", fees0ToDistribute);
+        console.log("fees1ToDistribute", fees1ToDistribute);
+        console.log("expectedFees1", expectedFees1);
+
+        for (uint256 i; i < beneficiaries.length; i++) {
+            BeneficiaryData memory beneficiary = beneficiaries[i];
+            // TODO: Instead of an approx we should compute the actual value: the last
+            // beneficiary will receive their shares + dust due to rounding
+            assertApproxEqAbs(
+                token1.balanceOf(beneficiary.beneficiary),
+                fees1ToDistribute * beneficiary.shares / WAD,
+                1,
+                string.concat("Incorrect fees1 for beneficiary", vm.toString(i))
+            );
+        }
+    }
+
     function test_exitLiquidity() public returns (address pool) {
         bool isToken0;
         DERC20 token =
@@ -418,7 +492,7 @@ contract LockableUniswapV3InitializerTest is Test {
         initializer.uniswapV3MintCallback(0, 0, abi.encode(CallbackData(address(0), address(0), 0)));
     }
 
-    function test_Initialize_token0AndToken1SamePrice() public {
+    function test_initialize_token0AndToken1SamePrice() public {
         DERC20 isToken0 =
             new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
         while (address(isToken0) > address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
