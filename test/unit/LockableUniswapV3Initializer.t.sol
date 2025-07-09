@@ -1,7 +1,6 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { console } from "forge-std/console.sol";
 import { Test } from "forge-std/Test.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
@@ -371,10 +370,6 @@ contract LockableUniswapV3InitializerTest is Test {
         uint256 expectedFees1 = amountIn - amountIn * 3000 / 1_000_000;
 
         (uint256 fees0ToDistribute, uint256 fees1ToDistribute) = initializer.collectFees(pool);
-
-        console.log("fees0ToDistribute", fees0ToDistribute);
-        console.log("fees1ToDistribute", fees1ToDistribute);
-        console.log("expectedFees1", expectedFees1);
 
         for (uint256 i; i < beneficiaries.length; i++) {
             BeneficiaryData memory beneficiary = beneficiaries[i];
