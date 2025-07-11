@@ -66,9 +66,6 @@ struct Position {
 /// @notice Thrown when the gamma value is invalid
 error InvalidGamma();
 
-/// @notice Thrown when the time range is invalid (likely start is after end)
-error InvalidTimeRange();
-
 /// @notice Thrown when an attempt is made to add liquidity to the pool
 error CannotAddLiquidity();
 
@@ -261,7 +258,7 @@ contract Doppler is BaseHook {
     /// @param minimumProceeds_ Proceeds required to avoid refund phase
     /// @param maximumProceeds_ Proceeds amount that trigger early exit
     /// @param startingTime_ Unix timestamp when the sale starts
-    /// @param endingTime_ Unix timestamp when the sale ends
+    /// @param timeDelta Duration of the sale in seconds
     /// @param startingTick_ Initial tick for the bonding curve
     /// @param endingTick_ Final tick for the bonding curve
     /// @param epochLength_ Duration of each epoch in seconds
@@ -275,7 +272,7 @@ contract Doppler is BaseHook {
         uint256 minimumProceeds_,
         uint256 maximumProceeds_,
         uint256 startingTime_,
-        uint256 endingTime_,
+        uint256 timeDelta,
         int24 startingTick_,
         int24 endingTick_,
         uint256 epochLength_,
@@ -287,8 +284,14 @@ contract Doppler is BaseHook {
     ) BaseHook(poolManager_) {
         initialLpFee = initialLpFee_;
 
-        // Check that the current time is before the starting time
-        if (block.timestamp > startingTime_) revert InvalidStartTime();
+        // If the user doesn't specify a starting time, the auction starts immediately
+        if (startingTime_ == 0) {
+            startingTime_ = block.timestamp;
+        } else {
+            // Check that the current time is before the starting time
+            require(startingTime_ >= block.timestamp, InvalidStartTime());
+        }
+
         /* Tick checks */
         // Starting tick must be greater than ending tick if isToken0
         // Ending tick must be greater than starting tick if isToken1
@@ -298,9 +301,6 @@ contract Doppler is BaseHook {
         }
 
         /* Time checks */
-        // Starting time must be less than ending time
-        if (startingTime_ >= endingTime_) revert InvalidTimeRange();
-        uint256 timeDelta = endingTime_ - startingTime_;
         // Inconsistent gamma, epochs must be long enough such that the upperSlug is at least 1 tick
         if (
             gamma_ <= 0
@@ -328,7 +328,7 @@ contract Doppler is BaseHook {
         minimumProceeds = minimumProceeds_;
         maximumProceeds = maximumProceeds_;
         startingTime = startingTime_;
-        endingTime = endingTime_;
+        endingTime = startingTime_ + timeDelta;
         startingTick = startingTick_;
         endingTick = endingTick_;
         epochLength = epochLength_;
