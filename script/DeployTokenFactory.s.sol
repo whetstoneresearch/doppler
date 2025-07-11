@@ -22,12 +22,14 @@ abstract contract DeployTokenFactoryScript is Script {
     }
 }
 
+// @dev forge script DeployTokenFactoryBaseScript --rpc-url $BASE_MAINNET_RPC_URL --broadcast --verify --slow --private-key $PRIVATE_KEY
 contract DeployTokenFactoryBaseScript is DeployTokenFactoryScript {
     function setUp() public override {
         _scriptData = ScriptData({ chainId: 8453, airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12 });
     }
 }
 
+// @dev forge script DeployTokenFactoryBaseSepoliaScript --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify --slow --private-key $PRIVATE_KEY
 contract DeployTokenFactoryBaseSepoliaScript is DeployTokenFactoryScript {
     function setUp() public override {
         _scriptData = ScriptData({ chainId: 84_532, airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e });
