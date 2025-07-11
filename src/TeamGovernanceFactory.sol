@@ -8,7 +8,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
  * @notice A governance factory that returns a multisig instead of deploying actual governance contracts
  * @dev This is used for tokens that do not require on-chain governance, but want to sweep unused funds
  */
-contract NoOpGovernanceFactory is IGovernanceFactory {
+contract TeamGovernanceFactory is IGovernanceFactory {
     /// @notice The dummy address returned for governance
     /// @dev Using 0xdead as it's a well-known burn address
     address public constant DEAD_ADDRESS = address(0xdead);
