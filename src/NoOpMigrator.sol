@@ -8,7 +8,7 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 error CannotMigrate();
 
 /// @dev Burn address used as a dead address for no-op operations
-address constant DEAD_ADDRESS = address(0xdead);
+address constant DEAD_ADDRESS = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
 
 /**
  * @author Whetstone Research
