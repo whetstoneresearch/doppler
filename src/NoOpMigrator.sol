@@ -4,8 +4,11 @@ pragma solidity ^0.8.24;
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
-/// @notice Thrown when attempting to migrate liquidity
+/// @dev Thrown when attempting to migrate liquidity
 error CannotMigrate();
+
+/// @dev Burn address used as a dead address for no-op operations
+address constant DEAD_ADDRESS = address(0xdead);
 
 /**
  * @author Whetstone Research
@@ -20,7 +23,7 @@ contract NoOpMigrator is ILiquidityMigrator, ImmutableAirlock {
 
     /// @inheritdoc ILiquidityMigrator
     function initialize(address, address, bytes calldata) external view onlyAirlock returns (address) {
-        return address(0);
+        return DEAD_ADDRESS;
     }
 
     /// @inheritdoc ILiquidityMigrator
