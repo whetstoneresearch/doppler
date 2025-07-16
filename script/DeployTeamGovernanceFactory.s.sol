@@ -28,7 +28,7 @@ contract DeployTeamGovernanceFactoryBaseScript is DeployTeamGovernanceFactoryScr
     }
 }
 
-/// @dev forge script DeployTeamGovernanceFactoryBaseScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $BASE_SEPOLIA_RPC_URL
+/// @dev forge script DeployTeamGovernanceFactoryBaseSepoliaScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $BASE_SEPOLIA_RPC_URL
 contract DeployTeamGovernanceFactoryBaseSepoliaScript is DeployTeamGovernanceFactoryScript {
     function setUp() public override {
         _scriptData = ScriptData({ chainId: 84_532 });
