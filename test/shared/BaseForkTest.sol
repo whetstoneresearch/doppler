@@ -16,18 +16,27 @@ import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
-import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
+import { MineV4Params, mineV4, MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
+import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { 
     UNISWAP_V3_FACTORY_MAINNET, 
     UNISWAP_V4_POOL_MANAGER_MAINNET,
+    UNISWAP_V4_POSITION_MANAGER_MAINNET,
     UNISWAP_V3_FACTORY_BASE,
     UNISWAP_V4_POOL_MANAGER_BASE,
+    UNISWAP_V4_POSITION_MANAGER_BASE,
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET,
     UNISWAP_V2_FACTORY_BASE,
     UNISWAP_V2_ROUTER_BASE,
     UNISWAP_V3_FACTORY_BASE_SEPOLIA,
     UNISWAP_V4_POOL_MANAGER_BASE_SEPOLIA,
+    UNISWAP_V4_POSITION_MANAGER_BASE_SEPOLIA,
     WETH_BASE
 } from "test/shared/Addresses.sol";
 
@@ -39,6 +48,9 @@ abstract contract BaseForkTest is Test {
     UniswapV3Initializer public v3Initializer;
     UniswapV4Initializer public v4Initializer;
     UniswapV2Migrator public v2Migrator;
+    UniswapV4Migrator public v4Migrator;
+    UniswapV4MigratorHook public v4MigratorHook;
+    StreamableFeesLocker public streamableFeesLocker;
     GovernanceFactory public governanceFactory;
     NoOpGovernanceFactory public noOpGovernanceFactory;
     
@@ -138,8 +150,62 @@ abstract contract BaseForkTest is Test {
         );
         console.log("UniswapV2Migrator deployed at:", address(v2Migrator));
         
+        // Deploy V4 Migrator if V4 is available
+        if (v4PoolManager != address(0)) {
+            _deployV4Migrator(v4PoolManager);
+        }
+        
         // Register all modules with Airlock
         _registerModules();
+    }
+    
+    function _deployV4Migrator(address v4PoolManager) internal {
+        console.log("\n=== Deploying V4 Migrator ===");
+        
+        // Get position manager address based on chain
+        address positionManager = _getPositionManager();
+        require(positionManager != address(0), "Position Manager not available for this chain");
+        
+        // Deploy StreamableFeesLocker
+        streamableFeesLocker = new StreamableFeesLocker(
+            IPositionManager(positionManager),
+            impersonatedAddress // protocol owner
+        );
+        console.log("StreamableFeesLocker deployed at:", address(streamableFeesLocker));
+        
+        // Use a hardcoded hook address that matches the expected pattern
+        // The hook must have the BEFORE_INITIALIZE_FLAG set
+        address hookAddress = address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144));
+        v4MigratorHook = UniswapV4MigratorHook(hookAddress);
+        
+        // Deploy V4 Migrator with the predetermined hook address
+        v4Migrator = new UniswapV4Migrator(
+            address(airlock),
+            IPoolManager(v4PoolManager),
+            PositionManager(payable(positionManager)),
+            streamableFeesLocker,
+            IHooks(hookAddress)
+        );
+        console.log("UniswapV4Migrator deployed at:", address(v4Migrator));
+        
+        // Deploy the hook at the predetermined address using deployCodeTo
+        vm.etch(hookAddress, address(v4MigratorHook).code);
+        deployCodeTo(
+            "UniswapV4MigratorHook", 
+            abi.encode(IPoolManager(v4PoolManager), v4Migrator), 
+            hookAddress
+        );
+        console.log("UniswapV4MigratorHook deployed at:", hookAddress);
+        
+        // Verify hook was deployed correctly
+        require(
+            address(v4Migrator.migratorHook()) == hookAddress,
+            "Migrator hook not set correctly"
+        );
+        
+        // Approve migrator in locker
+        streamableFeesLocker.approveMigrator(address(v4Migrator));
+        console.log("V4 Migrator approved in StreamableFeesLocker");
     }
     
     function _registerModules() internal {
@@ -152,6 +218,11 @@ abstract contract BaseForkTest is Test {
         _registerModule(address(v3Initializer), ModuleState.PoolInitializer);
         _registerModule(address(v4Initializer), ModuleState.PoolInitializer);
         _registerModule(address(v2Migrator), ModuleState.LiquidityMigrator);
+        
+        // Register V4 migrator if deployed
+        if (address(v4Migrator) != address(0)) {
+            _registerModule(address(v4Migrator), ModuleState.LiquidityMigrator);
+        }
         
         console.log("Module registration complete");
     }
@@ -188,6 +259,13 @@ abstract contract BaseForkTest is Test {
     function _getV2Router() internal view returns (address) {
         if (block.chainid == 1) return UNISWAP_V2_ROUTER_MAINNET;
         if (block.chainid == 8453) return UNISWAP_V2_ROUTER_BASE;
+        return address(0);
+    }
+    
+    function _getPositionManager() internal view returns (address) {
+        if (block.chainid == 1) return UNISWAP_V4_POSITION_MANAGER_MAINNET;
+        if (block.chainid == 8453) return UNISWAP_V4_POSITION_MANAGER_BASE;
+        if (block.chainid == 84532) return UNISWAP_V4_POSITION_MANAGER_BASE_SEPOLIA;
         return address(0);
     }
     

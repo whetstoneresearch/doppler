@@ -7,6 +7,7 @@ import { CreateParams, ModuleState } from "src/Airlock.sol";
 import { InitData } from "src/UniswapV3Initializer.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 import { WETH_BASE } from "test/shared/Addresses.sol";
+import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
 contract ForkTest is BaseForkTest {
     
@@ -308,5 +309,218 @@ contract ForkTest is BaseForkTest {
         });
         
         _deployToken(params);
+    }
+    
+    function testV4WithV4Migrator() public {
+        // Skip if V4 migrator is not available
+        if (address(v4Migrator) == address(0)) {
+            console.log("Skipping V4 migrator test - not available on this chain");
+            return;
+        }
+        
+        console.log("\n=== V4 + NoOp Governance + V4 Migrator ===");
+        
+        uint256 initialSupply = 10_000_000 * 1e18;
+        uint256 numTokensToSell = 100_000 * 1e18;
+        
+        bytes memory tokenData = _encodeTokenData("V4 Migrator Token", "V4MIG");
+        
+        // V4 configuration
+        bytes memory v4InitData = abi.encode(
+            0.01 ether,              // minimumProceeds
+            10 ether,                // maximumProceeds
+            block.timestamp,         // startingTime
+            block.timestamp + 1 days,// endingTime
+            int24(-200000),          // startingTick
+            int24(200000),           // endingTick
+            30 minutes,              // epochLength (N)
+            int24(720),              // gamma
+            false,                   // isToken0 (will be determined by mining)
+            uint256(10),             // numPDSlugs (M - epochs)
+            uint24(100),             // lpFee (1 basis point = 100)
+            int24(1)                 // tickSpacing
+        );
+        
+        // Setup beneficiaries for V4 migrator
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ 
+            beneficiary: impersonatedAddress, // Protocol owner (airlock.owner() is same as impersonatedAddress)
+            shares: 0.05e18  // 5% for protocol
+        });
+        beneficiaries[1] = BeneficiaryData({ 
+            beneficiary: makeAddr("integrator"), // Different address for integrator
+            shares: 0.05e18  // 5% for integrator
+        });
+        beneficiaries[2] = BeneficiaryData({ 
+            beneficiary: address(0xb0b), 
+            shares: 0.9e18   // 90% for governance/community
+        });
+        
+        // Sort beneficiaries by address
+        beneficiaries = _sortBeneficiaries(beneficiaries);
+        
+        // V4 migrator data: fee, tickSpacing, lockDuration, beneficiaries
+        bytes memory v4MigratorData = abi.encode(
+            uint24(3000),     // fee tier
+            int24(60),        // tick spacing
+            uint32(30 days),  // lock duration
+            beneficiaries
+        );
+        
+        // Mine for valid salt
+        console.log("Mining for valid V4 addresses...");
+        MineV4Params memory mineParams = MineV4Params({
+            airlock: address(airlock),
+            poolManager: _getV4PoolManager(),
+            initialSupply: initialSupply,
+            numTokensToSell: numTokensToSell,
+            numeraire: WETH_BASE,
+            tokenFactory: tokenFactory,
+            tokenFactoryData: tokenData,
+            poolInitializer: v4Initializer,
+            poolInitializerData: v4InitData
+        });
+        
+        (bytes32 salt, address hook, address asset) = mineV4(mineParams);
+        console.log("Found valid salt:", uint256(salt));
+        console.log("Hook address:", hook);
+        console.log("Asset address:", asset);
+        
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: numTokensToSell,
+            numeraire: WETH_BASE,
+            tokenFactory: tokenFactory,
+            tokenFactoryData: tokenData,
+            governanceFactory: noOpGovernanceFactory,
+            governanceFactoryData: "",
+            poolInitializer: v4Initializer,
+            poolInitializerData: v4InitData,
+            liquidityMigrator: v4Migrator,
+            liquidityMigratorData: v4MigratorData,
+            integrator: impersonatedAddress,
+            salt: salt
+        });
+        
+        _deployToken(params);
+    }
+    
+    function testV4WithV4MigratorAndFullGovernance() public {
+        // Skip if V4 migrator is not available
+        if (address(v4Migrator) == address(0)) {
+            console.log("Skipping V4 migrator test - not available on this chain");
+            return;
+        }
+        
+        console.log("\n=== V4 + Full Governance + V4 Migrator ===");
+        
+        uint256 initialSupply = 10_000_000 * 1e18;
+        uint256 numTokensToSell = 100_000 * 1e18;
+        
+        bytes memory tokenData = _encodeTokenData("V4 Gov Migrator Token", "V4GOVMIG");
+        bytes memory governanceData = abi.encode(
+            "V4 Migrator Token Governor",
+            7200,    // 1 day voting delay
+            50400,   // 7 days voting period
+            1000 * 1e18  // 1000 token proposal threshold
+        );
+        
+        // V4 configuration
+        bytes memory v4InitData = abi.encode(
+            0.01 ether,              // minimumProceeds
+            10 ether,                // maximumProceeds
+            block.timestamp,         // startingTime
+            block.timestamp + 1 days,// endingTime
+            int24(-200000),          // startingTick
+            int24(200000),           // endingTick
+            30 minutes,              // epochLength (N)
+            int24(720),              // gamma
+            false,                   // isToken0 (will be determined by mining)
+            uint256(10),             // numPDSlugs (M - epochs)
+            uint24(100),             // lpFee (1 basis point = 100)
+            int24(1)                 // tickSpacing
+        );
+        
+        // Setup beneficiaries for V4 migrator
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ 
+            beneficiary: impersonatedAddress, // Protocol owner (airlock.owner() is same as impersonatedAddress)
+            shares: 0.05e18  // 5% for protocol
+        });
+        beneficiaries[1] = BeneficiaryData({ 
+            beneficiary: makeAddr("integrator2"), // Different address for integrator
+            shares: 0.05e18  // 5% for integrator
+        });
+        beneficiaries[2] = BeneficiaryData({ 
+            beneficiary: address(0xc0de), 
+            shares: 0.9e18   // 90% for governance/community
+        });
+        
+        // Sort beneficiaries by address
+        beneficiaries = _sortBeneficiaries(beneficiaries);
+        
+        // V4 migrator data: fee, tickSpacing, lockDuration, beneficiaries
+        bytes memory v4MigratorData = abi.encode(
+            uint24(10000),    // fee tier (1%)
+            int24(200),       // tick spacing
+            uint32(90 days),  // lock duration
+            beneficiaries
+        );
+        
+        // Mine for valid salt
+        console.log("Mining for valid V4 addresses...");
+        MineV4Params memory mineParams = MineV4Params({
+            airlock: address(airlock),
+            poolManager: _getV4PoolManager(),
+            initialSupply: initialSupply,
+            numTokensToSell: numTokensToSell,
+            numeraire: WETH_BASE,
+            tokenFactory: tokenFactory,
+            tokenFactoryData: tokenData,
+            poolInitializer: v4Initializer,
+            poolInitializerData: v4InitData
+        });
+        
+        (bytes32 salt, address hook, address asset) = mineV4(mineParams);
+        console.log("Found valid salt:", uint256(salt));
+        console.log("Hook address:", hook);
+        console.log("Asset address:", asset);
+        
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: numTokensToSell,
+            numeraire: WETH_BASE,
+            tokenFactory: tokenFactory,
+            tokenFactoryData: tokenData,
+            governanceFactory: governanceFactory,
+            governanceFactoryData: governanceData,
+            poolInitializer: v4Initializer,
+            poolInitializerData: v4InitData,
+            liquidityMigrator: v4Migrator,
+            liquidityMigratorData: v4MigratorData,
+            integrator: impersonatedAddress,
+            salt: salt
+        });
+        
+        _deployToken(params);
+    }
+    
+    // Helper function to sort beneficiaries by address
+    function _sortBeneficiaries(BeneficiaryData[] memory beneficiaries) 
+        internal 
+        pure 
+        returns (BeneficiaryData[] memory) 
+    {
+        uint256 length = beneficiaries.length;
+        for (uint256 i = 0; i < length - 1; i++) {
+            for (uint256 j = 0; j < length - i - 1; j++) {
+                if (beneficiaries[j].beneficiary > beneficiaries[j + 1].beneficiary) {
+                    BeneficiaryData memory temp = beneficiaries[j];
+                    beneficiaries[j] = beneficiaries[j + 1];
+                    beneficiaries[j + 1] = temp;
+                }
+            }
+        }
+        return beneficiaries;
     }
 }
