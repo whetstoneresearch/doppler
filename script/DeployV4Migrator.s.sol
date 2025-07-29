@@ -101,12 +101,25 @@ contract DeployV4MigratorBaseSepoliaScript is DeployV4MigratorScript {
     }
 }
 
+/// @dev forge script DeployV4MigratorUnichainScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $UNICHAIN_MAINNET_RPC_URL
 contract DeployV4MigratorUnichainScript is DeployV4MigratorScript {
     function setUp() public override {
         _scriptData = ScriptData({
             airlock: 0x77EbfBAE15AD200758E9E2E61597c0B07d731254,
             poolManager: 0x1F98400000000000000000000000000000000004,
             positionManager: 0x4529A01c7A0410167c5740C487A8DE60232617bf,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorUnichainSepoliaScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $UNICHAIN_SEPOLIA_RPC_URL
+contract DeployV4MigratorUnichainSepoliaScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0d2f38d807bfAd5C18e430516e10ab560D300caF,
+            poolManager: 0x00B036B58a818B1BC34d502D3fE730Db729e62AC,
+            positionManager: 0xf969Aee60879C54bAAed9F3eD26147Db216Fd664,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
         });
     }
