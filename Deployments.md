@@ -7,7 +7,7 @@ icon: pen-field
 Here are the networks that Doppler is officially deployed to:
 
 - Mainnets: Unichain, Base, Ink
-- Testnets: Unichain Sepolia, World Chain Sepolia, Monad Testnet, Base Sepolia
+- Testnets: Unichain Sepolia, World Chain Sepolia, Monad Testnet, Base Sepolia, Doma Testnet
 
 {% hint style="danger" %}
 If there are contracts not reflected here but claiming to be instances of Doppler, they are not considered canonical. Use with caution. :rotating_light:
@@ -118,4 +118,15 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | UniswapV4Migrator | [0x846a...4c9e](https://sepolia.basescan.org/address/0x846a84918aa87c14b86b2298776e8ea5a4e34c9e) | [0x8838...3594](https://sepolia.basescan.org/tx/0x88389a78314c4148ea2b82d412dfe61aaa115d650a2bada2d5d88f259cf33594) | [e4aaf9b](https://github.com/whetstoneresearch/doppler/commit/e4aaf9b) | 
 | UniswapV4MigratorHook | [0x0d80...e000](https://sepolia.basescan.org/address/0x0d80ddcff2843038a063e0cbd001c140c2d5e000) | [0x4288...4c13](https://sepolia.basescan.org/tx/0x4288ee21adb30f7f049286edced62b471cb891c3d4ed2192174205d6989e4c13) | [e4aaf9b](https://github.com/whetstoneresearch/doppler/commit/e4aaf9b) | 
 | WETH | [0x660e...8d12](https://sepolia.basescan.org/address/0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12) | [0x84db...6e74](https://sepolia.basescan.org/tx/0x84dba7960070e11ae3ee15a6ef69a92b157ebb625bb735024c50152b80ee6e74) | [06d865d](https://github.com/whetstoneresearch/doppler/commit/06d865d) | 
+### Doma Testnet (97476)
+| Contract | Address | Transaction | Commit |
+|---|---|---|---|
+| Airlock | [0x660e...8d12](https://explorer-testnet.doma.xyz//address/0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12) | [0xc0a1...bd5f](https://explorer-testnet.doma.xyz//tx/0xc0a1b07fbb75241fef304f59a2668f86ded0ec0d71ab45052cf5ce24d3a6bd5f) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| AirlockMultisig | [0x1361...677a](https://explorer-testnet.doma.xyz//address/0x136191b46478cab023cbc01a36160c4aad81677a) | [0x3ea0...551b](https://explorer-testnet.doma.xyz//tx/0x3ea06d0b8ab6426163f20ced85ad078bcbc32ce1d218649c689441ca1f63551b) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| GovernanceFactory | [0x5f3b...e731](https://explorer-testnet.doma.xyz//address/0x5f3ba43d44375286296cb85f1ea2ebfa25dde731) | [0x4bfd...d888](https://explorer-testnet.doma.xyz//tx/0x4bfd6060a12d44adfa94a56dd865fa93fc31c0139fb388ad68640af9ccc1d888) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| LockableUniswapV3Initializer | [0xaa47...b4e5](https://explorer-testnet.doma.xyz//address/0xaa47d2977d622dbdfd33eef6a8276727c52eb4e5) | [0x5098...3fb2](https://explorer-testnet.doma.xyz//tx/0x509826301f81671df5d9156c711b1db9cfe447b1444ffd52359d2906d52f3fb2) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| NoOpGovernanceFactory | [0x5fbe...b76d](https://explorer-testnet.doma.xyz//address/0x5fbe931dc4b923a7abe4c47ad68d5bf9eda5b76d) | [0x2bf3...d1fb](https://explorer-testnet.doma.xyz//tx/0x2bf3a702d0023946649c3c8b9c4c3071db55ca1faae337c1d52b54f9b10ad1fb) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| NoOpMigrator | [0x9916...c82a](https://explorer-testnet.doma.xyz//address/0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a) | [0x43e6...95fa](https://explorer-testnet.doma.xyz//tx/0x43e67740dfc21d78c66feb9d98610e221474a90a68bce946b85f4b46062f95fa) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| TokenFactory | [0xb4de...14d9](https://explorer-testnet.doma.xyz//address/0xb4dee32eb70a5e55f3d2d861f49fb3d79f7a14d9) | [0xbfa7...73fc](https://explorer-testnet.doma.xyz//tx/0xbfa7174cb4904bc89e14fac0a0f9f885868df56ebe63d2eb3df4c832e18b73fc) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
+| UniswapV3Initializer | [0xfaaf...6f45](https://explorer-testnet.doma.xyz//address/0xfaafde6a5b658684cc5eb0c5c2c755b00a246f45) | [0xf73b...4881](https://explorer-testnet.doma.xyz//tx/0xf73b645317e76acd3e58c584bda468c654534b29cf04710bfefb3b79465a4881) | [e5cbef5](https://github.com/whetstoneresearch/doppler/commit/e5cbef5) | 
 
