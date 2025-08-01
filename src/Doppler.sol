@@ -1236,6 +1236,8 @@ contract Doppler is BaseHook {
         }
 
         topOfCurveTick = newPositions[newPositions.length - 1].tickUpper;
+        // TODO: Not super elegant, we might want to refactor this
+        isToken0 ? ++topOfCurveTick : --topOfCurveTick;
 
         int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
         int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
