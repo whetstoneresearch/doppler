@@ -249,6 +249,8 @@ contract Doppler is BaseHook {
     /// @dev Range of the upper slug
     int24 internal upperSlugRange;
 
+    int24 internal topOfCurveTick;
+
     /// @notice Only the pool manager can send ETH to this contract
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
@@ -503,8 +505,7 @@ contract Doppler is BaseHook {
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
-        int24 topCurve = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + numPDSlugs - 1))].tickUpper;
-        bool isOutOfCurve = isToken0 ? currentTick > topCurve : currentTick < topCurve;
+        bool isOutOfCurve = isToken0 ? currentTick > topOfCurveTick : currentTick < topOfCurveTick;
 
         // If the tick is not in the curve anymore we set the price back to the top of the higher PD slug
         if (isOutOfCurve) {
@@ -514,7 +515,7 @@ contract Doppler is BaseHook {
                 IPoolManager.SwapParams({
                     zeroForOne: isToken0,
                     amountSpecified: 1,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(topCurve)
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(topOfCurveTick)
                 }),
                 ""
             );
@@ -1233,6 +1234,8 @@ contract Doppler is BaseHook {
                 );
             }
         }
+
+        topOfCurveTick = newPositions[newPositions.length - 1].tickUpper;
 
         int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
         int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
