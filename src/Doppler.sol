@@ -647,11 +647,7 @@ contract Doppler is BaseHook {
                     : upperSlugPosition.tickLower - adjustmentTickDelta;
                 int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
-                uint256 epochsRemaining = totalEpochs - currentEpoch;
                 int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-                liquidityBound = epochsRemaining < numPDSlugs
-                    ? positions[bytes32(uint256(NUM_DEFAULT_SLUGS + epochsRemaining))].tickUpper
-                    : liquidityBound;
 
                 // We bound the currentTick by the top of the curve (tauTick + gamma)
                 // This is necessary because there is no liquidity above the curve and we need to
@@ -720,11 +716,7 @@ contract Doppler is BaseHook {
                 : upperSlugPosition.tickLower - adjustmentTickDelta;
             int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
-            uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-            liquidityBound = epochsRemaining < numPDSlugs
-                ? positions[bytes32(uint256(NUM_DEFAULT_SLUGS + epochsRemaining))].tickUpper
-                : liquidityBound;
 
             // We bound the currentTick by the top of the curve (tauTick + gamma)
             // This is necessary because there is no liquidity above the curve and we need to
