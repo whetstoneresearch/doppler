@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { ChainIds } from "script/ChainIds.sol";
 
 struct ScriptData {
@@ -19,7 +19,7 @@ abstract contract DeployNoOpMigratorScript is Script {
         vm.startBroadcast();
         require(_scriptData.airlock != address(0), "Airlock address not set");
         require(block.chainid == _scriptData.chainId, "Incorrect chainId");
-        NoOpGovernanceFactory noOpGovernanceFactory = new NoOpGovernanceFactory();
+        NoOpMigrator noOpMigrator = new NoOpMigrator(_scriptData.airlock);
         vm.stopBroadcast();
     }
 }
