@@ -23,7 +23,7 @@ import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
-import "forge-std/console.sol";
+import { DopplerTickLibrary } from "test/utils/DopplerTickLibrary.sol";
 
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;
@@ -145,7 +145,13 @@ contract SwapTest is BaseTest {
         );
 
         Position memory upperSlug = hook.getPositions(bytes32(uint256(NUM_DEFAULT_SLUGS + DEFAULT_NUM_PD_SLUGS - 1)));
-        assertEq(upperSlug.tickUpper, hook.getCurrentTick(), "Current tick should be equal to upper slug tick upper");
+        int24 currentTick = hook.getCurrentTick();
+
+        assertEq(
+            upperSlug.tickUpper,
+            DopplerTickLibrary.alignComputedTickWithTickSpacing(isToken0, currentTick, key.tickSpacing),
+            "Current tick should be equal to upper slug tick upper"
+        );
     }
 
     function test_swap_UpdatesLastEpoch() public {
