@@ -201,6 +201,11 @@ contract BaseTest is Test, Deployers {
         startTick = DEFAULT_START_TICK;
         endTick = DEFAULT_END_TICK;
 
+        if (vm.envOr("IS_TOKEN_0", false)) {
+            startTick = -startTick;
+            endTick = -endTick;
+        }
+
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
             currency1: Currency.wrap(address(token1)),
