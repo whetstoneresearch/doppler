@@ -773,7 +773,7 @@ contract Doppler is BaseHook {
         }
 
         // Remove existing positions, track removed tokens
-        (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
+        (BalanceDelta positionDeltas,) = _clearPositions(prevPositions, key);
 
         uint256 numeraireAvailable;
         uint256 assetAvailable;
@@ -782,12 +782,12 @@ contract Doppler is BaseHook {
             numeraireAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
                 - uint128(state.feesAccrued.amount1());
             assetAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
-                - uint128(feeDeltas.amount0());
+                - uint128(state.feesAccrued.amount0());
         } else {
             numeraireAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
                 - uint128(state.feesAccrued.amount0());
             assetAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
-                - uint128(feeDeltas.amount1());
+                - uint128(state.feesAccrued.amount1());
         }
 
         // Compute new positions
