@@ -5,6 +5,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import {
     CannotSwapBeforeStartTime,
@@ -14,11 +15,14 @@ import {
     MAX_SWAP_FEE,
     SlugData,
     Position,
-    LOWER_SLUG_SALT
+    LOWER_SLUG_SALT,
+    NUM_DEFAULT_SLUGS
 } from "src/Doppler.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+
 import "forge-std/console.sol";
 
 contract SwapTest is BaseTest {
@@ -123,6 +127,25 @@ contract SwapTest is BaseTest {
 
         // Ensure that we're tracking the amount of tokens sold
         assertEq(totalTokensSold + 1 ether, totalTokensSold2);
+    }
+
+    function test_swap_CurrentTickNotAboveTopOfCurve() public {
+        goToStartingTime();
+
+        uint256 buyAmount = 100 ether;
+
+        TestERC20(numeraire).mint(address(this), buyAmount);
+        TestERC20(numeraire).approve(address(swapRouter), buyAmount);
+
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(!isToken0, -int256(buyAmount), isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+
+        Position memory upperSlug = hook.getPositions(bytes32(uint256(NUM_DEFAULT_SLUGS + DEFAULT_NUM_PD_SLUGS - 1)));
+        assertEq(upperSlug.tickUpper, hook.getCurrentTick(), "Current tick should be equal to upper slug tick upper");
     }
 
     function test_swap_UpdatesLastEpoch() public {
