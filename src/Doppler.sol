@@ -503,19 +503,18 @@ contract Doppler is BaseHook {
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
         int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
 
-        if (currentTick == TickMath.MIN_TICK || currentTick == TickMath.MAX_TICK) {
-            // We sold all the asset tokens and the pool has reached the MIN or MAX tick, so we need to set the price
-            // back to the top of the higher PD slug
-            Position memory position = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + numPDSlugs - 1))];
-            int24 targetTick = isToken0 ? position.tickLower : position.tickUpper;
+        int24 topCurve = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + numPDSlugs - 1))].tickUpper;
+        bool isOutOfCurve = isToken0 ? currentTick > topCurve : currentTick < topCurve;
 
+        // If the tick is not in the curve anymore we set the price back to the top of the higher PD slug
+        if (isOutOfCurve) {
             // Then we swap from the MIN or MAX tick to the target tick
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
                     zeroForOne: isToken0,
                     amountSpecified: 1,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(targetTick)
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(topCurve)
                 }),
                 ""
             );
