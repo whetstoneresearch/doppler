@@ -523,11 +523,8 @@ contract Doppler is BaseHook {
 
         // Get the lower tick of the lower slug
         int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
-        uint24 swapFee = insufficientProceeds
-            ? 0
-            : (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee()).calculateSwapFee(
-                lpFee
-            );
+        uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
+            .calculateSwapFee(lpFee);
 
         if (isToken0) {
             if (currentTick < tickLower) revert SwapBelowRange();
