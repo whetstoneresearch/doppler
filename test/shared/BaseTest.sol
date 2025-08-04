@@ -479,6 +479,11 @@ contract BaseTest is Test, Deployers {
         vm.warp(block.timestamp + hook.epochLength());
     }
 
+    function goToLastEpoch() internal {
+        vm.warp(hook.startingTime() + hook.epochLength() * (hook.getTotalEpochs() - 1));
+        assertEq(hook.getCurrentEpoch(), hook.getTotalEpochs());
+    }
+
     function goToStartingTime() internal {
         vm.warp(hook.startingTime());
     }
