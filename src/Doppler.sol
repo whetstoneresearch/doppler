@@ -1369,7 +1369,10 @@ contract Doppler is BaseHook {
         int24 currentTick
     ) internal view returns (SlugData memory slug) {
         uint160 targetPriceX96;
-        if (isToken0) {
+
+        if (totalTokensSold_ == 0) {
+            targetPriceX96 = 0;
+        } else if (isToken0) {
             // Q96 Target price (not sqrtPrice)
             targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
         } else {
