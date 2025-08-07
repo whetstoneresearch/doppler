@@ -499,19 +499,20 @@ contract Doppler is BaseHook {
         BalanceDelta swapDelta,
         bytes calldata
     ) internal override returns (bytes4, int128) {
-        if (insufficientProceeds) {
-            return (BaseHook.afterSwap.selector, 0);
-        }
-        // Get current tick
+        if (insufficientProceeds) return (BaseHook.afterSwap.selector, 0);
+
+        // Read current tick based on `sqrtPriceX96` as its more accurate in extreme edge cases
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
-        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
 
-        bool isOutOfCurve = isToken0 ? currentTick > topOfCurveTick : currentTick < topOfCurveTick;
+        bool tickAboveCurve = isToken0 ? currentTick > topOfCurveTick : currentTick < topOfCurveTick;
 
-        // If the tick is not in the curve anymore we set the price back to the top of the higher PD slug
-        if (isOutOfCurve) {
-            // Then we swap from the MIN or MAX tick to the target tick
+        int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
+        bool tickBelowCurve = isToken0 ? currentTick < tickLower : currentTick > tickLower;
+
+        // If the current tick is out of our range, we reset it to the top or the bottom of our price curve
+        if (tickAboveCurve) {
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
@@ -521,16 +522,23 @@ contract Doppler is BaseHook {
                 }),
                 ""
             );
+        } else if (tickBelowCurve) {
+            console.log("Swap below range");
+            poolManager.swap(
+                key,
+                IPoolManager.SwapParams({
+                    zeroForOne: !isToken0,
+                    amountSpecified: 1,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? tickLower - 1 : tickLower + 1)
+                }),
+                ""
+            );
         }
 
-        // Get the lower tick of the lower slug
-        int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
             .calculateSwapFee(lpFee);
 
         if (isToken0) {
-            if (currentTick < tickLower) revert SwapBelowRange();
-
             int128 amount0 = swapDelta.amount0();
             if (amount0 >= 0) {
                 state.totalTokensSold += uint128(amount0);
@@ -547,8 +555,6 @@ contract Doppler is BaseHook {
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
-            if (currentTick > tickLower) revert SwapBelowRange();
-
             int128 amount1 = swapDelta.amount1();
             if (amount1 >= 0) {
                 state.totalTokensSold += uint128(amount1);
@@ -572,6 +578,9 @@ contract Doppler is BaseHook {
             emit EarlyExit(_getCurrentEpoch());
         }
 
+        // FIXME: Might be better to do it only if we reset the price of the pool
+        // In case we had to reset the price of the pool, we fetch the current tick again
+        (, currentTick,,) = poolManager.getSlot0(poolId);
         emit Swap(currentTick, state.totalProceeds, state.totalTokensSold);
 
         return (BaseHook.afterSwap.selector, 0);
@@ -1374,10 +1383,13 @@ contract Doppler is BaseHook {
             targetPriceX96 = 0;
         } else if (isToken0) {
             // Q96 Target price (not sqrtPrice)
-            targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
+            targetPriceX96 =
+                _computeTargetPriceX96(totalProceeds_, totalTokensSold_ - uint128(state.feesAccrued.amount0()));
         } else {
             // Q96 Target price (not sqrtPrice)
-            targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
+            totalTokensSold_ -= uint128(isToken0 ? state.feesAccrued.amount0() : state.feesAccrued.amount1());
+            targetPriceX96 =
+                _computeTargetPriceX96(totalTokensSold_ - uint128(state.feesAccrued.amount1()), totalProceeds_);
         }
 
         if (targetPriceX96 == 0) {
