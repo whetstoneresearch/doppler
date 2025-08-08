@@ -4,8 +4,11 @@ pragma solidity ^0.8.24;
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { StateLibrary, IPoolManager, PoolId } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { SenderNotInitializer, CannotMigrate, MAX_SWAP_FEE, Position } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
+
+import { console } from "forge-std/console.sol";
 
 contract MigrateTest is BaseTest {
     using StateLibrary for IPoolManager;
@@ -106,13 +109,14 @@ contract MigrateTest is BaseTest {
         goToEndingTime();
         prankAndMigrate();
 
-        if (usingEth) {
-            assertLe(address(manager).balance, 100, "manager should have no ETH");
-        } else {
-            assertLe(ERC20(token0).balanceOf(address(manager)), 100, "manager should have no token0");
-        }
+        assertApproxEqRel(
+            usingEth ? address(manager).balance : ERC20(numeraire).balanceOf(address(manager)),
+            manager.protocolFeesAccrued(Currency.wrap(numeraire)),
+            0.00001 ether,
+            "Manager should only have protocol fees left"
+        );
 
-        assertLe(ERC20(token1).balanceOf(address(manager)), 100, "manager should have no token1");
+        assertLt(ERC20(asset).balanceOf(address(manager)), 100, "Manager should have no asset left");
     }
 
     function test_migrate_ReturnedValues() public {
