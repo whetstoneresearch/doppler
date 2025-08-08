@@ -523,7 +523,6 @@ contract Doppler is BaseHook {
                 ""
             );
         } else if (tickBelowCurve) {
-            console.log("Swap below range");
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
@@ -1387,7 +1386,6 @@ contract Doppler is BaseHook {
                 _computeTargetPriceX96(totalProceeds_, totalTokensSold_ - uint128(state.feesAccrued.amount0()));
         } else {
             // Q96 Target price (not sqrtPrice)
-            totalTokensSold_ -= uint128(isToken0 ? state.feesAccrued.amount0() : state.feesAccrued.amount1());
             targetPriceX96 =
                 _computeTargetPriceX96(totalTokensSold_ - uint128(state.feesAccrued.amount1()), totalProceeds_);
         }
