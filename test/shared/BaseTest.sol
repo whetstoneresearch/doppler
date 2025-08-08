@@ -59,7 +59,7 @@ contract BaseTest is Test, Deployers {
     uint256 constant DEFAULT_EPOCH_LENGTH = 200 seconds;
 
     // default to feeless case for now
-    uint24 constant DEFAULT_FEE = 20_000;
+    uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 2;
     uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
@@ -230,7 +230,7 @@ contract BaseTest is Test, Deployers {
                 isToken0,
                 config.numPDSlugs,
                 address(0xbeef),
-                config.fee,
+                vm.envOr("V4_FEE", config.fee),
                 hook
             ),
             address(hook)
@@ -333,8 +333,8 @@ contract BaseTest is Test, Deployers {
 
     function sellExactOut(
         uint256 amount
-    ) public {
-        sell(int256(amount));
+    ) public returns (uint256, uint256) {
+        return sell(int256(amount));
     }
 
     /// @dev Buys a given amount of asset tokens.
