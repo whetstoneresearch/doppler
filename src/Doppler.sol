@@ -22,8 +22,6 @@ import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 
-import { console } from "forge-std/console.sol";
-
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
 /// @param tickLower Lower tick boundary of the position (in terms of price numeraire/asset, not tick direction)
@@ -611,9 +609,6 @@ contract Doppler is BaseHook {
         uint256 currentEpoch = _getCurrentEpoch();
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
 
-        console.log("---- Rebalancing ----");
-        console.log("Last epoch #", state.lastEpoch);
-        console.log("Current epoch #", currentEpoch);
         state.lastEpoch = uint40(currentEpoch);
 
         // Cache state var to avoid multiple SLOADs
@@ -630,15 +625,10 @@ contract Doppler is BaseHook {
         int256 newAccumulator;
         int24 adjustmentTick;
 
-        // ---- Debug ---- //
-        console.log("epochsPassed: ", epochsPassed);
-        // ---- ----- ---- //
-
         // handle the price adjustment that should have happened in the first empty epoch
         int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
         uint256 expectedSoldFirstEpoch = _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
         bool lteExpectedSoldInFirstEpoch = totalTokensSold_ <= expectedSoldFirstEpoch;
-        console.log("offset", -int256(epochsPassed - 1));
 
         if (initialNetSold < 0 && lteExpectedSoldInFirstEpoch) {
             adjustmentTick = upperSlugPosition.tickLower;
@@ -688,52 +678,6 @@ contract Doppler is BaseHook {
         }
 
         state.totalTokensSoldLastEpoch = totalTokensSold_;
-
-        /*
-        // Get the expected amount sold and the net sold in the last epoch
-        uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
-        int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
-
-        state.totalTokensSoldLastEpoch = totalTokensSold_;
-
-        bool lteExpectedSold = totalTokensSold_ <= expectedAmountSold;
-
-        // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold < 0 && lteExpectedSold) {
-            adjustmentTick = upperSlugPosition.tickLower;
-            accumulatorDelta += _getMaxTickDeltaPerEpoch();
-        } else if (lteExpectedSold) {
-            // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
-            adjustmentTick = _alignComputedTickWithTickSpacing(currentTick, key.tickSpacing);
-            accumulatorDelta += _getMaxTickDeltaPerEpoch()
-                * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
-        } else {
-            int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
-
-            int24 adjustmentTickDelta = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
-
-            // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
-            // The upperTick is not always placed so we have to compute its placement in case it's not
-            // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
-            adjustmentTick = isToken0
-                ? upperSlugPosition.tickLower + adjustmentTickDelta
-                : upperSlugPosition.tickLower - adjustmentTickDelta;
-            int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
-
-            int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-
-            // We bound the currentTick by the top of the curve (tauTick + gamma)
-            // This is necessary because there is no liquidity above the curve and we need to
-            // ensure that the accumulatorDelta is just based on meaningful (in range) ticks
-            if (isToken0) {
-                currentTick = currentTick > liquidityBound ? liquidityBound : currentTick;
-            } else {
-                currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
-            }
-
-            accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
-        }
-        */
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
         // Only sstore if there is a nonzero delta
@@ -869,8 +813,6 @@ contract Doppler is BaseHook {
     function _getExpectedAmountSoldWithEpochOffset(
         int256 offset
     ) internal view returns (uint256) {
-        console.log("Computing sold for epoch #", int256(_getCurrentEpoch()) + offset - 1);
-
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed(
                 uint256((int256(_getCurrentEpoch()) + offset - 1) * int256(epochLength) + int256(startingTime))
