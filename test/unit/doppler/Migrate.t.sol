@@ -109,10 +109,10 @@ contract MigrateTest is BaseTest {
         goToEndingTime();
         prankAndMigrate();
 
-        assertApproxEqRel(
+        assertApproxEqAbs(
             usingEth ? address(manager).balance : ERC20(numeraire).balanceOf(address(manager)),
             manager.protocolFeesAccrued(Currency.wrap(numeraire)),
-            0.00001 ether,
+            100,
             "Manager should only have protocol fees left"
         );
 
