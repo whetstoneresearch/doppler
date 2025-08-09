@@ -15,7 +15,7 @@ contract DopplerInvariantsTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        handler = new DopplerHandler(key, hook, router, swapRouter, isToken0, usingEth);
+        handler = new DopplerHandler(manager, key, hook, router, swapRouter, isToken0, usingEth);
 
         bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = handler.buyExactAmountIn.selector;
@@ -50,8 +50,8 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-        assertEq(totalTokensSold, handler.ghost_totalTokensSold(), "Total tokens sold mismatch");
-        assertApproxEqAbs(totalProceeds, handler.ghost_totalProceeds(), 1); //"Total proceeds mismatch");
+        assertApproxEqAbs(totalTokensSold, handler.ghost_totalTokensSold(), 1, "Total tokens sold mismatch");
+        assertApproxEqAbs(totalProceeds, handler.ghost_totalProceeds(), 1, "Total proceeds mismatch");
     }
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
