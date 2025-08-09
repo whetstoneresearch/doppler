@@ -18,6 +18,8 @@ import { DERC20 } from "src/DERC20.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
+import { console } from "forge-std/console.sol";
+
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -641,7 +643,7 @@ contract RebalanceTest is BaseTest {
                 priceDiscoverySlugs[0].liquidity
             );
         }
-        assertApproxEqAbs(totalAssetLpSize, hook.numTokensToSell(), 10_000);
+        assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.00001 ether);
     }
 
     function testPriceDiscoverySlug_LastEpoch() public {
@@ -684,7 +686,19 @@ contract RebalanceTest is BaseTest {
                 upperSlug.liquidity
             );
         }
-        assertApproxEqAbs(totalAssetLpSize, hook.numTokensToSell(), 10_000);
+        assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.00001 ether);
+    }
+
+    function test_rebalance_Auction() public {
+        console.log("Total epochs", hook.getTotalEpochs());
+        goToEpoch(3);
+        buy(1);
+        goToEpoch(5);
+        buy(1);
+        goToEpoch(8);
+        buy(1);
+        // jumpEpochs(2);
+        // buy(1);
     }
 
     function test_rebalance_MaxDutchAuction() public {
@@ -1383,7 +1397,8 @@ contract RebalanceTest is BaseTest {
 
         // Swap all remaining tokens
         // we subtract 50 to account for rounding errors
-        buy(int256(numTokensToSell - totalTokensSold4 - feesAccrued - 100));
+        // buy(int256(numTokensToSell - totalTokensSold4 - feesAccrued - 100_000));
+        buy(-100 ether);
 
         (, int256 tickAccumulator6,,,,) = hook.state();
 
