@@ -516,10 +516,11 @@ contract Doppler is BaseHook {
                 IPoolManager.SwapParams({
                     zeroForOne: isToken0,
                     amountSpecified: 1,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(topOfCurveTick)
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? topOfCurveTick + 1 : topOfCurveTick - 1)
                 }),
                 ""
             );
+            (, currentTick,,) = poolManager.getSlot0(poolId);
         } else if (tickBelowCurve) {
             poolManager.swap(
                 key,
@@ -530,6 +531,7 @@ contract Doppler is BaseHook {
                 }),
                 ""
             );
+            (, currentTick,,) = poolManager.getSlot0(poolId);
         }
 
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
@@ -575,9 +577,6 @@ contract Doppler is BaseHook {
             emit EarlyExit(_getCurrentEpoch());
         }
 
-        // FIXME: Might be better to do it only if we reset the price of the pool
-        // In case we had to reset the price of the pool, we fetch the current tick again
-        (, currentTick,,) = poolManager.getSlot0(poolId);
         emit Swap(currentTick, state.totalProceeds, state.totalTokensSold);
 
         return (BaseHook.afterSwap.selector, 0);
@@ -1171,8 +1170,6 @@ contract Doppler is BaseHook {
         }
 
         topOfCurveTick = newPositions[newPositions.length - 1].tickUpper;
-        // TODO: Not super elegant, we might want to refactor this
-        isToken0 ? ++topOfCurveTick : --topOfCurveTick;
 
         int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
         int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
