@@ -129,32 +129,6 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         int24 lowerTick = TickMath.minUsableTick(2);
         int24 upperTick = TickMath.maxUsableTick(2);
 
-        uint128 fullRangeLiquidity = LiquidityAmounts.getLiquidityForAmounts(
-            currentPrice,
-            TickMath.getSqrtPriceAtTick(lowerTick),
-            TickMath.getSqrtPriceAtTick(upperTick),
-            uint128(balance0),
-            uint128(balance1)
-        );
-
-        console.log("fullRangeLiquidity: %e", fullRangeLiquidity);
-
-        if (fullRangeLiquidity > 0) {
-            BalanceDelta fullRangeDelta = modifyLiquidityRouter.modifyLiquidity(
-                poolKey,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: lowerTick,
-                    tickUpper: upperTick,
-                    liquidityDelta: int128(fullRangeLiquidity),
-                    salt: "full"
-                }),
-                ""
-            );
-
-            balance0 -= uint128(-fullRangeDelta.amount0());
-            balance1 -= uint128(-fullRangeDelta.amount1());
-        }
-
         uint128 belowRangeLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             currentPrice,
             TickMath.getSqrtPriceAtTick(lowerTick),
@@ -205,6 +179,32 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
 
             balance0 -= uint128(-aboveRangeDelta.amount0());
             balance1 -= uint128(-aboveRangeDelta.amount1());
+        }
+
+        uint128 fullRangeLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+            currentPrice,
+            TickMath.getSqrtPriceAtTick(lowerTick),
+            TickMath.getSqrtPriceAtTick(upperTick),
+            uint128(balance0),
+            uint128(balance1)
+        );
+
+        console.log("fullRangeLiquidity: %e", fullRangeLiquidity);
+
+        if (fullRangeLiquidity > 0) {
+            BalanceDelta fullRangeDelta = modifyLiquidityRouter.modifyLiquidity(
+                poolKey,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: lowerTick,
+                    tickUpper: upperTick,
+                    liquidityDelta: int128(fullRangeLiquidity),
+                    salt: "full"
+                }),
+                ""
+            );
+
+            balance0 -= uint128(-fullRangeDelta.amount0());
+            balance1 -= uint128(-fullRangeDelta.amount1());
         }
 
         console.log("balance0 left: %e", balance0);
