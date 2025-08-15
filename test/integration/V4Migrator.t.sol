@@ -14,6 +14,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
@@ -29,6 +31,8 @@ import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
 
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+
 contract V4MigratorTest is BaseTest, DeployPermit2 {
     IAllowanceTransfer public permit2;
     UniswapV4Migrator public migrator;
@@ -41,13 +45,10 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    function test_migrate_v4(
-        int16 tickSpacing
-    ) public {
-        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
+    function setUp() public override {
+        super.setUp();
 
         permit2 = IAllowanceTransfer(deployPermit2());
-
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -67,6 +68,153 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
+    }
+
+    function test_migrate_place_liquidity() public {
+        uint256 balance0 = 10_083_235_813_639_404;
+        uint256 balance1 = 20_175_679_269_364_271_509_690;
+        place_liquidity(balance0, balance1);
+    }
+
+    function test_migrate_place_liquidity2() public {
+        uint256 balance0 = 10_083_235_813_639_404;
+        uint256 balance1 = 0;
+        place_liquidity(balance0, balance1);
+    }
+
+    function test_migrate_place_liquidity3() public {
+        uint256 balance0 = 0;
+        uint256 balance1 = 20_175_679_269_364_271_509_690;
+        place_liquidity(balance0, balance1);
+    }
+
+    function test_migrate_place_liquidity4() public {
+        uint256 balance0 = 20_175_679_269_364_271_509_690;
+        uint256 balance1 = 10_083_235_813_639_404;
+        place_liquidity(balance0, balance1);
+    }
+
+    function test_migrate_place_liquidity5() public {
+        uint256 balance0 = 20_175_679_269_364_271_509_690;
+        uint256 balance1 = 0;
+        place_liquidity(balance0, balance1);
+    }
+
+    function place_liquidity(uint256 balance0, uint256 balance1) internal {
+        uint160 currentPrice = 138_636_321_872_645_015_226_308_681_086_412;
+
+        deployFreshManagerAndRouters();
+
+        TestERC20 token0 = new TestERC20(0);
+        TestERC20 token1 = new TestERC20(0);
+
+        (token0, token1) = address(token0) > address(token1) ? (token1, token0) : (token0, token1);
+
+        token0.mint(address(this), balance0);
+        token0.approve(address(modifyLiquidityRouter), balance0);
+        token1.mint(address(this), balance1);
+        token1.approve(address(modifyLiquidityRouter), balance1);
+
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 2000,
+            tickSpacing: 2,
+            hooks: IHooks(address(0))
+        });
+
+        manager.initialize(poolKey, currentPrice);
+
+        int24 currentTick = TickMath.getTickAtSqrtPrice(currentPrice) / poolKey.tickSpacing * poolKey.tickSpacing;
+        int24 lowerTick = TickMath.minUsableTick(2);
+        int24 upperTick = TickMath.maxUsableTick(2);
+
+        uint128 fullRangeLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+            currentPrice,
+            TickMath.getSqrtPriceAtTick(lowerTick),
+            TickMath.getSqrtPriceAtTick(upperTick),
+            uint128(balance0),
+            uint128(balance1)
+        );
+
+        console.log("fullRangeLiquidity: %e", fullRangeLiquidity);
+
+        if (fullRangeLiquidity > 0) {
+            BalanceDelta fullRangeDelta = modifyLiquidityRouter.modifyLiquidity(
+                poolKey,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: lowerTick,
+                    tickUpper: upperTick,
+                    liquidityDelta: int128(fullRangeLiquidity),
+                    salt: "full"
+                }),
+                ""
+            );
+
+            balance0 -= uint128(-fullRangeDelta.amount0());
+            balance1 -= uint128(-fullRangeDelta.amount1());
+        }
+
+        uint128 belowRangeLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+            currentPrice,
+            TickMath.getSqrtPriceAtTick(lowerTick),
+            TickMath.getSqrtPriceAtTick(currentTick - 2),
+            uint128(balance0),
+            uint128(balance1)
+        );
+
+        console.log("belowRangeLiquidity: %e", belowRangeLiquidity);
+
+        if (belowRangeLiquidity > 0) {
+            BalanceDelta belowRangeDelta = modifyLiquidityRouter.modifyLiquidity(
+                poolKey,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: lowerTick,
+                    tickUpper: currentTick - 2,
+                    liquidityDelta: int128(belowRangeLiquidity),
+                    salt: "below"
+                }),
+                ""
+            );
+
+            balance0 -= uint128(-belowRangeDelta.amount0());
+            balance1 -= uint128(-belowRangeDelta.amount1());
+        }
+
+        uint128 aboveRangeLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+            currentPrice,
+            TickMath.getSqrtPriceAtTick(currentTick + 2),
+            TickMath.getSqrtPriceAtTick(upperTick),
+            uint128(balance0),
+            uint128(balance1)
+        );
+
+        console.log("aboveRangeLiquidity: %e", aboveRangeLiquidity);
+
+        if (aboveRangeLiquidity > 0) {
+            BalanceDelta aboveRangeDelta = modifyLiquidityRouter.modifyLiquidity(
+                poolKey,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: currentTick + 2,
+                    tickUpper: upperTick,
+                    liquidityDelta: int128(aboveRangeLiquidity),
+                    salt: "above"
+                }),
+                ""
+            );
+
+            balance0 -= uint128(-aboveRangeDelta.amount0());
+            balance1 -= uint128(-aboveRangeDelta.amount1());
+        }
+
+        console.log("balance0 left: %e", balance0);
+        console.log("balance1 left: %e", balance1);
+    }
+
+    function test_migrate_v4(
+        int16 tickSpacing
+    ) public {
+        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
 
         address integrator = makeAddr("integrator");
 
