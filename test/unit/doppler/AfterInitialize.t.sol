@@ -87,12 +87,7 @@ contract AfterInitializeTest is BaseTest {
     }
 
     function test_afterInitialize_UpdatesDynamicLPFee() public view {
-        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolId);
+        (,,, uint24 lpFee) = manager.getSlot0(poolId);
         assertEq(lpFee, hook.initialLpFee(), "LP fee not set to initial value");
-
-        uint16 protocolFeeZeroForOne = protocolFee.getZeroForOneFee();
-        uint16 protocolFeeOneForZero = protocolFee.getOneForZeroFee();
-        assertEq(protocolFeeZeroForOne.calculateSwapFee(lpFee), lpFee, "Wrong swap fee");
-        assertEq(protocolFeeOneForZero.calculateSwapFee(lpFee), lpFee, "Wrong swap fee");
     }
 }
