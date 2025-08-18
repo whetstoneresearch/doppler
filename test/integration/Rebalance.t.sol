@@ -14,11 +14,8 @@ import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import { Position, MAX_SWAP_FEE, WAD, I_WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import { DERC20 } from "src/DERC20.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-
-import { console } from "forge-std/console.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -687,18 +684,6 @@ contract RebalanceTest is BaseTest {
             );
         }
         assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.00001 ether);
-    }
-
-    function test_rebalance_Auction() public {
-        console.log("Total epochs", hook.getTotalEpochs());
-        goToEpoch(3);
-        buy(1);
-        goToEpoch(5);
-        buy(1);
-        goToEpoch(8);
-        buy(1);
-        // jumpEpochs(2);
-        // buy(1);
     }
 
     function test_rebalance_MaxDutchAuction() public {
