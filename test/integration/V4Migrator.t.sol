@@ -30,9 +30,6 @@ import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
     IAllowanceTransfer public permit2;
