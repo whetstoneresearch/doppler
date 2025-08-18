@@ -12,7 +12,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { Pool } from "@v4-core/libraries/Pool.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { Pool } from "@v4-core/libraries/Pool.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
@@ -20,7 +20,10 @@ import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
 import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
+
+import { console } from "forge-std/console.sol";
 
 uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
@@ -30,9 +33,12 @@ uint256 constant TOTAL_WEIGHTS = 100;
 contract DopplerHandler is Test {
     using LibAddressSet for AddressSet;
     using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+    using ProtocolFeeLibrary for *;
 
     PoolKey public poolKey;
     DopplerImplementation public hook;
+    IPoolManager public manager;
     CustomRouter public router;
     PoolSwapTest public swapRouter;
     TestERC20 public token0;
@@ -41,6 +47,8 @@ contract DopplerHandler is Test {
     TestERC20 public asset;
     bool public isToken0;
     bool public isUsingEth;
+    uint24 public protocolFee;
+    uint24 public lpFee;
 
     // Ghost variables are used to mimic the state of the hook contract.
     uint256 public ghost_reserve0;
@@ -81,6 +89,7 @@ contract DopplerHandler is Test {
     }
 
     constructor(
+        IPoolManager manager_,
         PoolKey memory poolKey_,
         DopplerImplementation hook_,
         CustomRouter router_,
@@ -88,12 +97,15 @@ contract DopplerHandler is Test {
         bool isToken0_,
         bool isUsingEth_
     ) {
+        manager = manager_;
         poolKey = poolKey_;
         hook = hook_;
         router = router_;
         swapRouter = swapRouter_;
         isToken0 = isToken0_;
         isUsingEth = isUsingEth_;
+        (,, protocolFee,) = manager.getSlot0(poolKey.toId());
+        lpFee = hook.initialLpFee();
 
         if (Currency.unwrap(poolKey.currency0) != address(0)) {
             token0 = TestERC20(Currency.unwrap(poolKey.currency0));
@@ -149,7 +161,9 @@ contract DopplerHandler is Test {
             assetBalanceOf[currentActor] += bought;
             ghost_totalTokensSold += bought;
 
-            uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
+            uint256 swapFee =
+                (!isToken0 ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee()).calculateSwapFee(lpFee);
+            uint256 proceedsLessFee = FullMath.mulDiv(uint128(spent), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
             ghost_totalProceeds += proceedsLessFee;
 
             if (isToken0) {
@@ -247,7 +261,9 @@ contract DopplerHandler is Test {
 
             uint256 sold = isToken0 ? delta0 : delta1;
             uint256 received = isToken0 ? delta1 : delta0;
-            uint256 soldLessFee = FullMath.mulDiv(uint128(sold), MAX_SWAP_FEE - hook.initialLpFee(), MAX_SWAP_FEE);
+            uint256 swapFee =
+                (!isToken0 ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee()).calculateSwapFee(lpFee);
+            uint256 soldLessFee = FullMath.mulDiv(uint128(sold), MAX_SWAP_FEE - swapFee, MAX_SWAP_FEE);
 
             ghost_numTokensSold -= sold;
             ghost_totalTokensSold -= soldLessFee;

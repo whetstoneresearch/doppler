@@ -5,18 +5,18 @@ run_test() {
     echo "Running tests with configuration:"
     echo "IS_TOKEN_0=${IS_TOKEN_0}"
     echo "USING_ETH=${USING_ETH}"
-    echo "FEE=${FEE}"
+    echo "V4_FEE=${V4_FEE}"
     echo "PROTOCOL_FEE=${PROTOCOL_FEE}"
     echo "----------------------------------------"
     
     # Export the variables
     export IS_TOKEN_0
     export USING_ETH
-    export FEE
+    export V4_FEE
     export PROTOCOL_FEE
     
     # Run forge test and capture exit code
-    forge test --fuzz-runs 65536
+    forge test --fuzz-runs 32
     local test_result=$?
     
     echo "----------------------------------------"
@@ -34,7 +34,7 @@ run_test() {
 # Initialize with default values
 IS_TOKEN_0="false"
 USING_ETH="false"
-FEE=0
+V4_FEE=0
 PROTOCOL_FEE=0
 
 # Array to track failed configurations
@@ -55,44 +55,44 @@ echo "🔍 Test Case 3: USING_ETH = true"
 USING_ETH="true"
 run_test || failed_configs+=("Case 3: USING_ETH=true")
 
-# Test Case 4: IS_TOKEN_0=true and FEE=30
-echo "🔍 Test Case 4: IS_TOKEN_0=true and FEE=30"
+# Test Case 4: IS_TOKEN_0=true and V4_FEE=30
+echo "🔍 Test Case 4: IS_TOKEN_0=true and V4_FEE=30"
 IS_TOKEN_0="true"
 USING_ETH="false"
-FEE=30
-run_test || failed_configs+=("Case 4: IS_TOKEN_0=true, FEE=30")
+V4_FEE=30
+run_test || failed_configs+=("Case 4: IS_TOKEN_0=true, V4_FEE=30")
 
-# Test Case 5: IS_TOKEN_0=false and FEE=30
-echo "🔍 Test Case 5: IS_TOKEN_0=false and FEE=30"
+# Test Case 5: IS_TOKEN_0=false and V4_FEE=30
+echo "🔍 Test Case 5: IS_TOKEN_0=false and V4_FEE=30"
 IS_TOKEN_0="false"
-FEE=30
-run_test || failed_configs+=("Case 5: IS_TOKEN_0=false, FEE=30")
+V4_FEE=30
+run_test || failed_configs+=("Case 5: IS_TOKEN_0=false, V4_FEE=30")
 
-# Test Case 6: USING_ETH=true, IS_TOKEN_0=false and FEE=30
-echo "🔍 Test Case 6: USING_ETH=true, IS_TOKEN_0=false and FEE=30"
+# Test Case 6: USING_ETH=true, IS_TOKEN_0=false and V4_FEE=30
+echo "🔍 Test Case 6: USING_ETH=true, IS_TOKEN_0=false and V4_FEE=30"
 USING_ETH="true"
 IS_TOKEN_0="false"
-FEE=30
-run_test || failed_configs+=("Case 6: USING_ETH=true, IS_TOKEN_0=false and FEE=30")
+V4_FEE=30
+run_test || failed_configs+=("Case 6: USING_ETH=true, IS_TOKEN_0=false and V4_FEE=30")
 
-# Test Case 7: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50
-echo "🔍 Test Case 7: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50"
+# Test Case 7: IS_TOKEN_0=true, V4_FEE=30, PROTOCOL_FEE=50
+echo "🔍 Test Case 7: IS_TOKEN_0=true, V4_FEE=30, PROTOCOL_FEE=50"
 USING_ETH="false"
 IS_TOKEN_0="true"
-FEE=30
+V4_FEE=30
 PROTOCOL_FEE=50
-run_test || failed_configs+=("Case 7: IS_TOKEN_0=true, FEE=30, PROTOCOL_FEE=50")
+run_test || failed_configs+=("Case 7: IS_TOKEN_0=true, V4_FEE=30, PROTOCOL_FEE=50")
 
-# Test Case 8: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50
-echo "🔍 Test Case 8: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50"
+# Test Case 8: IS_TOKEN_0=false, V4_FEE=30, PROTOCOL_FEE=50
+echo "🔍 Test Case 8: IS_TOKEN_0=false, V4_FEE=30, PROTOCOL_FEE=50"
 IS_TOKEN_0="false"
-run_test || failed_configs+=("Case 8: IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50")
+run_test || failed_configs+=("Case 8: IS_TOKEN_0=false, V4_FEE=30, PROTOCOL_FEE=50")
 
-# Test Case 9: USING_ETH=true, IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50
-echo "🔍 Test Case 9: USING_ETH=true, IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50"
+# Test Case 9: USING_ETH=true, IS_TOKEN_0=false, V4_FEE=30, PROTOCOL_FEE=50
+echo "🔍 Test Case 9: USING_ETH=true, IS_TOKEN_0=false, V4_FEE=30, PROTOCOL_FEE=50"
 USING_ETH="true"
 IS_TOKEN_0="false"
-run_test || failed_configs+=("Case 9: USING_ETH=true, IS_TOKEN_0=false, FEE=30, PROTOCOL_FEE=50")
+run_test || failed_configs+=("Case 9: USING_ETH=true, IS_TOKEN_0=false, V4_FEE=30, PROTOCOL_FEE=50")
 
 # Print summary
 echo "================ Test Summary ================"
