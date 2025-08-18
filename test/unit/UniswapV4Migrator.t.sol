@@ -6,24 +6,25 @@ import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { IExtsload } from "@v4-core/interfaces/IExtsload.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { UniswapV4Migrator, AssetData } from "src/UniswapV4Migrator.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import {
+    UniswapV4Migrator,
+    UnorderedBeneficiaries,
+    InvalidShares,
+    InvalidTotalShares,
+    InvalidLength,
+    InvalidProtocolOwnerShares,
+    InvalidProtocolOwnerBeneficiary
+} from "src/UniswapV4Migrator.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-
-error TickOutOfRange();
-error ZeroLiquidity();
-error UnorderedBeneficiaries();
-error InvalidShares();
-error InvalidTotalShares();
-error InvalidLength();
-error InvalidProtocolOwnerShares();
-error InvalidProtocolOwnerBeneficiary();
+// We don't use the `PositionDescriptor` contract explictly here but importing it ensures it gets compiled
+import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
+import { PosmTestSetup } from "@v4-periphery-test/shared/PosmTestSetup.sol";
+import { Constants } from "@v4-core-test/utils/Constants.sol";
 
 contract MockAirlock {
     address public owner;
@@ -35,17 +36,14 @@ contract MockAirlock {
     }
 }
 
-contract UniswapV4MigratorTest is Test {
-    using PoolIdLibrary for PoolKey;
-
+contract UniswapV4MigratorTest is PosmTestSetup {
     MockAirlock public airlock;
-    address public poolManager = makeAddr("poolManager");
-    address payable public positionManager = payable(makeAddr("positionManager"));
-    address payable public locker = payable(makeAddr("locker"));
-    address public protocolOwner = makeAddr("protocolOwner");
+    address public protocolOwner = address(0xb055);
 
     UniswapV4Migrator public migrator;
     UniswapV4MigratorHook public migratorHook;
+    StreamableFeesLocker public locker;
+
     TestERC20 public asset;
     TestERC20 public numeraire;
     address public token0;
@@ -62,29 +60,28 @@ contract UniswapV4MigratorTest is Test {
     uint32 constant LOCK_DURATION = 30 days;
 
     function setUp() public {
+        deployFreshManagerAndRouters();
+        deployPosm(manager);
+
         airlock = new MockAirlock(protocolOwner);
-        asset = new TestERC20(1e27);
-        numeraire = new TestERC20(1e27);
+        asset = new TestERC20(0);
+        numeraire = new TestERC20(0);
+        locker = new StreamableFeesLocker(lpm, address(this));
         migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
         migrator = new UniswapV4Migrator(
             address(airlock),
-            IPoolManager(poolManager),
-            PositionManager(positionManager),
+            IPoolManager(manager),
+            PositionManager(payable(address(lpm))),
             StreamableFeesLocker(locker),
             IHooks(migratorHook)
         );
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(poolManager, migrator), address(migratorHook));
+        locker.approveMigrator(address(migrator));
+        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
 
         token0 = address(asset);
         token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
     }
-
-    /// @dev We're defining `extsload` here again (from `IExtslod`) because solc is not able to
-    /// determine the right function selector to use when importing the interface
-    function extsload(
-        bytes32 slot
-    ) external view returns (bytes32 value) { }
 
     function test_initialize_StoresPoolKey() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
@@ -105,9 +102,9 @@ contract UniswapV4MigratorTest is Test {
         assertEq(lockDuration, LOCK_DURATION);
     }
 
-    // TODO: Update this test
-    function test_migrate_MigratesToUniV4() public {
-        vm.skip(true);
+    function test_migrate_MigratesToUniV4(uint160 sqrtPrice, uint64 balance0, uint64 balance1) public {
+        vm.assume(sqrtPrice > TickMath.MIN_SQRT_PRICE && sqrtPrice < TickMath.MAX_SQRT_PRICE);
+        vm.assume(balance0 > 0 && balance1 > 0);
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
@@ -118,26 +115,32 @@ contract UniswapV4MigratorTest is Test {
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );
 
-        PoolKey memory poolKey = PoolKey({
-            currency0: Currency.wrap(token0),
-            currency1: Currency.wrap(token1),
-            hooks: IHooks(address(0)),
-            fee: FEE,
-            tickSpacing: TICK_SPACING
-        });
+        TestERC20(token0).mint(address(migrator), balance0);
+        TestERC20(token1).mint(address(migrator), balance1);
 
-        bytes memory getSlot0Call = abi.encodeWithSelector(this.extsload.selector, poolKey.toId());
-        vm.mockCall(poolManager, getSlot0Call, abi.encode(uint160(0), int24(0), uint24(0), uint24(0)));
-        vm.expectCall(poolManager, getSlot0Call);
-
-        bytes memory initializeCall =
-            abi.encodeWithSelector(IPoolManager.initialize.selector, poolKey, TickMath.MIN_SQRT_PRICE);
-        vm.expectCall(poolManager, initializeCall);
-
-        // TODO: Encoding the call here is pretty tedious since we have to use the PositionManager
-        vm.mockCall(poolManager, initializeCall, new bytes(0));
+        vm.prank(address(airlock));
+        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, address(0xdead));
     }
 
+    function test_migrate_MigratesToUniV4_ETH(uint160 sqrtPrice, uint64 balance0, uint64 balance1) public {
+        vm.assume(balance0 > 0 && balance1 > 0);
+        vm.assume(sqrtPrice > TickMath.MIN_SQRT_PRICE && sqrtPrice < TickMath.MAX_SQRT_PRICE);
+
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
+
+        vm.prank(address(airlock));
+        migrator.initialize(address(asset), address(0), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries));
+
+        deal(address(migrator), balance0);
+        TestERC20(token1).mint(address(migrator), balance1);
+
+        vm.prank(address(airlock));
+        migrator.migrate(Constants.SQRT_PRICE_1_1, address(0), token1, address(0xdead));
+    }
+
+    /*
     // TODO: Update this test
     function test_migrate_NoOpGovernance_SendsAllToLocker() public {
         vm.skip(true);
@@ -167,15 +170,15 @@ contract UniswapV4MigratorTest is Test {
 
         // Mock pool manager calls
         bytes memory getSlot0Call = abi.encodeWithSelector(this.extsload.selector, poolKey.toId());
-        vm.mockCall(poolManager, getSlot0Call, abi.encode(uint160(0), int24(0), uint24(0), uint24(0)));
+        vm.mockCall(manager, getSlot0Call, abi.encode(uint160(0), int24(0), uint24(0), uint24(0)));
 
         bytes memory initializeCall =
             abi.encodeWithSelector(IPoolManager.initialize.selector, poolKey, TickMath.MIN_SQRT_PRICE);
-        vm.mockCall(poolManager, initializeCall, new bytes(0));
+        vm.mockCall(manager, initializeCall, new bytes(0));
 
         // Mock position manager calls
         // For no-op governance, we expect only ONE MINT_POSITION action
-        vm.mockCall(positionManager, bytes(""), new bytes(0));
+        vm.mockCall(lpm, bytes(""), new bytes(0));
 
         // Call migrate with DEAD_ADDRESS as recipient
         vm.prank(address(airlock));
@@ -189,6 +192,7 @@ contract UniswapV4MigratorTest is Test {
         // 2. All liquidity went to the locker
         // 3. No position was sent to the timelock
     }
+    */
 
     function test_initialize_RevertZeroAddressBeneficiary() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
