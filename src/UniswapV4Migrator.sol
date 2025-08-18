@@ -248,10 +248,11 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         bytes[] memory params;
 
         if (token0 == address(0)) {
+            balance0 = address(this).balance;
+
             if (isNoOpGovernance) {
                 params = new bytes[](4);
                 params[3] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
-                balance0 = address(this).balance;
                 actions = abi.encodePacked(
                     uint8(Actions.MINT_POSITION),
                     uint8(Actions.MINT_POSITION),
@@ -261,7 +262,6 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             } else {
                 params = new bytes[](6);
                 params[5] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
-                balance0 = address(this).balance;
                 actions = abi.encodePacked(
                     uint8(Actions.MINT_POSITION),
                     uint8(Actions.MINT_POSITION),
@@ -272,15 +272,15 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 );
             }
         } else {
+            balance0 = ERC20(token0).balanceOf(address(this));
+
             if (isNoOpGovernance) {
                 params = new bytes[](3);
-                balance0 = ERC20(token0).balanceOf(address(this));
                 actions = abi.encodePacked(
                     uint8(Actions.MINT_POSITION), uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR)
                 );
             } else {
                 params = new bytes[](5);
-                balance0 = ERC20(token0).balanceOf(address(this));
                 actions = abi.encodePacked(
                     uint8(Actions.MINT_POSITION),
                     uint8(Actions.MINT_POSITION),
