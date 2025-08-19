@@ -131,7 +131,7 @@ struct ModifyLiquidityParams {
     bytes32 salt;
 }
 
-contract MulticurveV4 is IPoolInitializer, ImmutableAirlock {
+contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
@@ -191,8 +191,8 @@ contract MulticurveV4 is IPoolInitializer, ImmutableAirlock {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         bool isToken0 = asset == token0;
 
-        int24 boundryTickLower = TickMath.MAX_TICK;
-        int24 boundryTickUpper = TickMath.MIN_TICK;
+        int24 minUsableTick = TickMath.minUsableTick(initData.tickSpacing);
+        int24 maxUsableTick = TickMath.maxUsableTick(initData.tickSpacing);
 
         // check the curves to see if they are safe
         for (uint256 i; i < numCurves; i++) {
@@ -216,14 +216,14 @@ contract MulticurveV4 is IPoolInitializer, ImmutableAirlock {
             tickUpper[i] = isToken0 ? currentTickUpper : -currentTickLower;
 
             // calculate the boundary
-            boundryTickLower = boundryTickLower < tickLower[i] ? boundryTickLower : tickLower[i];
-            boundryTickUpper = boundryTickUpper > tickUpper[i] ? boundryTickUpper : tickUpper[i];
+            minUsableTick = minUsableTick < tickLower[i] ? minUsableTick : tickLower[i];
+            maxUsableTick = maxUsableTick > tickUpper[i] ? maxUsableTick : tickUpper[i];
         }
 
         require(totalLBPSupply <= WAD, MaxShareToBeSoldExceeded(totalLBPSupply, WAD));
-        require(boundryTickLower < boundryTickUpper, InvalidTickRangeMisordered(boundryTickLower, boundryTickUpper));
+        require(minUsableTick < maxUsableTick, InvalidTickRangeMisordered(minUsableTick, maxUsableTick));
 
-        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? boundryTickLower : boundryTickUpper);
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? minUsableTick : maxUsableTick);
 
         // TODO: add the hook so that only this contract can make
         PoolKey poolKey = PoolKey({
