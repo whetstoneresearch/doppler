@@ -242,53 +242,12 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
-
         uint256 balance0;
-        bytes memory actions;
-        bytes[] memory params;
 
         if (token0 == address(0)) {
             balance0 = address(this).balance;
-
-            if (isNoOpGovernance) {
-                params = new bytes[](4);
-                params[3] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
-                actions = abi.encodePacked(
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.SETTLE_PAIR),
-                    uint8(Actions.SWEEP)
-                );
-            } else {
-                params = new bytes[](6);
-                params[5] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
-                actions = abi.encodePacked(
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.SETTLE_PAIR),
-                    uint8(Actions.SWEEP)
-                );
-            }
         } else {
             balance0 = ERC20(token0).balanceOf(address(this));
-
-            if (isNoOpGovernance) {
-                params = new bytes[](3);
-                actions = abi.encodePacked(
-                    uint8(Actions.MINT_POSITION), uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR)
-                );
-            } else {
-                params = new bytes[](5);
-                actions = abi.encodePacked(
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.MINT_POSITION),
-                    uint8(Actions.SETTLE_PAIR)
-                );
-            }
         }
 
         int24 lowerTick = TickMath.minUsableTick(poolKey.tickSpacing);
@@ -298,6 +257,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         if (currentTick < lowerTick || currentTick > upperTick) revert TickOutOfRange();
 
+        // We're adding liquidity to two single-sided positions instead of a full range position, this is to ensure
+        // we're using as much tokens as possible and will result in more liquidity being added to the pool
         uint160 belowPriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(lowerTick),
@@ -317,105 +278,142 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         // Total liquidity provided into the pool
         liquidity = belowPriceLiquidity + abovePriceLiquidity;
 
-        if (liquidity == 0) revert ZeroLiquidity();
+        // This should never happen, but we keep it for safety
+        if (belowPriceLiquidity == 0 && abovePriceLiquidity == 0) revert ZeroLiquidity();
 
-        if (isNoOpGovernance) {
-            // For no-op governance, send all liquidity to the protocol locker
-            params[0] = abi.encode(
-                poolKey,
-                lowerTick,
-                currentTick - poolKey.tickSpacing,
-                uint128(belowPriceLiquidity),
-                0,
-                uint128(balance1),
-                address(this),
-                new bytes(0)
-            );
+        // Check if the balances are sufficient to place liquidity below or above the current price,
+        // if we don't have enough liquidity, we simply don't place a position
+        uint8 positionsToMint;
+        if (belowPriceLiquidity > 0) positionsToMint++;
+        if (abovePriceLiquidity > 0) positionsToMint++;
 
-            params[1] = abi.encode(
-                poolKey,
-                currentTick + poolKey.tickSpacing,
-                upperTick,
-                uint128(abovePriceLiquidity),
-                uint128(balance0),
-                0,
-                address(this),
-                new bytes(0)
-            );
+        // If a governance is associated with the asset, we'll mint positions for both the DAO and the locker
+        if (!isNoOpGovernance) positionsToMint *= 2;
 
-            params[2] = abi.encode(poolKey.currency0, poolKey.currency1);
-        } else {
-            // Standard case: split liquidity 10/90
-            uint160 lockedBelowPriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
-                sqrtPriceX96,
-                TickMath.getSqrtPriceAtTick(lowerTick),
-                TickMath.getSqrtPriceAtTick(currentTick - poolKey.tickSpacing),
-                0,
-                uint128(balance1) / 10
-            );
+        require(positionsToMint > 0, ZeroLiquidity());
 
-            uint160 lockedAbovePriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
-                sqrtPriceX96,
-                TickMath.getSqrtPriceAtTick(currentTick + poolKey.tickSpacing),
-                TickMath.getSqrtPriceAtTick(upperTick),
-                uint128(balance0) / 10,
-                0
-            );
+        // We need to mint `positionsToMint` positions then call `SETTLE_PAIR` and `SWEEP` if we're using ETH
+        bytes[] memory params = new bytes[](positionsToMint + 1 + (token0 == address(0) ? 1 : 0));
 
-            uint256 timeLockBelowPriceLiquidity = belowPriceLiquidity - lockedBelowPriceLiquidity;
-            uint256 timeLockAbovePriceLiquidity = abovePriceLiquidity - lockedAbovePriceLiquidity;
+        uint256 actions = uint8(Actions.MINT_POSITION);
 
-            // Liquidity for the protocol locker
-            params[0] = abi.encode(
-                poolKey,
-                lowerTick,
-                currentTick - poolKey.tickSpacing,
-                uint128(lockedBelowPriceLiquidity),
-                0,
-                uint128(balance1) / 10,
-                address(this),
-                new bytes(0)
-            );
-
-            params[1] = abi.encode(
-                poolKey,
-                currentTick + poolKey.tickSpacing,
-                upperTick,
-                uint128(lockedAbovePriceLiquidity),
-                uint128(balance0) / 10,
-                0,
-                address(this),
-                new bytes(0)
-            );
-
-            // Liquidity for the Timelock, we can pass the full balances as maximum
-            // amounts here since the protocol locker already received its share
-            params[2] = abi.encode(
-                poolKey,
-                lowerTick,
-                currentTick - poolKey.tickSpacing,
-                uint128(timeLockBelowPriceLiquidity),
-                0,
-                uint128(balance1),
-                recipient,
-                new bytes(0)
-            );
-
-            params[3] = abi.encode(
-                poolKey,
-                currentTick + poolKey.tickSpacing,
-                upperTick,
-                uint128(timeLockAbovePriceLiquidity),
-                uint128(balance0),
-                0,
-                recipient,
-                new bytes(0)
-            );
-
-            params[4] = abi.encode(poolKey.currency0, poolKey.currency1);
+        for (uint256 i; i != positionsToMint; ++i) {
+            actions = (actions << 8) | uint8(Actions.MINT_POSITION);
         }
 
-        if (token0 != address(0)) {
+        actions = (actions << 8) | uint8(Actions.SETTLE_PAIR);
+
+        uint256 paramsIndex;
+
+        // If no governance is associated with the asset, we first transfer the positions to this contract
+        if (isNoOpGovernance) {
+            if (belowPriceLiquidity > 0) {
+                params[paramsIndex++] = abi.encode(
+                    poolKey,
+                    lowerTick,
+                    currentTick - poolKey.tickSpacing,
+                    uint128(belowPriceLiquidity),
+                    0,
+                    uint128(balance1),
+                    address(this),
+                    new bytes(0)
+                );
+            }
+
+            if (abovePriceLiquidity > 0) {
+                params[paramsIndex++] = abi.encode(
+                    poolKey,
+                    currentTick + poolKey.tickSpacing,
+                    upperTick,
+                    uint128(abovePriceLiquidity),
+                    uint128(balance0),
+                    0,
+                    address(this),
+                    new bytes(0)
+                );
+            }
+        } else {
+            // Standard case: split liquidity 10/90
+            if (belowPriceLiquidity > 0) {
+                uint160 lockedBelowPriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+                    sqrtPriceX96,
+                    TickMath.getSqrtPriceAtTick(lowerTick),
+                    TickMath.getSqrtPriceAtTick(currentTick - poolKey.tickSpacing),
+                    0,
+                    uint128(balance1) / 10
+                );
+
+                uint256 timeLockBelowPriceLiquidity = belowPriceLiquidity - lockedBelowPriceLiquidity;
+
+                // Liquidity for the protocol locker
+                params[paramsIndex++] = abi.encode(
+                    poolKey,
+                    lowerTick,
+                    currentTick - poolKey.tickSpacing,
+                    uint128(lockedBelowPriceLiquidity),
+                    0,
+                    uint128(balance1) / 10,
+                    address(this),
+                    new bytes(0)
+                );
+
+                // Liquidity for the Timelock, we can pass the full balances as maximum
+                // amounts here since the protocol locker already received its share
+                params[paramsIndex++] = abi.encode(
+                    poolKey,
+                    lowerTick,
+                    currentTick - poolKey.tickSpacing,
+                    uint128(timeLockBelowPriceLiquidity),
+                    0,
+                    uint128(balance1),
+                    recipient,
+                    new bytes(0)
+                );
+            }
+
+            if (abovePriceLiquidity > 0) {
+                uint160 lockedAbovePriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+                    sqrtPriceX96,
+                    TickMath.getSqrtPriceAtTick(currentTick + poolKey.tickSpacing),
+                    TickMath.getSqrtPriceAtTick(upperTick),
+                    uint128(balance0) / 10,
+                    0
+                );
+
+                uint256 timeLockAbovePriceLiquidity = abovePriceLiquidity - lockedAbovePriceLiquidity;
+
+                params[paramsIndex++] = abi.encode(
+                    poolKey,
+                    currentTick + poolKey.tickSpacing,
+                    upperTick,
+                    uint128(lockedAbovePriceLiquidity),
+                    uint128(balance0) / 10,
+                    0,
+                    address(this),
+                    new bytes(0)
+                );
+
+                params[paramsIndex++] = abi.encode(
+                    poolKey,
+                    currentTick + poolKey.tickSpacing,
+                    upperTick,
+                    uint128(timeLockAbovePriceLiquidity),
+                    uint128(balance0),
+                    0,
+                    recipient,
+                    new bytes(0)
+                );
+            }
+        }
+
+        // Parameters for the `SETTLE` action
+        params[paramsIndex++] = abi.encode(poolKey.currency0, poolKey.currency1);
+
+        if (token0 == address(0)) {
+            actions = (actions << 8) | uint8(Actions.SWEEP);
+            // Parameters for the `SWEEP` action
+            params[paramsIndex++] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
+        } else {
             ERC20(token0).approve(address(positionManager.permit2()), balance0);
             positionManager.permit2().approve(token0, address(positionManager), uint160(balance0), type(uint48).max);
         }
@@ -423,36 +421,31 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         ERC20(token1).approve(address(positionManager.permit2()), balance1);
         positionManager.permit2().approve(token1, address(positionManager), uint160(balance1), type(uint48).max);
 
+        // We're storing the tokenId of the first position we're going to mint
+        uint256 nextTokenId = positionManager.nextTokenId();
+
         positionManager.modifyLiquidities{ value: token0 == address(0) ? balance0 : 0 }(
-            abi.encode(actions, params), block.timestamp
+            abi.encode(abi.encodePacked(actions), params), block.timestamp
         );
 
-        if (isNoOpGovernance) {
-            // For no-op governance, two NFTs were minted, transfer them to the locker
+        if (belowPriceLiquidity > 0) {
             positionManager.safeTransferFrom(
                 address(this),
                 address(locker),
-                positionManager.nextTokenId() - 1,
+                nextTokenId, // Governance or not the first position is always for the locker
                 abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
+
+            // In the case of a governance, we mint two positions so can skip both the current one
+            // and the next one (which was already sent to the Timelock contract)
+            if (!isNoOpGovernance) nextTokenId += 2;
+        }
+
+        if (abovePriceLiquidity > 0) {
             positionManager.safeTransferFrom(
                 address(this),
                 address(locker),
-                positionManager.nextTokenId() - 2,
-                abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
-            );
-        } else {
-            // Standard case: four NFTs were minted, transfer the first two to the locker
-            positionManager.safeTransferFrom(
-                address(this),
-                address(locker),
-                positionManager.nextTokenId() - 3,
-                abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
-            );
-            positionManager.safeTransferFrom(
-                address(this),
-                address(locker),
-                positionManager.nextTokenId() - 4,
+                nextTokenId, // Once again the first position is for the locker
                 abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
         }
