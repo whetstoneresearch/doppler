@@ -1,0 +1,29 @@
+{
+  "lib/v4-core": {
+    "rev": "80311e34080fee64b6fc6c916e9a51a437d0e482"
+  },
+  "lib/v4-periphery": {
+    "rev": "9628c36b4f5083d19606e63224e4041fe748edae"
+  },
+  "lib/v3-core": {
+    "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+  },
+  "lib/universal-router": {
+    "rev": "3fc2b48b66a43d7da649809b301dfb271779b0b5"
+  },
+  "lib/v3-periphery": {
+    "rev": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
+  },
+  "lib/forge-std": {
+    "rev": "d3db4ef90a72b7d24aa5a2e5c649593eaef7801d"
+  },
+  "lib/dn404": {
+    "tag": {
+      "name": "v0.0.25",
+      "rev": "3397cb11558ac853912ee87871422b6a29c9d346"
+    }
+  },
+  "lib/solady": {
+    "rev": "513f581675374706dbe947284d6b12d19ce35a2a"
+  }
+}

@@ -19,3 +19,6 @@
 [submodule "lib/universal-router"]
 	path = lib/universal-router
 	url = https://github.com/Uniswap/universal-router
+[submodule "lib/dn404"]
+	path = lib/dn404
+	url = https://github.com/vectorized/dn404
