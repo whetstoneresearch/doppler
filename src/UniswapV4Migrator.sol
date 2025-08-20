@@ -293,15 +293,16 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         require(positionsToMint > 0, ZeroLiquidity());
 
         // We need to mint `positionsToMint` positions then call `SETTLE_PAIR` and `SWEEP` if we're using ETH
-        bytes[] memory params = new bytes[](positionsToMint + 1 + (token0 == address(0) ? 1 : 0));
-
-        uint256 actions = uint8(Actions.MINT_POSITION);
+        uint8 length = positionsToMint + 1 + (token0 == address(0) ? 1 : 0);
+        bytes[] memory params = new bytes[](length);
+        bytes memory actions = new bytes(length);
 
         for (uint256 i; i != positionsToMint; ++i) {
-            actions = (actions << 8) | uint8(Actions.MINT_POSITION);
+            actions[i] = bytes1(uint8(Actions.MINT_POSITION));
         }
 
-        actions = (actions << 8) | uint8(Actions.SETTLE_PAIR);
+        // We add the `SETTLE_PAIR` action, if `SWEEP` is needed, it will be added at the end
+        actions[positionsToMint] = bytes1(uint8(Actions.SETTLE_PAIR));
 
         uint256 paramsIndex;
 
@@ -410,7 +411,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         params[paramsIndex++] = abi.encode(poolKey.currency0, poolKey.currency1);
 
         if (token0 == address(0)) {
-            actions = (actions << 8) | uint8(Actions.SWEEP);
+            actions[actions.length - 1] = bytes1(uint8(Actions.SWEEP));
             // Parameters for the `SWEEP` action
             params[paramsIndex++] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
         } else {
@@ -436,16 +437,16 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
 
-            // In the case of a governance, we mint two positions so can skip both the current one
-            // and the next one (which was already sent to the Timelock contract)
-            if (!isNoOpGovernance) nextTokenId += 2;
+            // In the case of a governance, we have to skip the two positions we minted below the current price,
+            // otherwise there's only one position we have to skip
+            isNoOpGovernance ? nextTokenId++ : nextTokenId += 2;
         }
 
         if (abovePriceLiquidity > 0) {
             positionManager.safeTransferFrom(
                 address(this),
                 address(locker),
-                nextTokenId, // Once again the first position is for the locker
+                nextTokenId, // Once again the first position is always for the locker
                 abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
         }
