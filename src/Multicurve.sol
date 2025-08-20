@@ -75,6 +75,12 @@ error InvalidProtocolOwnerBeneficiary();
 /// @notice Thrown when a mismatched info length for curves
 error InvalidArrayLength();
 
+error ZeroPosition(uint256 index);
+
+error ZeroMaxShare(uint256 index);
+
+error TickNotAligned(int24 tick);
+
 /// @dev Constant used to increase precision during calculations
 uint256 constant WAD = 1e18;
 
@@ -191,13 +197,13 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         bool isToken0 = asset == token0;
 
-        int24 minUsableTick = TickMath.minUsableTick(initData.tickSpacing);
-        int24 maxUsableTick = TickMath.maxUsableTick(initData.tickSpacing);
+        int24 lowerTickBoundary = TickMath.MIN_TICK;
+        int24 upperTickBoundary = TickMath.MAX_TICK;
 
         // check the curves to see if they are safe
         for (uint256 i; i < numCurves; i++) {
-            require(numPositions[i] > 0, InvalidShares(numPositions[i]));
-            require(maxShareToBeSold[i] > 0, InvalidShares(maxShareToBeSold[i]));
+            require(numPositions[i] > 0, ZeroPosition(numPositions[i]));
+            require(maxShareToBeSold[i] > 0, ZeroMaxShare(maxShareToBeSold[i]));
 
             totalLBPPositions += numPositions[i];
             totalLBPSupply += maxShareToBeSold[i];
@@ -205,25 +211,27 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock {
             int24 currentTickLower = tickLower[i];
             int24 currentTickUpper = tickUpper[i];
 
-            // check if the ticks are good
+            // Check if the ticks are in the tick spacing
             isValidTick(currentTickLower, tickSpacing);
             isValidTick(currentTickUpper, tickSpacing);
 
             require(currentTickLower < currentTickUpper, InvalidTickRangeMisordered(currentTickLower, currentTickUpper));
 
-            // flip the ordering
-            tickLower[i] = isToken0 ? currentTickLower : -currentTickUpper;
-            tickUpper[i] = isToken0 ? currentTickUpper : -currentTickLower;
+            // Flip the ticks if the asset is token1
+            if (!isToken0) {
+                tickLower[i] = -currentTickUpper;
+                tickUpper[i] = -currentTickLower;
+            }
 
-            // calculate the boundary
-            minUsableTick = minUsableTick < tickLower[i] ? minUsableTick : tickLower[i];
-            maxUsableTick = maxUsableTick > tickUpper[i] ? maxUsableTick : tickUpper[i];
+            // Calculate the boundaries
+            if (lowerTickBoundary > currentTickLower) lowerTickBoundary = currentTickLower;
+            if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
         }
 
         require(totalLBPSupply <= WAD, MaxShareToBeSoldExceeded(totalLBPSupply, WAD));
-        require(minUsableTick < maxUsableTick, InvalidTickRangeMisordered(minUsableTick, maxUsableTick));
+        require(lowerTickBoundary < upperTickBoundary, InvalidTickRangeMisordered(lowerTickBoundary, upperTickBoundary));
 
-        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? minUsableTick : maxUsableTick);
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? lowerTickBoundary : upperTickBoundary);
 
         // TODO: add the hook so that only this contract can make
         PoolKey poolKey = PoolKey({
@@ -350,7 +358,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock {
 
     function calculatePositions(
         bool isToken0,
-        PoolState state,
+        PoolState memory state,
         uint256 numTokensToSell
     ) internal returns (LpPosition[] memory lpPositions) {
         lpPositions = new LpPosition[](state.totalNumPositions);
@@ -636,7 +644,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock {
      * @param tickSpacing Tick spacing to check against
      */
     function isValidTick(int24 tick, int24 tickSpacing) internal pure {
-        if (tick % tickSpacing != 0) revert InvalidTickRange(tick, tickSpacing);
+        if (tick % tickSpacing != 0) revert TickNotAligned(tick);
     }
 
     /**
