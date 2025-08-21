@@ -101,11 +101,11 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     /// @notice Address of the Uniswap V4 Migrator Hook
     IHooks public immutable migratorHook;
 
-    /// @notice The dead address used for no-op governance
+    /// @notice Dead address used for no-op governance
     address public constant DEAD_ADDRESS = address(0xdead);
 
-    /// @notice The empty address used to indicate no pool exists (bc v4 is a singleton)
-    address public constant EMPTY_ADDRESS = address(0x0);
+    /// @notice Empty address used to indicate no pool exists (bc v4 is a singleton)
+    address public constant EMPTY_ADDRESS = address(0);
 
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
@@ -176,7 +176,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         require(beneficiaries.length > 0, InvalidLength());
 
         address protocolOwner = Airlock(airlock).owner();
-        address prevBeneficiary = address(0);
+        address prevBeneficiary;
         uint256 totalShares;
         bool foundProtocolOwner;
 
@@ -203,11 +203,11 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     /**
      * @dev Creates a PoolKey struct with proper currency ordering
-     * @param asset The asset token address
-     * @param numeraire The numeraire token address
-     * @param fee The pool fee
-     * @param tickSpacing The tick spacing
-     * @return poolKey The constructed PoolKey
+     * @param asset Asset token address
+     * @param numeraire Numeraire token address
+     * @param fee Pool fee
+     * @param tickSpacing Tick spacing
+     * @return poolKey Constructed PoolKey
      */
     function _createPoolKey(
         address asset,
