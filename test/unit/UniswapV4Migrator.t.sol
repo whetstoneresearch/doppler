@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
@@ -25,6 +25,7 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
 import { PosmTestSetup } from "@v4-periphery-test/shared/PosmTestSetup.sol";
 import { Constants } from "@v4-core-test/utils/Constants.sol";
+import { Actions } from "@v4-periphery/libraries/Actions.sol";
 
 contract MockAirlock {
     address public owner;
@@ -44,8 +45,8 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     UniswapV4MigratorHook public migratorHook;
     StreamableFeesLocker public locker;
 
-    TestERC20 public asset;
-    TestERC20 public numeraire;
+    address public asset;
+    address public numeraire;
     address public token0;
     address public token1;
 
@@ -62,10 +63,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     function setUp() public {
         deployFreshManagerAndRouters();
         deployPosm(manager);
+        _setUpTokens();
 
         airlock = new MockAirlock(protocolOwner);
-        asset = new TestERC20(0);
-        numeraire = new TestERC20(0);
         locker = new StreamableFeesLocker(lpm, address(this));
         migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
         migrator = new UniswapV4Migrator(
@@ -77,7 +77,11 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         );
         locker.approveMigrator(address(migrator));
         deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
+    }
 
+    function _setUpTokens() internal {
+        asset = address(new TestERC20(0));
+        numeraire = address(new TestERC20(0));
         token0 = address(asset);
         token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
@@ -102,9 +106,78 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         assertEq(lockDuration, LOCK_DURATION);
     }
 
-    function test_migrate_MigratesToUniV4(uint160 sqrtPrice, uint64 balance0, uint64 balance1) public {
-        vm.assume(sqrtPrice > TickMath.MIN_SQRT_PRICE && sqrtPrice < TickMath.MAX_SQRT_PRICE);
-        vm.assume(balance0 > 0 && balance1 > 0);
+    struct MigrationScenario {
+        uint160 sqrtPrice;
+        uint256 balance0;
+        uint256 balance1;
+        bool isUsingETH;
+        bool hasBeneficiaries;
+        address recipient;
+    }
+
+    // TODO: Improve this test by fuzzing the parameters. This might be a tricky though because depending on the
+    // token balances we can easily hit the maximum liquidity per tick. Also more parameters can be added to the
+    // scenario struct, such as: tick spacing, beneficiary shares, etc.
+    function test_migrate_scenarios() public {
+        MigrationScenario[] memory scenarios = new MigrationScenario[](5);
+
+        scenarios[0] = MigrationScenario({
+            sqrtPrice: 6_786_529_797_232_128_452_535_845,
+            balance0: 2456,
+            balance1: 1e20,
+            isUsingETH: false,
+            hasBeneficiaries: true,
+            recipient: address(0xdead)
+        });
+        scenarios[1] = MigrationScenario({
+            sqrtPrice: 6_786_529_797_232_128_452_535_845,
+            balance0: 1e20,
+            balance1: 2456,
+            isUsingETH: false,
+            hasBeneficiaries: true,
+            recipient: address(0xdead)
+        });
+        scenarios[2] = MigrationScenario({
+            sqrtPrice: 6_786_529_797_232_128_452_535_845,
+            balance0: 2456,
+            balance1: 1e20,
+            isUsingETH: true,
+            hasBeneficiaries: true,
+            recipient: address(0xdead)
+        });
+        scenarios[3] = MigrationScenario({
+            sqrtPrice: 6_786_529_797_232_128_452_535_845,
+            balance0: 1e20,
+            balance1: 2456,
+            isUsingETH: true,
+            hasBeneficiaries: true,
+            recipient: address(0xdead)
+        });
+        scenarios[4] = MigrationScenario({
+            sqrtPrice: 6_786_529_797_232_128_452_535_845,
+            balance0: 5.13 ether,
+            balance1: 245e6,
+            isUsingETH: true,
+            hasBeneficiaries: true,
+            recipient: address(0xbeef)
+        });
+
+        for (uint256 i; i < scenarios.length; ++i) {
+            _migrate(scenarios[i]);
+        }
+    }
+
+    function _migrate(
+        MigrationScenario memory scenario
+    ) internal {
+        _setUpTokens();
+
+        if (scenario.isUsingETH) {
+            asset = numeraire;
+            token1 = asset;
+            token0 = address(0);
+            numeraire = address(0);
+        }
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
@@ -112,32 +185,18 @@ contract UniswapV4MigratorTest is PosmTestSetup {
 
         vm.prank(address(airlock));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            asset,
+            numeraire,
+            abi.encode(FEE, 1, LOCK_DURATION, scenario.hasBeneficiaries ? beneficiaries : new BeneficiaryData[](0))
         );
 
-        TestERC20(token0).mint(address(migrator), balance0);
-        TestERC20(token1).mint(address(migrator), balance1);
+        scenario.isUsingETH
+            ? deal(address(migrator), scenario.balance0)
+            : TestERC20(token0).mint(address(migrator), scenario.balance0);
+        TestERC20(token1).mint(address(migrator), scenario.balance1);
 
         vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, address(0xdead));
-    }
-
-    function test_migrate_MigratesToUniV4_ETH(uint160 sqrtPrice, uint64 balance0, uint64 balance1) public {
-        vm.assume(balance0 > 0 && balance1 > 0);
-        vm.assume(sqrtPrice > TickMath.MIN_SQRT_PRICE && sqrtPrice < TickMath.MAX_SQRT_PRICE);
-
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
-
-        vm.prank(address(airlock));
-        migrator.initialize(address(asset), address(0), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries));
-
-        deal(address(migrator), balance0);
-        TestERC20(token1).mint(address(migrator), balance1);
-
-        vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, address(0), token1, address(0xdead));
+        migrator.migrate(scenario.sqrtPrice, token0, token1, address(0xdead));
     }
 
     /*
