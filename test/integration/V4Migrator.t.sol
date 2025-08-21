@@ -174,12 +174,13 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         goToEndingTime();
         airlock.migrate(asset);
 
-        assertEq(ERC721(address(positionManager)).balanceOf(timelock), 1, "Timelock should have one token");
-        assertEq(ERC721(address(positionManager)).ownerOf(2), timelock, "Timelock should be the owner of the token");
-        assertEq(ERC721(address(positionManager)).balanceOf(address(locker)), 1, "Locker should have one token");
-        assertEq(
-            ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should be the owner of the token"
-        );
+        assertEq(ERC721(address(positionManager)).balanceOf(timelock), 2, "Timelock should own 2 positions");
+        assertEq(ERC721(address(positionManager)).balanceOf(address(locker)), 2, "Locker should own 2 positions");
+
+        assertEq(ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should own position #1");
+        assertEq(ERC721(address(positionManager)).ownerOf(2), timelock, "Timelock should own position #2");
+        assertEq(ERC721(address(positionManager)).ownerOf(3), address(locker), "Locker should own position #3");
+        assertEq(ERC721(address(positionManager)).ownerOf(4), timelock, "Timelock should own position #4");
     }
 
     function sortBeneficiaries(
