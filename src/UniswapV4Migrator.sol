@@ -388,6 +388,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                     new bytes(0)
                 );
 
+                // Decrementing the liquidity here prevents a rounding issue happening in the
+                // `settle` call from the PositionManager to the PoolManager
                 params[paramsIndex++] = abi.encode(
                     poolKey,
                     currentTick + poolKey.tickSpacing,
@@ -431,8 +433,9 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 abi.encode(recipient, assetData.lockDuration, assetData.beneficiaries)
             );
 
-            // In the case of a governance, we have to skip the two positions we minted below the current price,
-            // otherwise there's only one position we have to skip
+            // In the case of a governance, we increase the id by 2 to skip the current position we
+            // just transferred and the next one that was already sent to the Timelock, otherwise
+            // we only need to increase the id by 1 to skip the current position
             isNoOpGovernance ? nextTokenId++ : nextTokenId += 2;
         }
 
