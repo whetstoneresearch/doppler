@@ -20,8 +20,6 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { Airlock } from "src/Airlock.sol";
 
-import { console } from "forge-std/console.sol";
-
 /**
  * @notice Data to use for the migration
  * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
@@ -398,7 +396,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                     poolKey,
                     currentTick + poolKey.tickSpacing,
                     upperTick,
-                    uint128(timeLockAbovePriceLiquidity),
+                    uint128(timeLockAbovePriceLiquidity) - 1,
                     uint128(balance0),
                     0,
                     recipient,
