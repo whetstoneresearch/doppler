@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.24;
+
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
+
+/// @custom:security-contact security@whetstone.cc
+contract DN404Factory is ITokenFactory, ImmutableAirlock {
+    constructor(
+        address airlock_
+    ) ImmutableAirlock(airlock_) { }
+
+    /**
+     * @notice Creates a new DN404-based token
+     * @param initialSupply Total supply of the token
+     * @param recipient Address receiving the initial supply
+     * @param owner Address receiving the ownership of the token
+     * @param salt Salt used for the create2 deployment
+     * @param data Creation parameters encoded as bytes
+     */
+    function create(
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        bytes32 salt,
+        bytes calldata data
+    ) external onlyAirlock returns (address) {
+        // Keep compatibility with TokenFactory data encoding; we only use name, symbol, tokenURI as baseURI.
+        (string memory name,
+         string memory symbol,
+         string memory baseURI
+        ) = abi.decode(data, (string, string, string));
+
+        return address(new DopplerDN404{ salt: salt }(name, symbol, initialSupply, recipient, owner, baseURI));
+    }
+}

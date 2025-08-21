@@ -7,6 +7,7 @@ import { PoolManager } from "@v4-core/PoolManager.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
+import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
 import { Doppler } from "src/Doppler.sol";
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
@@ -126,6 +127,86 @@ function mineV4(
                 recipients,
                 amounts,
                 tokenURI
+            )
+        )
+    );
+
+    address deployer = address(params.poolInitializer.deployer());
+
+    for (uint256 salt; salt < 200_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, deployer);
+        address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
+
+        if (
+            uint160(hook) & FLAG_MASK == flagsDopplerHook && hook.code.length == 0
+                && ((isToken0 && asset < params.numeraire) || (!isToken0 && asset > params.numeraire))
+        ) {
+            return (bytes32(salt), hook, asset);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
+
+function mineDN404V4(
+    MineV4Params memory params
+) view returns (bytes32, address, address) {
+    (
+        uint256 minimumProceeds,
+        uint256 maximumProceeds,
+        uint256 startingTime,
+        uint256 endingTime,
+        int24 startingTick,
+        int24 endingTick,
+        uint256 epochLength,
+        int24 gamma,
+        bool isToken0,
+        uint256 numPDSlugs,
+        uint24 lpFee,
+        int24 tickSpacing
+    ) = abi.decode(
+        params.poolInitializerData,
+        (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+    );
+
+    bytes32 dopplerInitHash = keccak256(
+        abi.encodePacked(
+            type(Doppler).creationCode,
+            abi.encode(
+                params.poolManager,
+                params.numTokensToSell,
+                minimumProceeds,
+                maximumProceeds,
+                startingTime,
+                endingTime,
+                startingTick,
+                endingTick,
+                epochLength,
+                gamma,
+                isToken0,
+                numPDSlugs,
+                params.poolInitializer,
+                lpFee
+            )
+        )
+    );
+
+    (
+        string memory name,
+        string memory symbol,
+        string memory baseURI
+    ) = abi.decode(params.tokenFactoryData, (string, string, string));
+
+    bytes32 tokenInitHash = keccak256(
+        abi.encodePacked(
+            type(DopplerDN404).creationCode,
+            abi.encode(
+                name,
+                symbol,
+                params.initialSupply,
+                params.airlock,
+                params.airlock,
+                baseURI
             )
         )
     );
