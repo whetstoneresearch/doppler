@@ -131,7 +131,8 @@ contract SwapTest is BaseTest {
 
         buyExactIn(100 ether);
 
-        Position memory upperSlug = hook.getPositions(bytes32(uint256(NUM_DEFAULT_SLUGS + DEFAULT_NUM_PD_SLUGS - 1)));
+        Position memory upperSlug =
+            hook.getPositions(bytes32(uint256(NUM_DEFAULT_SLUGS + vm.envUint("NUM_PD_SLUGS") - 1)));
         int24 currentTick = hook.getCurrentTick();
 
         assertEq(

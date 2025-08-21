@@ -18,12 +18,7 @@ bytes32 constant UPPER_SLUG_SALT = bytes32(uint256(2));
 bytes32 constant DISCOVERY_SLUG_SALT = bytes32(uint256(3));
 
 library SlugVis {
-    function visualizeSlugs(
-        DopplerImplementation hook,
-        PoolId poolId,
-        string memory id,
-        uint256 timestamp
-    ) public view {
+    function visualizeSlugs(DopplerImplementation hook, string memory id, uint256 timestamp) public view {
         string memory json;
         uint256 numPDSlugs = hook.getNumPDSlugs();
         int24 currentTick = hook.getCurrentTick();

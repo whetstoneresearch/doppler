@@ -49,7 +49,6 @@ contract BaseTest is Test, Deployers {
     }
 
     // Constants
-
     uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 600_000_000 ether;
     uint256 constant DEFAULT_MINIMUM_PROCEEDS = 6.65 ether;
     uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10 ether;
@@ -68,6 +67,19 @@ contract BaseTest is Test, Deployers {
 
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
+
+    // DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
+    //     numTokensToSell: vm.envUint("NUM_TOKENS_TO_SELL"),
+    //     minimumProceeds: vm.envUint("MINIMUM_PROCEEDS"),
+    //     maximumProceeds: vm.envUint("MAXIMUM_PROCEEDS"),
+    //     startingTime: vm.envUint("STARTING_TIME"),
+    //     endingTime: vm.envUint("ENDING_TIME"),
+    //     gamma: int24(vm.envInt("GAMMA")),
+    //     epochLength: vm.envUint("EPOCH_LENGTH"),
+    //     fee: uint24(vm.envUint("FEE")),
+    //     tickSpacing: int24(vm.envInt("TICK_SPACING")),
+    //     numPDSlugs: vm.envUint("NUM_PD_SLUGS")
+    // });
 
     DopplerConfig DEFAULT_DOPPLER_CONFIG = DopplerConfig({
         numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
@@ -198,6 +210,8 @@ contract BaseTest is Test, Deployers {
         //     : int24(vm.envOr("START_TICK", -DEFAULT_START_TICK));
         // endTick =
         //     isToken0 ? int24(vm.envOr("END_TICK", -DEFAULT_END_TICK)) : int24(vm.envOr("END_TICK", DEFAULT_END_TICK));
+        // startTick = int24(vm.envInt("START_TICK"));
+        // endTick = int24(vm.envInt("END_TICK"));
         startTick = DEFAULT_START_TICK;
         endTick = DEFAULT_END_TICK;
 

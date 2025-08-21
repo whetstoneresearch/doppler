@@ -86,7 +86,7 @@ contract BeforeInitializeTest is BaseTest {
                 currency0: Currency.wrap(address(0xa)),
                 currency1: Currency.wrap(address(0xb)),
                 fee: 0,
-                tickSpacing: DEFAULT_TICK_SPACING,
+                tickSpacing: int24(vm.envInt("TICK_SPACING")),
                 hooks: IHooks(address(0))
             }),
             0
@@ -103,7 +103,7 @@ contract BeforeInitializeTest is BaseTest {
                 currency0: Currency.wrap(address(0xa)),
                 currency1: Currency.wrap(address(0xb)),
                 fee: 30,
-                tickSpacing: DEFAULT_TICK_SPACING,
+                tickSpacing: int24(vm.envInt("TICK_SPACING")),
                 hooks: IHooks(address(0xbeef))
             }),
             0
@@ -113,7 +113,7 @@ contract BeforeInitializeTest is BaseTest {
         assertEq(Currency.unwrap(currency0), address(0xa), "currency0 not set");
         assertEq(Currency.unwrap(currency1), address(0xb), "currency1 not set");
         assertEq(fee, 30, "fee not set");
-        assertEq(tickSpacing, DEFAULT_TICK_SPACING, "tickSpacing not set");
+        assertEq(tickSpacing, int24(vm.envInt("TICK_SPACING")), "tickSpacing not set");
         assertEq(address(hooks), address(0xbeef), "hooks not set");
     }
 }

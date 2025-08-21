@@ -16,20 +16,30 @@ contract SlugVisTest is BaseTest {
     function testSlugVis() public {
         vm.warp(hook.startingTime());
 
-        PoolKey memory poolKey = key;
-
         buy(1 ether);
 
-        SlugVis.visualizeSlugs(hook, poolKey.toId(), "test", block.timestamp);
+        SlugVis.visualizeSlugs(hook, "test", block.timestamp);
     }
 
     function test_visualizePoolAtInitialization() public {
         vm.warp(hook.startingTime());
 
-        PoolKey memory poolKey = key;
+        buy(1);
+
+        SlugVis.visualizeSlugs(hook, "test", block.timestamp);
+    }
+
+    function test_estelle() public {
+        vm.warp(hook.startingTime());
 
         buy(1);
 
-        SlugVis.visualizeSlugs(hook, poolKey.toId(), "test", block.timestamp);
+        SlugVis.visualizeSlugs(hook, "epoch1", block.timestamp);
+
+        vm.warp(hook.startingTime() + hook.epochLength());
+
+        sell(1);
+
+        SlugVis.visualizeSlugs(hook, "epoch2", block.timestamp);
     }
 }

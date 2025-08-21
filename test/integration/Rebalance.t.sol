@@ -16,6 +16,7 @@ import { Position, MAX_SWAP_FEE, WAD, I_WAD } from "src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { SlugVis } from "test/shared/SlugVis.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;
@@ -38,10 +39,14 @@ contract RebalanceTest is BaseTest {
         // This increases the price to the pool maximum
         buy(int256(expectedAmountSold));
 
+        SlugVis.visualizeSlugs(hook, "epoch1", block.timestamp);
+
         vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
 
         // We swap again just to trigger the rebalancing logic in the new epoch
         buy(1 ether);
+
+        SlugVis.visualizeSlugs(hook, "epoch2", block.timestamp);
 
         (, int256 tickAccumulator, uint256 totalTokensSold,,,) = hook.state();
 

@@ -43,7 +43,7 @@ contract DopplerInvariantsTest is BaseTest {
         excludeSender(address(manager));
         excludeSender(address(modifyLiquidityRouter));
 
-        vm.warp(DEFAULT_STARTING_TIME);
+        vm.warp(vm.envUint("STARTING_TIME"));
     }
 
     function invariant_works() public view { }
@@ -137,7 +137,7 @@ contract DopplerInvariantsTest is BaseTest {
     // FIXME: This test fails because `goNextEpoch()` can increase the timestamp and start the auction
     function invariant_NoPriceChangesBeforeStart() public {
         vm.skip(true);
-        vm.warp(DEFAULT_STARTING_TIME - 1);
+        vm.warp(vm.envUint("STARTING_TIME") - 1);
         (,,, int24 tickSpacing,) = hook.poolKey();
 
         assertEq(
