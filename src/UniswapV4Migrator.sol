@@ -237,7 +237,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         // Check if this is no-op governance
         bool isNoOpGovernance = recipient == DEAD_ADDRESS;
 
-        poolManager.initialize(poolKey, sqrtPriceX96);
+        int24 currentTick = poolManager.initialize(poolKey, sqrtPriceX96);
 
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
         uint256 balance0;
@@ -251,7 +251,9 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         int24 lowerTick = TickMath.minUsableTick(poolKey.tickSpacing);
         int24 upperTick = TickMath.maxUsableTick(poolKey.tickSpacing);
 
-        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96) / poolKey.tickSpacing * poolKey.tickSpacing;
+        // A pool can be initialized at any tick but we want to make sure our current tick is
+        // aligned with the tick spacing when we'll add liquidity
+        currentTick = currentTick / poolKey.tickSpacing * poolKey.tickSpacing;
 
         if (currentTick < lowerTick || currentTick > upperTick) revert TickOutOfRange();
 
