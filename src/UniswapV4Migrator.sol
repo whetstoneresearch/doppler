@@ -240,13 +240,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         int24 currentTick = poolManager.initialize(poolKey, sqrtPriceX96);
 
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
-        uint256 balance0;
-
-        if (token0 == address(0)) {
-            balance0 = address(this).balance;
-        } else {
-            balance0 = ERC20(token0).balanceOf(address(this));
-        }
+        uint256 balance0 = token0 == address(0) ? address(this).balance : ERC20(token0).balanceOf(address(this));
 
         int24 lowerTick = TickMath.minUsableTick(poolKey.tickSpacing);
         int24 upperTick = TickMath.maxUsableTick(poolKey.tickSpacing);
