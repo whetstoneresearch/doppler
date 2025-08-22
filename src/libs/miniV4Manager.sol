@@ -11,163 +11,171 @@ import { IPoolManager, PoolKey, IHooks, BalanceDelta } from "@v4-core/interfaces
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { BalanceDeltaLibrary } from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import { ModifyLiquidityParams, SwapParams } from "./PoolOperation.sol";
+import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 
-library miniV4Manager {
+enum Actions {
+    Mint,
+    Burn,
+    Collect
+}
+
+error CallerNotPoolManager();
+
+error InvalidCallbackAction(uint8 action);
+
+struct CallbackData {
+    Actions action;
+    PoolKey poolKey;
+    Position[] positions;
+}
+
+struct Position {
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    uint16 id;
+}
+
+abstract contract MiniV4Manager is IUnlockCallback {
     using BalanceDeltaLibrary for BalanceDelta;
 
-    uint8 constant MINT = 1;
-    uint8 constant BURN = 2;
-    uint8 constant COLLECT = 3;
+    IPoolManager immutable poolManager;
 
-    struct CallbackData {
-        PoolKey poolKey;
-        LpPosition[] positions;
-        uint8 command;
+    modifier onlyPoolManager() {
+        require(msg.sender == address(poolManager), CallerNotPoolManager());
+        _;
     }
 
-    struct LpPosition {
-        int24 tickLower;
-        int24 tickUpper;
-        uint128 liquidity;
-        uint16 id;
+    constructor(
+        IPoolManager poolManager_
+    ) {
+        poolManager = poolManager_;
     }
 
-    struct ModifyLiquidityParams {
-        // the lower and upper tick of the position
-        int24 tickLower;
-        int24 tickUpper;
-        // how to modify the liquidity
-        int256 liquidityDelta;
-        // a value to set if you want unique liquidity positions at the same range
-        bytes32 salt;
-    }
+    /// @notice Handles the callback from the PoolManager
+    function unlockCallback(
+        bytes calldata data
+    ) external onlyPoolManager returns (bytes memory) {
+        CallbackData memory callbackData = abi.decode(data, (CallbackData));
 
-    function lockAndMint(IPoolManager poolManager, PoolKey memory poolKey, LpPosition[] memory positions) internal {
-        bytes memory data = abi.encode(CallbackData({ poolKey: poolKey, positions: positions, command: MINT }));
+        Actions action = callbackData.action;
 
-        IPoolManager(poolManager).unlock(data);
-    }
+        BalanceDelta delta;
 
-    /// @notice Handles the callback from the pool manager.  Called by the initializer
-    function handleCallback(IPoolManager poolManager, bytes memory data) internal returns (bytes memory) {
-        CallbackData callback = abi.decode(data);
-
-        uint8 command = callback.command;
-
-        int128 amount0;
-        int128 amount1;
-        int128 fees0;
-        int128 fees1;
-        if (command == MINT) {
-            (amount0, amount1) = handleMint(poolManager, poolcallback.positions);
-            handleSettle(amount0 + fees0, amount1 + fees1);
-            return bytes("");
-        } else if (command == BURN) {
-            (amount0, amount1, fees0, fees1) = handleBurn(poolManager, callback.positions);
-            handleSettle(amount0 + fees0, amount1 + fees1);
-            return bytes("");
-        } else if (command == COLLECT) {
-            (fees0, fees1) = handleCollect(poolManager, callback.positions);
-            handleSettle(amount0 + fees0, amount1 + fees1);
-            return bytes("");
+        if (action == Actions.Mint) {
+            delta = _handleMint(callbackData.poolKey, callbackData.positions);
+        } else if (action == Actions.Burn) {
+            delta = _handleBurn(callbackData.poolKey, callbackData.positions);
+        } else if (action == Actions.Collect) {
+            delta = _handleCollect(callbackData.poolKey, callbackData.positions);
+        } else {
+            revert InvalidCallbackAction(uint8(action));
         }
-        revert InvalidCallbackId(command);
+
+        _handleSettle(callbackData.poolKey, delta);
+        return new bytes(0);
     }
 
-    function handleMint(
-        IPoolManager poolManager,
-        PoolKey memory poolKey,
-        LpPosition[] memory positions
-    ) internal returns (int128 amount0, int128 amount1) {
-        ModifyLiquidityParams memory params;
-        uint256 numPositions = positions.length;
+    /// @dev Calls the PoolManager contract to mint the given positions of the given pool
+    function _mint(PoolKey memory poolKey, Position[] memory positions) internal {
+        poolManager.unlock(abi.encode(CallbackData({ action: Actions.Mint, poolKey: poolKey, positions: positions })));
+    }
 
-        for (uint256 i; i < numPositions; i++) {
-            params = ModifyLiquidityParams({
-                tickLower: positions[i].tickLower,
-                tickUpper: positions[i].tickUpper,
-                liquidityDelta: positions[i].liquidity,
+    function _burn(PoolKey memory poolKey, Position[] memory positions) internal {
+        poolManager.unlock(abi.encode(CallbackData({ action: Actions.Burn, poolKey: poolKey, positions: positions })));
+    }
+
+    function _collect(PoolKey memory poolKey, Position[] memory positions) internal {
+        poolManager.unlock(
+            abi.encode(CallbackData({ action: Actions.Collect, poolKey: poolKey, positions: positions }))
+        );
+    }
+
+    /// @dev This function is not meant to be called directly! Its purpose is only to trigger the minting of the
+    /// positions during the PoolManager callback call
+    function _handleMint(
+        PoolKey memory poolKey,
+        Position[] memory positions
+    ) internal returns (BalanceDelta balanceDelta) {
+        uint256 length = positions.length;
+
+        for (uint256 i; i != length; ++i) {
+            Position memory pos = positions[i];
+            IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
+                tickLower: pos.tickLower,
+                tickUpper: pos.tickUpper,
+                liquidityDelta: int128(pos.liquidity),
+                salt: 0 // TODO: Not sure if we really need to set one
+             });
+
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+            balanceDelta = balanceDelta + delta;
+        }
+    }
+
+    function _handleBurn(
+        PoolKey memory poolKey,
+        Position[] memory positions
+    ) internal returns (BalanceDelta balanceDelta) {
+        uint256 length = positions.length;
+
+        for (uint256 i; i != length; ++i) {
+            Position memory pos = positions[i];
+            IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
+                tickLower: pos.tickLower,
+                tickUpper: pos.tickUpper,
+                liquidityDelta: -int128(pos.liquidity),
                 salt: 0
             });
 
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(poolKey, params, "");
-
-            amount0 += delta.amount0();
-            amount1 += delta.amount1();
+            // Returned variable `feesAccrued` is not used as its values are already included in `delta`
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+            balanceDelta = balanceDelta + delta;
         }
     }
 
-    function handleBurn(
-        IPoolManager poolManager,
+    function _handleCollect(
         PoolKey memory poolKey,
-        LpPosition[] memory positions
-    ) internal returns (int128 amount0, int128 amount1, int128 fees0, int128 fees1) {
-        ModifyLiquidityParams memory params;
+        Position[] memory positions
+    ) internal returns (BalanceDelta totalFees) {
+        uint256 length = positions.length;
 
-        for (uint256 i; i < positions.length; i++) {
-            params = ModifyLiquidityParams({
-                tickLower: positions[i].tickLower,
-                tickUpper: positions[i].tickUpper,
-                liquidityDelta: -1 * positions[i].liquidity,
-                salt: 0
-            });
-
-            (BalanceDelta liquidityDelta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, "");
-
-            amount0 += liquidityDelta.amount0();
-            amount1 += liquidityDelta.amount1();
-            fees0 += feesAccrued.amount0();
-            fees1 += feesAccrued.amount1();
-        }
-    }
-
-    function handleCollect(
-        IPoolManager poolManager,
-        PoolKey memory poolKey,
-        LpPosition[] memory positions
-    ) internal returns (int128 fees0, int128 fees1) {
-        ModifyLiquidityParams memory params;
-
-        for (uint256 i; i < positions.length; i++) {
-            params = ModifyLiquidityParams({
-                tickLower: positions[i].tickLower,
-                tickUpper: positions[i].tickUpper,
+        for (uint256 i; i != length; ++i) {
+            Position memory pos = positions[i];
+            IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
+                tickLower: pos.tickLower,
+                tickUpper: pos.tickUpper,
                 liquidityDelta: 0,
                 salt: 0
             });
 
-            (, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, "");
-
-            fees0 += feesAccrued.amount0();
-            fees1 += feesAccrued.amount1();
+            (, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+            totalFees = totalFees + feesAccrued;
         }
     }
 
-    function handleSettle(
-        IPoolManager poolManager,
+    function _handleSettle(
         PoolKey memory poolKey,
-        uint256 expectedAmount0,
-        uint256 expectedAmount1
+        BalanceDelta delta
     ) internal returns (uint256 amount0, uint256 amount1) {
-        if (expectedAmount0 > 0) {
-            poolManager.take(poolKey.currency0, address(this), expectedAmount0);
+        if (delta.amount0() > 0) {
+            poolManager.take(poolKey.currency0, address(this), uint128(delta.amount0()));
         }
 
-        if (expectedAmount1 > 0) {
-            poolManager.take(poolKey.currency1, address(this), expectedAmount1);
+        if (delta.amount1() > 0) {
+            poolManager.take(poolKey.currency1, address(this), uint128(delta.amount1()));
         }
 
-        if (expectedAmount0 < 0) {
+        if (delta.amount0() < 0) {
             poolManager.sync(poolKey.currency0);
-            poolKey.currency0.transfer(address(poolManager), expectedAmount0);
+            poolKey.currency0.transfer(address(poolManager), uint128(delta.amount0()));
             poolManager.settle();
         }
 
-        if (expectedAmount1 < 0) {
+        if (delta.amount1() < 0) {
             poolManager.sync(poolKey.currency1);
-            poolKey.currency1.transfer(address(poolManager), expectedAmount1);
+            poolKey.currency1.transfer(address(poolManager), uint128(delta.amount1()));
             poolManager.settle();
         }
     }
