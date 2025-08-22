@@ -40,7 +40,7 @@ struct Position {
 abstract contract MiniV4Manager is IUnlockCallback {
     using BalanceDeltaLibrary for BalanceDelta;
 
-    IPoolManager immutable poolManager;
+    IPoolManager public immutable poolManager;
 
     modifier onlyPoolManager() {
         require(msg.sender == address(poolManager), CallerNotPoolManager());
