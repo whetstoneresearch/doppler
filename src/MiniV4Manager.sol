@@ -61,20 +61,21 @@ abstract contract MiniV4Manager is IUnlockCallback {
 
         Actions action = callbackData.action;
 
-        BalanceDelta delta;
+        BalanceDelta balanceDelta;
+        BalanceDelta totalFeesAccrued;
 
         if (action == Actions.Mint) {
-            delta = _handleMint(callbackData.poolKey, callbackData.positions);
+            balanceDelta = _handleMint(callbackData.poolKey, callbackData.positions);
         } else if (action == Actions.Burn) {
-            delta = _handleBurn(callbackData.poolKey, callbackData.positions);
+            (balanceDelta, totalFeesAccrued) = _handleBurn(callbackData.poolKey, callbackData.positions);
         } else if (action == Actions.Collect) {
-            delta = _handleCollect(callbackData.poolKey, callbackData.positions);
+            totalFeesAccrued = _handleCollect(callbackData.poolKey, callbackData.positions);
         } else {
             revert InvalidCallbackAction(uint8(action));
         }
 
-        _handleSettle(callbackData.poolKey, delta);
-        return new bytes(0);
+        _handleSettle(callbackData.poolKey, balanceDelta);
+        return abi.encode(balanceDelta, totalFeesAccrued);
     }
 
     /// @dev Calls the PoolManager contract to mint the given positions of the given pool
@@ -82,14 +83,21 @@ abstract contract MiniV4Manager is IUnlockCallback {
         poolManager.unlock(abi.encode(CallbackData({ action: Actions.Mint, poolKey: poolKey, positions: positions })));
     }
 
-    function _burn(PoolKey memory poolKey, Position[] memory positions) internal {
-        poolManager.unlock(abi.encode(CallbackData({ action: Actions.Burn, poolKey: poolKey, positions: positions })));
+    function _burn(
+        PoolKey memory poolKey,
+        Position[] memory positions
+    ) internal returns (BalanceDelta balanceDelta, BalanceDelta feesAccrued) {
+        bytes memory data = poolManager.unlock(
+            abi.encode(CallbackData({ action: Actions.Burn, poolKey: poolKey, positions: positions }))
+        );
+        (balanceDelta, feesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
     }
 
-    function _collect(PoolKey memory poolKey, Position[] memory positions) internal {
-        poolManager.unlock(
+    function _collect(PoolKey memory poolKey, Position[] memory positions) internal returns (BalanceDelta totalFees) {
+        bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ action: Actions.Collect, poolKey: poolKey, positions: positions }))
         );
+        (totalFees) = abi.decode(data, (BalanceDelta));
     }
 
     /// @dev This function is not meant to be called directly! Its purpose is only to trigger the minting of the
@@ -117,7 +125,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
     function _handleBurn(
         PoolKey memory poolKey,
         Position[] memory positions
-    ) internal returns (BalanceDelta balanceDelta) {
+    ) internal returns (BalanceDelta balanceDelta, BalanceDelta totalFeesAccrued) {
         uint256 length = positions.length;
 
         for (uint256 i; i != length; ++i) {
@@ -129,9 +137,9 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 salt: 0
             });
 
-            // Returned variable `feesAccrued` is not used as its values are already included in `delta`
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+            (BalanceDelta delta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
             balanceDelta = balanceDelta + delta;
+            totalFeesAccrued = totalFeesAccrued + feesAccrued;
         }
     }
 
