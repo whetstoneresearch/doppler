@@ -14,8 +14,10 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { MiniV4Manager, Position } from "./MiniV4Manager.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 
 /**
  * @notice Emitted when a collect event is called
@@ -86,10 +88,11 @@ uint256 constant WAD = 1e18;
 
 struct InitData {
     uint24 fee;
+    int24 tickSpacing;
     int24[] tickLower;
     int24[] tickUpper;
     uint16[] numPositions;
-    uint256 maxShareToBeSold;
+    uint256[] maxShareToBeSold;
     BeneficiaryData[] beneficiaries;
 }
 
@@ -107,7 +110,6 @@ enum PoolStatus {
 }
 
 struct PoolState {
-    address asset;
     address numeraire;
     int24[] tickLower;
     int24[] tickUpper;
@@ -115,7 +117,7 @@ struct PoolState {
     uint256 totalTokensOnBondingCurve;
     uint256 totalNumPositions;
     BeneficiaryData[] beneficiaries;
-    Position[] lpPositions;
+    Position[] positions;
     PoolStatus status;
     PoolKey poolKey;
 }
@@ -123,15 +125,25 @@ struct PoolState {
 contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
+    using CurrencyLibrary for Currency;
+    using BalanceDeltaLibrary for BalanceDelta;
+
+    IHooks public immutable multiCurveHook;
 
     /// @notice Returns the state of a pool
-    mapping(address pool => PoolState state) public getState;
+    mapping(address asset => PoolState state) public getState;
 
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
      */
-    constructor(address airlock_, IPoolManager poolManager_) ImmutableAirlock(airlock_) MiniV4Manager(poolManager_) { }
+    constructor(
+        address airlock_,
+        IPoolManager poolManager_,
+        IHooks multiCurveHook_
+    ) ImmutableAirlock(airlock_) MiniV4Manager(poolManager_) {
+        multiCurveHook = multiCurveHook_;
+    }
 
     /// @inheritdoc IPoolInitializer
     function initialize(
@@ -164,7 +176,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
         if (
             numCurves != tickUpper.length || numCurves != maxShareToBeSold.length || numCurves != numPositions.length
-                || maxShareToBeSold != numPositions.length
+                || maxShareToBeSold.length != numPositions.length
         ) {
             revert InvalidArrayLength();
         }
@@ -211,46 +223,53 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? lowerTickBoundary : upperTickBoundary);
 
-        // TODO: add the hook so that only this contract can make
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: address(0),
+            hooks: multiCurveHook,
             fee: fee,
             tickSpacing: tickSpacing
         });
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
+        Position[] memory positions = calculatePositions(
+            isToken0, poolKey, numPositions, tickLower, tickUpper, maxShareToBeSold, totalTokensOnBondingCurve
+        );
+
         PoolState memory state = PoolState({
-            asset: asset,
             numeraire: numeraire,
             tickLower: tickLower,
             tickUpper: tickUpper,
             maxShareToBeSold: maxShareToBeSold,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
+            totalNumPositions: totalLBPPositions + 1, // +1 for the tail position
             beneficiaries: beneficiaries,
+            positions: positions,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
-            poolKey: poolKey,
-            totalNumPositions: totalLBPPositions + 1 // +1 for the tail position
-         });
-        getState[pool] = state;
+            poolKey: poolKey
+        });
 
-        Position[] memory lpPositions = calculatePositions(isToken0, state, totalTokensOnBondingCurve);
+        require(getState[asset].status == PoolStatus.Uninitialized, "Already initialized");
+        getState[asset] = state;
 
-        _mint(poolKey, lpPositions);
+        _mint(poolKey, positions);
 
-        emit Create(poolKey, asset, numeraire);
+        emit Create(address(poolManager), asset, numeraire);
 
         if (beneficiaries.length != 0) {
             _validateBeneficiaries(beneficiaries);
             emit Lock(pool, beneficiaries);
         }
+
+        // TODO: A bit hacky but since V4 pools don't have their own address we're returning the address
+        // of the asset token instead to retrieve the data later on in the `exitLiquidity function
+        pool = asset;
     }
 
     /// @inheritdoc IPoolInitializer
     function exitLiquidity(
-        address pool
+        address asset
     )
         external
         onlyAirlock
@@ -264,29 +283,33 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             uint128 balance1
         )
     {
-        require(getState[pool].status == PoolStatus.Initialized, PoolAlreadyExited());
-        getState[pool].status = PoolStatus.Exited;
+        PoolState memory pool = getState[asset];
 
-        token0 = Currency.unwrap(getState[pool].poolKey.currency0);
-        token1 = Currency.unwrap(getState[pool].poolKey.currency1);
+        require(pool.status == PoolStatus.Initialized, PoolAlreadyExited());
+        pool.status = PoolStatus.Exited;
+
+        // Currency currency0 = getState[asset].poolKey.currency0;
+        // Currency currency1 = getState[poolId].poolKey.currency1;
+        // token0 = Currency.unwrap(currency0);
+        // token1 = Currency.unwrap(currency1);
+
         int24 tick;
-        (sqrtPriceX96, tick,,,,,) = poolManager(getState[pool].poolKey).slot0();
-
-        address asset = getState[pool].asset;
+        (sqrtPriceX96, tick,,) = poolManager.getSlot0(pool.poolKey.toId());
         bool isToken0 = asset == token0;
 
-        int24 farTick = isToken0 ? getState[pool].tickUpper : getState[pool].tickLower;
+        // int24 farTick = isToken0 ? getState[poolId].tickUpper : getState[poolId].tickLower;
+        int24 farTick;
         require(asset == token0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
 
         uint256 amount0;
         uint256 amount1;
-        (amount0, amount1, balance0, balance1) = _burn(pool, getState[pool].lpPositions);
+        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(pool.poolKey, pool.positions);
 
         fees0 = uint128(balance0 - amount0);
         fees1 = uint128(balance1 - amount1);
 
-        ERC20(token0).safeTransfer(msg.sender, balance0);
-        ERC20(token1).safeTransfer(msg.sender, balance1);
+        pool.poolKey.currency0.transfer(msg.sender, balance0);
+        pool.poolKey.currency1.transfer(msg.sender, balance1);
     }
 
     /**
@@ -300,7 +323,11 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
     ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
         require(getState[pool].status == PoolStatus.Locked, PoolLocked());
 
-        (fees0ToDistribute, fees1ToDistribute) = _collect(pool, getState[pool].lpPositions);
+        PoolState memory state = getState[pool];
+
+        BalanceDelta totalFees = _collect(state.poolKey, getState[pool].positions);
+        fees0ToDistribute = uint128(totalFees.amount0());
+        fees1ToDistribute = uint128(totalFees.amount1());
 
         BeneficiaryData[] memory beneficiaries = getState[pool].beneficiaries;
 
@@ -335,49 +362,52 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
     function calculatePositions(
         bool isToken0,
-        PoolState memory state,
+        PoolKey memory poolKey,
+        uint16[] memory numPositions,
+        int24[] memory tickLower,
+        int24[] memory tickUpper,
+        uint256[] memory maxShareToBeSold,
         uint256 numTokensToSell
     ) internal returns (Position[] memory lpPositions) {
-        lpPositions = new Position[](state.totalNumPositions);
+        uint256 numCurves = tickLower.length;
+        lpPositions = new Position[](numCurves);
 
         uint256 lbpSupply;
         uint256 currentPositionOffset;
-        uint256 numCurves = state.tickLower.length;
 
         for (uint256 i; i < numCurves; i++) {
-            uint256 numPositions = state.tickLower[i].length;
-            uint256 maxShareToBeSold = FullMath.mulDiv(numTokensToSell, state.maxShareToBeSold[i], WAD);
+            uint256 shareToBeSold = FullMath.mulDiv(numTokensToSell, maxShareToBeSold[i], WAD);
 
-            require(maxShareToBeSold > 0, InvalidShares(maxShareToBeSold));
+            require(shareToBeSold > 0, InvalidShares());
 
             // TOOD: Compute this
             uint256 curveSupply;
 
             // calculate the positions for this curve
             (Position[] memory newPositions, uint256 reserves) = calculateLogNormalDistribution(
-                state.tickLower[i], state.tickUpper[i], state.poolKey.tickSpacing, isToken0, numPositions, curveSupply
+                tickLower[i], tickUpper[i], poolKey.tickSpacing, isToken0, numPositions[i], curveSupply
             );
 
             // add the positions to the array
-            for (uint256 j; j < numPositions; j++) {
+            for (uint256 j; j < numPositions[i]; j++) {
                 lpPositions[currentPositionOffset + j] = newPositions[j];
             }
 
             // update the bonding assets remaining
-            lbpSupply += maxShareToBeSold;
-            currentPositionOffset += numPositions;
+            lbpSupply += shareToBeSold;
+            currentPositionOffset += numPositions[i];
         }
 
         // flush the rest into the tail
         uint256 tailSupply = numTokensToSell - lbpSupply;
 
-        lpPositions[state.numPositions - 1] = calculateLpTail(
+        lpPositions[numCurves - 1] = calculateLpTail(
             currentPositionOffset,
-            state.tickLower[numCurves - 1],
-            state.tickUpper[numCurves - 1],
+            tickLower[numCurves - 1],
+            tickUpper[numCurves - 1],
             isToken0,
             tailSupply,
-            state.poolKey.tickSpacing
+            poolKey.tickSpacing
         );
     }
 
@@ -399,8 +429,8 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             sqrtPriceAtTail,
             TickMath.MIN_SQRT_PRICE,
             TickMath.MAX_SQRT_PRICE,
-            isToken0 ? bondingAssetsRemaining : type(int256).max,
-            isToken0 ? type(int256).max : bondingAssetsRemaining
+            isToken0 ? bondingAssetsRemaining : type(uint256).max,
+            isToken0 ? type(uint256).max : bondingAssetsRemaining
         );
 
         int24 posTickLower = isToken0 ? tailTick : alignTickToTickSpacing(isToken0, TickMath.MIN_TICK, tickSpacing);
@@ -422,7 +452,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
         int24 tickUpper,
         int24 tickSpacing,
         bool isToken0,
-        uint256 totalPositions,
+        uint16 totalPositions,
         uint256 totalAmtToBeSold
     ) internal pure returns (Position[] memory, uint256) {
         int24 farTick = isToken0 ? tickUpper : tickLower;
