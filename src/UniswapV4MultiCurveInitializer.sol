@@ -122,13 +122,31 @@ struct PoolState {
     PoolKey poolKey;
 }
 
-contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, MiniV4Manager {
+//
+//                   Normalized liquidity (k) at price (%)
+//
+// 100 |                                                       █████████
+//     |                                                       █████████
+//  80 |                                                       █████████
+//     |                                                   █████████████
+//  60 |                                             ███████████████████
+//     |                                       █████████████████████████
+//  40 |                               █████████████████████████████████
+//     |                       █████████████████████████████████████████
+//  20 |                 ███████████████████████████████████████████████
+//     |           █████████████████████████████████████████████████████
+//   0 |     ███████████████████████████████████████████████████████████
+//     └───────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┬
+//          0.825   0.850   0.875   0.900   0.925   0.950   0.975   1.000
+//                                     Price
+//
+contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
 
-    IHooks public immutable multiCurveHook;
+    IHooks public immutable multicurveHook;
 
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
@@ -140,9 +158,9 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
     constructor(
         address airlock_,
         IPoolManager poolManager_,
-        IHooks multiCurveHook_
+        IHooks multicurveHook_
     ) ImmutableAirlock(airlock_) MiniV4Manager(poolManager_) {
-        multiCurveHook = multiCurveHook_;
+        multicurveHook = multicurveHook_;
     }
 
     /// @inheritdoc IPoolInitializer
@@ -227,7 +245,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: multiCurveHook,
+            hooks: multicurveHook,
             fee: fee,
             tickSpacing: tickSpacing
         });
