@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IPoolManager, PoolKey, IHooks, BalanceDelta } from "@v4-core/interfaces/IPoolManager.sol";
 import { MiniV4Manager, CallerNotPoolManager } from "src/MiniV4Manager.sol";
@@ -12,7 +11,7 @@ contract MiniV4ManagerImplementation is MiniV4Manager {
     ) MiniV4Manager(poolManager_) { }
 }
 
-contract MiniV4ManagerTest is Test, Deployers {
+contract MiniV4ManagerTest is Deployers {
     MiniV4Manager public mini;
 
     function setUp() public {
