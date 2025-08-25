@@ -92,7 +92,7 @@ struct InitData {
     int24[] tickLower;
     int24[] tickUpper;
     uint16[] numPositions;
-    uint256[] maxShareToBeSold;
+    uint256[] shareToBeSold;
     BeneficiaryData[] beneficiaries;
 }
 
@@ -113,7 +113,7 @@ struct PoolState {
     address numeraire;
     int24[] tickLower;
     int24[] tickUpper;
-    uint256[] maxShareToBeSold;
+    uint256[] shareToBeSold;
     uint256 totalTokensOnBondingCurve;
     uint256 totalNumPositions;
     BeneficiaryData[] beneficiaries;
@@ -154,13 +154,14 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
         bytes calldata data
     ) external onlyAirlock returns (address pool) {
         InitData memory initData = abi.decode(data, (InitData));
+
         (
             uint24 fee,
             int24 tickSpacing,
             int24[] memory tickLower,
             int24[] memory tickUpper,
             uint16[] memory numPositions,
-            uint256[] memory maxShareToBeSold,
+            uint256[] memory shareToBeSold,
             BeneficiaryData[] memory beneficiaries
         ) = (
             initData.fee,
@@ -168,42 +169,42 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             initData.tickLower,
             initData.tickUpper,
             initData.numPositions,
-            initData.maxShareToBeSold,
+            initData.shareToBeSold,
             initData.beneficiaries
         );
 
         uint256 numCurves = initData.tickLower.length;
 
         if (
-            numCurves != tickUpper.length || numCurves != maxShareToBeSold.length || numCurves != numPositions.length
-                || maxShareToBeSold.length != numPositions.length
+            numCurves != tickUpper.length || numCurves != shareToBeSold.length || numCurves != numPositions.length
+                || shareToBeSold.length != numPositions.length
         ) {
             revert InvalidArrayLength();
         }
 
         // todo determine if we just put the rest on the curve
-        uint256 totalLBPSupply;
-        uint256 totalLBPPositions;
+        uint256 totalShareToBeSold;
+        uint256 totalNumPositions;
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         bool isToken0 = asset == token0;
 
         int24 lowerTickBoundary = TickMath.MIN_TICK;
         int24 upperTickBoundary = TickMath.MAX_TICK;
 
-        // check the curves to see if they are safe
-        for (uint256 i; i < numCurves; i++) {
-            require(numPositions[i] > 0, ZeroPosition(numPositions[i]));
-            require(maxShareToBeSold[i] > 0, ZeroMaxShare(maxShareToBeSold[i]));
+        // Check the curves to see if they are safe
+        for (uint256 i; i != numCurves; ++i) {
+            require(numPositions[i] > 0, ZeroPosition(i));
+            require(shareToBeSold[i] > 0, ZeroMaxShare(i));
 
-            totalLBPPositions += numPositions[i];
-            totalLBPSupply += maxShareToBeSold[i];
+            totalNumPositions += numPositions[i];
+            totalShareToBeSold += shareToBeSold[i];
 
             int24 currentTickLower = tickLower[i];
             int24 currentTickUpper = tickUpper[i];
 
             // Check if the ticks are in the tick spacing
-            isValidTick(currentTickLower, tickSpacing);
-            isValidTick(currentTickUpper, tickSpacing);
+            _isValidTick(currentTickLower, tickSpacing);
+            _isValidTick(currentTickUpper, tickSpacing);
 
             require(currentTickLower < currentTickUpper, InvalidTickRangeMisordered(currentTickLower, currentTickUpper));
 
@@ -218,7 +219,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
         }
 
-        require(totalLBPSupply <= WAD, MaxShareToBeSoldExceeded(totalLBPSupply, WAD));
+        require(totalShareToBeSold <= WAD, MaxShareToBeSoldExceeded(totalShareToBeSold, WAD));
         require(lowerTickBoundary < upperTickBoundary, InvalidTickRangeMisordered(lowerTickBoundary, upperTickBoundary));
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? lowerTickBoundary : upperTickBoundary);
@@ -233,24 +234,24 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
         poolManager.initialize(poolKey, sqrtPriceX96);
 
-        Position[] memory positions = calculatePositions(
-            isToken0, poolKey, numPositions, tickLower, tickUpper, maxShareToBeSold, totalTokensOnBondingCurve
+        Position[] memory positions = _calculatePositions(
+            poolKey, isToken0, numPositions, tickLower, tickUpper, shareToBeSold, totalTokensOnBondingCurve
         );
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
             tickLower: tickLower,
             tickUpper: tickUpper,
-            maxShareToBeSold: maxShareToBeSold,
+            shareToBeSold: shareToBeSold,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            totalNumPositions: totalLBPPositions + 1, // +1 for the tail position
+            totalNumPositions: totalNumPositions + 1, // +1 for the tail position
             beneficiaries: beneficiaries,
             positions: positions,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey
         });
 
-        require(getState[asset].status == PoolStatus.Uninitialized, "Already initialized");
+        require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
         getState[asset] = state;
 
         _mint(poolKey, positions);
@@ -283,59 +284,56 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             uint128 balance1
         )
     {
-        PoolState memory pool = getState[asset];
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
 
-        require(pool.status == PoolStatus.Initialized, PoolAlreadyExited());
-        pool.status = PoolStatus.Exited;
-
-        // Currency currency0 = getState[asset].poolKey.currency0;
-        // Currency currency1 = getState[poolId].poolKey.currency1;
-        // token0 = Currency.unwrap(currency0);
-        // token1 = Currency.unwrap(currency1);
+        state.status = PoolStatus.Exited;
+        token0 = Currency.unwrap(state.poolKey.currency0);
+        token1 = Currency.unwrap(state.poolKey.currency1);
 
         int24 tick;
-        (sqrtPriceX96, tick,,) = poolManager.getSlot0(pool.poolKey.toId());
+        (sqrtPriceX96, tick,,) = poolManager.getSlot0(state.poolKey.toId());
         bool isToken0 = asset == token0;
 
-        // int24 farTick = isToken0 ? getState[poolId].tickUpper : getState[poolId].tickLower;
-        int24 farTick;
+        int24 farTick = isToken0 ? state.tickUpper[state.tickUpper.length - 1] : state.tickLower[0];
         require(asset == token0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
 
-        uint256 amount0;
-        uint256 amount1;
-        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(pool.poolKey, pool.positions);
+        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, state.positions);
+        balance0 = uint128(balanceDelta.amount0());
+        balance1 = uint128(balanceDelta.amount1());
+        fees0 = uint128(feesAccrued.amount0());
+        fees1 = uint128(feesAccrued.amount1());
 
-        fees0 = uint128(balance0 - amount0);
-        fees1 = uint128(balance1 - amount1);
-
-        pool.poolKey.currency0.transfer(msg.sender, balance0);
-        pool.poolKey.currency1.transfer(msg.sender, balance1);
+        state.poolKey.currency0.transfer(msg.sender, balance0);
+        state.poolKey.currency1.transfer(msg.sender, balance1);
     }
 
     /**
-     * @notice Collects fees from a locked Uniswap V3 pool and distributes them to beneficiaries
-     * @param pool Address of the Uniswap V3 pool
+     * @notice Collects fees from a locked Uniswap V4 pool and distributes them to beneficiaries
+     * @param asset Address of the asset token
      * @return fees0ToDistribute Total fees collected in token0
      * @return fees1ToDistribute Total fees collected in token1
      */
     function collectFees(
-        address pool
+        address asset
     ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
-        require(getState[pool].status == PoolStatus.Locked, PoolLocked());
+        require(getState[asset].status == PoolStatus.Locked, PoolLocked());
 
-        PoolState memory state = getState[pool];
+        PoolState memory state = getState[asset];
 
-        BalanceDelta totalFees = _collect(state.poolKey, getState[pool].positions);
+        BalanceDelta totalFees = _collect(state.poolKey, state.positions);
         fees0ToDistribute = uint128(totalFees.amount0());
         fees1ToDistribute = uint128(totalFees.amount1());
 
-        BeneficiaryData[] memory beneficiaries = getState[pool].beneficiaries;
+        BeneficiaryData[] memory beneficiaries = state.beneficiaries;
 
-        Currency currency0 = getState[pool].poolKey.currency0;
-        Currency currency1 = getState[pool].poolKey.currency1;
+        Currency currency0 = state.poolKey.currency0;
+        Currency currency1 = state.poolKey.currency1;
+
         uint256 amount0Distributed;
         uint256 amount1Distributed;
         address beneficiary;
+
         for (uint256 i; i < beneficiaries.length; ++i) {
             beneficiary = beneficiaries[i].beneficiary;
             uint256 shares = beneficiaries[i].shares;
@@ -356,64 +354,48 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             currency0.transfer(beneficiary, amount0);
             currency1.transfer(beneficiary, amount1);
 
-            emit Collect(pool, beneficiary, amount0, amount1);
+            emit Collect(asset, beneficiary, amount0, amount1);
         }
     }
 
-    function calculatePositions(
-        bool isToken0,
+    function _calculatePositions(
         PoolKey memory poolKey,
+        bool isToken0,
         uint16[] memory numPositions,
         int24[] memory tickLower,
         int24[] memory tickUpper,
-        uint256[] memory maxShareToBeSold,
+        uint256[] memory shareToBeSold,
         uint256 numTokensToSell
-    ) internal returns (Position[] memory lpPositions) {
-        uint256 numCurves = tickLower.length;
-        lpPositions = new Position[](numCurves);
+    ) internal pure returns (Position[] memory positions) {
+        uint256 length = tickLower.length;
+        uint256 totalAssetSupplied;
 
-        uint256 lbpSupply;
-        uint256 currentPositionOffset;
+        for (uint256 i; i != length; ++i) {
+            uint256 curveSupply = FullMath.mulDiv(numTokensToSell, shareToBeSold[i], WAD);
 
-        for (uint256 i; i < numCurves; i++) {
-            uint256 shareToBeSold = FullMath.mulDiv(numTokensToSell, maxShareToBeSold[i], WAD);
-
-            require(shareToBeSold > 0, InvalidShares());
-
-            // TOOD: Compute this
-            uint256 curveSupply;
-
-            // calculate the positions for this curve
-            (Position[] memory newPositions, uint256 reserves) = calculateLogNormalDistribution(
+            // Calculate the positions for this curve
+            (Position[] memory newPositions,) = _calculateLogNormalDistribution(
                 tickLower[i], tickUpper[i], poolKey.tickSpacing, isToken0, numPositions[i], curveSupply
             );
 
-            // add the positions to the array
-            for (uint256 j; j < numPositions[i]; j++) {
-                lpPositions[currentPositionOffset + j] = newPositions[j];
-            }
+            newPositions = _concat(positions, newPositions);
 
-            // update the bonding assets remaining
-            lbpSupply += shareToBeSold;
-            currentPositionOffset += numPositions[i];
+            // Update the bonding assets remaining
+            totalAssetSupplied += curveSupply;
         }
 
         // flush the rest into the tail
-        uint256 tailSupply = numTokensToSell - lbpSupply;
+        uint256 tailSupply = numTokensToSell - totalAssetSupplied;
 
-        lpPositions[numCurves - 1] = calculateLpTail(
-            currentPositionOffset,
-            tickLower[numCurves - 1],
-            tickUpper[numCurves - 1],
-            isToken0,
-            tailSupply,
-            poolKey.tickSpacing
+        uint256 last = positions.length - 1;
+        positions[last] = _calculateLpTail(
+            last, tickLower[length - 1], tickUpper[length - 1], isToken0, tailSupply, poolKey.tickSpacing
         );
     }
 
     /// @notice Calculates the final LP position that extends from the far tick to the pool's min/max tick
     /// @dev This position ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
-    function calculateLpTail(
+    function _calculateLpTail(
         uint256 id,
         int24 tickLower,
         int24 tickUpper,
@@ -422,7 +404,6 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
         int24 tickSpacing
     ) internal pure returns (Position memory lpTail) {
         int24 tailTick = isToken0 ? tickUpper : tickLower;
-
         uint160 sqrtPriceAtTail = TickMath.getSqrtPriceAtTick(tailTick);
 
         uint128 lpTailLiquidity = LiquidityAmounts.getLiquidityForAmounts(
@@ -433,8 +414,8 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             isToken0 ? type(uint256).max : bondingAssetsRemaining
         );
 
-        int24 posTickLower = isToken0 ? tailTick : alignTickToTickSpacing(isToken0, TickMath.MIN_TICK, tickSpacing);
-        int24 posTickUpper = isToken0 ? alignTickToTickSpacing(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick;
+        int24 posTickLower = isToken0 ? tailTick : _alignTickToTickSpacing(isToken0, TickMath.MIN_TICK, tickSpacing);
+        int24 posTickUpper = isToken0 ? _alignTickToTickSpacing(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick;
 
         require(posTickLower < posTickUpper, InvalidTickRangeMisordered(posTickLower, posTickUpper));
 
@@ -447,55 +428,56 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
     ///      - Creates positions: [0,10], [1,10], [2,10], ..., [9,10]
     ///      - Each position gets an equal share of tokens (100 tokens each)
     ///      This creates a linear distribution of liquidity across the tick range
-    function calculateLogNormalDistribution(
+    function _calculateLogNormalDistribution(
         int24 tickLower,
         int24 tickUpper,
         int24 tickSpacing,
         bool isToken0,
-        uint16 totalPositions,
-        uint256 totalAmtToBeSold
+        uint16 numPositions,
+        uint256 curveSupply
     ) internal pure returns (Position[] memory, uint256) {
         int24 farTick = isToken0 ? tickUpper : tickLower;
         int24 closeTick = isToken0 ? tickLower : tickUpper;
-
         int24 spread = tickUpper - tickLower;
 
         uint160 farSqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
-        uint256 amountPerPosition = FullMath.mulDiv(totalAmtToBeSold, WAD, totalPositions * WAD);
-        uint256 totalAssetsSold;
-        Position[] memory newPositions = new Position[](totalPositions + 1);
+        uint256 amountPerPosition = FullMath.mulDiv(curveSupply, WAD, numPositions * WAD);
+        uint256 totalAssetSupplied;
+        Position[] memory positions = new Position[](numPositions + 1);
         uint256 reserves;
 
-        for (uint256 i; i < totalPositions; i++) {
-            // calculate the ticks position * 1/n to optimize the division
+        for (uint256 i; i < numPositions; i++) {
+            // Calculate the ticks position * 1/n to optimize the division
             int24 startingTick = isToken0
-                ? closeTick + int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), totalPositions)))
-                : closeTick - int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), totalPositions)));
+                ? closeTick + int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), numPositions)))
+                : closeTick - int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), numPositions)));
 
-            // round the tick to the nearest bin
-            startingTick = alignTickToTickSpacing(isToken0, startingTick, tickSpacing);
+            // Round the tick to the nearest bin
+            startingTick = _alignTickToTickSpacing(isToken0, startingTick, tickSpacing);
 
             if (startingTick != farTick) {
                 uint160 startingSqrtPriceX96 = TickMath.getSqrtPriceAtTick(startingTick);
 
-                // if totalAmtToBeSold is 0, we skip the liquidity calculation as we are burning max liquidity
-                // in each position
                 uint128 liquidity;
-                if (totalAmtToBeSold != 0) {
+
+                // If curveSupply is 0, we skip the liquidity calculation as we are burning max liquidity in each position
+                if (curveSupply != 0) {
                     liquidity = isToken0
                         ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition)
                         : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition);
 
-                    totalAssetsSold += (
+                    totalAssetSupplied += (
                         isToken0
                             ? SqrtPriceMath.getAmount0Delta(startingSqrtPriceX96, farSqrtPriceX96, liquidity, true)
                             : SqrtPriceMath.getAmount1Delta(farSqrtPriceX96, startingSqrtPriceX96, liquidity, true)
                     );
 
-                    // note: we keep track how the theoretical reserves amount at that time to then calculate the breakeven liquidity amount
-                    // once we get to the end of the loop, we will know exactly how many of the reserve assets have been raised, and we can
-                    // calculate the total amount of reserves after the endTick which makes swappers and LPs indifferent between Uniswap v2 (CPMM) and Uniswap v3 (CLAMM)
-                    // we can then bond the tokens to the Uniswap v2 pool by moving them over to the Uniswap v3 pool whenever possible, but there is no rush as it goes up
+                    // Note: we keep track how the theoretical reserves amount at that time to then calculate the breakeven
+                    // liquidity amount once we get to the end of the loop, we will know exactly how many of the reserve
+                    // assets have been raised, and we can calculate the total amount of reserves after the endTick which
+                    // makes swappers and LPs indifferent between Uniswap v2 (CPMM) and Uniswap v3 (CLAMM) we can then bond
+                    // the tokens to the Uniswap v2 pool by moving them over to the Uniswap v3 pool whenever possible, but
+                    // there is no rush as it goes up
                     reserves += (
                         isToken0
                             ? SqrtPriceMath.getAmount1Delta(
@@ -513,7 +495,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
                     );
                 }
 
-                newPositions[i] = Position({
+                positions[i] = Position({
                     tickLower: farSqrtPriceX96 < startingSqrtPriceX96 ? farTick : startingTick,
                     tickUpper: farSqrtPriceX96 < startingSqrtPriceX96 ? startingTick : farTick,
                     liquidity: liquidity,
@@ -522,9 +504,9 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
             }
         }
 
-        require(totalAssetsSold <= totalAmtToBeSold, CannotMintZeroLiquidity());
+        require(totalAssetSupplied <= curveSupply, CannotMintZeroLiquidity());
 
-        return (newPositions, reserves);
+        return (positions, reserves);
     }
 
     /**
@@ -561,11 +543,11 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
     }
 
     /**
-     * @dev Checks if a tick is valid according to the tick spacing
+     * @dev Checks if a tick is valid according to the tick spacing, reverts if not
      * @param tick Tick to check
      * @param tickSpacing Tick spacing to check against
      */
-    function isValidTick(int24 tick, int24 tickSpacing) internal pure {
+    function _isValidTick(int24 tick, int24 tickSpacing) internal pure {
         if (tick % tickSpacing != 0) revert TickNotAligned(tick);
     }
 
@@ -576,7 +558,7 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
      * @param tickSpacing Tick spacing to align against
      * @return Aligned tick
      */
-    function alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
+    function _alignTickToTickSpacing(bool isToken0, int24 tick, int24 tickSpacing) internal pure returns (int24) {
         if (isToken0) {
             // Round down if isToken0
             if (tick < 0) {
@@ -596,5 +578,21 @@ contract UniswapV4MultiCurveInitializer is IPoolInitializer, ImmutableAirlock, M
                 return (tick + tickSpacing - 1) / tickSpacing * tickSpacing;
             }
         }
+    }
+
+    function _concat(Position[] memory a, Position[] memory b) internal pure returns (Position[] memory) {
+        Position[] memory c = new Position[](a.length + b.length);
+
+        uint256 i;
+
+        for (; i != a.length; ++i) {
+            c[i] = a[i];
+        }
+
+        for (uint256 j; j != b.length; ++j) {
+            c[i++] = b[j];
+        }
+
+        return c;
     }
 }
