@@ -24,13 +24,14 @@ contract DN404FactoryTest is Test {
         string memory name = "Test Token";
         string memory symbol = "TT";
         string memory baseURI = "https://example.com/token/";
+        uint256 unit = 1000e18;
 
         factory.create(
             initialSupply,
             recipient,
             owner,
             salt,
-            abi.encode(name, symbol, baseURI)
+            abi.encode(name, symbol, baseURI, unit)
         );
     }
 
@@ -42,6 +43,7 @@ contract DN404FactoryTest is Test {
         string memory name = "Test Token";
         string memory symbol = "TT";
         string memory baseURI = "https://example.com/token/";
+        uint256 unit = 1000e18;
 
         vm.startPrank(address(0xdead));
         vm.expectRevert(SenderNotAirlock.selector);
@@ -50,7 +52,7 @@ contract DN404FactoryTest is Test {
             recipient,
             owner,
             salt,
-            abi.encode(name, symbol, baseURI)
+            abi.encode(name, symbol, baseURI, unit)
         );
     }
 }
