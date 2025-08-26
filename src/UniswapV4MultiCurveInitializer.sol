@@ -427,8 +427,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             sqrtPriceAtTail,
             TickMath.MIN_SQRT_PRICE,
             TickMath.MAX_SQRT_PRICE,
-            isToken0 ? bondingAssetsRemaining : type(uint256).max,
-            isToken0 ? type(uint256).max : bondingAssetsRemaining
+            isToken0 ? bondingAssetsRemaining : 0,
+            isToken0 ? 0 : bondingAssetsRemaining
         );
 
         int24 posTickLower = isToken0 ? tailTick : _alignTickToTickSpacing(isToken0, TickMath.MIN_TICK, tickSpacing);
