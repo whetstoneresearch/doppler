@@ -26,12 +26,13 @@ contract DN404Factory is ITokenFactory, ImmutableAirlock {
         bytes32 salt,
         bytes calldata data
     ) external onlyAirlock returns (address) {
-        // Keep compatibility with TokenFactory data encoding; we only use name, symbol, tokenURI as baseURI.
+        // Decode name, symbol, baseURI, and unit from the data
         (string memory name,
          string memory symbol,
-         string memory baseURI
-        ) = abi.decode(data, (string, string, string));
+         string memory baseURI,
+         uint256 unit
+        ) = abi.decode(data, (string, string, string, uint256));
 
-        return address(new DopplerDN404{ salt: salt }(name, symbol, initialSupply, recipient, owner, baseURI));
+        return address(new DopplerDN404{ salt: salt }(name, symbol, initialSupply, recipient, owner, baseURI, unit));
     }
 }

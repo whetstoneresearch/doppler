@@ -13,12 +13,16 @@ error PoolLocked();
 /// @notice DN404-based asset token used by the Doppler protocol. From Doppler's point of view,
 ///         this behaves like a standard ERC20, while also exposing an ERC721 mirror.
 contract DopplerDN404 is DN404, Ownable {
+
+    uint256 private immutable UNIT;
+
     // ERC20 metadata
     string private _name;
     string private _symbol;
 
     // ERC721 metadata base URI
     string private _baseURI;
+
 
     /// @notice Address of the liquidity pool used for migration locking
     address public pool;
@@ -32,13 +36,15 @@ contract DopplerDN404 is DN404, Ownable {
         uint256 initialTokenSupply,
         address initialSupplyOwner,
         address owner_,
-        string memory baseURI_
+        string memory baseURI_,
+        uint256 unit_
     ) Ownable(owner_) {
         _name = name_;
         _symbol = symbol_;
         _baseURI = baseURI_;
 
-        // Mirror must be created before initializing and be linked by deployer (factory).
+        UNIT = unit_;
+
         address mirror = address(new DopplerDN404Mirror(msg.sender));
         _initializeDN404(initialTokenSupply, initialSupplyOwner, mirror);
     }
@@ -62,6 +68,10 @@ contract DopplerDN404 is DN404, Ownable {
     function lockPool(address pool_) external onlyOwner {
         pool = pool_;
         isPoolUnlocked = false;
+    }
+
+    function _unit() internal view override returns (uint256) {
+        return UNIT;
     }
 
     /// @notice Unlocks the pool, allowing it to receive tokens

@@ -7,8 +7,8 @@ import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { DopplerDN404, PoolLocked } from "src/dn404/DopplerDN404.sol";
 import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
 
-uint256 constant INITIAL_SUPPLY = 1e20;
-uint256 constant UNIT = 1e18;
+uint256 constant INITIAL_SUPPLY = 1e23;
+uint256 constant UNIT = 1000e18;
 string constant NAME = "Doppler DN404";
 string constant SYMBOL = "D404";
 string constant BASE_URI = "https://example.com/token/";
@@ -22,10 +22,11 @@ contract DopplerDN404Test is Test {
         token = new DopplerDN404(
             NAME,
             SYMBOL,
-            1e20,
+            INITIAL_SUPPLY,
             address(this),
             address(this),
-            BASE_URI
+            BASE_URI,
+            UNIT
         );
         mirror = DopplerDN404Mirror(payable(token.mirrorERC721()));
     }

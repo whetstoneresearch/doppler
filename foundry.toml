@@ -36,7 +36,8 @@ show_metrics = true
 fail_on_revert = true
 
 [etherscan]
-base = { key = "${BASESCAN_API_KEY}" }
+base = { key = "${ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
+base_sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"

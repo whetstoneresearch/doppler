@@ -103,7 +103,7 @@ contract Doppler404V3Test is Test {
         string memory symbol = "BEST";
         string memory baseURI = "https://example.com/token/";
         bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(name, symbol, baseURI);
+        bytes memory tokenFactoryData = abi.encode(name, symbol, baseURI, 1000e18);
 
         // Compute the asset address that will be created
         bytes32 salt = bytes32(0);
@@ -114,7 +114,8 @@ contract Doppler404V3Test is Test {
             initialSupply,
             address(airlock),
             address(airlock),
-            baseURI
+            baseURI,
+            1000e18
         );
         address predictedAsset = vm.computeCreate2Address(
             salt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
@@ -244,7 +245,7 @@ contract Doppler404V3Test is Test {
         string memory symbol = "BEST";
         string memory baseURI = "https://example.com/token/";
         bytes memory governanceData = abi.encode(name, 7200, 50_400, 0);
-        bytes memory tokenFactoryData = abi.encode(name, symbol, baseURI);
+        bytes memory tokenFactoryData = abi.encode(name, symbol, baseURI, 1000e18);
 
         // Compute the asset address that will be created
         bytes memory creationCode = type(DopplerDN404).creationCode;
@@ -254,7 +255,8 @@ contract Doppler404V3Test is Test {
             initialSupply,
             address(airlock),
             address(airlock),
-            baseURI
+            baseURI,
+            1000e18
         );
         address predictedAsset = vm.computeCreate2Address(
             tokenSalt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
@@ -477,7 +479,7 @@ contract Doppler404V4Test is Test {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         string memory baseURI = "https://example.com/token/";
-        bytes memory tokenFactoryData = abi.encode(name, symbol, baseURI);
+        bytes memory tokenFactoryData = abi.encode(name, symbol, baseURI, 1000e18);
         bytes memory poolInitializerData = abi.encode(
             DEFAULT_MINIMUM_PROCEEDS,
             DEFAULT_MAXIMUM_PROCEEDS,
