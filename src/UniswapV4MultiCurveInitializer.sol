@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
@@ -396,7 +396,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
                 tickLower[i], tickUpper[i], poolKey.tickSpacing, isToken0, numPositions[i], curveSupply
             );
 
-            newPositions = _concat(positions, newPositions);
+            positions = _concat(positions, newPositions);
 
             // Update the bonding assets remaining
             totalAssetSupplied += curveSupply;
@@ -405,10 +405,9 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         // flush the rest into the tail
         uint256 tailSupply = numTokensToSell - totalAssetSupplied;
 
-        uint256 last = positions.length - 1;
-        positions[last] = _calculateLpTail(
-            last, tickLower[length - 1], tickUpper[length - 1], isToken0, tailSupply, poolKey.tickSpacing
-        );
+        positions = _concat(positions, new Position[](1));
+        positions[positions.length - 1] =
+            _calculateLpTail(0, tickLower[length - 1], tickUpper[length - 1], isToken0, tailSupply, poolKey.tickSpacing);
     }
 
     /// @notice Calculates the final LP position that extends from the far tick to the pool's min/max tick
