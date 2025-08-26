@@ -21,6 +21,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     function test_constructor() public view {
         assertEq(address(initializer.airlock()), airlock);
         assertEq(address(initializer.poolManager()), address(manager));
-        assertEq(address(initializer.multicurveHook()), address(hook));
+        assertEq(address(initializer.hook()), address(hook));
     }
 }
