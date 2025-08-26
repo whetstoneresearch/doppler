@@ -17,4 +17,10 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
         initializer = new UniswapV4MulticurveInitializer(airlock, manager, hook);
     }
+
+    function test_constructor() public view {
+        assertEq(address(initializer.airlock()), airlock);
+        assertEq(address(initializer.poolManager()), address(manager));
+        assertEq(address(initializer.multicurveHook()), address(hook));
+    }
 }
