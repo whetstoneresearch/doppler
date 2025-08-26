@@ -46,7 +46,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
     ) internal view override onlyInitializer(sender) returns (bytes4) {
-        return BaseHook.beforeInitialize.selector;
+        return BaseHook.beforeAddLiquidity.selector;
     }
 
     /// @inheritdoc BaseHook
