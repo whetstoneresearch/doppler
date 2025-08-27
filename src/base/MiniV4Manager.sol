@@ -171,13 +171,14 @@ abstract contract MiniV4Manager is IUnlockCallback {
 
         if (delta.amount0() < 0) {
             poolManager.sync(poolKey.currency0);
-            poolKey.currency0.transfer(address(poolManager), uint128(delta.amount0()));
+
+            poolKey.currency0.transfer(address(poolManager), uint128(-delta.amount0()));
             poolManager.settle();
         }
 
         if (delta.amount1() < 0) {
             poolManager.sync(poolKey.currency1);
-            poolKey.currency1.transfer(address(poolManager), uint128(delta.amount1()));
+            poolKey.currency1.transfer(address(poolManager), uint128(-delta.amount1()));
             poolManager.settle();
         }
     }
