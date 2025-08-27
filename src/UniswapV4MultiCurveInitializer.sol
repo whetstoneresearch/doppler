@@ -37,9 +37,6 @@ event Collect(address indexed pool, address indexed beneficiary, uint256 fees0, 
  */
 event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 
-/// @notice Thrown when the caller is not the Pool contract
-error OnlyPool();
-
 /// @notice Thrown when the pool is already initialized
 error PoolAlreadyInitialized();
 
