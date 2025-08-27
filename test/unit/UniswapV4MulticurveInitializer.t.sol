@@ -6,7 +6,13 @@ import { IPoolManager, PoolKey, IHooks, BalanceDelta } from "@v4-core/interfaces
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { UniswapV4MulticurveInitializer, InitData, BeneficiaryData, WAD } from "src/UniswapV4MulticurveInitializer.sol";
+import {
+    UniswapV4MulticurveInitializer,
+    InitData,
+    BeneficiaryData,
+    WAD,
+    CannotMigrateInsufficientTick
+} from "src/UniswapV4MulticurveInitializer.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 
 contract UniswapV4MulticurveInitializerTest is Deployers {
@@ -63,5 +69,12 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
+    }
+
+    function test_exitLiquidity_RevertsWhenInsufficientTick() public {
+        test_initialize();
+        vm.prank(airlock);
+        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, TickMath.MIN_TICK));
+        initializer.exitLiquidity(Currency.unwrap(currency0));
     }
 }
