@@ -13,6 +13,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { Position } from "src/types/Position.sol";
 
 enum Actions {
     Mint,
@@ -28,13 +29,6 @@ struct CallbackData {
     Actions action;
     PoolKey poolKey;
     Position[] positions;
-}
-
-struct Position {
-    int24 tickLower;
-    int24 tickUpper;
-    uint128 liquidity;
-    uint16 id;
 }
 
 abstract contract MiniV4Manager is IUnlockCallback {
@@ -114,7 +108,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 tickLower: pos.tickLower,
                 tickUpper: pos.tickUpper,
                 liquidityDelta: int128(pos.liquidity),
-                salt: 0 // TODO: Not sure if we really need to set one
+                salt: pos.salt // TODO: Not sure if we really need to set one
              });
 
             (BalanceDelta delta,) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
@@ -134,7 +128,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 tickLower: pos.tickLower,
                 tickUpper: pos.tickUpper,
                 liquidityDelta: -int128(pos.liquidity),
-                salt: 0
+                salt: pos.salt
             });
 
             (BalanceDelta delta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
@@ -155,7 +149,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 tickLower: pos.tickLower,
                 tickUpper: pos.tickUpper,
                 liquidityDelta: 0,
-                salt: 0
+                salt: pos.salt
             });
 
             (, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));

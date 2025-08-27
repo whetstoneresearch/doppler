@@ -5,7 +5,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
 error OnlyInitializer();
@@ -35,7 +35,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
      * @param manager Address of the Uniswap V4 Pool Manager
      * @param initializer_ Address of the Uniswap V4 Multicurve Initializer contract
      */
-    constructor(IPoolManager manager, UniswapV4MulticurveInitializerHook initializer_) BaseHook(manager) {
+    constructor(IPoolManager manager, UniswapV4MulticurveInitializer initializer_) BaseHook(manager) {
         initializer = address(initializer_);
     }
 
