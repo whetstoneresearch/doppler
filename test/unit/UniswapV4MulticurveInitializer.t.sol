@@ -20,6 +20,8 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
         initializer = new UniswapV4MulticurveInitializer(airlock, manager, hook);
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(hook));
+        vm.label(Currency.unwrap(currency0), "Currency0");
+        vm.label(Currency.unwrap(currency1), "Currency1");
     }
 
     function test_constructor() public view {
@@ -30,7 +32,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
     function test_initialize() public {
         int24 tickSpacing = 8;
-
         int24[] memory tickLower = new int24[](10);
         int24[] memory tickUpper = new int24[](10);
         uint16[] memory numPositions = new uint16[](10);
