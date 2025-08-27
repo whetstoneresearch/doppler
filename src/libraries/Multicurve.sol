@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
+import { console } from "forge-std/console.sol";
+
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
@@ -23,13 +25,15 @@ function calculatePositions(
 ) pure returns (Position[] memory positions) {
     uint256 length = tickLower.length;
     uint256 totalAssetSupplied;
+    uint256 totalShares;
 
     for (uint256 i; i != length; ++i) {
+        totalShares += shareToBeSold[i];
         uint256 curveSupply = FullMath.mulDiv(numTokensToSell, shareToBeSold[i], WAD);
 
         // Calculate the positions for this curve
         (Position[] memory newPositions,) = calculateLogNormalDistribution(
-            tickLower[i], tickUpper[i], poolKey.tickSpacing, isToken0, numPositions[i], curveSupply
+            i, tickLower[i], tickUpper[i], poolKey.tickSpacing, isToken0, numPositions[i], curveSupply
         );
 
         positions = concat(positions, newPositions);
@@ -37,6 +41,8 @@ function calculatePositions(
         // Update the bonding assets remaining
         totalAssetSupplied += curveSupply;
     }
+
+    require(totalShares == WAD, "Shares must sum to 1e18");
 
     // Flush the rest into the tail
     Position memory lpTailPosition = calculateLpTail(
@@ -83,12 +89,22 @@ function calculateLpTail(
     lpTail = Position({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, salt: salt });
 }
 
-/// @notice Calculates the distribution of liquidity positions across tick ranges
-/// @dev For example, with 1000 tokens and 10 bins starting at tick 0:
-///      - Creates positions: [0,10], [1,10], [2,10], ..., [9,10]
-///      - Each position gets an equal share of tokens (100 tokens each)
-///      This creates a linear distribution of liquidity across the tick range
+/**
+ * @notice Calculates the distribution of liquidity positions across tick ranges
+ * @dev For example, with 1000 tokens and 10 bins starting at tick 0:
+ * - Creates positions: [0,10], [1,10], [2,10], ..., [9,10]
+ * - Each position gets an equal share of tokens (100 tokens each)
+ * - This creates a linear distribution of liquidity across the tick range
+ * @param tickLower Lower tick of the range
+ * @param tickUpper Upper tick of the range
+ * @param tickSpacing Tick spacing of the pool
+ * @param isToken0 True if the asset token is token0, false otherwise
+ * @param numPositions Amount of positions to create within the range
+ * @param curveSupply Amount of tokens to distribute across the positions
+ * @return Array of Position structs
+ */
 function calculateLogNormalDistribution(
+    uint256 index,
     int24 tickLower,
     int24 tickUpper,
     int24 tickSpacing,
@@ -159,12 +175,12 @@ function calculateLogNormalDistribution(
                 tickLower: farSqrtPriceX96 < startingSqrtPriceX96 ? farTick : startingTick,
                 tickUpper: farSqrtPriceX96 < startingSqrtPriceX96 ? startingTick : farTick,
                 liquidity: liquidity,
-                salt: bytes32(abi.encode(tickLower, i))
+                salt: bytes32(index * numPositions + i)
             });
         }
     }
 
-    // require(totalAssetSupplied <= curveSupply, CannotMintZeroLiquidity());
+    require(totalAssetSupplied == curveSupply, "Supply not full used");
 
     return (positions, reserves);
 }
