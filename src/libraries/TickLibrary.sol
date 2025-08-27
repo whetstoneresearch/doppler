@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+/// @notice Thrown when the tick is not aligned with the tick spacing
 error TickNotAligned(int24 tick);
 
 /// @notice Thrown when the tick range is misordered
@@ -41,4 +42,13 @@ function alignTick(bool isToken0, int24 tick, int24 tickSpacing) pure returns (i
  */
 function isTickAligned(int24 tick, int24 tickSpacing) pure {
     if (tick % tickSpacing != 0) revert TickNotAligned(tick);
+}
+
+/**
+ * @dev Checks if a tick range is , reverts if not
+ * @param tickLower Lower tick of the range
+ * @param tickUpper Upper tick of the range
+ */
+function isRangeOrdered(int24 tickLower, int24 tickUpper) pure {
+    if (tickLower > tickUpper) revert TickRangeMisordered(tickLower, tickUpper);
 }

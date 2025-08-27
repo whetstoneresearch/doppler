@@ -18,7 +18,7 @@ import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, validateBeneficiaries } from "src/types/BeneficiaryData.sol";
-import { isTickAligned, alignTick, TickRangeMisordered } from "src/libraries/TickLibrary.sol";
+import { isTickAligned, alignTick, isRangeOrdered } from "src/libraries/TickLibrary.sol";
 import { calculateLpTail, calculatePositions, calculateLogNormalDistribution } from "src/libraries/Multicurve.sol";
 
 /**
@@ -201,8 +201,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
             isTickAligned(currentTickLower, tickSpacing);
             isTickAligned(currentTickUpper, tickSpacing);
-
-            require(currentTickLower < currentTickUpper, TickRangeMisordered(currentTickLower, currentTickUpper));
+            isRangeOrdered(currentTickLower, currentTickUpper);
 
             // Flip the ticks if the asset is token1
             if (!isToken0) {
@@ -216,7 +215,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         }
 
         require(totalShareToBeSold <= WAD, MaxShareToBeSoldExceeded(totalShareToBeSold, WAD));
-        require(lowerTickBoundary < upperTickBoundary, TickRangeMisordered(lowerTickBoundary, upperTickBoundary));
+        isRangeOrdered(lowerTickBoundary, upperTickBoundary);
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? lowerTickBoundary : upperTickBoundary);
 
