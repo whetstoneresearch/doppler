@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { console } from "forge-std/console.sol";
-
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -15,11 +12,12 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { MiniV4Manager, Position } from "src/MiniV4Manager.sol";
+
+import { MiniV4Manager, Position } from "src/base/MiniV4Manager.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { BeneficiaryData, validateBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { isTickAligned, alignTick, TickRangeMisordered } from "src/libraries/TickLibrary.sol";
 import { calculateLpTail, calculatePositions, calculateLogNormalDistribution } from "src/libraries/Multicurve.sol";
 
@@ -59,21 +57,6 @@ error CannotMintZeroLiquidity();
 
 /// @notice Thrown when the max share to be sold exceeds the maximum unit
 error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
-
-/// @dev Thrown when the beneficiaries are not in ascending order
-error UnorderedBeneficiaries();
-
-/// @notice Thrown when shares are invalid
-error InvalidShares();
-
-/// @notice Thrown when total shares are not equal to WAD
-error InvalidTotalShares();
-
-/// @notice Thrown when protocol owner shares are invalid
-error InvalidProtocolOwnerShares();
-
-/// @notice Thrown when protocol owner beneficiary is not found
-error InvalidProtocolOwnerBeneficiary();
 
 /// @notice Thrown when a mismatched info length for curves
 error InvalidArrayLength();
@@ -275,7 +258,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         emit Create(address(poolManager), asset, numeraire);
 
         if (beneficiaries.length != 0) {
-            _validateBeneficiaries(beneficiaries);
+            validateBeneficiaries(airlock.owner(), beneficiaries);
             emit Lock(pool, beneficiaries);
         }
 
@@ -372,38 +355,5 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
             emit Collect(asset, beneficiary, amount0, amount1);
         }
-    }
-
-    /**
-     * @dev Validates beneficiaries array and ensures protocol owner compliance
-     * @param beneficiaries Array of beneficiaries to validate
-     */
-    function _validateBeneficiaries(
-        BeneficiaryData[] memory beneficiaries
-    ) internal view {
-        address protocolOwner = Airlock(airlock).owner();
-        address prevBeneficiary;
-        uint256 totalShares;
-        bool foundProtocolOwner;
-
-        for (uint256 i; i < beneficiaries.length; i++) {
-            BeneficiaryData memory beneficiary = beneficiaries[i];
-
-            // Validate ordering and shares
-            require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
-            require(beneficiary.shares > 0, InvalidShares());
-
-            // Check for protocol owner and validate minimum share requirement
-            if (beneficiary.beneficiary == protocolOwner) {
-                require(beneficiary.shares >= WAD / 20, InvalidProtocolOwnerShares());
-                foundProtocolOwner = true;
-            }
-
-            prevBeneficiary = beneficiary.beneficiary;
-            totalShares += beneficiary.shares;
-        }
-
-        require(totalShares == WAD, InvalidTotalShares());
-        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
     }
 }
