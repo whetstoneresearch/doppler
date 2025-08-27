@@ -9,4 +9,8 @@ out/
 # Dotenv file
 .env
 
+/.venv
+/vis-output
+.python-version
+
 /node_modules

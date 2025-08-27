@@ -7,7 +7,7 @@ import { BaseV4Quoter } from "@v4-periphery/base/BaseV4Quoter.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { Doppler, Position } from "src/Doppler.sol";
+import { Doppler, Position } from "../Doppler.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 // Demarcates the id of the lower, upper, and price discovery slugs

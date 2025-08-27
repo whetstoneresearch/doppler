@@ -9,7 +9,7 @@ import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { Doppler, SlugData, Position } from "src/Doppler.sol";
+import { Doppler, SlugData, Position } from "../../src/Doppler.sol";
 
 contract DopplerImplementation is Doppler {
     using PoolIdLibrary for PoolKey;

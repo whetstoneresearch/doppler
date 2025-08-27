@@ -17,15 +17,15 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { StateView, IStateView } from "@v4-periphery/lens/StateView.sol";
-import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { DopplerLensQuoter } from "../../src/lens/DopplerLens.sol";
 import { V4Quoter, IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
-import { CustomRouter } from "test/shared/CustomRouter.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
+import { CustomRouter } from "../../test/shared/CustomRouter.sol";
+import { MAX_SWAP_FEE } from "../../src/Doppler.sol";
 import { DopplerImplementation } from "./DopplerImplementation.sol";
 
 using PoolIdLibrary for PoolKey;

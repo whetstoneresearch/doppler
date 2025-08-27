@@ -116,10 +116,7 @@ for i, json_str in enumerate(json_lines):
     ax.grid(True)
 
     # Save the figure with a unique filename
-    if timestamp is not None:
-        plt.savefig(f"slug_plot_{timestamp}.png")
-    else:
-        plt.savefig(f"slug_plot_{i}.png")
+    plt.savefig(f"vis-output/slugs_{i}.png")
     plt.close()
 
 print("Charts have been generated and saved.")

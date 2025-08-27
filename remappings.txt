@@ -6,6 +6,8 @@ hardhat/=lib/v4-core/node_modules/hardhat/
 permit2/=lib/v4-periphery/lib/permit2/
 
 @solmate/=lib/v4-core/lib/solmate/src
+solmate/=lib/v4-core/lib/solmate/
+
 @solady/=lib/solady/src/
 src:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
 test:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
