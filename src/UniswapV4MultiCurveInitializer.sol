@@ -233,6 +233,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             poolKey, isToken0, numPositions, tickLower, tickUpper, shareToBeSold, totalTokensOnBondingCurve
         );
 
+        require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
+
         PoolState memory state = PoolState({
             numeraire: numeraire,
             tickLower: tickLower,
@@ -246,7 +248,6 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             poolKey: poolKey
         });
 
-        require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
         getState[asset] = state;
 
         _mint(poolKey, positions);
