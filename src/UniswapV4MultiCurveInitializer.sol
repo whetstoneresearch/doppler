@@ -127,6 +127,14 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
 
+    mapping(address asset => uint256 cumulatedFees0) public getCumulatedFees0;
+    mapping(address asset => uint256 cumulatedFees1) public getCumulatedFees1;
+
+    mapping(address asset => mapping(address beneficiary => uint256 lastCumulatedFees0)) public getLastCumulatedFees0;
+    mapping(address asset => mapping(address beneficiary => uint256 lastCumulatedFees1)) public getLastCumulatedFees1;
+
+    mapping(address asset => mapping(address beneficiary => uint256 shares)) public getShares;
+
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
@@ -298,52 +306,39 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
     }
 
     /**
-     * @notice Collects fees from a locked Uniswap V4 pool and distributes them to beneficiaries
+     * @notice Collects fees from a locked Uniswap V4 pool, distributes to the caller if applicable
+     * @dev Collected fees are now held in this contract until they are claimed by their beneficiary
      * @param asset Address of the asset token
-     * @return fees0ToDistribute Total fees collected in token0
-     * @return fees1ToDistribute Total fees collected in token1
+     * @return fees0 Total fees collected in token0 since last collection
+     * @return fees1 Total fees collected in token1 since last collection
      */
     function collectFees(
         address asset
-    ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
-        require(getState[asset].status == PoolStatus.Locked, PoolLocked());
-
+    ) external returns (uint256 fees0, uint256 fees1) {
         PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, PoolLocked());
 
-        BalanceDelta totalFees = _collect(state.poolKey, state.positions);
-        fees0ToDistribute = uint128(totalFees.amount0());
-        fees1ToDistribute = uint128(totalFees.amount1());
+        BalanceDelta fees = _collect(state.poolKey, state.positions);
+        fees0 = uint128(fees.amount0());
+        fees1 = uint128(fees.amount1());
 
-        BeneficiaryData[] memory beneficiaries = state.beneficiaries;
+        getCumulatedFees0[asset] += fees0;
+        getCumulatedFees1[asset] += fees1;
 
-        Currency currency0 = state.poolKey.currency0;
-        Currency currency1 = state.poolKey.currency1;
+        uint256 shares = getShares[asset][msg.sender];
 
-        uint256 amount0Distributed;
-        uint256 amount1Distributed;
-        address beneficiary;
+        if (shares > 0) {
+            uint256 delta0 = getCumulatedFees0[asset] - getLastCumulatedFees0[asset][msg.sender];
+            uint256 amount0 = delta0 * shares / WAD;
+            getLastCumulatedFees0[asset][msg.sender] = getCumulatedFees0[asset];
+            if (amount0 > 0) state.poolKey.currency0.transfer(msg.sender, amount0);
 
-        for (uint256 i; i < beneficiaries.length; ++i) {
-            beneficiary = beneficiaries[i].beneficiary;
-            uint256 shares = beneficiaries[i].shares;
+            uint256 delta1 = getCumulatedFees1[asset] - getLastCumulatedFees1[asset][msg.sender];
+            uint256 amount1 = delta1 * shares / WAD;
+            getLastCumulatedFees1[asset][msg.sender] = getCumulatedFees1[asset];
+            if (amount1 > 0) state.poolKey.currency1.transfer(msg.sender, amount1);
 
-            // Calculate share of fees for this beneficiary
-            uint256 amount0 = fees0ToDistribute * shares / WAD;
-            uint256 amount1 = fees1ToDistribute * shares / WAD;
-
-            amount0Distributed += amount0;
-            amount1Distributed += amount1;
-
-            if (i == beneficiaries.length - 1) {
-                // Distribute the remaining fees to the last beneficiary
-                amount0 += fees0ToDistribute > amount0Distributed ? fees0ToDistribute - amount0Distributed : 0;
-                amount1 += fees1ToDistribute > amount1Distributed ? fees1ToDistribute - amount1Distributed : 0;
-            }
-
-            currency0.transfer(beneficiary, amount0);
-            currency1.transfer(beneficiary, amount1);
-
-            emit Collect(asset, beneficiary, amount0, amount1);
+            emit Collect(asset, msg.sender, amount0, amount1);
         }
     }
 }
