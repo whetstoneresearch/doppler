@@ -13,6 +13,7 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 
+import { WAD } from "src/types/Wad.sol";
 import { MiniV4Manager, Position } from "src/base/MiniV4Manager.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -61,9 +62,6 @@ error InvalidArrayLength();
 error ZeroPosition(uint256 index);
 
 error ZeroMaxShare(uint256 index);
-
-/// @dev Constant used to increase precision during calculations
-uint256 constant WAD = 1e18;
 
 struct InitData {
     uint24 fee;

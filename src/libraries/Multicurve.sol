@@ -11,8 +11,7 @@ import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 import { Position, concat } from "src/types/Position.sol";
 import { isTickAligned, alignTick, TickRangeMisordered } from "src/libraries/TickLibrary.sol";
-
-uint256 constant WAD = 1e18;
+import { WAD } from "src/types/Wad.sol";
 
 function calculatePositions(
     PoolKey memory poolKey,
