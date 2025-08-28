@@ -11,9 +11,15 @@ import {
     InitData,
     BeneficiaryData,
     WAD,
-    CannotMigrateInsufficientTick
+    CannotMigrateInsufficientTick,
+    PoolAlreadyInitialized,
+    PoolStatus,
+    PoolState
 } from "src/UniswapV4MulticurveInitializer.sol";
+import { Position } from "src/types/Position.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 
 contract UniswapV4MulticurveInitializerTest is Deployers {
     UniswapV4MulticurveInitializer public initializer;
@@ -36,7 +42,69 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         assertEq(address(initializer.hook()), address(hook));
     }
 
-    function test_initialize() public {
+    function test_initialize_RevertsWhenSenderNotAirlock() public {
+        InitData memory initData = _prepareInitData();
+        vm.expectRevert(SenderNotAirlock.selector);
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), 1e27, bytes32(0), abi.encode(initData)
+        );
+    }
+
+    function test_initialize_RevertsWhenAlreadyInitialized() public {
+        uint256 totalTokensOnBondingCurve = 1e27;
+        InitData memory initData = _prepareInitData();
+
+        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
+        vm.prank(airlock);
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
+        );
+        vm.expectRevert(PoolAlreadyInitialized.selector);
+        vm.prank(airlock);
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), 1e27, bytes32(0), abi.encode(initData)
+        );
+    }
+
+    function test_exitLiquidity_RevertsWhenInsufficientTick() public {
+        test_initialize_AddsLiquidity();
+        vm.prank(airlock);
+        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, TickMath.MIN_TICK));
+        initializer.exitLiquidity(Currency.unwrap(currency0));
+    }
+
+    function test_initialize_AddsLiquidity() public {
+        uint256 totalTokensOnBondingCurve = 1e27;
+        InitData memory initData = _prepareInitData();
+
+        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
+        vm.prank(airlock);
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
+        );
+    }
+
+    function test_initialize_UpdatesState() public {
+        uint256 totalTokensOnBondingCurve = 1e27;
+        InitData memory initData = _prepareInitData();
+
+        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
+        vm.prank(airlock);
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
+        );
+
+        (
+            address numeraire,
+            uint256 totalTokensOnBondingCurve_,
+            uint256 totalNumPositions,
+            PoolStatus status,
+            PoolKey memory poolKey
+        ) = initializer.getState(Currency.unwrap(currency0));
+        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Incorrect status");
+    }
+
+    function _prepareInitData() internal returns (InitData memory) {
         int24 tickSpacing = 8;
         int24[] memory tickLower = new int24[](10);
         int24[] memory tickUpper = new int24[](10);
@@ -52,9 +120,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
 
-        uint256 totalTokensOnBondingCurve = 1e27;
-
-        InitData memory initData = InitData({
+        return InitData({
             fee: 0,
             tickSpacing: tickSpacing,
             tickLower: tickLower,
@@ -63,18 +129,5 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
             shareToBeSold: shareToBeSold,
             beneficiaries: beneficiaries
         });
-
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
-        vm.prank(airlock);
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
-    }
-
-    function test_exitLiquidity_RevertsWhenInsufficientTick() public {
-        test_initialize();
-        vm.prank(airlock);
-        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, TickMath.MIN_TICK));
-        initializer.exitLiquidity(Currency.unwrap(currency0));
     }
 }
