@@ -125,6 +125,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
 
+    /// @notice Address of the Uniswap V4 Multicurve hook
     IHooks public immutable hook;
 
     /// @notice Returns the state of a pool
