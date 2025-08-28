@@ -93,8 +93,6 @@ struct PoolState {
     int24[] tickLower;
     int24[] tickUpper;
     uint256[] shareToBeSold;
-    uint256 totalTokensOnBondingCurve;
-    uint256 totalNumPositions;
     BeneficiaryData[] beneficiaries;
     Position[] positions;
     PoolStatus status;
@@ -182,9 +180,16 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
         // todo determine if we just put the rest on the curve
         uint256 totalShareToBeSold;
-        uint256 totalNumPositions;
-        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
-        bool isToken0 = asset == token0;
+
+        PoolKey memory poolKey = PoolKey({
+            currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
+            currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
+            hooks: hook,
+            fee: fee,
+            tickSpacing: tickSpacing
+        });
+
+        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
         int24 lowerTickBoundary = TickMath.MIN_TICK;
         int24 upperTickBoundary = TickMath.MAX_TICK;
@@ -194,7 +199,6 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             require(numPositions[i] > 0, ZeroPosition(i));
             require(shareToBeSold[i] > 0, ZeroMaxShare(i));
 
-            totalNumPositions += numPositions[i];
             totalShareToBeSold += shareToBeSold[i];
 
             int24 currentTickLower = tickLower[i];
@@ -220,14 +224,6 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? lowerTickBoundary : upperTickBoundary);
 
-        PoolKey memory poolKey = PoolKey({
-            currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
-            currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: hook,
-            fee: fee,
-            tickSpacing: tickSpacing
-        });
-
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         Position[] memory positions = calculatePositions(
@@ -241,8 +237,6 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             tickLower: tickLower,
             tickUpper: tickUpper,
             shareToBeSold: shareToBeSold,
-            totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            totalNumPositions: totalNumPositions + 1, // +1 for the tail position
             beneficiaries: beneficiaries,
             positions: positions,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
