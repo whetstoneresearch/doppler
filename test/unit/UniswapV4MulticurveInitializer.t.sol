@@ -94,17 +94,13 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
 
-        (
-            address numeraire,
-            uint256 totalTokensOnBondingCurve_,
-            uint256 totalNumPositions,
-            PoolStatus status,
-            PoolKey memory poolKey
-        ) = initializer.getState(Currency.unwrap(currency0));
+        (address numeraire, PoolStatus status, PoolKey memory poolKey) =
+            initializer.getState(Currency.unwrap(currency0));
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Incorrect status");
+        assertEq(numeraire, Currency.unwrap(currency0), "Incorrect numeraire");
     }
 
-    function _prepareInitData() internal returns (InitData memory) {
+    function _prepareInitData() internal pure returns (InitData memory) {
         int24 tickSpacing = 8;
         int24[] memory tickLower = new int24[](10);
         int24[] memory tickUpper = new int24[](10);
