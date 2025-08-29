@@ -108,13 +108,14 @@ contract StreamableFeesLockerV2 is ReentrancyGuard, Ownable, MiniV4Manager {
     }
 
     function lock(
-        PoolId poolId,
         PoolKey memory poolKey,
         uint32 lockDuration,
         address recipient,
         BeneficiaryData[] calldata beneficiaries,
         Position[] calldata positions
     ) external onlyApprovedMigrator {
+        PoolId poolId = poolKey.toId();
+
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity
         streams[poolId] = StreamData({
@@ -126,6 +127,8 @@ contract StreamableFeesLockerV2 is ReentrancyGuard, Ownable, MiniV4Manager {
             lockDuration: lockDuration,
             positions: positions
         });
+
+        _mint(poolKey, positions);
 
         emit Lock(poolId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + lockDuration : 0);
     }
