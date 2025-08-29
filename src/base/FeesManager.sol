@@ -46,7 +46,7 @@ abstract contract FeesManager {
 
     mapping(PoolId poolId => PoolKey poolKey) public getPoolKey;
 
-    function _validateBeneficiaries(
+    function _storeBeneficiaries(
         PoolId poolId,
         address protocolOwner,
         BeneficiaryData[] memory beneficiaries
