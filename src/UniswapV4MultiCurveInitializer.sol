@@ -281,8 +281,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
     {
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
+        getState[asset].status = PoolStatus.Exited;
 
-        state.status = PoolStatus.Exited;
         token0 = Currency.unwrap(state.poolKey.currency0);
         token1 = Currency.unwrap(state.poolKey.currency1);
 
