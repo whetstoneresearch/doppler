@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+
 /// @notice Thrown when the tick is not aligned with the tick spacing
 error TickNotAligned(int24 tick);
 
@@ -51,4 +54,11 @@ function isTickAligned(int24 tick, int24 tickSpacing) pure {
  */
 function isRangeOrdered(int24 tickLower, int24 tickUpper) pure {
     if (tickLower > tickUpper) revert TickRangeMisordered(tickLower, tickUpper);
+}
+
+function isTickSpacingValid(
+    int24 tickSpacing
+) pure {
+    require(tickSpacing <= TickMath.MAX_TICK_SPACING, IPoolManager.TickSpacingTooLarge(tickSpacing));
+    require(tickSpacing >= TickMath.MIN_TICK_SPACING, IPoolManager.TickSpacingTooSmall(tickSpacing));
 }
