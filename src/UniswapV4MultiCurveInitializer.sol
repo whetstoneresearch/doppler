@@ -135,6 +135,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
+     * @param hook_ Address of the UniswapV4MulticurveInitializerHook
      */
     constructor(
         address airlock_,
