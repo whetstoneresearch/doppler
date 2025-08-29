@@ -18,7 +18,7 @@ import { MiniV4Manager, Position } from "src/base/MiniV4Manager.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { BeneficiaryData, validateBeneficiaries } from "src/types/BeneficiaryData.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { isTickAligned, alignTick, isRangeOrdered } from "src/libraries/TickLibrary.sol";
 import { calculateLpTail, calculatePositions, calculateLogNormalDistribution } from "src/libraries/Multicurve.sol";
 
@@ -62,6 +62,21 @@ error InvalidArrayLength();
 error ZeroPosition(uint256 index);
 
 error ZeroMaxShare(uint256 index);
+
+/// @dev Thrown when the beneficiaries are not in ascending order
+error UnorderedBeneficiaries();
+
+/// @notice Thrown when shares are invalid
+error InvalidShares();
+
+/// @notice Thrown when protocol owner beneficiary is not found
+error InvalidProtocolOwnerBeneficiary();
+
+/// @notice Thrown when total shares are not equal to WAD
+error InvalidTotalShares();
+
+/// @notice Thrown when protocol owner shares are invalid
+error InvalidProtocolOwnerShares();
 
 struct InitData {
     uint24 fee;
@@ -256,7 +271,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         emit Create(address(poolManager), asset, numeraire);
 
         if (beneficiaries.length != 0) {
-            validateBeneficiaries(airlock.owner(), beneficiaries);
+            _validateBeneficiaries(asset, airlock.owner(), beneficiaries);
             emit Lock(pool, beneficiaries);
         }
 
@@ -340,5 +355,37 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
             emit Collect(asset, msg.sender, amount0, amount1);
         }
+    }
+
+    function _validateBeneficiaries(
+        address asset,
+        address protocolOwner,
+        BeneficiaryData[] memory beneficiaries
+    ) internal {
+        address prevBeneficiary;
+        uint256 totalShares;
+        bool foundProtocolOwner;
+
+        for (uint256 i; i < beneficiaries.length; i++) {
+            BeneficiaryData memory beneficiary = beneficiaries[i];
+
+            // Validate ordering and shares
+            require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
+            require(beneficiary.shares > 0, InvalidShares());
+
+            // Check for protocol owner and validate minimum share requirement
+            if (beneficiary.beneficiary == protocolOwner) {
+                require(beneficiary.shares >= WAD / 20, InvalidProtocolOwnerShares());
+                foundProtocolOwner = true;
+            }
+
+            prevBeneficiary = beneficiary.beneficiary;
+            totalShares += beneficiary.shares;
+
+            getShares[asset][prevBeneficiary] = beneficiary.shares;
+        }
+
+        require(totalShares == WAD, InvalidTotalShares());
+        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
     }
 }
