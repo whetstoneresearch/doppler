@@ -4,16 +4,13 @@ pragma solidity ^0.8.24;
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 
 import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { WAD } from "src/types/Wad.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
 /// @notice Data structure for position information
@@ -60,7 +57,7 @@ event MigratorApproval(address indexed migrator, bool approval);
 /// @notice A contract that manages fee streaming for Uniswap V4 positions
 /// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
 /// @dev Uses instant distribution mechanism for fees
-contract StreamableFeesLockerV2 is ReentrancyGuard, Ownable, MiniV4Manager, FeesManager {
+contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
     mapping(PoolId poolId => StreamData) public streams;
 
     /// @notice Mapping of approved migrators
