@@ -142,6 +142,12 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         initializer.exitLiquidity(Currency.unwrap(currency0));
     }
 
+    function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
+        test_initialize_AddsLiquidity();
+        vm.expectRevert(SenderNotAirlock.selector);
+        initializer.exitLiquidity(Currency.unwrap(currency0));
+    }
+
     function test_exitLiquidity_RevertsWhenInsufficientTick() public {
         test_initialize_AddsLiquidity();
         vm.prank(airlock);
