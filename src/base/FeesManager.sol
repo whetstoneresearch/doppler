@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -21,24 +24,30 @@ error InvalidProtocolOwnerShares();
 
 /**
  * @notice Emitted when a collect event is called
- * @param pool Address of the pool
  * @param beneficiary Address of the beneficiary receiving the fees
  * @param fees0 Amount of fees collected in token0
  * @param fees1 Amount of fees collected in token1
  */
-event Collect(address indexed pool, address indexed beneficiary, uint256 fees0, uint256 fees1);
+event Collect(PoolId indexed poolId, address indexed beneficiary, uint256 fees0, uint256 fees1);
+
+/// @notice Emitted when a beneficiary is updated
+/// @param oldBeneficiary Previous beneficiary address
+/// @param newBeneficiary New beneficiary address
+event UpdateBeneficiary(PoolId poolId, address oldBeneficiary, address newBeneficiary);
 
 abstract contract FeesManager {
-    mapping(address asset => uint256 cumulatedFees0) public getCumulatedFees0;
-    mapping(address asset => uint256 cumulatedFees1) public getCumulatedFees1;
+    mapping(PoolId poolId => uint256 cumulatedFees0) public getCumulatedFees0;
+    mapping(PoolId poolId => uint256 cumulatedFees1) public getCumulatedFees1;
 
-    mapping(address asset => mapping(address beneficiary => uint256 lastCumulatedFees0)) public getLastCumulatedFees0;
-    mapping(address asset => mapping(address beneficiary => uint256 lastCumulatedFees1)) public getLastCumulatedFees1;
+    mapping(PoolId poolId => mapping(address beneficiary => uint256 lastCumulatedFees0)) public getLastCumulatedFees0;
+    mapping(PoolId poolId => mapping(address beneficiary => uint256 lastCumulatedFees1)) public getLastCumulatedFees1;
 
-    mapping(address asset => mapping(address beneficiary => uint256 shares)) public getShares;
+    mapping(PoolId poolId => mapping(address beneficiary => uint256 shares)) public getShares;
+
+    mapping(PoolId poolId => PoolKey poolKey) public getPoolKey;
 
     function _validateBeneficiaries(
-        address asset,
+        PoolId poolId,
         address protocolOwner,
         BeneficiaryData[] memory beneficiaries
     ) internal {
@@ -46,7 +55,7 @@ abstract contract FeesManager {
         uint256 totalShares;
         bool foundProtocolOwner;
 
-        for (uint256 i; i < beneficiaries.length; i++) {
+        for (uint256 i; i != beneficiaries.length; ++i) {
             BeneficiaryData memory beneficiary = beneficiaries[i];
 
             // Validate ordering and shares
@@ -62,7 +71,7 @@ abstract contract FeesManager {
             prevBeneficiary = beneficiary.beneficiary;
             totalShares += beneficiary.shares;
 
-            getShares[asset][prevBeneficiary] = beneficiary.shares;
+            getShares[poolId][prevBeneficiary] = beneficiary.shares;
         }
 
         require(totalShares == WAD, InvalidTotalShares());
@@ -70,32 +79,53 @@ abstract contract FeesManager {
     }
 
     function collectFees(
-        address asset
-    ) external returns (uint256 fees0, uint256 fees1) {
-        (fees0, fees1) = _collectFees(asset);
+        PoolId poolId
+    ) external returns (uint128 fees0, uint128 fees1) {
+        BalanceDelta fees = _collectFees(poolId);
+        fees0 = uint128(fees.amount0());
+        fees1 = uint128(fees.amount1());
 
-        getCumulatedFees0[asset] += fees0;
-        getCumulatedFees1[asset] += fees1;
+        getCumulatedFees0[poolId] += fees0;
+        getCumulatedFees1[poolId] += fees1;
 
-        uint256 shares = getShares[asset][msg.sender];
+        _releaseFees(poolId, msg.sender);
+    }
+
+    /// @notice Releases fees to a beneficiary
+    /// @param beneficiary Address to release fees to
+    function _releaseFees(PoolId poolId, address beneficiary) internal {
+        uint256 shares = getShares[poolId][beneficiary];
 
         if (shares > 0) {
-            uint256 delta0 = getCumulatedFees0[asset] - getLastCumulatedFees0[asset][msg.sender];
+            PoolKey memory poolKey = getPoolKey[poolId];
+            uint256 delta0 = getCumulatedFees0[poolId] - getLastCumulatedFees0[poolId][beneficiary];
             uint256 amount0 = delta0 * shares / WAD;
-            getLastCumulatedFees0[asset][msg.sender] = getCumulatedFees0[asset];
-            // if (amount0 > 0) state.poolKey.currency0.transfer(msg.sender, amount0);
+            getLastCumulatedFees0[poolId][beneficiary] = getCumulatedFees0[poolId];
+            if (amount0 > 0) poolKey.currency0.transfer(beneficiary, amount0);
 
-            uint256 delta1 = getCumulatedFees1[asset] - getLastCumulatedFees1[asset][msg.sender];
+            uint256 delta1 = getCumulatedFees1[poolId] - getLastCumulatedFees1[poolId][beneficiary];
             uint256 amount1 = delta1 * shares / WAD;
-            getLastCumulatedFees1[asset][msg.sender] = getCumulatedFees1[asset];
-            // if (amount1 > 0) state.poolKey.currency1.transfer(msg.sender, amount1);
+            getLastCumulatedFees1[poolId][beneficiary] = getCumulatedFees1[poolId];
+            if (amount1 > 0) poolKey.currency1.transfer(beneficiary, amount1);
 
-            emit Collect(asset, msg.sender, amount0, amount1);
+            emit Collect(poolId, beneficiary, amount0, amount1);
         }
+    }
+
+    /// @notice Updates the beneficiary address for a position
+    /// @param newBeneficiary New beneficiary address
+    function updateBeneficiary(PoolId poolId, address newBeneficiary) external {
+        _releaseFees(poolId, msg.sender);
+        getShares[poolId][newBeneficiary] = getShares[poolId][msg.sender];
+        getShares[poolId][msg.sender] = 0;
+        getLastCumulatedFees0[poolId][newBeneficiary] = getCumulatedFees0[poolId];
+        getLastCumulatedFees1[poolId][newBeneficiary] = getCumulatedFees1[poolId];
+
+        emit UpdateBeneficiary(poolId, msg.sender, newBeneficiary);
     }
 
     /// @dev Calls an external contract like Uniswap V4 to collect fees
     function _collectFees(
-        address
-    ) internal virtual returns (uint256, uint256);
+        PoolId poolId
+    ) internal virtual returns (BalanceDelta fees);
 }
