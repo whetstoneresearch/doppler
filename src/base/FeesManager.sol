@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -35,7 +36,7 @@ event Collect(PoolId indexed poolId, address indexed beneficiary, uint256 fees0,
 /// @param newBeneficiary New beneficiary address
 event UpdateBeneficiary(PoolId poolId, address oldBeneficiary, address newBeneficiary);
 
-abstract contract FeesManager {
+abstract contract FeesManager is ReentrancyGuard {
     mapping(PoolId poolId => uint256 cumulatedFees0) public getCumulatedFees0;
     mapping(PoolId poolId => uint256 cumulatedFees1) public getCumulatedFees1;
 
@@ -80,7 +81,7 @@ abstract contract FeesManager {
 
     function collectFees(
         PoolId poolId
-    ) external returns (uint128 fees0, uint128 fees1) {
+    ) external nonReentrant returns (uint128 fees0, uint128 fees1) {
         BalanceDelta fees = _collectFees(poolId);
         fees0 = uint128(fees.amount0());
         fees1 = uint128(fees.amount1());
@@ -114,7 +115,7 @@ abstract contract FeesManager {
 
     /// @notice Updates the beneficiary address for a position
     /// @param newBeneficiary New beneficiary address
-    function updateBeneficiary(PoolId poolId, address newBeneficiary) external {
+    function updateBeneficiary(PoolId poolId, address newBeneficiary) external nonReentrant {
         _releaseFees(poolId, msg.sender);
         getShares[poolId][newBeneficiary] = getShares[poolId][msg.sender];
         getShares[poolId][msg.sender] = 0;
