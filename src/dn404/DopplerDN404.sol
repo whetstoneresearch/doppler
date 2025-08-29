@@ -13,7 +13,6 @@ error PoolLocked();
 /// @notice DN404-based asset token used by the Doppler protocol. From Doppler's point of view,
 ///         this behaves like a standard ERC20, while also exposing an ERC721 mirror.
 contract DopplerDN404 is DN404, Ownable {
-
     uint256 private immutable UNIT;
 
     // ERC20 metadata
@@ -22,7 +21,6 @@ contract DopplerDN404 is DN404, Ownable {
 
     // ERC721 metadata base URI
     string private _baseURI;
-
 
     /// @notice Address of the liquidity pool used for migration locking
     address public pool;
@@ -52,22 +50,35 @@ contract DopplerDN404 is DN404, Ownable {
     }
 
     // ---- ERC20 metadata ----
-    function name() public view override returns (string memory) { return _name; }
-    function symbol() public view override returns (string memory) { return _symbol; }
+    function name() public view override returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return _symbol;
+    }
 
     // ---- ERC721 metadata ----
-    function _tokenURI(uint256 tokenId) internal view override returns (string memory result) {
+    function _tokenURI(
+        uint256 tokenId
+    ) internal view override returns (string memory result) {
         if (bytes(_baseURI).length != 0) {
             result = string(abi.encodePacked(_baseURI, LibString.toString(tokenId)));
         }
     }
 
     /// @notice Updates the base URI for NFT metadata
-    function setBaseURI(string calldata baseURI_) external onlyOwner { _baseURI = baseURI_; }
+    function setBaseURI(
+        string calldata baseURI_
+    ) external onlyOwner {
+        _baseURI = baseURI_;
+    }
 
     /// @notice Locks the pool, preventing it from receiving tokens
     /// @param pool_ Address of the pool to lock
-    function lockPool(address pool_) external onlyOwner {
+    function lockPool(
+        address pool_
+    ) external onlyOwner {
         pool = pool_;
         isPoolUnlocked = false;
     }
@@ -77,9 +88,13 @@ contract DopplerDN404 is DN404, Ownable {
     }
 
     /// @notice Unlocks the pool, allowing it to receive tokens
-    function unlockPool() external onlyOwner { isPoolUnlocked = true; }
+    function unlockPool() external onlyOwner {
+        isPoolUnlocked = true;
+    }
 
-    function freezeTokenIDsByIndex(uint256[] memory tokenIDIndexes) external {
+    function freezeTokenIDsByIndex(
+        uint256[] memory tokenIDIndexes
+    ) external {
         uint256 amountToFreeze = tokenIDIndexes.length * UNIT;
         uint256 currentFrozen = frozenBalances[msg.sender];
         if (balanceOf(msg.sender) < currentFrozen + amountToFreeze) {
@@ -111,7 +126,9 @@ contract DopplerDN404 is DN404, Ownable {
                 _set(oo, _ownedIndex(tokenIDAtIndex), uint32(startIndex));
                 _set(oo, _ownedIndex(tokenIDAtStartIndex), uint32(tokenIDIndex));
             }
-            unchecked { startIndex++; }
+            unchecked {
+                startIndex++;
+            }
         }
     }
 
@@ -164,7 +181,23 @@ contract DopplerDN404 is DN404, Ownable {
                     }
                 }
             }
-            unchecked { frozenBalances[from] -= UNIT; }
+            unchecked {
+                frozenBalances[from] -= UNIT;
+            }
         }
+    }
+
+    /// @notice Returns the token ID owned by `owner` at `index` in their ordered NFT list.
+    /// Mirrors the behavior of ERC721Enumerable's `tokenOfOwnerByIndex` using DN404's
+    /// internal owned array. Reverts if `index` is out of bounds.
+    /// @param owner The owner address to query.
+    /// @param index Zero-based index into the owner's ordered NFT list.
+    /// @return id The token ID at the given index.
+    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256 id) {
+        DN404Storage storage $ = _getDN404Storage();
+        uint256 len = $.addressData[owner].ownedLength;
+        if (index >= len) revert("Owner index out of bounds");
+        Uint32Map storage owned = $.owned[owner];
+        id = _get(owned, index);
     }
 }

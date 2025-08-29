@@ -21,7 +21,7 @@ contract NoOpGovernanceFactoryTest is Test {
         // Assert both addresses equal DEAD_ADDRESS
         assertEq(governance, factory.DEAD_ADDRESS(), "Governance address should be DEAD_ADDRESS");
         assertEq(timelockController, factory.DEAD_ADDRESS(), "Timelock controller address should be DEAD_ADDRESS");
-        
+
         // Additional check to ensure DEAD_ADDRESS is 0xdead
         assertEq(factory.DEAD_ADDRESS(), address(0xdead), "DEAD_ADDRESS should be 0xdead");
     }

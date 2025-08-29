@@ -14,20 +14,11 @@ string constant SYMBOL = "D404";
 string constant BASE_URI = "https://example.com/token/";
 
 contract DopplerDN404Test is Test {
-
     DopplerDN404 public token;
     DopplerDN404Mirror public mirror;
 
     function setUp() public {
-        token = new DopplerDN404(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            address(this),
-            address(this),
-            BASE_URI,
-            UNIT
-        );
+        token = new DopplerDN404(NAME, SYMBOL, INITIAL_SUPPLY, address(this), address(this), BASE_URI, UNIT);
         mirror = DopplerDN404Mirror(payable(token.mirrorERC721()));
     }
 
@@ -158,8 +149,8 @@ contract DopplerDN404Test is Test {
         token.transfer(alice, 10 * UNIT);
         assertEq(mirror.balanceOf(alice), 10);
 
-        // For deterministic IDs, the 5th NFT has tokenId 5.
-        assertEq(mirror.ownerOf(5), alice);
+        // For deterministic IDs, the 5th NFT has tokenId 5 owned by alice.
+        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
 
         // Freeze the 5th NFT by its index (zero-based index 4).
         uint256[] memory idx = new uint256[](1);
@@ -171,7 +162,8 @@ contract DopplerDN404Test is Test {
         vm.prank(alice);
         token.transfer(bob, 9 * UNIT);
         assertEq(mirror.balanceOf(alice), 1);
-        assertEq(mirror.ownerOf(5), alice);
+        // The remaining NFT at index 0 must be tokenId 5.
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 5);
     }
 
     function test_freezeTokenIDsByIndex_IndexOutOfBounds() public {
@@ -206,7 +198,10 @@ contract DopplerDN404Test is Test {
         // But she can send exactly (balance - frozen) units.
         vm.prank(alice);
         token.transfer(bob, 1 * UNIT);
-        assertEq(mirror.balanceOf(alice), 2); // 2 frozen NFTs remain with alice.
+        // 2 frozen NFTs remain with alice at indices 0 and 1.
+        assertEq(mirror.balanceOf(alice), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
     }
 
     function test_directTransferFrozenNFT_DecrementsSenderFrozenBalance() public {
@@ -229,7 +224,9 @@ contract DopplerDN404Test is Test {
         // Frozen balance decreased by UNIT; receiver unchanged.
         assertEq(token.frozenBalances(alice), 0);
         assertEq(token.frozenBalances(bob), 0);
-        assertEq(mirror.ownerOf(1), bob);
+        // Bob now has tokenId 1 at index 0; Alice keeps tokenId 2.
+        assertEq(token.tokenOfOwnerByIndex(bob, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 2);
     }
 
     function test_directTransferNonFrozenNFT_DoesNotAffectFrozenBalance() public {
@@ -251,9 +248,12 @@ contract DopplerDN404Test is Test {
 
         assertEq(token.frozenBalances(alice), UNIT);
         assertEq(token.frozenBalances(bob), 0);
-        assertEq(mirror.ownerOf(3), bob);
-        assertEq(mirror.ownerOf(1), alice);
+        // Bob owns tokenId 3; Alice owns tokenIds [1,2] in order.
+        assertEq(token.tokenOfOwnerByIndex(bob, 0), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
     }
+
     function test_skipNFT_TogglingPreventsMintOnTransfer() public {
         address alice = address(0xa11ce);
         // Toggle skipNFT to true for EOA `alice`.
@@ -268,4 +268,187 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.totalSupply(), 0);
     }
 
+    function test_tokenOfOwnerByIndex_BasicOrdering() public {
+        address alice = address(0xa11ce);
+        // Mint 5 NFTs worth of tokens to alice (EOA mints NFTs automatically).
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        // Expect sequential token IDs by index.
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+
+        // Out of bounds should revert.
+        vm.expectRevert(bytes("Owner index out of bounds"));
+        token.tokenOfOwnerByIndex(alice, 5);
+    }
+
+    function test_tokenOfOwnerByIndex_ReflectsSwapOnERC721Transfer() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        // Alice starts with 5 NFTs: IDs [1,2,3,4,5]
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        // Transfer tokenId 3 to bob via mirror (ERC721 transfer).
+        vm.prank(alice);
+        mirror.transferFrom(alice, bob, 3);
+
+        // DN404 uses swap-and-pop, so alice's owned list becomes [1,2,5,4]
+        assertEq(mirror.balanceOf(alice), 4);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 5);
+        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
+        vm.expectRevert(bytes("Owner index out of bounds"));
+        token.tokenOfOwnerByIndex(alice, 4);
+
+        // Bob received tokenId 3 at index 0
+        assertEq(mirror.balanceOf(bob), 1);
+        assertEq(token.tokenOfOwnerByIndex(bob, 0), 3);
+        vm.expectRevert(bytes("Owner index out of bounds"));
+        token.tokenOfOwnerByIndex(bob, 1);
+    }
+
+    function test_tokenOfOwnerByIndex_ERC20UnitTransferMovesEndFirst() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        // ERC20 unit transfer moves last NFT from alice to bob.
+        vm.prank(alice);
+        token.transfer(bob, UNIT);
+
+        // Alice keeps [1,2,3,4]; Bob gets [5]
+        assertEq(mirror.balanceOf(alice), 4);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(mirror.balanceOf(bob), 1);
+        assertEq(token.tokenOfOwnerByIndex(bob, 0), 5);
+    }
+
+    function test_tokenOfOwnerByIndex_RespectsFrozenReordering() public {
+        address alice = address(0xa11ce);
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        // Freeze the NFT currently at index 2 (tokenId 3) and move it to the front.
+        uint256[] memory idx = new uint256[](1);
+        idx[0] = 2;
+        vm.prank(alice);
+        token.freezeTokenIDsByIndex(idx);
+
+        // Expect owned order to be [3,2,1,4,5]
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+    }
+
+    function test_tokenOfOwnerByIndex_EmptyOwnerReverts() public {
+        address nobody = address(0x1234);
+        assertEq(mirror.balanceOf(nobody), 0);
+        vm.expectRevert(bytes("Owner index out of bounds"));
+        token.tokenOfOwnerByIndex(nobody, 0);
+    }
+
+    function test_tokenOfOwnerByIndex_SkipNFTRecipientEOA_Reverts() public {
+        address alice = address(0xa11ce);
+        vm.prank(alice);
+        token.setSkipNFT(true);
+        token.transfer(alice, 3 * UNIT);
+        assertEq(mirror.balanceOf(alice), 0);
+        vm.expectRevert(bytes("Owner index out of bounds"));
+        token.tokenOfOwnerByIndex(alice, 0);
+    }
+
+    function test_tokenOfOwnerByIndex_SkipNFTRecipientContract_Reverts() public {
+        NFTSkippingReceiver receiver = new NFTSkippingReceiver();
+        // Contracts default to skipNFT=true.
+        token.transfer(address(receiver), 2 * UNIT);
+        assertEq(mirror.balanceOf(address(receiver)), 0);
+        vm.expectRevert(bytes("Owner index out of bounds"));
+        token.tokenOfOwnerByIndex(address(receiver), 0);
+    }
+
+    function test_tokenOfOwnerByIndex_MultiUnitTransferMovesLastTwo() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        vm.prank(alice);
+        token.transfer(bob, 2 * UNIT);
+
+        // Alice loses last two: now [1,2,3]
+        assertEq(mirror.balanceOf(alice), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
+
+        // Bob receives [5,4] in that order.
+        assertEq(mirror.balanceOf(bob), 2);
+        assertEq(token.tokenOfOwnerByIndex(bob, 0), 5);
+        assertEq(token.tokenOfOwnerByIndex(bob, 1), 4);
+    }
+
+    function test_tokenOfOwnerByIndex_FreezeMultipleIndices_ReordersAsExpected() public {
+        address alice = address(0xa11ce);
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        // Freeze indices [1,3] -> order becomes [2,4,3,1,5]
+        uint256[] memory idx = new uint256[](2);
+        idx[0] = 1;
+        idx[1] = 3;
+        vm.prank(alice);
+        token.freezeTokenIDsByIndex(idx);
+
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 2);
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 4);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 3), 1);
+        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+    }
+
+    function test_tokenOfOwnerByIndex_MultipleFrozenThenTransferOne() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.balanceOf(alice), 5);
+
+        // Freeze indices [1,3] -> order becomes [2,4,3,1,5], frozen prefix size 2
+        uint256[] memory idx = new uint256[](2);
+        idx[0] = 1;
+        idx[1] = 3;
+        vm.prank(alice);
+        token.freezeTokenIDsByIndex(idx);
+        assertEq(token.frozenBalances(alice), 2 * UNIT);
+
+        // Transfer a frozen NFT (tokenId 4) to bob via mirror.
+        vm.prank(alice);
+        mirror.transferFrom(alice, bob, 4);
+
+        // Frozen balance decreased by one UNIT; first element of prefix (tokenId 2) remains at index 0.
+        assertEq(token.frozenBalances(alice), 1 * UNIT);
+        assertEq(mirror.balanceOf(alice), 4);
+        assertEq(token.tokenOfOwnerByIndex(alice, 0), 2);
+        // Remaining order becomes [2,5,3,1]
+        assertEq(token.tokenOfOwnerByIndex(alice, 1), 5);
+        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(token.tokenOfOwnerByIndex(alice, 3), 1);
+
+        // Bob now owns tokenId 4
+        assertEq(mirror.balanceOf(bob), 1);
+        assertEq(token.tokenOfOwnerByIndex(bob, 0), 4);
+    }
 }
+
+contract NFTSkippingReceiver { }

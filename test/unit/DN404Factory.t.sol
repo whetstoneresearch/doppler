@@ -26,13 +26,7 @@ contract DN404FactoryTest is Test {
         string memory baseURI = "https://example.com/token/";
         uint256 unit = 1000e18;
 
-        factory.create(
-            initialSupply,
-            recipient,
-            owner,
-            salt,
-            abi.encode(name, symbol, baseURI, unit)
-        );
+        factory.create(initialSupply, recipient, owner, salt, abi.encode(name, symbol, baseURI, unit));
     }
 
     function test_create_RevertsWhenSenderNotAirlock() public {
@@ -47,12 +41,6 @@ contract DN404FactoryTest is Test {
 
         vm.startPrank(address(0xdead));
         vm.expectRevert(SenderNotAirlock.selector);
-        factory.create(
-            initialSupply,
-            recipient,
-            owner,
-            salt,
-            abi.encode(name, symbol, baseURI, unit)
-        );
+        factory.create(initialSupply, recipient, owner, salt, abi.encode(name, symbol, baseURI, unit));
     }
 }

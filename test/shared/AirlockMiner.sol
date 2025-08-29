@@ -191,23 +191,13 @@ function mineDN404V4(
         )
     );
 
-    (
-        string memory name,
-        string memory symbol,
-        string memory baseURI
-    ) = abi.decode(params.tokenFactoryData, (string, string, string));
+    (string memory name, string memory symbol, string memory baseURI) =
+        abi.decode(params.tokenFactoryData, (string, string, string));
 
     bytes32 tokenInitHash = keccak256(
         abi.encodePacked(
             type(DopplerDN404).creationCode,
-            abi.encode(
-                name,
-                symbol,
-                params.initialSupply,
-                params.airlock,
-                params.airlock,
-                baseURI
-            )
+            abi.encode(name, symbol, params.initialSupply, params.airlock, params.airlock, baseURI)
         )
     );
 

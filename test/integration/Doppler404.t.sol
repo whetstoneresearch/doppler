@@ -108,15 +108,8 @@ contract Doppler404V3Test is Test {
         // Compute the asset address that will be created
         bytes32 salt = bytes32(0);
         bytes memory creationCode = type(DopplerDN404).creationCode;
-        bytes memory create2Args = abi.encode(
-            name,
-            symbol,
-            initialSupply,
-            address(airlock),
-            address(airlock),
-            baseURI,
-            1000e18
-        );
+        bytes memory create2Args =
+            abi.encode(name, symbol, initialSupply, address(airlock), address(airlock), baseURI, 1000e18);
         address predictedAsset = vm.computeCreate2Address(
             salt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
         );
@@ -249,15 +242,8 @@ contract Doppler404V3Test is Test {
 
         // Compute the asset address that will be created
         bytes memory creationCode = type(DopplerDN404).creationCode;
-        bytes memory create2Args = abi.encode(
-            name,
-            symbol,
-            initialSupply,
-            address(airlock),
-            address(airlock),
-            baseURI,
-            1000e18
-        );
+        bytes memory create2Args =
+            abi.encode(name, symbol, initialSupply, address(airlock), address(airlock), baseURI, 1000e18);
         address predictedAsset = vm.computeCreate2Address(
             tokenSalt, keccak256(abi.encodePacked(creationCode, create2Args)), address(tokenFactory)
         );
@@ -434,7 +420,6 @@ int24 constant DEFAULT_END_TICK = 60_000;
 
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;
-
 
 contract Doppler404V4Test is Test {
     Airlock public airlock;
