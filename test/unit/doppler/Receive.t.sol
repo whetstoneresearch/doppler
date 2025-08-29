@@ -3,8 +3,8 @@ pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { SenderNotPoolManager } from "src/Doppler.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { SenderNotPoolManager } from "../../../src/Doppler.sol";
+import { BaseTest } from "../../shared/BaseTest.sol";
 
 contract ReceiveTest is BaseTest {
     function test_receive_RevertsIfSenderNotPoolManager() public {

@@ -3,14 +3,14 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
-import { Airlock } from "src/Airlock.sol";
-import { CustomLPUniswapV2Migrator } from "src/extensions/CustomLPUniswapV2Migrator.sol";
-import { CustomLPUniswapV2Locker } from "src/extensions/CustomLPUniswapV2Locker.sol";
-import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
-import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
-import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "../../shared/Addresses.sol";
+import { Airlock } from "../../../src/Airlock.sol";
+import { CustomLPUniswapV2Migrator } from "../../../src/extensions/CustomLPUniswapV2Migrator.sol";
+import { CustomLPUniswapV2Locker } from "../../../src/extensions/CustomLPUniswapV2Locker.sol";
+import { IUniswapV2Locker } from "../../../src/interfaces/IUniswapV2Locker.sol";
+import { IUniswapV2Factory } from "../../../src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Pair } from "../../../src/interfaces/IUniswapV2Pair.sol";
+import { IUniswapV2Router02 } from "../../../src/interfaces/IUniswapV2Router02.sol";
 
 contract UniswapV2LockerTest is Test {
     CustomLPUniswapV2Locker public locker;

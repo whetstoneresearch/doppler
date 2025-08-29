@@ -6,9 +6,9 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Doppler } from "src/Doppler.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IPoolInitializer } from "./interfaces/IPoolInitializer.sol";
+import { Doppler } from "./Doppler.sol";
+import { ImmutableAirlock } from "./base/ImmutableAirlock.sol";
 
 error InvalidTokenOrder();
 

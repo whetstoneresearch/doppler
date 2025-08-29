@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { Airlock } from "src/Airlock.sol";
-import { Bundler } from "src/Bundler.sol";
+import { Airlock } from "../../src/Airlock.sol";
+import { Bundler } from "../../src/Bundler.sol";
 
 struct DeployBundlerScriptData {
     address airlock;

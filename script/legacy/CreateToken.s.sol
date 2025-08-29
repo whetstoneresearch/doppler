@@ -11,12 +11,12 @@ import {
     IGovernanceFactory,
     IPoolInitializer,
     ILiquidityMigrator
-} from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
-import { InitData } from "src/UniswapV3Initializer.sol";
-import { DERC20 } from "src/DERC20.sol";
+} from "../../src/Airlock.sol";
+import { TokenFactory } from "../../src/TokenFactory.sol";
+import { GovernanceFactory } from "../../src/GovernanceFactory.sol";
+import { IUniswapV2Router02 } from "../../src/UniswapV2Migrator.sol";
+import { InitData } from "../../src/UniswapV3Initializer.sol";
+import { DERC20 } from "../../src/DERC20.sol";
 
 struct Params {
     Airlock airlock;

@@ -5,7 +5,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4Migrator } from "./UniswapV4Migrator.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Migrator
 error OnlyMigrator();

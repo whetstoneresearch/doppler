@@ -4,13 +4,13 @@ pragma solidity ^0.8.24;
 import { Test, console } from "forge-std/Test.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolManager } from "@v4-core/PoolManager.sol";
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { Doppler } from "src/Doppler.sol";
-import { Airlock } from "src/Airlock.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { ITokenFactory } from "../../src/interfaces/ITokenFactory.sol";
+import { UniswapV4Initializer } from "../../src/UniswapV4Initializer.sol";
+import { DERC20 } from "../../src/DERC20.sol";
+import { Doppler } from "../../src/Doppler.sol";
+import { Airlock } from "../../src/Airlock.sol";
+import { UniswapV4Initializer } from "../../src/UniswapV4Initializer.sol";
+import { UniswapV4MigratorHook } from "../../src/UniswapV4MigratorHook.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;

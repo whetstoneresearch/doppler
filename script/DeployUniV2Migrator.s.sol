@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
-import { ChainIds } from "script/ChainIds.sol";
-import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { Airlock } from "src/Airlock.sol";
-import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { ChainIds } from "./ChainIds.sol";
+import { IUniswapV2Factory } from "../src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router02.sol";
+import { Airlock } from "../src/Airlock.sol";
+import { UniswapV2Migrator } from "../src/UniswapV2Migrator.sol";
 
 struct ScriptData {
     uint256 chainId;

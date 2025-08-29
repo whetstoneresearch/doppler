@@ -9,10 +9,10 @@ import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
-import { Airlock } from "src/Airlock.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { Airlock } from "./Airlock.sol";
+import { IPoolInitializer } from "./interfaces/IPoolInitializer.sol";
+import { ImmutableAirlock } from "./base/ImmutableAirlock.sol";
+import { BeneficiaryData } from "./StreamableFeesLocker.sol";
 
 /**
  * @notice Emitted when a collect event is called

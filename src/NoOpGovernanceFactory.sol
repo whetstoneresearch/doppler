@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
+import { IGovernanceFactory } from "./interfaces/IGovernanceFactory.sol";
 
 /**
  * @title NoOpGovernanceFactory

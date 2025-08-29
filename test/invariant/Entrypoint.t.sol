@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { Entrypoint, TOTAL_WEIGHTS } from "test/invariant/Entrypoint.sol";
+import { Entrypoint, TOTAL_WEIGHTS } from "./Entrypoint.sol";
 
 contract EntrypointTest is Test {
     Entrypoint public entrypoint;

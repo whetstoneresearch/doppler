@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
-import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
-import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { ICustomLPUniswapV2Locker } from "src/extensions/interfaces/ICustomLPUniswapV2Locker.sol";
-import { CustomLPUniswapV2Migrator } from "src/extensions/CustomLPUniswapV2Migrator.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IUniswapV2Pair } from "../interfaces/IUniswapV2Pair.sol";
+import { IUniswapV2Factory } from "../interfaces/IUniswapV2Factory.sol";
+import { ICustomLPUniswapV2Locker } from "../extensions/interfaces/ICustomLPUniswapV2Locker.sol";
+import { CustomLPUniswapV2Migrator } from "../extensions/CustomLPUniswapV2Migrator.sol";
+import { ImmutableAirlock } from "../base/ImmutableAirlock.sol";
 
 contract CustomLPUniswapV2Locker is ICustomLPUniswapV2Locker, Ownable, ImmutableAirlock {
     using SafeTransferLib for ERC20;

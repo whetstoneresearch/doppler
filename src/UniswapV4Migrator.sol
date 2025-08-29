@@ -15,10 +15,10 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { Airlock } from "src/Airlock.sol";
+import { ILiquidityMigrator } from "./interfaces/ILiquidityMigrator.sol";
+import { ImmutableAirlock } from "./base/ImmutableAirlock.sol";
+import { BeneficiaryData, StreamableFeesLocker } from "./StreamableFeesLocker.sol";
+import { Airlock } from "./Airlock.sol";
 
 /**
  * @notice Data to use for the migration

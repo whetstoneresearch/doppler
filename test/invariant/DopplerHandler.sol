@@ -15,11 +15,11 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { Pool } from "@v4-core/libraries/Pool.sol";
-import { CustomRouter } from "test/shared/CustomRouter.sol";
-import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
-import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
-import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
+import { CustomRouter } from "../shared/CustomRouter.sol";
+import { DopplerImplementation } from "../shared/DopplerImplementation.sol";
+import { MAX_SWAP_FEE } from "../../src/Doppler.sol";
+import { AddressSet, LibAddressSet } from "./AddressSet.sol";
+import { CustomRevertDecoder } from "../utils/CustomRevertDecoder.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
 

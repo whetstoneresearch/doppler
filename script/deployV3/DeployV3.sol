@@ -2,16 +2,16 @@
 pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
-import { Airlock } from "src/Airlock.sol";
-import { ChainIds } from "script/ChainIds.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
-import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
+import { Airlock } from "../../src/Airlock.sol";
+import { ChainIds } from "../ChainIds.sol";
+import { GovernanceFactory } from "../../src/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "../../src/NoOpGovernanceFactory.sol";
+import { TokenFactory } from "../../src/TokenFactory.sol";
+import { UniswapV3Initializer, IUniswapV3Factory } from "../../src/UniswapV3Initializer.sol";
+import { LockableUniswapV3Initializer } from "../../src/LockableUniswapV3Initializer.sol";
+import { NoOpGovernanceFactory } from "../../src/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "../../src/NoOpMigrator.sol";
+import { AirlockMultisig } from "../../test/shared/AirlockMultisig.sol";
 
 struct ScriptData {
     uint256 chainId;

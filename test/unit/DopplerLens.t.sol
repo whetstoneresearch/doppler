@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { BaseTest } from "../shared/BaseTest.sol";
 import { StateView } from "@v4-periphery/lens/StateView.sol";
-import { DopplerLensQuoter, DopplerLensReturnData } from "src/lens/DopplerLens.sol";
+import { DopplerLensQuoter, DopplerLensReturnData } from "../../src/lens/DopplerLens.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import { Position, LOWER_SLUG_SALT, UPPER_SLUG_SALT, DISCOVERY_SLUG_SALT } from "src/Doppler.sol";
+import { Position, LOWER_SLUG_SALT, UPPER_SLUG_SALT, DISCOVERY_SLUG_SALT } from "../../src/Doppler.sol";
 import "forge-std/console.sol";
 
 contract DopplerLensTest is BaseTest {

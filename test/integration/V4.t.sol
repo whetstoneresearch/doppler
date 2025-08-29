@@ -4,25 +4,25 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { UniswapV4Initializer, DopplerDeployer, IPoolInitializer } from "src/UniswapV4Initializer.sol";
-import { Airlock } from "src/Airlock.sol";
-import { DERC20 } from "src/DERC20.sol";
+import { UniswapV4Initializer, DopplerDeployer, IPoolInitializer } from "../../src/UniswapV4Initializer.sol";
+import { Airlock } from "../../src/Airlock.sol";
+import { DERC20 } from "../../src/DERC20.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
+import { GovernanceFactory, IGovernanceFactory } from "../../src/GovernanceFactory.sol";
+import { Airlock, ModuleState, CreateParams } from "../../src/Airlock.sol";
 import {
     UniswapV2Migrator,
     ILiquidityMigrator,
     IUniswapV2Router02,
     IUniswapV2Factory,
     IUniswapV2Pair
-} from "src/UniswapV2Migrator.sol";
+} from "../../src/UniswapV2Migrator.sol";
 import {
     WETH_MAINNET,
     UNISWAP_V4_POOL_MANAGER_MAINNET,
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET
-} from "test/shared/Addresses.sol";
+} from "../shared/Addresses.sol";
 import {
     DEFAULT_NUM_TOKENS_TO_SELL,
     DEFAULT_MINIMUM_PROCEEDS,
@@ -32,8 +32,8 @@ import {
     DEFAULT_GAMMA,
     DEFAULT_EPOCH_LENGTH,
     SQRT_RATIO_2_1
-} from "test/shared/DopplerFixtures.sol";
-import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
+} from "../shared/DopplerFixtures.sol";
+import { MineV4Params, mineV4 } from "../shared/AirlockMiner.sol";
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;

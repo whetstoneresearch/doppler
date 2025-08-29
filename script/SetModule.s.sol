@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
-import { ModuleState } from "src/Airlock.sol";
+import { AirlockMultisig } from "../test/shared/AirlockMultisig.sol";
+import { ModuleState } from "../src/Airlock.sol";
 
 /// @notice Small helper CLI to set module states, for testing purposes.
 /// This CLI assumes the `msg.sender` is an approved signer of the AirlockMultisig.

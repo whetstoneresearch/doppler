@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
-import { Governance, IVotes } from "src/Governance.sol";
-import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { Governance, IVotes } from "./Governance.sol";
+import { IGovernanceFactory } from "./interfaces/IGovernanceFactory.sol";
+import { ImmutableAirlock } from "./base/ImmutableAirlock.sol";
 
 /// @custom:security-contact security@whetstone.cc
 contract GovernanceFactory is IGovernanceFactory, ImmutableAirlock {

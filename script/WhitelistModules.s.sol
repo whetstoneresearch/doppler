@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { Airlock, ModuleState } from "src/Airlock.sol";
+import { Airlock, ModuleState } from "../src/Airlock.sol";
 
 /**
  * @title WhitelistModulesScript

@@ -7,7 +7,7 @@ import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
+import { MineV4MigratorHookParams, mineV4MigratorHook } from "../../test/shared/AirlockMiner.sol";
 import {
     Airlock,
     ModuleState,
@@ -16,21 +16,21 @@ import {
     IGovernanceFactory,
     IPoolInitializer,
     ILiquidityMigrator
-} from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
-import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { Bundler } from "src/Bundler.sol";
-import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
-import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
+} from "../../src/Airlock.sol";
+import { TokenFactory } from "../../src/TokenFactory.sol";
+import { GovernanceFactory } from "../../src/GovernanceFactory.sol";
+import { StreamableFeesLocker } from "../../src/StreamableFeesLocker.sol";
+import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "../../src/UniswapV2Migrator.sol";
+import { UniswapV4MigratorHook } from "../../src/UniswapV4MigratorHook.sol";
+import { UniswapV4Migrator } from "../../src/UniswapV4Migrator.sol";
+import { UniswapV3Initializer, IUniswapV3Factory } from "../../src/UniswapV3Initializer.sol";
+import { UniswapV4Initializer, DopplerDeployer } from "../../src/UniswapV4Initializer.sol";
+import { Bundler } from "../../src/Bundler.sol";
+import { DopplerLensQuoter } from "../../src/lens/DopplerLens.sol";
+import { LockableUniswapV3Initializer } from "../../src/LockableUniswapV3Initializer.sol";
+import { NoOpGovernanceFactory } from "../../src/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "../../src/NoOpMigrator.sol";
+import { AirlockMultisig } from "../../test/shared/AirlockMultisig.sol";
 
 struct ScriptData {
     uint256 chainId;

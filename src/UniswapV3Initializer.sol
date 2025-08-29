@@ -9,8 +9,8 @@ import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IPoolInitializer } from "./interfaces/IPoolInitializer.sol";
+import { ImmutableAirlock } from "./base/ImmutableAirlock.sol";
 
 /// @notice Thrown when the caller is not the Pool contract
 error OnlyPool();

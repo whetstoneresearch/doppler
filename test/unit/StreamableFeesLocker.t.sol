@@ -9,7 +9,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import { StreamableFeesLocker, BeneficiaryData, PositionData } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLocker, BeneficiaryData, PositionData } from "../../src/StreamableFeesLocker.sol";
 import { console2 } from "forge-std/console2.sol";
 
 error NonPositionManager();

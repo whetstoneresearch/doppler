@@ -11,12 +11,12 @@ import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
-import { Position, MAX_SWAP_FEE, WAD, I_WAD } from "src/Doppler.sol";
+import { BaseTest } from "../shared/BaseTest.sol";
+import { Position, MAX_SWAP_FEE, WAD, I_WAD } from "../../src/Doppler.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
+import { DopplerLensReturnData } from "../../src/lens/DopplerLens.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-import { SlugVis } from "test/shared/SlugVis.sol";
+import { SlugVis } from "../shared/SlugVis.sol";
 
 contract RebalanceTest is BaseTest {
     using PoolIdLibrary for PoolKey;

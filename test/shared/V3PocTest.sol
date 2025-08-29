@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { Airlock, ModuleState } from "src/Airlock.sol";
+import { Airlock, ModuleState } from "../../src/Airlock.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import {
     UniswapV3Initializer,
@@ -11,11 +11,11 @@ import {
     OnlyPool,
     CallbackData,
     InitData
-} from "src/UniswapV3Initializer.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
+} from "../../src/UniswapV3Initializer.sol";
+import { SenderNotAirlock } from "../../src/base/ImmutableAirlock.sol";
+import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "../../src/UniswapV2Migrator.sol";
+import { TokenFactory } from "../../src/TokenFactory.sol";
+import { GovernanceFactory } from "../../src/GovernanceFactory.sol";
 
 import {
     WETH_MAINNET,
@@ -23,7 +23,7 @@ import {
     UNISWAP_V3_ROUTER_MAINNET,
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET
-} from "test/shared/Addresses.sol";
+} from "./Addresses.sol";
 
 contract V3PocTest is Test {
     UniswapV3Initializer public initializer;

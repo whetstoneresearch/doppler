@@ -4,13 +4,13 @@ pragma solidity ^0.8.24;
 import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
-import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { ICustomLPUniswapV2Migrator } from "src/extensions/interfaces/ICustomLPUniswapV2Migrator.sol";
-import { MigrationMath } from "src/libs/MigrationMath.sol";
-import { CustomLPUniswapV2Locker } from "src/extensions/CustomLPUniswapV2Locker.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IUniswapV2Factory } from "../interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Pair } from "../interfaces/IUniswapV2Pair.sol";
+import { IUniswapV2Router02 } from "../interfaces/IUniswapV2Router02.sol";
+import { ICustomLPUniswapV2Migrator } from "./interfaces/ICustomLPUniswapV2Migrator.sol";
+import { MigrationMath } from "../libs/MigrationMath.sol";
+import { CustomLPUniswapV2Locker } from "./CustomLPUniswapV2Locker.sol";
+import { ImmutableAirlock } from "../base/ImmutableAirlock.sol";
 
 /**
  * @author ant from Long

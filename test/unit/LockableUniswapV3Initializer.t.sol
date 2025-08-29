@@ -11,7 +11,7 @@ import { WETH } from "@solmate/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+import { UNISWAP_V3_ROUTER_MAINNET } from "../shared/Addresses.sol";
 import {
     LockableUniswapV3Initializer,
     PoolAlreadyInitialized,
@@ -25,10 +25,10 @@ import {
     InvalidFee,
     InvalidTickRange,
     PoolStatus
-} from "src/LockableUniswapV3Initializer.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { DERC20 } from "src/DERC20.sol";
+} from "../../src/LockableUniswapV3Initializer.sol";
+import { BeneficiaryData } from "../../src/StreamableFeesLocker.sol";
+import { SenderNotAirlock } from "../../src/base/ImmutableAirlock.sol";
+import { DERC20 } from "../../src/DERC20.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;

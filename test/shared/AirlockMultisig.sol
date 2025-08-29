@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Airlock, ModuleState } from "src/Airlock.sol";
+import { Airlock, ModuleState } from "../../src/Airlock.sol";
 
 /// @notice A very basic Airlock-oriented multisig for testing purposes, do not use in production :)
 contract AirlockMultisig {

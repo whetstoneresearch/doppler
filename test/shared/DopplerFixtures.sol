@@ -20,8 +20,8 @@ import {
     UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA,
     UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA
 } from "test/shared/Addresses.sol";
-import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
-import { Doppler } from "src/Doppler.sol";
+import { mineV4, MineV4Params } from "./AirlockMiner.sol";
+import { Doppler } from "../../src/Doppler.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
@@ -29,7 +29,7 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { MAX_TICK_SPACING } from "src/Doppler.sol";
+import { MAX_TICK_SPACING } from "../../src/Doppler.sol";
 import { DopplerTickLibrary } from "../utils/DopplerTickLibrary.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 

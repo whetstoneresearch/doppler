@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { Doppler } from "src/Doppler.sol";
+import { Doppler } from "../../src/Doppler.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
@@ -11,13 +11,13 @@ import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
-import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
+import { WETH_UNICHAIN_SEPOLIA } from "../shared/Addresses.sol";
 import {
     DopplerFixtures,
     DEFAULT_STARTING_TIME,
     DEFAULT_ENDING_TIME,
     DEFAULT_EPOCH_LENGTH
-} from "test/shared/DopplerFixtures.sol";
+} from "../shared/DopplerFixtures.sol";
 
 /// @dev Tests involving migration of liquidity FROM Doppler to ILiquidityMigrator
 contract DopplerMigrateTest is DopplerFixtures {

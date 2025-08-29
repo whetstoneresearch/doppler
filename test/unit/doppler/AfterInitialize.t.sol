@@ -9,8 +9,8 @@ import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
-import { Position } from "src/Doppler.sol";
+import { BaseTest } from "../../shared/BaseTest.sol";
+import { Position } from "../../../src/Doppler.sol";
 
 contract AfterInitializeTest is BaseTest {
     using PoolIdLibrary for PoolKey;

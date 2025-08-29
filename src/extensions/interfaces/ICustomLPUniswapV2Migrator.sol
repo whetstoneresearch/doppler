@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { ILiquidityMigrator } from "../../interfaces/ILiquidityMigrator.sol";
 
 interface ICustomLPUniswapV2Migrator is ILiquidityMigrator {
     struct CustomLPState {

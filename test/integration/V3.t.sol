@@ -15,19 +15,19 @@ import {
     CallbackData,
     InitData,
     CannotMigrateInsufficientTick
-} from "src/UniswapV3Initializer.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
+} from "../../src/UniswapV3Initializer.sol";
+import { Airlock, ModuleState, CreateParams } from "../../src/Airlock.sol";
+import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair } from "../../src/UniswapV2Migrator.sol";
+import { DERC20 } from "../../src/DERC20.sol";
+import { TokenFactory } from "../../src/TokenFactory.sol";
+import { GovernanceFactory } from "../../src/GovernanceFactory.sol";
 import {
     WETH_MAINNET,
     UNISWAP_V3_FACTORY_MAINNET,
     UNISWAP_V3_ROUTER_MAINNET,
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET
-} from "test/shared/Addresses.sol";
+} from "../shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;

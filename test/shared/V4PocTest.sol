@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { BaseTest } from "./BaseTest.sol";
 
 contract V4PocTest is BaseTest {
     function test_v4_poc() public view {

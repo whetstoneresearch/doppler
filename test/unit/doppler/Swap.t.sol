@@ -8,7 +8,7 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { BaseTest } from "../../shared/BaseTest.sol";
 import {
     CannotSwapBeforeStartTime,
     SwapBelowRange,

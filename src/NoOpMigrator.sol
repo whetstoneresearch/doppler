@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ILiquidityMigrator } from "./interfaces/ILiquidityMigrator.sol";
+import { ImmutableAirlock } from "./base/ImmutableAirlock.sol";
 
 /// @dev Thrown when attempting to migrate liquidity
 error CannotMigrate();

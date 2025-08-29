@@ -11,9 +11,9 @@ import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { UniswapV4Migrator, AssetData } from "src/UniswapV4Migrator.sol";
-import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4Migrator, AssetData } from "../../src/UniswapV4Migrator.sol";
+import { StreamableFeesLocker, BeneficiaryData } from "../../src/StreamableFeesLocker.sol";
+import { UniswapV4MigratorHook } from "../../src/UniswapV4MigratorHook.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 
 error TickOutOfRange();

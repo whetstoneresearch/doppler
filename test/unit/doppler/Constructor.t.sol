@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { HookConfig, HookConfigs } from "test/shared/HookConfigs.sol";
+import { HookConfig, HookConfigs } from "../../shared/HookConfigs.sol";
 import {
     Doppler,
     MAX_TICK_SPACING,

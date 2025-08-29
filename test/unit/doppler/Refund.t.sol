@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
 
-import { Position } from "src/Doppler.sol";
+import { Position } from "../../../src/Doppler.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { BaseTest } from "../../shared/BaseTest.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
