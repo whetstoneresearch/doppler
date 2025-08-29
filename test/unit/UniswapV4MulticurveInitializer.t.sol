@@ -22,7 +22,8 @@ import {
     PoolAlreadyInitialized,
     PoolStatus,
     PoolState,
-    PoolLocked
+    PoolLocked,
+    PoolAlreadyExited
 } from "src/UniswapV4MulticurveInitializer.sol";
 import { Position } from "src/types/Position.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -145,6 +146,13 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
         test_initialize_AddsLiquidity();
         vm.expectRevert(SenderNotAirlock.selector);
+        initializer.exitLiquidity(Currency.unwrap(currency0));
+    }
+
+    function test_exitLiquidity_RevertsWhenPoolNotInitialized() public {
+        test_exitLiquidity();
+        vm.expectRevert(PoolAlreadyExited.selector);
+        vm.prank(airlock);
         initializer.exitLiquidity(Currency.unwrap(currency0));
     }
 
