@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { console } from "forge-std/console.sol";
 
+import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
@@ -10,8 +11,85 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 import { Position, concat } from "src/types/Position.sol";
-import { isTickAligned, alignTick, TickRangeMisordered } from "src/libraries/TickLibrary.sol";
+import { isTickAligned, alignTick, TickRangeMisordered, isRangeOrdered } from "src/libraries/TickLibrary.sol";
 import { WAD } from "src/types/Wad.sol";
+
+/// @notice Thrown when a mismatched info length for curves
+error InvalidArrayLength();
+
+error ZeroPosition(uint256 index);
+
+error ZeroMaxShare(uint256 index);
+
+/// @notice Thrown when the max share to be sold exceeds the maximum unit
+error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
+
+function generateCurves(int24 startingTick, int24 tickSpacing, int24 spread, uint256 amount) pure {
+    int24[] memory tickLower = new int24[](amount);
+    int24[] memory tickUpper = new int24[](amount);
+    uint16[] memory numPositions = new uint16[](amount);
+    uint256[] memory shareToBeSold = new uint256[](amount);
+
+    // int24 tickUpper = startingTick + spread;
+
+    for (uint256 i; i != amount; ++i) { }
+}
+
+function validateCurves(
+    address asset,
+    address numeraire,
+    int24 tickSpacing,
+    int24[] memory tickLower,
+    int24[] memory tickUpper,
+    uint16[] memory numPositions,
+    uint256[] memory shareToBeSold
+) pure {
+    uint256 numCurves = tickLower.length;
+
+    if (
+        numCurves != tickUpper.length || numCurves != shareToBeSold.length || numCurves != numPositions.length
+            || shareToBeSold.length != numPositions.length
+    ) {
+        revert InvalidArrayLength();
+    }
+
+    // todo determine if we just put the rest on the curve
+    uint256 totalShareToBeSold;
+
+    address token0 = asset < numeraire ? asset : numeraire;
+    bool isToken0 = token0 == asset;
+
+    int24 lowerTickBoundary = TickMath.MIN_TICK;
+    int24 upperTickBoundary = TickMath.MAX_TICK;
+
+    // Check the curves to see if they are safe
+    for (uint256 i; i != numCurves; ++i) {
+        require(numPositions[i] > 0, ZeroPosition(i));
+        require(shareToBeSold[i] > 0, ZeroMaxShare(i));
+
+        totalShareToBeSold += shareToBeSold[i];
+
+        int24 currentTickLower = tickLower[i];
+        int24 currentTickUpper = tickUpper[i];
+
+        isTickAligned(currentTickLower, tickSpacing);
+        isTickAligned(currentTickUpper, tickSpacing);
+        isRangeOrdered(currentTickLower, currentTickUpper);
+
+        // Flip the ticks if the asset is token1
+        if (!isToken0) {
+            tickLower[i] = -currentTickUpper;
+            tickUpper[i] = -currentTickLower;
+        }
+
+        // Calculate the boundaries
+        if (lowerTickBoundary > currentTickLower) lowerTickBoundary = currentTickLower;
+        if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
+    }
+
+    require(totalShareToBeSold <= WAD, MaxShareToBeSoldExceeded(totalShareToBeSold, WAD));
+    isRangeOrdered(lowerTickBoundary, upperTickBoundary);
+}
 
 function calculatePositions(
     PoolKey memory poolKey,
