@@ -371,4 +371,10 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         require(totalShares == WAD, InvalidTotalShares());
         require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
     }
+
+    function getPositions(
+        address asset
+    ) external view returns (Position[] memory) {
+        return getState[asset].positions;
+    }
 }
