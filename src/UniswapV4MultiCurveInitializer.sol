@@ -13,6 +13,8 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 
+import { EMPTY_ADDRESS } from "src/types/Constants.sol";
+import { FeesManager } from "src/base/FeesManager.sol";
 import { WAD } from "src/types/Wad.sol";
 import { MiniV4Manager, Position } from "src/base/MiniV4Manager.sol";
 import { Airlock } from "src/Airlock.sol";
@@ -20,16 +22,12 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { isTickAligned, alignTick, isRangeOrdered } from "src/libraries/TickLibrary.sol";
-import { calculateLpTail, calculatePositions, calculateLogNormalDistribution } from "src/libraries/Multicurve.sol";
-
-/**
- * @notice Emitted when a collect event is called
- * @param pool Address of the pool
- * @param beneficiary Address of the beneficiary receiving the fees
- * @param fees0 Amount of fees collected in token0
- * @param fees1 Amount of fees collected in token1
- */
-event Collect(address indexed pool, address indexed beneficiary, uint256 fees0, uint256 fees1);
+import {
+    calculateLpTail,
+    calculatePositions,
+    calculateLogNormalDistribution,
+    validateCurves
+} from "src/libraries/Multicurve.sol";
 
 /**
  * @notice Emitted when a new pool is locked
@@ -50,34 +48,6 @@ error PoolLocked();
 /// @notice Thrown when the current tick is not sufficient to migrate
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 
-/// @notice Thrown when the computed liquidity to mint is zero
-error CannotMintZeroLiquidity();
-
-/// @notice Thrown when the max share to be sold exceeds the maximum unit
-error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
-
-/// @notice Thrown when a mismatched info length for curves
-error InvalidArrayLength();
-
-error ZeroPosition(uint256 index);
-
-error ZeroMaxShare(uint256 index);
-
-/// @dev Thrown when the beneficiaries are not in ascending order
-error UnorderedBeneficiaries();
-
-/// @notice Thrown when shares are invalid
-error InvalidShares();
-
-/// @notice Thrown when protocol owner beneficiary is not found
-error InvalidProtocolOwnerBeneficiary();
-
-/// @notice Thrown when total shares are not equal to WAD
-error InvalidTotalShares();
-
-/// @notice Thrown when protocol owner shares are invalid
-error InvalidProtocolOwnerShares();
-
 struct InitData {
     uint24 fee;
     int24 tickSpacing;
@@ -86,12 +56,6 @@ struct InitData {
     uint16[] numPositions;
     uint256[] shareToBeSold;
     BeneficiaryData[] beneficiaries;
-}
-
-struct CallbackData {
-    address asset;
-    address numeraire;
-    uint24 fee;
 }
 
 enum PoolStatus {
@@ -112,7 +76,7 @@ struct PoolState {
     PoolKey poolKey;
 }
 
-contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, MiniV4Manager {
+contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -123,14 +87,6 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
 
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
-
-    mapping(address asset => uint256 cumulatedFees0) public getCumulatedFees0;
-    mapping(address asset => uint256 cumulatedFees1) public getCumulatedFees1;
-
-    mapping(address asset => mapping(address beneficiary => uint256 lastCumulatedFees0)) public getLastCumulatedFees0;
-    mapping(address asset => mapping(address beneficiary => uint256 lastCumulatedFees1)) public getLastCumulatedFees1;
-
-    mapping(address asset => mapping(address beneficiary => uint256 shares)) public getShares;
 
     /**
      * @param airlock_ Address of the Airlock contract
@@ -153,6 +109,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         bytes32,
         bytes calldata data
     ) external onlyAirlock returns (address pool) {
+        require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
+
         InitData memory initData = abi.decode(data, (InitData));
 
         (
@@ -173,17 +131,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             initData.beneficiaries
         );
 
-        uint256 numCurves = initData.tickLower.length;
-
-        if (
-            numCurves != tickUpper.length || numCurves != shareToBeSold.length || numCurves != numPositions.length
-                || shareToBeSold.length != numPositions.length
-        ) {
-            revert InvalidArrayLength();
-        }
-
-        // todo determine if we just put the rest on the curve
-        uint256 totalShareToBeSold;
+        int24 startTick =
+            validateCurves(asset, numeraire, tickSpacing, tickLower, tickUpper, numPositions, shareToBeSold);
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -192,49 +141,14 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
             fee: fee,
             tickSpacing: tickSpacing
         });
-
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
-        int24 lowerTickBoundary = TickMath.MIN_TICK;
-        int24 upperTickBoundary = TickMath.MAX_TICK;
-
-        // Check the curves to see if they are safe
-        for (uint256 i; i != numCurves; ++i) {
-            require(numPositions[i] > 0, ZeroPosition(i));
-            require(shareToBeSold[i] > 0, ZeroMaxShare(i));
-
-            totalShareToBeSold += shareToBeSold[i];
-
-            int24 currentTickLower = tickLower[i];
-            int24 currentTickUpper = tickUpper[i];
-
-            isTickAligned(currentTickLower, tickSpacing);
-            isTickAligned(currentTickUpper, tickSpacing);
-            isRangeOrdered(currentTickLower, currentTickUpper);
-
-            // Flip the ticks if the asset is token1
-            if (!isToken0) {
-                tickLower[i] = -currentTickUpper;
-                tickUpper[i] = -currentTickLower;
-            }
-
-            // Calculate the boundaries
-            if (lowerTickBoundary > currentTickLower) lowerTickBoundary = currentTickLower;
-            if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
-        }
-
-        require(totalShareToBeSold <= WAD, MaxShareToBeSoldExceeded(totalShareToBeSold, WAD));
-        isRangeOrdered(lowerTickBoundary, upperTickBoundary);
-
-        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(isToken0 ? lowerTickBoundary : upperTickBoundary);
-
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         Position[] memory positions = calculatePositions(
             poolKey, isToken0, numPositions, tickLower, tickUpper, shareToBeSold, totalTokensOnBondingCurve
         );
-
-        require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
@@ -254,13 +168,12 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         emit Create(address(poolManager), asset, numeraire);
 
         if (beneficiaries.length != 0) {
-            _validateBeneficiaries(asset, airlock.owner(), beneficiaries);
+            _storeBeneficiaries(poolKey.toId(), airlock.owner(), beneficiaries);
+            // _validateBeneficiaries(asset, airlock.owner(), beneficiaries);
             emit Lock(pool, beneficiaries);
         }
 
-        // TODO: A bit hacky but since V4 pools don't have their own address we're returning the address
-        // of the asset token instead to retrieve the data later on in the `exitLiquidity function
-        pool = asset;
+        return EMPTY_ADDRESS;
     }
 
     /// @inheritdoc IPoolInitializer
@@ -303,73 +216,15 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, ImmutableAirlock, M
         state.poolKey.currency1.transfer(msg.sender, balance1);
     }
 
-    /**
-     * @notice Collects fees from a locked Uniswap V4 pool, distributes to the caller if applicable
-     * @dev Collected fees are now held in this contract until they are claimed by their beneficiary
-     * @param asset Address of the asset token
-     * @return fees0 Total fees collected in token0 since last collection
-     * @return fees1 Total fees collected in token1 since last collection
-     */
-    function collectFees(
-        address asset
-    ) external returns (uint256 fees0, uint256 fees1) {
+    function _collectFees(
+        PoolId poolId
+    ) internal override returns (BalanceDelta fees) {
+        // TODO: Fix this.
+        address asset;
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, PoolLocked());
 
-        BalanceDelta fees = _collect(state.poolKey, state.positions);
-        fees0 = uint128(fees.amount0());
-        fees1 = uint128(fees.amount1());
-
-        getCumulatedFees0[asset] += fees0;
-        getCumulatedFees1[asset] += fees1;
-
-        uint256 shares = getShares[asset][msg.sender];
-
-        if (shares > 0) {
-            uint256 delta0 = getCumulatedFees0[asset] - getLastCumulatedFees0[asset][msg.sender];
-            uint256 amount0 = delta0 * shares / WAD;
-            getLastCumulatedFees0[asset][msg.sender] = getCumulatedFees0[asset];
-            if (amount0 > 0) state.poolKey.currency0.transfer(msg.sender, amount0);
-
-            uint256 delta1 = getCumulatedFees1[asset] - getLastCumulatedFees1[asset][msg.sender];
-            uint256 amount1 = delta1 * shares / WAD;
-            getLastCumulatedFees1[asset][msg.sender] = getCumulatedFees1[asset];
-            if (amount1 > 0) state.poolKey.currency1.transfer(msg.sender, amount1);
-
-            emit Collect(asset, msg.sender, amount0, amount1);
-        }
-    }
-
-    function _validateBeneficiaries(
-        address asset,
-        address protocolOwner,
-        BeneficiaryData[] memory beneficiaries
-    ) internal {
-        address prevBeneficiary;
-        uint256 totalShares;
-        bool foundProtocolOwner;
-
-        for (uint256 i; i < beneficiaries.length; i++) {
-            BeneficiaryData memory beneficiary = beneficiaries[i];
-
-            // Validate ordering and shares
-            require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
-            require(beneficiary.shares > 0, InvalidShares());
-
-            // Check for protocol owner and validate minimum share requirement
-            if (beneficiary.beneficiary == protocolOwner) {
-                require(beneficiary.shares >= WAD / 20, InvalidProtocolOwnerShares());
-                foundProtocolOwner = true;
-            }
-
-            prevBeneficiary = beneficiary.beneficiary;
-            totalShares += beneficiary.shares;
-
-            getShares[asset][prevBeneficiary] = beneficiary.shares;
-        }
-
-        require(totalShares == WAD, InvalidTotalShares());
-        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
+        return _collect(state.poolKey, state.positions);
     }
 
     function getPositions(
