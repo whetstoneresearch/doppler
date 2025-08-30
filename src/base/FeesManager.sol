@@ -79,6 +79,12 @@ abstract contract FeesManager is ReentrancyGuard {
         require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
     }
 
+    /**
+     * @notice Collects fees from a locked Uniswap V4 pool, distributes to the caller if applicable
+     * @dev Collected fees are now held in this contract until they are claimed by their beneficiary
+     * @return fees0 Total fees collected in token0 since last collection
+     * @return fees1 Total fees collected in token1 since last collection
+     */
     function collectFees(
         PoolId poolId
     ) external nonReentrant returns (uint128 fees0, uint128 fees1) {
