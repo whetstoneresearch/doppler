@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { console } from "forge-std/console.sol";
-
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
@@ -24,15 +22,71 @@ error ZeroMaxShare(uint256 index);
 /// @notice Thrown when the max share to be sold exceeds the maximum unit
 error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
 
-function generateCurves(int24 startingTick, int24 tickSpacing, int24 spread, uint256 amount) pure {
-    int24[] memory tickLower = new int24[](amount);
-    int24[] memory tickUpper = new int24[](amount);
-    uint16[] memory numPositions = new uint16[](amount);
-    uint256[] memory shareToBeSold = new uint256[](amount);
+struct Curve {
+    int24 tickLower;
+    int24 tickUpper;
+    uint16 numPositions;
+    uint256 share;
+}
 
-    // int24 tickUpper = startingTick + spread;
+/// @dev Takes in an array of generic curve parameters (shapes) and applies an offset to them
+function adjustCurves(
+    bool isToken0,
+    int24 tickSpacing,
+    int24 offset,
+    Curve[] memory curves
+) pure returns (Curve[] memory adjustedCurves) {
+    adjustedCurves = new Curve[](curves.length);
 
-    for (uint256 i; i != amount; ++i) { }
+    uint256 totalShares;
+    // int24 lowerTickBoundary;
+    // int24 upperTickBoundary;
+
+    uint256 numCurves = curves.length;
+
+    for (uint256 i; i != numCurves; ++i) {
+        adjustedCurves[i] = adjustCurve(curves[i], tickSpacing, offset, isToken0);
+        totalShares += curves[i].share;
+    }
+
+    require(totalShares <= WAD, MaxShareToBeSoldExceeded(totalShares, WAD));
+    // isRangeOrdered(lowerTickBoundary, upperTickBoundary);
+}
+
+function adjustCurve(
+    Curve memory curve,
+    int24 tickSpacing,
+    int24 offset,
+    bool isToken0
+) pure returns (Curve memory adjustedCurve) {
+    adjustedCurve = curve;
+
+    require(adjustedCurve.numPositions > 0, "ZeroPosition");
+    require(adjustedCurve.share > 0, "ZeroMaxShare");
+
+    if (offset != 0) {
+        adjustedCurve.tickLower += offset;
+        adjustedCurve.tickUpper += offset;
+    }
+
+    isTickAligned(adjustedCurve.tickLower, tickSpacing);
+    isTickAligned(adjustedCurve.tickUpper, tickSpacing);
+
+    // Flip the ticks if the asset is token1
+    if (!isToken0) {
+        adjustedCurve.tickLower = -adjustedCurve.tickUpper;
+        adjustedCurve.tickUpper = -adjustedCurve.tickLower;
+    }
+
+    isRangeOrdered(adjustedCurve.tickLower, adjustedCurve.tickUpper);
+
+    /*
+    // Calculate the boundaries
+    if (lowerTickBoundary > currentTickLower) lowerTickBoundary = currentTickLower;
+    if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
+
+    adjustedCurves[i] = adjustedCurve;    
+    */
 }
 
 function validateCurves(
@@ -43,7 +97,7 @@ function validateCurves(
     int24[] memory tickUpper,
     uint16[] memory numPositions,
     uint256[] memory shareToBeSold
-) pure {
+) pure returns (int24 startTick) {
     uint256 numCurves = tickLower.length;
 
     if (
@@ -89,6 +143,8 @@ function validateCurves(
 
     require(totalShareToBeSold <= WAD, MaxShareToBeSoldExceeded(totalShareToBeSold, WAD));
     isRangeOrdered(lowerTickBoundary, upperTickBoundary);
+
+    return isToken0 ? lowerTickBoundary : upperTickBoundary;
 }
 
 function calculatePositions(
