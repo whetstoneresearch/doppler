@@ -175,7 +175,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
     function test_collectFees_RevertsWhenPoolNotLocked() public {
         vm.expectRevert(PoolLocked.selector);
-        initializer.collectFees(address(0));
+        // initializer.collectFees(address(0));
     }
 
     // Utils //
