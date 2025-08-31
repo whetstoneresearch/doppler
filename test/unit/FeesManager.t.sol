@@ -19,7 +19,8 @@ import {
     InvalidProtocolOwnerShares,
     InvalidTotalShares,
     InvalidProtocolOwnerBeneficiary,
-    Collect
+    Collect,
+    UpdateBeneficiary
 } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
@@ -189,5 +190,19 @@ contract FeesManagerTest is Test {
             assertEq(feesManager.getLastCumulatedFees0(poolId, beneficiary), fees0);
             assertEq(feesManager.getLastCumulatedFees1(poolId, beneficiary), fees1);
         }
+    }
+
+    function test_updateBeneficiary() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+
+        vm.expectEmit();
+        emit UpdateBeneficiary(poolId, address(0xaaa), address(0xbbb));
+        vm.prank(address(0xaaa));
+        feesManager.updateBeneficiary(poolId, address(0xbbb));
+        assertEq(feesManager.getShares(poolId, address(0xaaa)), 0, "Incorrect previous beneficiary shares");
+        assertEq(feesManager.getShares(poolId, address(0xbbb)), 0.95e18, "Incorrect new beneficiary shares");
     }
 }
