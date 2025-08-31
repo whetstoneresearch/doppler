@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BalanceDelta, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
@@ -21,10 +21,21 @@ import {
 } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
+    PoolManagerMock internal poolManager;
+    TestERC20 internal token0;
+    TestERC20 internal token1;
+
+    constructor(PoolManagerMock poolManager_, TestERC20 token0_, TestERC20 token1_) {
+        poolManager = poolManager_;
+        token0 = token0_;
+        token1 = token1_;
+    }
+
     function _collectFees(
-        PoolId poolId
-    ) internal pure override returns (BalanceDelta fees) {
-        return BalanceDelta.wrap(0);
+        PoolId
+    ) internal override returns (BalanceDelta fees) {
+        (uint256 fees0, uint256 fees1) = poolManager.collect();
+        fees = toBalanceDelta(int128(uint128(fees0)), int128(uint128(fees1)));
     }
 
     function storeBeneficiaries(
@@ -36,13 +47,38 @@ contract FeesManagerImplementation is FeesManager {
     }
 }
 
-contract FeesManagerTest is Test {
+contract PoolManagerMock {
     TestERC20 internal token0;
     TestERC20 internal token1;
+
+    constructor(TestERC20 token0_, TestERC20 token1_) {
+        token0 = token0_;
+        token1 = token1_;
+    }
+
+    function setFees(uint256 amount0, uint256 amount1) external {
+        token0.mint(address(this), amount0);
+        token1.mint(address(this), amount1);
+    }
+
+    function collect() external returns (uint256 amount0, uint256 amount1) {
+        amount0 = token0.balanceOf(address(this));
+        token0.transfer(msg.sender, amount0);
+        amount1 = token1.balanceOf(address(this));
+        token1.transfer(msg.sender, amount1);
+    }
+}
+
+contract FeesManagerTest is Test {
+    address internal protocolOwner = address(0xB055);
+
+    TestERC20 internal token0;
+    TestERC20 internal token1;
+    PoolManagerMock internal poolManager;
     FeesManagerImplementation internal feesManager;
+
     PoolId internal poolId;
     PoolKey internal poolKey;
-    address internal protocolOwner = address(0xB055);
 
     function setUp() public {
         token0 = new TestERC20(0);
@@ -50,7 +86,7 @@ contract FeesManagerTest is Test {
 
         (token0, token1) = address(token0) < address(token1) ? (token0, token1) : (token1, token0);
 
-        feesManager = new FeesManagerImplementation();
+        feesManager = new FeesManagerImplementation(poolManager, token0, token1);
 
         poolKey = PoolKey({
             currency0: Currency.wrap(address(token0)),
