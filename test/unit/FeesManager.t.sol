@@ -72,6 +72,15 @@ contract FeesManagerTest is Test {
         assertEq(feesManager.getShares(poolId, protocolOwner), 0.05e18);
     }
 
+    function test_storeBeneficiaries_RevertsWhenInvalidShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+
+        vm.expectRevert(InvalidShares.selector);
+        feesManager.storeBeneficiaries(poolId, protocolOwner, beneficiaries);
+    }
+
     function test_storeBeneficiaries_RevertsWhenUnorderedBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xbbb), shares: 0.45e18 });
