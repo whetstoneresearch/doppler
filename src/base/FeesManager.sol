@@ -43,6 +43,7 @@ event UpdateBeneficiary(PoolId poolId, address oldBeneficiary, address newBenefi
 /**
  * @title FeesManager
  * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
  * @dev Base contract allowing the collection and distribution of fees from a Uniswap V4 pool, the fees management
  * is based on a similar mechanism used in the `MasterChef` contract from SushiSwap, allowing anyone to claim fees
  * from a pool but only distributing them to the actual `msg.sender` if they are a beneficiary, otherwise increasing
@@ -52,7 +53,6 @@ event UpdateBeneficiary(PoolId poolId, address oldBeneficiary, address newBenefi
  *    fees = ──────────────────────────────────────────────
  *                                WAD
  *
- * @custom:security-contact security@whetstone.cc
  */
 abstract contract FeesManager is ReentrancyGuard {
     /// @notice Cumulated fees for the Uniswap V4 pool `poolId` denominated in token0
