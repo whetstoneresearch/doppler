@@ -82,6 +82,15 @@ contract FeesManagerTest is Test {
         feesManager.storeBeneficiaries(poolId, protocolOwner, beneficiaries);
     }
 
+    function test_storeBeneficiaries_RevertsWhenInvalidProtocolOwnerShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.96e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.04e18 });
+
+        vm.expectRevert(InvalidProtocolOwnerShares.selector);
+        feesManager.storeBeneficiaries(poolId, protocolOwner, beneficiaries);
+    }
+
     function test_storeBeneficiaries_RevertsWhenInvalidProtocolOwnerBeneficiary() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.5e18 });
