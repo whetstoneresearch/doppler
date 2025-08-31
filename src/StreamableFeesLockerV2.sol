@@ -13,12 +13,14 @@ import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
-/// @notice Data structure for position information
-/// @param recipient Address that will receive the NFT after unlocking
-/// @param startDate Timestamp when the position was locked
-/// @param lockDuration Duration of the position lock
-/// @param isUnlocked Whether the position has been unlocked
-/// @param beneficiaries Array of beneficiaries and their shares
+/**
+ * @notice Data structure for position information
+ * @param recipient Address that will receive the NFT after unlocking
+ * @param startDate Timestamp when the position was locked
+ * @param lockDuration Duration of the position lock
+ * @param isUnlocked Whether the position has been unlocked
+ * @param beneficiaries Array of beneficiaries and their shares
+ */
 struct StreamData {
     PoolKey poolKey;
     address recipient;
@@ -38,10 +40,12 @@ error StreamNotFound();
 /// @notice Thrown when a stream is already unlocked
 error StreamAlreadyUnlocked();
 
-/// @notice Emitted when a position is locked
-/// @param poolId ID of the Uniswap V4 pool
-/// @param beneficiaries Array of beneficiaries and their shares
-/// @param unlockDate Timestamp when the position will be unlocked
+/**
+ * @notice Emitted when a position is locked
+ * @param poolId ID of the Uniswap V4 pool
+ * @param beneficiaries Array of beneficiaries and their shares
+ * @param unlockDate Timestamp when the position will be unlocked
+ */
 event Lock(PoolId indexed poolId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
 
 /// @notice Emitted when a position is unlocked
@@ -53,10 +57,13 @@ event Unlock(PoolId indexed poolId, address recipient);
 /// @param approval Whether the migrator is approved
 event MigratorApproval(address indexed migrator, bool approval);
 
-/// @title StreamableFeesLocker
-/// @notice A contract that manages fee streaming for Uniswap V4 positions
-/// @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
-/// @dev Uses instant distribution mechanism for fees
+/**
+ * @title StreamableFeesLocker
+ * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
+ * @notice A contract that manages fee streaming for Uniswap V4 positions
+ * @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
+ */
 contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
     mapping(PoolId poolId => StreamData) public streams;
 
@@ -123,7 +130,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
             if (block.timestamp >= stream.startDate + stream.lockDuration && stream.recipient != DEAD_ADDRESS) {
                 streams[poolId].isUnlocked = true;
 
-                (BalanceDelta delta,) = _handleBurn(stream.poolKey, stream.positions);
+                (BalanceDelta delta,) = _burn(stream.poolKey, stream.positions);
                 stream.poolKey.currency0.transfer(stream.recipient, uint128(delta.amount0()));
                 stream.poolKey.currency1.transfer(stream.recipient, uint128(delta.amount1()));
 
