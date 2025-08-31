@@ -11,7 +11,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeesManager } from "src/base/FeesManager.sol";
+import { FeesManager, UnorderedBeneficiaries } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
     function _collectFees(
@@ -63,6 +63,16 @@ contract FeesManagerTest is Test {
 
         assertEq(feesManager.getShares(poolId, address(0xaaa)), 0.95e18);
         assertEq(feesManager.getShares(poolId, protocolOwner), 0.05e18);
+    }
+
+    function test_storeBeneficiaries_RevertsWhenUnorderedBeneficiaries() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xbbb), shares: 0.45e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.505e18 });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+
+        vm.expectRevert(UnorderedBeneficiaries.selector);
+        feesManager.storeBeneficiaries(poolId, protocolOwner, beneficiaries);
     }
 
     function test_collectFees() public { }
