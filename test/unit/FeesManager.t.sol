@@ -62,7 +62,7 @@ contract FeesManagerTest is Test {
         poolId = poolKey.toId();
     }
 
-    function test_storeBeneficiaries() public {
+    function test_storeBeneficiaries_StoresBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
