@@ -18,7 +18,8 @@ import {
     InvalidShares,
     InvalidProtocolOwnerShares,
     InvalidTotalShares,
-    InvalidProtocolOwnerBeneficiary
+    InvalidProtocolOwnerBeneficiary,
+    Collect
 } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
@@ -180,6 +181,8 @@ contract FeesManagerTest is Test {
             address beneficiary = beneficiaries[i].beneficiary;
 
             vm.prank(beneficiary);
+            vm.expectEmit();
+            emit Collect(poolId, beneficiary, expectedFees0, expectedFees1);
             feesManager.collectFees(poolId);
             assertEq(token0.balanceOf(beneficiary), expectedFees0, "Wrong collected fees0");
             assertEq(token1.balanceOf(beneficiary), expectedFees1, "Wrong collected fees1");
@@ -187,6 +190,4 @@ contract FeesManagerTest is Test {
             assertEq(feesManager.getLastCumulatedFees1(poolId, beneficiary), fees1);
         }
     }
-
-    function test_updateBeneficiary() public { }
 }
