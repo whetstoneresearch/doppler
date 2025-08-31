@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
-import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -15,19 +12,13 @@ import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.s
 
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
-import { WAD } from "src/types/Wad.sol";
-import { MiniV4Manager, Position } from "src/base/MiniV4Manager.sol";
+import { Position } from "src/types/Position.sol";
+import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { isTickAligned, alignTick, isRangeOrdered } from "src/libraries/TickLibrary.sol";
-import {
-    calculateLpTail,
-    calculatePositions,
-    calculateLogNormalDistribution,
-    validateCurves
-} from "src/libraries/Multicurve.sol";
+import { calculatePositions, validateCurves } from "src/libraries/Multicurve.sol";
 
 /**
  * @notice Emitted when a new pool is locked
