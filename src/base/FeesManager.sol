@@ -8,10 +8,10 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 
-/// @dev Thrown when the beneficiaries are not in ascending order
+/// @dev Thrown when the beneficiaries are not sorted in ascending order
 error UnorderedBeneficiaries();
 
-/// @notice Thrown when shares are invalid
+/// @notice Thrown when shares are invalid (greater than WAD)
 error InvalidShares();
 
 /// @notice Thrown when protocol owner beneficiary is not found
@@ -20,39 +20,57 @@ error InvalidProtocolOwnerBeneficiary();
 /// @notice Thrown when total shares are not equal to WAD
 error InvalidTotalShares();
 
-/// @notice Thrown when protocol owner shares are invalid
+/// @notice Thrown when protocol owner shares are invalid (lower than 0.05 WAD)
 error InvalidProtocolOwnerShares();
 
 /**
- * @notice Emitted when a collect event is called
+ * @notice Emitted a beneficiary collects their fees
+ * @param poolId Id of the Uniswap V4 pool
  * @param beneficiary Address of the beneficiary receiving the fees
  * @param fees0 Amount of fees collected in token0
  * @param fees1 Amount of fees collected in token1
  */
 event Collect(PoolId indexed poolId, address indexed beneficiary, uint256 fees0, uint256 fees1);
 
-/// @notice Emitted when a beneficiary is updated
-/// @param oldBeneficiary Previous beneficiary address
-/// @param newBeneficiary New beneficiary address
+/**
+ * @notice Emitted when a beneficiary is updated
+ * @param poolId Id of the Uniswap V4 pool
+ * @param oldBeneficiary Address of the previous beneficiary
+ * @param newBeneficiary Address of the new beneficiary
+ */
 event UpdateBeneficiary(PoolId poolId, address oldBeneficiary, address newBeneficiary);
 
 /**
  * @title FeesManager
  * @author Whetstone Research
  * @dev Base contract allowing the collection and distribution of fees from a Uniswap V4 pool, the fees management
- * is based on a similar mechanism used by the `MasterChef` contract, allowing anyone to claim the fees from the pool
- * but only distributing them to the actual `msg.sender` if they are a beneficiary of the position
+ * is based on a similar mechanism used in the `MasterChef` contract from SushiSwap, allowing anyone to claim fees
+ * from a pool but only distributing them to the actual `msg.sender` if they are a beneficiary, otherwise increasing
+ * accumulated fees for the other beneficiaries. Fees are later computed with the following formula:
+ *
+ *            (cumulatedFees - lastCumulatedFees) ⋅ shares
+ *    fees = ──────────────────────────────────────────────
+ *                                WAD
+ *
  * @custom:security-contact security@whetstone.cc
  */
 abstract contract FeesManager is ReentrancyGuard {
+    /// @notice Cumulated fees for the Uniswap V4 pool `poolId` denominated in token0
     mapping(PoolId poolId => uint256 cumulatedFees0) public getCumulatedFees0;
+
+    /// @notice Cumulated fees for the Uniswap V4 pool `poolId` denominated in token1
     mapping(PoolId poolId => uint256 cumulatedFees1) public getCumulatedFees1;
 
+    /// @notice Last `collectFees` call of a `beneficiary` for a specific `poolId` denominated in token0
     mapping(PoolId poolId => mapping(address beneficiary => uint256 lastCumulatedFees0)) public getLastCumulatedFees0;
+
+    /// @notice Last `collectFees` call of a `beneficiary` for a specific `poolId` denominated in token1
     mapping(PoolId poolId => mapping(address beneficiary => uint256 lastCumulatedFees1)) public getLastCumulatedFees1;
 
+    /// @notice Shares entitled to a `beneficiary` for the associated Uniswap V4 `poolId`
     mapping(PoolId poolId => mapping(address beneficiary => uint256 shares)) public getShares;
 
+    /// @notice Associates `poolId` types with their corresponding Uniswap V4 pool `poolKey` types
     mapping(PoolId poolId => PoolKey poolKey) public getPoolKey;
 
     /**
@@ -74,8 +92,12 @@ abstract contract FeesManager is ReentrancyGuard {
         _releaseFees(poolId, msg.sender);
     }
 
-    /// @notice Updates the beneficiary address for a position
-    /// @param newBeneficiary New beneficiary address
+    /**
+     * @notice Transfers the shares of the `msg.sender` to a new `newBeneficiary` address for a specified
+     * `poolId` Uniswap V4 pool, note that this function also collects the currently available fees
+     * @param poolId Pool id of the Uniswap V4 pool to target
+     * @param newBeneficiary Address of the new beneficiary
+     */
     function updateBeneficiary(PoolId poolId, address newBeneficiary) external nonReentrant {
         _releaseFees(poolId, msg.sender);
         getShares[poolId][newBeneficiary] = getShares[poolId][msg.sender];
@@ -86,6 +108,12 @@ abstract contract FeesManager is ReentrancyGuard {
         emit UpdateBeneficiary(poolId, msg.sender, newBeneficiary);
     }
 
+    /**
+     * @dev Validates and stores an array of beneficiaries for a given `poolId` Uniswap V4 pool
+     * @param poolId Pool id of the associated Uniswap V4 pool
+     * @param protocolOwner Address of the protocol owner, required as a beneficiary with a minimum of 5% shares
+     * @param beneficiaries Array with sorted addresses and shares specified in WAD (with a total sum of 1 WAD)
+     */
     function _storeBeneficiaries(
         PoolId poolId,
         address protocolOwner,
@@ -118,8 +146,11 @@ abstract contract FeesManager is ReentrancyGuard {
         require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
     }
 
-    /// @notice Releases fees to a beneficiary
-    /// @param beneficiary Address to release fees to
+    /**
+     * @dev Distributes the available fees for a specified `beneficiary` address
+     * @param poolId Pool id of the Uniswap V4 pool to collect fees from
+     * @param beneficiary Address of the beneficiary claiming the fees
+     */
     function _releaseFees(PoolId poolId, address beneficiary) internal {
         uint256 shares = getShares[poolId][beneficiary];
 
@@ -139,7 +170,12 @@ abstract contract FeesManager is ReentrancyGuard {
         }
     }
 
-    /// @dev Calls an external contract like Uniswap V4 to collect fees
+    /**
+     * @dev Called in `collectFees`, this function is meant to be overridden by a child contract and must
+     * implement a mechanism to collect fees from an external party such as Uniswap V4 `PoolManager` contract
+     * @param poolId Pool id representation of the Uniswap V4 pool to collect fees from
+     * @return fees Collected fees denominated in `token0` and `token1` represented as a `BalanceDelta` type
+     */
     function _collectFees(
         PoolId poolId
     ) internal virtual returns (BalanceDelta fees);
