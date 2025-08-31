@@ -1,53 +1,66 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
-import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { IPoolManager, PoolKey, IHooks, BalanceDelta } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { IPoolManager, PoolKey, BalanceDelta } from "@v4-core/interfaces/IPoolManager.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { Position } from "src/types/Position.sol";
 
+/// @dev Possible actions passed through the `unlockCallback` function
 enum Actions {
     Mint,
     Burn,
     Collect
 }
 
+/// @dev Thrown when the caller is not the `PoolManager` contract
 error CallerNotPoolManager();
 
+/// @dev Thrown when the given action in the `unlockCallback` function is invalid
 error InvalidCallbackAction(uint8 action);
 
+/**
+ * @dev Struct used to pass data via the `unlockCallback` function
+ * @param action Action to perform in the callback
+ * @param poolKey Key of the Uniswap V4 pool where the action will be performed
+ * @param positions Array of positions to update in the callback
+ */
 struct CallbackData {
     Actions action;
     PoolKey poolKey;
     Position[] positions;
 }
 
+/**
+ * @title MiniV4Manager
+ * @author Whetstone Research
+ * @dev Base contract implementing different actions with the Uniswap V4 `PoolManager` and allowing an inheriting
+ * child to mint or burn positions and collect fees from them
+ * @custom:security-contact security@whetstone.cc
+ */
 abstract contract MiniV4Manager is IUnlockCallback {
     using BalanceDeltaLibrary for BalanceDelta;
 
+    /// @notice Address of Uniswap V4 `PoolManager` contract
     IPoolManager public immutable poolManager;
 
+    /// @dev Requires that the `msg.sender` is the stored `poolManager`
     modifier onlyPoolManager() {
         require(msg.sender == address(poolManager), CallerNotPoolManager());
         _;
     }
 
+    /// @param poolManager_ Address of Uniswap V4 `PoolManager` contract
     constructor(
         IPoolManager poolManager_
     ) {
         poolManager = poolManager_;
     }
 
-    /// @notice Handles the callback from the PoolManager
+    /// @inheritdoc IUnlockCallback
     function unlockCallback(
         bytes calldata data
     ) external onlyPoolManager returns (bytes memory) {
@@ -72,11 +85,22 @@ abstract contract MiniV4Manager is IUnlockCallback {
         return abi.encode(balanceDelta, totalFeesAccrued);
     }
 
-    /// @dev Calls the PoolManager contract to mint the given positions of the given pool
+    /**
+     * @dev Calls the `PoolManager` to mint the given `positions` from the specified `poolKey` pool
+     * @param poolKey Key of the Uniswap V4 pool to mint from
+     * @param positions Array of `Position` struct to mint
+     */
     function _mint(PoolKey memory poolKey, Position[] memory positions) internal {
         poolManager.unlock(abi.encode(CallbackData({ action: Actions.Mint, poolKey: poolKey, positions: positions })));
     }
 
+    /**
+     * @dev Calls the `PoolManager` to burn the given `positions` from the specified `poolKey` pool
+     * @param poolKey Key of the Uniswap V4 pool to burn from
+     * @param positions Array of `Position` struct to burn
+     * @return balanceDelta Balances denominated in `token0` and `token1` retrieved from the burnt positions
+     * @return feesAccrued Fees accrued from the burnt positions since last collection (included in `balanceDelta`)
+     */
     function _burn(
         PoolKey memory poolKey,
         Position[] memory positions
@@ -87,6 +111,12 @@ abstract contract MiniV4Manager is IUnlockCallback {
         (balanceDelta, feesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
     }
 
+    /**
+     * @dev Calls the `PoolManager` to collect fees earned by the given `positions` in the specified `poolKey` pool
+     * @param poolKey Key of the Uniswap V4 pool to collect fees from
+     * @param positions Array of `Position` struct
+     * @return totalFees Fees collected from the given positions, denominated in `token0` and `token1`
+     */
     function _collect(PoolKey memory poolKey, Position[] memory positions) internal returns (BalanceDelta totalFees) {
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ action: Actions.Collect, poolKey: poolKey, positions: positions }))
@@ -94,12 +124,16 @@ abstract contract MiniV4Manager is IUnlockCallback {
         (totalFees) = abi.decode(data, (BalanceDelta));
     }
 
-    /// @dev This function is not meant to be called directly! Its purpose is only to trigger the minting of the
-    /// positions during the PoolManager callback call
+    /**
+     * @dev Handles the minting of the positions during the `PoolManager` callback call
+     * @param poolKey Key of the Uniswap V4 pool to mint from
+     * @param positions Array of `Position` struct to mint
+     * @return balanceDelta Current delta of negative balances denominated in `token0` and `token1`
+     */
     function _handleMint(
         PoolKey memory poolKey,
         Position[] memory positions
-    ) internal returns (BalanceDelta balanceDelta) {
+    ) private returns (BalanceDelta balanceDelta) {
         uint256 length = positions.length;
 
         for (uint256 i; i != length; ++i) {
@@ -116,10 +150,17 @@ abstract contract MiniV4Manager is IUnlockCallback {
         }
     }
 
+    /**
+     * @dev Handles the burning of the positions during the `PoolManager` callback call
+     * @param poolKey Key of the Uniswap V4 pool to burn from
+     * @param positions Array of `Position` struct to burn
+     * @return balanceDelta Current delta of positive balances denominated in `token0` and `token1`
+     * @return totalFeesAccrued Fees accrued from the burnt positions since last collection (included in `balanceDelta`)
+     */
     function _handleBurn(
         PoolKey memory poolKey,
         Position[] memory positions
-    ) internal returns (BalanceDelta balanceDelta, BalanceDelta totalFeesAccrued) {
+    ) private returns (BalanceDelta balanceDelta, BalanceDelta totalFeesAccrued) {
         uint256 length = positions.length;
 
         for (uint256 i; i != length; ++i) {
@@ -137,10 +178,16 @@ abstract contract MiniV4Manager is IUnlockCallback {
         }
     }
 
+    /**
+     * @dev Handles the collection of the fees during the `PoolManager` callback call
+     * @param poolKey Key of the Uniswap V4 pool to collect fees from
+     * @param positions Array of `Position` struct to collect fees from
+     * @return totalFees Fees collected from the positions
+     */
     function _handleCollect(
         PoolKey memory poolKey,
         Position[] memory positions
-    ) internal returns (BalanceDelta totalFees) {
+    ) private returns (BalanceDelta totalFees) {
         uint256 length = positions.length;
 
         for (uint256 i; i != length; ++i) {
@@ -157,10 +204,12 @@ abstract contract MiniV4Manager is IUnlockCallback {
         }
     }
 
-    function _handleSettle(
-        PoolKey memory poolKey,
-        BalanceDelta delta
-    ) internal returns (uint256 amount0, uint256 amount1) {
+    /**
+     * @dev Handles the settlement of the balances during the `PoolManager` callback call
+     * @param poolKey Key of the Uniswap V4 pool, used to retrieve the currencies
+     * @param delta Current balances to settle denominated in `currency0` and `currency1`
+     */
+    function _handleSettle(PoolKey memory poolKey, BalanceDelta delta) private {
         if (delta.amount0() > 0) {
             poolManager.take(poolKey.currency0, address(this), uint128(delta.amount0()));
         }
