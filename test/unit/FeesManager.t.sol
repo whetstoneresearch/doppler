@@ -91,6 +91,14 @@ contract FeesManagerTest is Test {
         feesManager.storeBeneficiaries(poolId, protocolOwner, beneficiaries);
     }
 
+    function test_storeBeneficiaries_RevertsWhenInvalidTotalShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.96e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+        vm.expectRevert(InvalidTotalShares.selector);
+        feesManager.storeBeneficiaries(poolId, protocolOwner, beneficiaries);
+    }
+
     function test_collectFees() public { }
 
     function test_updateBeneficiary() public { }
