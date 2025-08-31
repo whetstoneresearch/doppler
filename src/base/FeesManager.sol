@@ -100,10 +100,11 @@ abstract contract FeesManager is ReentrancyGuard {
      */
     function updateBeneficiary(PoolId poolId, address newBeneficiary) external nonReentrant {
         _releaseFees(poolId, msg.sender);
-        getShares[poolId][newBeneficiary] = getShares[poolId][msg.sender];
+        _releaseFees(poolId, newBeneficiary);
+
+        // No need to check if shares > WAD, since we already validated this in `_storeBeneficiaries`
+        getShares[poolId][newBeneficiary] += getShares[poolId][msg.sender];
         getShares[poolId][msg.sender] = 0;
-        getLastCumulatedFees0[poolId][newBeneficiary] = getCumulatedFees0[poolId];
-        getLastCumulatedFees1[poolId][newBeneficiary] = getCumulatedFees1[poolId];
 
         emit UpdateBeneficiary(poolId, msg.sender, newBeneficiary);
     }
