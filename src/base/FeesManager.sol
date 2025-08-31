@@ -36,6 +36,14 @@ event Collect(PoolId indexed poolId, address indexed beneficiary, uint256 fees0,
 /// @param newBeneficiary New beneficiary address
 event UpdateBeneficiary(PoolId poolId, address oldBeneficiary, address newBeneficiary);
 
+/**
+ * @title FeesManager
+ * @author Whetstone Research
+ * @dev Base contract allowing the collection and distribution of fees from a Uniswap V4 pool, the fees management
+ * is based on a similar mechanism used by the `MasterChef` contract, allowing anyone to claim the fees from the pool
+ * but only distributing them to the actual `msg.sender` if they are a beneficiary of the position
+ * @custom:security-contact security@whetstone.cc
+ */
 abstract contract FeesManager is ReentrancyGuard {
     mapping(PoolId poolId => uint256 cumulatedFees0) public getCumulatedFees0;
     mapping(PoolId poolId => uint256 cumulatedFees1) public getCumulatedFees1;
