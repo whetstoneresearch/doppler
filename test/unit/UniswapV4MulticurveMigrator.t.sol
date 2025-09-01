@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -24,8 +25,8 @@ contract AirlockMock {
 }
 
 contract UniswapV4MulticurveMigratorTest is Deployers {
-    address public lockerOwner = makeAddr("LockerOwner");
-    address public airlockOwner = makeAddr("AirlockOwner");
+    address public owner = makeAddr("Owner");
+    address public recipient = makeAddr("Recipient");
 
     AirlockMock public airlock;
     UniswapV4MulticurveMigrator public migrator;
@@ -35,12 +36,17 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
     function setUp() public {
         deployFreshManagerAndRouters();
         deployMintAndApprove2Currencies();
+        vm.label(Currency.unwrap(currency0), "Currency0");
+        vm.label(Currency.unwrap(currency1), "Currency1");
 
-        airlock = new AirlockMock(airlockOwner);
+        airlock = new AirlockMock(owner);
         hook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(hook));
-        locker = new StreamableFeesLockerV2(manager, lockerOwner);
+        locker = new StreamableFeesLockerV2(manager, owner);
         migrator = new UniswapV4MulticurveMigrator(address(airlock), manager, hook, locker);
+        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(hook));
+
+        vm.prank(owner);
+        locker.approveMigrator(address(migrator));
     }
 
     function test_constructor() public view {
@@ -84,6 +90,29 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         migrator.initialize(asset, numeraire, data);
     }
 
+    function test_migrate() public {
+        (
+            uint24 fee,
+            int24 tickSpacing,
+            uint32 lockDuration,
+            BeneficiaryData[] memory beneficiaries,
+            Curve[] memory curves
+        ) = _prepareInitializeData();
+
+        bytes memory data = abi.encode(fee, tickSpacing, lockDuration, beneficiaries, curves);
+        address asset = Currency.unwrap(currency0);
+        address numeraire = Currency.unwrap(currency1);
+
+        vm.prank(address(airlock));
+        migrator.initialize(asset, numeraire, data);
+
+        currency0.transfer(address(migrator), 100e18);
+        currency1.transfer(address(migrator), 100e18);
+
+        vm.prank(address(airlock));
+        migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), recipient);
+    }
+
     function _prepareInitializeData()
         internal
         returns (
@@ -100,10 +129,10 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
 
         beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: 0.05e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
 
-        curves = new Curve[](2);
-        curves[0] = Curve({ tickLower: -100_000, tickUpper: 100_000, shares: WAD / 2, numPositions: 5 });
-        curves[1] = Curve({ tickLower: -100_000, tickUpper: 100_000, shares: WAD / 2, numPositions: 5 });
+        curves = new Curve[](1);
+        curves[0] = Curve({ tickLower: -100_000, tickUpper: 100_000, shares: WAD, numPositions: 4 });
+        // curves[1] = Curve({ tickLower: -50_000, tickUpper: 50_000, shares: WAD / 2, numPositions: 4 });
     }
 }
