@@ -5,6 +5,7 @@ import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { WAD } from "src/types/Wad.sol";
 import { UniswapV4MulticurveMigrator } from "src/UniswapV4MulticurveMigrator.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
@@ -63,6 +64,23 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         address numeraire = Currency.unwrap(currency1);
 
         vm.prank(address(airlock));
+        migrator.initialize(asset, numeraire, data);
+    }
+
+    function test_initialize_RevertsIfSenderNotAirlock() public {
+        (
+            uint24 fee,
+            int24 tickSpacing,
+            uint32 lockDuration,
+            BeneficiaryData[] memory beneficiaries,
+            Curve[] memory curves
+        ) = _prepareInitializeData();
+
+        bytes memory data = abi.encode(fee, tickSpacing, lockDuration, beneficiaries, curves);
+        address asset = Currency.unwrap(currency0);
+        address numeraire = Currency.unwrap(currency1);
+
+        vm.expectRevert(SenderNotAirlock.selector);
         migrator.initialize(asset, numeraire, data);
     }
 
