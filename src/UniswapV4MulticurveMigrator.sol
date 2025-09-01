@@ -20,9 +20,11 @@ import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurv
 
 /**
  * @notice Data to use for the migration
+ * @param isToken0 True if the currency0 is the asset we're selling
  * @param poolKey Key of the Uniswap V4 pool to migrate liquidity to
  * @param lockDuration Duration for which the liquidity will be locked in the locker contract
  * @param beneficiaries Array of beneficiaries used by the locker contract
+ * @param curves Array of curves used to distribute liquidity
  */
 struct AssetData {
     bool isToken0;
@@ -32,6 +34,13 @@ struct AssetData {
     BeneficiaryData[] beneficiaries;
 }
 
+/**
+ * @title UniswapV4MulticurveMigrator
+ * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
+ * @notice Migrates liquidity into a fresh Uniswap V4 pool and distributes it across multiple positions,
+ * as described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf)
+ */
 contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
     /// @notice Address of the Uniswap V4 Pool Manager contract
     IPoolManager public immutable poolManager;
@@ -39,6 +48,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
     /// @notice Address of the Uniswap V4 Migrator hook
     IHooks public immutable migratorHook;
 
+    /// @notice Address of the StreamableFeesLockerV2 contract
     StreamableFeesLockerV2 public immutable locker;
 
     /// @notice Mapping of asset pairs to their respective asset data
@@ -46,8 +56,11 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
     /**
      * @param airlock_ Address of the Airlock contract
+     * @param poolManager_ Address of Uniswap V4 PoolManager contract
      * @param migratorHook_ Address of the Migrator hook, note that a fresh deployment
      * is required to set this contract as the migrator address
+     * @param locker_ Address of the StreamableFeesLockerV2 contract, note that this contract
+     * will have to be approved in the locker
      */
     constructor(
         address airlock_,
@@ -60,6 +73,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         locker = locker_;
     }
 
+    /// @inheritdoc ILiquidityMigrator
     function initialize(address asset, address numeraire, bytes calldata data) external onlyAirlock returns (address) {
         (
             uint24 fee,
@@ -93,12 +107,13 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         return EMPTY_ADDRESS;
     }
 
+    /// @inheritdoc ILiquidityMigrator
     function migrate(
         uint160 sqrtPriceX96,
         address token0,
         address token1,
         address recipient
-    ) external payable onlyAirlock returns (uint256 liquidity) {
+    ) external payable onlyAirlock returns (uint256) {
         AssetData memory data = getAssetData[token0][token1];
         // TODO: Revert if the pool was not stored beforehand
 
@@ -121,5 +136,8 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         data.poolKey.currency1.transfer(address(locker), balance1);
 
         locker.lock(data.poolKey, data.lockDuration, recipient, data.beneficiaries, positions);
+
+        // TODO: Not true per se but this value is not used at the moment
+        return 0;
     }
 }
