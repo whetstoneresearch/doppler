@@ -41,6 +41,7 @@ error StreamNotFound();
 
 /// @notice Thrown when a stream is already unlocked
 error StreamAlreadyUnlocked();
+// TODO: This one might not be neeede
 
 /**
  * @notice Emitted when a position is locked
@@ -50,13 +51,18 @@ error StreamAlreadyUnlocked();
  */
 event Lock(PoolId indexed poolId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
 
-/// @notice Emitted when a new stream is unlocked
-/// @param recipient Address receiving the token balances on unlock
+/**
+ * @notice Emitted when a new stream is unlocked
+ * @param poolId Id of the associated Uniswap V4 pool
+ * @param recipient Address receiving the token balances on unlock
+ */
 event Unlock(PoolId indexed poolId, address recipient);
 
-/// @notice Emitted when a migrator status is updated
-/// @param migrator Address of the migrator
-/// @param approval True if the migrator is approved
+/**
+ * @notice Emitted when a migrator status is updated
+ * @param migrator Address of the migrator
+ * @param approval True if the migrator is approved
+ */
 event MigratorApproval(address indexed migrator, bool approval);
 
 /**
