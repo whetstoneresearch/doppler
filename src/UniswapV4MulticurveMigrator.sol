@@ -116,6 +116,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         address recipient
     ) external payable onlyAirlock returns (uint256) {
         AssetData memory data = getAssetData[token0][token1];
+        (bool isToken0, int24 tickSpacing) = (data.isToken0, data.poolKey.tickSpacing);
         // TODO: Revert if the pool was not stored beforehand
 
         poolManager.initialize(data.poolKey, sqrtPriceX96);
@@ -130,9 +131,10 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         }
 
         int24 offset = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        (Curve[] memory adjustedCurves,,) = adjustCurves(data.curves, offset, data.poolKey.tickSpacing, data.isToken0);
-        Position[] memory positions =
-            calculatePositions(adjustedCurves, data.poolKey.tickSpacing, balance0, data.isToken0);
+        (Curve[] memory adjustedCurves,,) = adjustCurves(data.curves, offset, tickSpacing, isToken0);
+        Position[] memory positions = calculatePositions(
+            adjustedCurves, tickSpacing, isToken0 ? balance1 : balance0, isToken0 ? balance0 : balance1, isToken0
+        );
 
         data.poolKey.currency0.transfer(address(locker), balance0);
         data.poolKey.currency1.transfer(address(locker), balance1);

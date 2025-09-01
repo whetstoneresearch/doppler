@@ -146,7 +146,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         Position[] memory positions =
-            calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, isToken0);
+            calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
