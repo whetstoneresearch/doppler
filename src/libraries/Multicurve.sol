@@ -150,6 +150,55 @@ function validateCurves(
 function calculatePositions(
     PoolKey memory poolKey,
     bool isToken0,
+    Curve[] memory curves,
+    uint256 numTokensToSell
+) pure returns (Position[] memory positions) {
+    uint256 length = curves.length;
+    uint256 totalAssetSupplied;
+    uint256 totalShares;
+
+    for (uint256 i; i != length; ++i) {
+        totalShares += curves[i].share;
+        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].share, WAD);
+
+        // Calculate the positions for this curve
+        (Position[] memory newPositions,) = calculateLogNormalDistribution(
+            i,
+            curves[i].tickLower,
+            curves[i].tickUpper,
+            poolKey.tickSpacing,
+            isToken0,
+            curves[i].numPositions,
+            curveSupply
+        );
+
+        positions = concat(positions, newPositions);
+
+        // Update the bonding assets remaining
+        totalAssetSupplied += curveSupply;
+    }
+
+    require(totalShares == WAD, "Shares must sum to 1e18");
+
+    // Flush the rest into the tail
+    Position memory lpTailPosition = calculateLpTail(
+        bytes32(positions.length),
+        curves[0].tickLower,
+        curves[length - 1].tickUpper,
+        isToken0,
+        numTokensToSell - totalAssetSupplied,
+        poolKey.tickSpacing
+    );
+
+    if (lpTailPosition.liquidity > 0) {
+        positions = concat(positions, new Position[](1));
+        positions[positions.length - 1] = lpTailPosition;
+    }
+}
+
+function calculatePositions(
+    PoolKey memory poolKey,
+    bool isToken0,
     uint16[] memory numPositions,
     int24[] memory tickLower,
     int24[] memory tickUpper,
