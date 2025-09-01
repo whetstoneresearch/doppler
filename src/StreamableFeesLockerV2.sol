@@ -138,8 +138,8 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
         if (stream.isUnlocked == false) {
             fees = _collect(stream.poolKey, stream.positions);
 
-            // Note: For no-op governance, if recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
-            // and beneficiaries can collect fees in perpetuity
+            // Note: For no-op governance, if recipient is DEAD_ADDRESS (0xdead), the position will be
+            // permanently locked and beneficiaries can collect fees in perpetuity
             if (block.timestamp >= stream.startDate + stream.lockDuration && stream.recipient != DEAD_ADDRESS) {
                 streams[poolId].isUnlocked = true;
 
