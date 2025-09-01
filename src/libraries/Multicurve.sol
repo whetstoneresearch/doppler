@@ -59,6 +59,9 @@ function adjustCurves(
 
     uint256 totalShares;
 
+    lowerTickBoundary = TickMath.MAX_TICK;
+    upperTickBoundary = TickMath.MIN_TICK;
+
     for (uint256 i; i != length; ++i) {
         Curve memory adjustedCurve = curves[i];
 
