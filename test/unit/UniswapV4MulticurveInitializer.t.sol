@@ -29,6 +29,7 @@ import { Position } from "src/types/Position.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 
 contract UniswapV4MulticurveInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -110,7 +111,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
 
-        (, PoolStatus status,) = initializer.getState(Currency.unwrap(currency0));
+        (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
         // assertEq(numeraire, Currency.unwrap(currency0), "Incorrect numeraire");
     }
@@ -126,11 +127,12 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
-        _buyUntilFarTick(totalTokensOnBondingCurve, initData.tickUpper[initData.tickUpper.length - 1], true);
+        (,,, int24 farTick) = initializer.getState(Currency.unwrap(currency0));
+        _buyUntilFarTick(totalTokensOnBondingCurve, farTick, true);
         vm.prank(airlock);
         initializer.exitLiquidity(Currency.unwrap(currency0));
 
-        (, PoolStatus status,) = initializer.getState(Currency.unwrap(currency0));
+        (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
         assertEq(uint8(status), uint8(PoolStatus.Exited), "Pool status should be Exited");
 
         assertEq(currency0.balanceOf(address(initializer)), 0, "Initializer should have zero balance of token0");
@@ -167,7 +169,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     function test_exitLiquidity_RevertsWhenInsufficientTick() public {
         test_initialize_AddsLiquidity();
         vm.prank(airlock);
-        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, TickMath.MIN_TICK));
+        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, 160_000));
         initializer.exitLiquidity(Currency.unwrap(currency0));
     }
 
@@ -181,17 +183,14 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     // Utils //
 
     function _prepareInitData() internal returns (InitData memory) {
+        Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
-        int24[] memory tickLower = new int24[](10);
-        int24[] memory tickUpper = new int24[](10);
-        uint16[] memory numPositions = new uint16[](10);
-        uint256[] memory shareToBeSold = new uint256[](10);
 
         for (uint256 i; i < 10; ++i) {
-            tickLower[i] = int24(uint24(160_000 + i * 8));
-            tickUpper[i] = 240_000;
-            numPositions[i] = 10;
-            shareToBeSold[i] = WAD / 10;
+            curves[i].tickLower = int24(uint24(160_000 + i * 8));
+            curves[i].tickUpper = 240_000;
+            curves[i].numPositions = 10;
+            curves[i].shares = WAD / 10;
         }
 
         poolKey = PoolKey({ currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: hook });
@@ -199,15 +198,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
 
-        return InitData({
-            fee: 0,
-            tickSpacing: tickSpacing,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            numPositions: numPositions,
-            shareToBeSold: shareToBeSold,
-            beneficiaries: beneficiaries
-        });
+        return InitData({ fee: 0, tickSpacing: tickSpacing, curves: curves, beneficiaries: beneficiaries });
     }
 
     function _buyUntilFarTick(uint256 totalTokensOnBondingCurve, int24 farTick, bool isToken0) internal {
