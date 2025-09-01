@@ -33,12 +33,19 @@ error PoolAlreadyInitialized();
 /// @notice Thrown when the pool is already exited
 error PoolAlreadyExited();
 
-/// @notice Thrown when the pool is locked but collect is called
-error PoolLocked();
+/// @notice Thrown when the pool is not locked but collect is called
+error PoolNotLocked();
 
 /// @notice Thrown when the current tick is not sufficient to migrate
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 
+/**
+ * @notice Data used to initialize the Uniswap V4 pool
+ * @param fee Fee of the Uniswap V4 pool (capped at 1_000_000)
+ * @param tickSpacing Tick spacing for the Uniswap V4 pool
+ * @param curves Array of curves to distribute liquidity across
+ * @param beneficiaries Array of beneficiaries with their shares
+ */
 struct InitData {
     uint24 fee;
     int24 tickSpacing;
@@ -46,6 +53,7 @@ struct InitData {
     BeneficiaryData[] beneficiaries;
 }
 
+/// @notice Status of the pool
 enum PoolStatus {
     Uninitialized,
     Initialized,
@@ -53,6 +61,15 @@ enum PoolStatus {
     Exited
 }
 
+/**
+ * @notice State of a pool
+ * @param numeraire Address of the numeraire currency
+ * @param beneficiaries Array of beneficiaries with their shares
+ * @param positions Array of positions held in the pool
+ * @param status Current status of the pool
+ * @param poolKey Key of the Uniswap V4 pool
+ * @param farTick The farthest tick that must be reached to allow exiting liquidity
+ */
 struct PoolState {
     address numeraire;
     BeneficiaryData[] beneficiaries;
@@ -81,6 +98,9 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
 
+    /// @notice Maps a Uniswap V4 poolId to its associated asset
+    mapping(PoolId poolId => address asset) internal getAsset;
+
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
@@ -101,7 +121,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         uint256 totalTokensOnBondingCurve,
         bytes32,
         bytes calldata data
-    ) external onlyAirlock returns (address pool) {
+    ) external onlyAirlock returns (address) {
         require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
 
         InitData memory initData = abi.decode(data, (InitData));
@@ -137,6 +157,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         });
 
         getState[asset] = state;
+        getAsset[poolKey.toId()] = asset;
 
         _mint(poolKey, positions);
 
@@ -145,10 +166,12 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         if (beneficiaries.length != 0) {
             _storeBeneficiaries(poolKey.toId(), airlock.owner(), beneficiaries);
             getPoolKey[poolKey.toId()] = poolKey;
-            emit Lock(pool, beneficiaries);
+            emit Lock(asset, beneficiaries);
         }
 
-        return EMPTY_ADDRESS;
+        // Uniswap V4 pools don't have addresses, so we are returning the asset address
+        // instead to retrieve the associated state later during the `exitLiquidity` call
+        return asset;
     }
 
     /// @inheritdoc IPoolInitializer
@@ -193,11 +216,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     function _collectFees(
         PoolId poolId
     ) internal override returns (BalanceDelta fees) {
-        // TODO: Fix this.
-        address asset;
-        PoolState memory state = getState[asset];
-        require(state.status == PoolStatus.Locked, PoolLocked());
-
+        PoolState memory state = getState[getAsset[poolId]];
+        require(state.status == PoolStatus.Locked, PoolNotLocked());
         return _collect(state.poolKey, state.positions);
     }
 
