@@ -10,6 +10,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
@@ -18,7 +19,8 @@ import {
     MigratorApproval,
     NotApprovedMigrator,
     StreamNotFound,
-    StreamAlreadyUnlocked
+    StreamAlreadyUnlocked,
+    Lock
 } from "src/StreamableFeesLockerV2.sol";
 
 contract StreamableFeesLockerV2Test is Deployers {
@@ -75,6 +77,28 @@ contract StreamableFeesLockerV2Test is Deployers {
         locker.lock(key, lockDuration, recipient, beneficiaries, positions);
     }
 
+    function test_lock() public {
+        currency0.transfer(address(locker), 100e18);
+        currency1.transfer(address(locker), 100e18);
+
+        (
+            PoolKey memory key,
+            uint32 lockDuration,
+            address recipient,
+            BeneficiaryData[] memory beneficiaries,
+            Position[] memory positions
+        ) = _prepareLockData();
+
+        manager.initialize(key, Constants.SQRT_PRICE_1_1);
+
+        vm.prank(owner);
+        locker.approveMigrator(address(this));
+
+        vm.expectEmit();
+        emit Lock(key.toId(), beneficiaries, block.timestamp + lockDuration);
+        locker.lock(key, lockDuration, recipient, beneficiaries, positions);
+    }
+
     function _prepareLockData()
         internal
         returns (
@@ -88,8 +112,8 @@ contract StreamableFeesLockerV2Test is Deployers {
         key = PoolKey({
             currency0: currency0,
             currency1: currency1,
-            fee: 10,
-            tickSpacing: 3000,
+            fee: 3000,
+            tickSpacing: 1,
             hooks: IHooks(address(0))
         });
 
@@ -98,14 +122,16 @@ contract StreamableFeesLockerV2Test is Deployers {
 
         beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.5e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
 
         positions = new Position[](2);
-        for (uint256 i; i != positions.length; ++i) {
-            positions[i].salt = bytes32(i);
-            positions[i].tickLower = -100_000;
-            positions[i].tickUpper = -200_000;
-            positions[i].liquidity = 1e18;
-        }
+        positions[0].salt = bytes32(0);
+        positions[0].tickLower = -100_000;
+        positions[0].tickUpper = 100_000;
+        positions[0].liquidity = 1e18;
+        positions[1].salt = bytes32(uint256(1));
+        positions[1].tickLower = -50_000;
+        positions[1].tickUpper = 50_000;
+        positions[1].liquidity = 1e18;
     }
 }
