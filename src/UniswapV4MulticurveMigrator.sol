@@ -34,6 +34,9 @@ struct AssetData {
     BeneficiaryData[] beneficiaries;
 }
 
+/// @notice Thrown when `migrate` is called before `initialize` for a pool
+error PoolNotInitialized();
+
 /**
  * @title Doppler Uniswap V4 Multicurve Migrator
  * @author Whetstone Research
@@ -117,7 +120,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
     ) external payable onlyAirlock returns (uint256) {
         AssetData memory data = getAssetData[token0][token1];
         (bool isToken0, int24 tickSpacing) = (data.isToken0, data.poolKey.tickSpacing);
-        // TODO: Revert if the pool was not stored beforehand
+        require(tickSpacing != 0, PoolNotInitialized());
 
         poolManager.initialize(data.poolKey, sqrtPriceX96);
 
