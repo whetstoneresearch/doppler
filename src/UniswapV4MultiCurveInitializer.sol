@@ -18,7 +18,7 @@ import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { calculatePositions, validateCurves } from "src/libraries/Multicurve.sol";
+import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
 
 /**
  * @notice Emitted when a new pool is locked
@@ -42,10 +42,7 @@ error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 struct InitData {
     uint24 fee;
     int24 tickSpacing;
-    int24[] tickLower;
-    int24[] tickUpper;
-    uint16[] numPositions;
-    uint256[] shareToBeSold;
+    Curve[] curves;
     BeneficiaryData[] beneficiaries;
 }
 
@@ -58,13 +55,11 @@ enum PoolStatus {
 
 struct PoolState {
     address numeraire;
-    int24[] tickLower;
-    int24[] tickUpper;
-    uint256[] shareToBeSold;
     BeneficiaryData[] beneficiaries;
     Position[] positions;
     PoolStatus status;
     PoolKey poolKey;
+    int24 farTick;
 }
 
 /**
@@ -111,26 +106,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
 
         InitData memory initData = abi.decode(data, (InitData));
 
-        (
-            uint24 fee,
-            int24 tickSpacing,
-            int24[] memory tickLower,
-            int24[] memory tickUpper,
-            uint16[] memory numPositions,
-            uint256[] memory shareToBeSold,
-            BeneficiaryData[] memory beneficiaries
-        ) = (
-            initData.fee,
-            initData.tickSpacing,
-            initData.tickLower,
-            initData.tickUpper,
-            initData.numPositions,
-            initData.shareToBeSold,
-            initData.beneficiaries
-        );
-
-        int24 startTick =
-            validateCurves(asset, numeraire, tickSpacing, tickLower, tickUpper, numPositions, shareToBeSold);
+        (uint24 fee, int24 tickSpacing, Curve[] memory curves, BeneficiaryData[] memory beneficiaries) =
+            (initData.fee, initData.tickSpacing, initData.curves, initData.beneficiaries);
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -141,22 +118,22 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
+        (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper) =
+            adjustCurves(curves, 0, tickSpacing, isToken0);
+
+        int24 startTick = isToken0 ? tickLower : tickUpper;
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
-        Position[] memory positions = calculatePositions(
-            poolKey, isToken0, numPositions, tickLower, tickUpper, shareToBeSold, totalTokensOnBondingCurve
-        );
+        Position[] memory positions = calculatePositions(adjustedCurves, poolKey, totalTokensOnBondingCurve, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            shareToBeSold: shareToBeSold,
             beneficiaries: beneficiaries,
             positions: positions,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
-            poolKey: poolKey
+            poolKey: poolKey,
+            farTick: isToken0 ? tickUpper : tickLower
         });
 
         getState[asset] = state;
@@ -199,9 +176,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
 
         int24 tick;
         (sqrtPriceX96, tick,,) = poolManager.getSlot0(state.poolKey.toId());
-        bool isToken0 = asset == token0;
-
-        int24 farTick = isToken0 ? state.tickUpper[state.tickUpper.length - 1] : state.tickLower[0];
+        int24 farTick = state.farTick;
         require(asset == token0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
 
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, state.positions);
