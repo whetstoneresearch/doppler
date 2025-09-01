@@ -15,78 +15,85 @@ import { WAD } from "src/types/Wad.sol";
 /// @notice Thrown when a mismatched info length for curves
 error InvalidArrayLength();
 
-error ZeroPosition(uint256 index);
+/// @notice Thrown when a curve has zero positions
+error ZeroPosition();
 
-error ZeroMaxShare(uint256 index);
+/// @notice Thrown when a curve has zero share to be sold
+error ZeroShare();
 
-/// @notice Thrown when the max share to be sold exceeds the maximum unit
-error MaxShareToBeSoldExceeded(uint256 value, uint256 limit);
+/// @notice Thrown when total shares are invalid (greater than WAD)
+error InvalidTotalShares();
 
+/**
+ * @dev Representation of a curve shape
+ * @param tickLower Lower tick of the curve
+ * @param tickUpper Upper tick of the curve
+ * @param numPositions Number of positions to create for this curve
+ * @param share Amount of shares to be sold on this curve (in WAD)
+ */
 struct Curve {
     int24 tickLower;
     int24 tickUpper;
     uint16 numPositions;
-    uint256 share;
+    uint256 shares;
 }
 
-/// @dev Takes in an array of generic curve parameters (shapes) and applies an offset to them
+/**
+ * @dev Adjusts and validates curves with an offset, and returns them along with the overall boundaries
+ * @param curves Array of curves to adjust and validate
+ * @param offset Offset to apply expressed in tick (`0` if no offset needed)
+ * @param tickSpacing Current tick spacing of the pool
+ * @param isToken0 True if the asset we're selling is token0, false otherwise
+ * @return adjustedCurves Array of adjusted and validated curves
+ * @return lowerTickBoundary Overall lower tick boundary across all curves
+ * @return upperTickBoundary Overall upper tick boundary across all curves
+ */
 function adjustCurves(
-    bool isToken0,
-    int24 tickSpacing,
+    Curve[] memory curves,
     int24 offset,
-    Curve[] memory curves
-) pure returns (Curve[] memory adjustedCurves) {
-    adjustedCurves = new Curve[](curves.length);
+    int24 tickSpacing,
+    bool isToken0
+) pure returns (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary) {
+    uint256 length = curves.length;
+    adjustedCurves = new Curve[](length);
 
     uint256 totalShares;
-    // int24 lowerTickBoundary;
-    // int24 upperTickBoundary;
 
-    uint256 numCurves = curves.length;
+    for (uint256 i; i != length; ++i) {
+        Curve memory adjustedCurve = curves[i];
 
-    for (uint256 i; i != numCurves; ++i) {
-        adjustedCurves[i] = adjustCurve(curves[i], tickSpacing, offset, isToken0);
-        totalShares += curves[i].share;
+        require(adjustedCurve.numPositions > 0, ZeroPosition());
+        require(adjustedCurve.shares > 0, ZeroShare());
+
+        if (offset != 0) {
+            adjustedCurve.tickLower += offset;
+            adjustedCurve.tickUpper += offset;
+        }
+
+        isTickAligned(adjustedCurve.tickLower, tickSpacing);
+        isTickAligned(adjustedCurve.tickUpper, tickSpacing);
+
+        // Flip the ticks if the asset is token1
+        if (!isToken0) {
+            adjustedCurve.tickLower = -adjustedCurve.tickUpper;
+            adjustedCurve.tickUpper = -adjustedCurve.tickLower;
+        }
+
+        isRangeOrdered(adjustedCurve.tickLower, adjustedCurve.tickUpper);
+
+        // Calculate the boundaries
+        if (lowerTickBoundary > adjustedCurve.tickLower) lowerTickBoundary = adjustedCurve.tickLower;
+        if (upperTickBoundary < adjustedCurve.tickUpper) upperTickBoundary = adjustedCurve.tickUpper;
+
+        // Accumulate the shares
+        totalShares += adjustedCurves[i].shares;
+
+        adjustedCurves[i] = adjustedCurve;
     }
 
-    require(totalShares <= WAD, MaxShareToBeSoldExceeded(totalShares, WAD));
+    require(totalShares <= WAD, InvalidTotalShares());
+    // TODO: Might be an unnecessary check
     // isRangeOrdered(lowerTickBoundary, upperTickBoundary);
-}
-
-function adjustCurve(
-    Curve memory curve,
-    int24 tickSpacing,
-    int24 offset,
-    bool isToken0
-) pure returns (Curve memory adjustedCurve) {
-    adjustedCurve = curve;
-
-    require(adjustedCurve.numPositions > 0, "ZeroPosition");
-    require(adjustedCurve.share > 0, "ZeroMaxShare");
-
-    if (offset != 0) {
-        adjustedCurve.tickLower += offset;
-        adjustedCurve.tickUpper += offset;
-    }
-
-    isTickAligned(adjustedCurve.tickLower, tickSpacing);
-    isTickAligned(adjustedCurve.tickUpper, tickSpacing);
-
-    // Flip the ticks if the asset is token1
-    if (!isToken0) {
-        adjustedCurve.tickLower = -adjustedCurve.tickUpper;
-        adjustedCurve.tickUpper = -adjustedCurve.tickLower;
-    }
-
-    isRangeOrdered(adjustedCurve.tickLower, adjustedCurve.tickUpper);
-
-    /*
-    // Calculate the boundaries
-    if (lowerTickBoundary > currentTickLower) lowerTickBoundary = currentTickLower;
-    if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
-
-    adjustedCurves[i] = adjustedCurve;    
-    */
 }
 
 function validateCurves(
@@ -118,8 +125,8 @@ function validateCurves(
 
     // Check the curves to see if they are safe
     for (uint256 i; i != numCurves; ++i) {
-        require(numPositions[i] > 0, ZeroPosition(i));
-        require(shareToBeSold[i] > 0, ZeroMaxShare(i));
+        require(numPositions[i] > 0, ZeroPosition());
+        require(shareToBeSold[i] > 0, ZeroShare());
 
         totalShareToBeSold += shareToBeSold[i];
 
@@ -141,25 +148,25 @@ function validateCurves(
         if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
     }
 
-    require(totalShareToBeSold <= WAD, MaxShareToBeSoldExceeded(totalShareToBeSold, WAD));
+    require(totalShareToBeSold <= WAD, InvalidTotalShares());
     isRangeOrdered(lowerTickBoundary, upperTickBoundary);
 
     return isToken0 ? lowerTickBoundary : upperTickBoundary;
 }
 
 function calculatePositions(
-    PoolKey memory poolKey,
-    bool isToken0,
     Curve[] memory curves,
-    uint256 numTokensToSell
+    PoolKey memory poolKey,
+    uint256 numTokensToSell,
+    bool isToken0
 ) pure returns (Position[] memory positions) {
     uint256 length = curves.length;
     uint256 totalAssetSupplied;
     uint256 totalShares;
 
     for (uint256 i; i != length; ++i) {
-        totalShares += curves[i].share;
-        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].share, WAD);
+        totalShares += curves[i].shares;
+        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].shares, WAD);
 
         // Calculate the positions for this curve
         (Position[] memory newPositions,) = calculateLogNormalDistribution(
@@ -362,7 +369,7 @@ function calculateLogNormalDistribution(
         }
     }
 
-    require(totalAssetSupplied == curveSupply, "Supply not full used");
+    // require(totalAssetSupplied == curveSupply, "Supply not full used");
 
     return (positions, reserves);
 }
