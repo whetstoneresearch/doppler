@@ -85,6 +85,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
+        // TODO: Beneficiaries are also validated in the locker, doing it twice is redundant but might be safer
         validateBeneficiaries(airlock.owner(), beneficiaries);
 
         PoolKey memory poolKey = PoolKey({
