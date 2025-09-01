@@ -107,6 +107,7 @@ function calculatePositions(
     Curve[] memory curves,
     int24 tickSpacing,
     uint256 numTokensToSell,
+    uint256 otherCurrencySupply,
     bool isToken0
 ) pure returns (Position[] memory positions) {
     uint256 length = curves.length;
@@ -143,6 +144,23 @@ function calculatePositions(
     if (lpTailPosition.liquidity > 0) {
         positions = concat(positions, new Position[](1));
         positions[positions.length - 1] = lpTailPosition;
+    }
+
+    // If there's any supply of the other currency, we can compute the head position using the inverse logic of the tail
+    if (otherCurrencySupply > 0) {
+        Position memory headPosition = calculateLpTail(
+            bytes32(positions.length),
+            positions[0].tickLower,
+            positions[length - 1].tickUpper,
+            !isToken0,
+            otherCurrencySupply,
+            tickSpacing
+        );
+
+        if (headPosition.liquidity > 0) {
+            positions = concat(positions, new Position[](1));
+            positions[positions.length - 1] = headPosition;
+        }
     }
 }
 
