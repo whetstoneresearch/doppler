@@ -67,6 +67,13 @@ struct PoolState {
     PoolKey poolKey;
 }
 
+/**
+ * @title Doppler Uniswap V4 Multicurve Initializer
+ * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
+ * @notice Initializes a fresh Uniswap V4 pool and distributes liquidity across multiple positions, as
+ * described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf)
+ */
 contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
@@ -161,7 +168,6 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         if (beneficiaries.length != 0) {
             _storeBeneficiaries(poolKey.toId(), airlock.owner(), beneficiaries);
             getPoolKey[poolKey.toId()] = poolKey;
-            // _validateBeneficiaries(asset, airlock.owner(), beneficiaries);
             emit Lock(pool, beneficiaries);
         }
 
@@ -208,6 +214,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         state.poolKey.currency1.transfer(msg.sender, balance1);
     }
 
+    /// @inheritdoc FeesManager
     function _collectFees(
         PoolId poolId
     ) internal override returns (BalanceDelta fees) {
@@ -219,6 +226,11 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         return _collect(state.poolKey, state.positions);
     }
 
+    /**
+     * @notice Returns the positions currently held in the Uniswap V4 pool for the given `asset`
+     * @param asset Address of the asset used for the Uniswap V4 pool
+     * @return positions Array of positions currently held in the Uniswap V4 pool
+     */
     function getPositions(
         address asset
     ) external view returns (Position[] memory) {
