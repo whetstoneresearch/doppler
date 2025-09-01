@@ -21,7 +21,7 @@ import {
     PoolAlreadyInitialized,
     PoolStatus,
     PoolState,
-    PoolLocked,
+    PoolNotLocked,
     PoolAlreadyExited
 } from "src/UniswapV4MulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -176,8 +176,8 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     // collectFees() //
 
     function test_collectFees_RevertsWhenPoolNotLocked() public {
-        vm.expectRevert(PoolLocked.selector);
-        // initializer.collectFees(address(0));
+        vm.expectRevert(PoolNotLocked.selector);
+        initializer.collectFees(PoolId.wrap(0));
     }
 
     // Utils //
