@@ -12,9 +12,6 @@ import { Position, concat } from "src/types/Position.sol";
 import { isTickAligned, alignTick, TickRangeMisordered, isRangeOrdered } from "src/libraries/TickLibrary.sol";
 import { WAD } from "src/types/Wad.sol";
 
-/// @notice Thrown when a mismatched info length for curves
-error InvalidArrayLength();
-
 /// @notice Thrown when a curve has zero positions
 error ZeroPosition();
 
@@ -96,70 +93,19 @@ function adjustCurves(
 
     require(totalShares <= WAD, InvalidTotalShares());
     // TODO: Might be an unnecessary check
-    // isRangeOrdered(lowerTickBoundary, upperTickBoundary);
-}
-
-function validateCurves(
-    address asset,
-    address numeraire,
-    int24 tickSpacing,
-    int24[] memory tickLower,
-    int24[] memory tickUpper,
-    uint16[] memory numPositions,
-    uint256[] memory shareToBeSold
-) pure returns (int24 startTick) {
-    uint256 numCurves = tickLower.length;
-
-    if (
-        numCurves != tickUpper.length || numCurves != shareToBeSold.length || numCurves != numPositions.length
-            || shareToBeSold.length != numPositions.length
-    ) {
-        revert InvalidArrayLength();
-    }
-
-    // todo determine if we just put the rest on the curve
-    uint256 totalShareToBeSold;
-
-    address token0 = asset < numeraire ? asset : numeraire;
-    bool isToken0 = token0 == asset;
-
-    int24 lowerTickBoundary = TickMath.MIN_TICK;
-    int24 upperTickBoundary = TickMath.MAX_TICK;
-
-    // Check the curves to see if they are safe
-    for (uint256 i; i != numCurves; ++i) {
-        require(numPositions[i] > 0, ZeroPosition());
-        require(shareToBeSold[i] > 0, ZeroShare());
-
-        totalShareToBeSold += shareToBeSold[i];
-
-        int24 currentTickLower = tickLower[i];
-        int24 currentTickUpper = tickUpper[i];
-
-        isTickAligned(currentTickLower, tickSpacing);
-        isTickAligned(currentTickUpper, tickSpacing);
-        isRangeOrdered(currentTickLower, currentTickUpper);
-
-        // Flip the ticks if the asset is token1
-        if (!isToken0) {
-            tickLower[i] = -currentTickUpper;
-            tickUpper[i] = -currentTickLower;
-        }
-
-        // Calculate the boundaries
-        if (lowerTickBoundary > currentTickLower) lowerTickBoundary = currentTickLower;
-        if (upperTickBoundary < currentTickUpper) upperTickBoundary = currentTickUpper;
-    }
-
-    require(totalShareToBeSold <= WAD, InvalidTotalShares());
     isRangeOrdered(lowerTickBoundary, upperTickBoundary);
-
-    return isToken0 ? lowerTickBoundary : upperTickBoundary;
 }
 
+/**
+ * @dev From an array of curves, calculates the positions to be created along with the final LP tail position
+ * @param curves Array of curves to process
+ * @param tickSpacing Tick spacing of the Uniswap V4 pool
+ * @param numTokensToSell Total amount of asset tokens to provide
+ * @param isToken0 True if the asset we're selling is token0, false otherwise
+ */
 function calculatePositions(
     Curve[] memory curves,
-    PoolKey memory poolKey,
+    int24 tickSpacing,
     uint256 numTokensToSell,
     bool isToken0
 ) pure returns (Position[] memory positions) {
@@ -173,13 +119,7 @@ function calculatePositions(
 
         // Calculate the positions for this curve
         (Position[] memory newPositions,) = calculateLogNormalDistribution(
-            i,
-            curves[i].tickLower,
-            curves[i].tickUpper,
-            poolKey.tickSpacing,
-            isToken0,
-            curves[i].numPositions,
-            curveSupply
+            i, curves[i].tickLower, curves[i].tickUpper, tickSpacing, isToken0, curves[i].numPositions, curveSupply
         );
 
         positions = concat(positions, newPositions);
@@ -188,97 +128,22 @@ function calculatePositions(
         totalAssetSupplied += curveSupply;
     }
 
-    require(totalShares == WAD, "Shares must sum to 1e18");
+    require(totalShares <= WAD, InvalidTotalShares());
 
     // Flush the rest into the tail
     Position memory lpTailPosition = calculateLpTail(
         bytes32(positions.length),
-        curves[0].tickLower,
-        curves[length - 1].tickUpper,
+        positions[0].tickLower,
+        positions[length - 1].tickUpper,
         isToken0,
         numTokensToSell - totalAssetSupplied,
-        poolKey.tickSpacing
+        tickSpacing
     );
 
     if (lpTailPosition.liquidity > 0) {
         positions = concat(positions, new Position[](1));
         positions[positions.length - 1] = lpTailPosition;
     }
-}
-
-function calculatePositions(
-    PoolKey memory poolKey,
-    bool isToken0,
-    uint16[] memory numPositions,
-    int24[] memory tickLower,
-    int24[] memory tickUpper,
-    uint256[] memory shareToBeSold,
-    uint256 numTokensToSell
-) pure returns (Position[] memory positions) {
-    uint256 length = tickLower.length;
-    uint256 totalAssetSupplied;
-    uint256 totalShares;
-
-    for (uint256 i; i != length; ++i) {
-        totalShares += shareToBeSold[i];
-        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, shareToBeSold[i], WAD);
-
-        // Calculate the positions for this curve
-        (Position[] memory newPositions,) = calculateLogNormalDistribution(
-            i, tickLower[i], tickUpper[i], poolKey.tickSpacing, isToken0, numPositions[i], curveSupply
-        );
-
-        positions = concat(positions, newPositions);
-
-        // Update the bonding assets remaining
-        totalAssetSupplied += curveSupply;
-    }
-
-    require(totalShares == WAD, "Shares must sum to 1e18");
-
-    // Flush the rest into the tail
-    Position memory lpTailPosition = calculateLpTail(
-        bytes32(positions.length),
-        tickLower[0],
-        tickUpper[length - 1],
-        isToken0,
-        numTokensToSell - totalAssetSupplied,
-        poolKey.tickSpacing
-    );
-
-    if (lpTailPosition.liquidity > 0) {
-        positions = concat(positions, new Position[](1));
-        positions[positions.length - 1] = lpTailPosition;
-    }
-}
-
-/// @notice Calculates the final LP position that extends from the far tick to the pool's min/max tick
-/// @dev This position ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
-function calculateLpTail(
-    bytes32 salt,
-    int24 tickLower,
-    int24 tickUpper,
-    bool isToken0,
-    uint256 bondingAssetsRemaining,
-    int24 tickSpacing
-) pure returns (Position memory lpTail) {
-    int24 tailTick = isToken0 ? tickUpper : tickLower;
-    uint160 sqrtPriceAtTail = TickMath.getSqrtPriceAtTick(tailTick);
-
-    int24 posTickLower = isToken0 ? tailTick : alignTick(isToken0, TickMath.MIN_TICK, tickSpacing);
-    int24 posTickUpper = isToken0 ? alignTick(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick;
-
-    uint128 lpTailLiquidity = LiquidityAmounts.getLiquidityForAmounts(
-        sqrtPriceAtTail,
-        TickMath.getSqrtPriceAtTick(posTickLower),
-        TickMath.getSqrtPriceAtTick(posTickUpper),
-        isToken0 ? bondingAssetsRemaining : 0,
-        isToken0 ? 0 : bondingAssetsRemaining
-    );
-
-    require(posTickLower < posTickUpper, TickRangeMisordered(posTickLower, posTickUpper));
-
-    lpTail = Position({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, salt: salt });
 }
 
 /**
@@ -372,7 +237,43 @@ function calculateLogNormalDistribution(
         }
     }
 
-    // require(totalAssetSupplied == curveSupply, "Supply not full used");
-
     return (positions, reserves);
+}
+
+/**
+ * @dev Calculates the final LP position that extends from the far tick to the pool's min/max tick, this position
+ * ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
+ * @param salt Salt of the position, likely its index in the array of positions
+ * @param tickLower Global lower tick of the bonding curve range
+ * @param tickUpper Global upper tick of the bonding curve range
+ * @param isToken0 True if the asset we're selling is token0, false otherwise
+ * @param bondingAssetsRemaining Amount of asset tokens remaining to be bonded in the LP tail position
+ * @param tickSpacing Tick spacing of the Uniswap V4 pool
+ * @return lpTail Final LP tail position
+ */
+function calculateLpTail(
+    bytes32 salt,
+    int24 tickLower,
+    int24 tickUpper,
+    bool isToken0,
+    uint256 bondingAssetsRemaining,
+    int24 tickSpacing
+) pure returns (Position memory lpTail) {
+    int24 tailTick = isToken0 ? tickUpper : tickLower;
+    uint160 sqrtPriceAtTail = TickMath.getSqrtPriceAtTick(tailTick);
+
+    int24 posTickLower = isToken0 ? tailTick : alignTick(isToken0, TickMath.MIN_TICK, tickSpacing);
+    int24 posTickUpper = isToken0 ? alignTick(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick;
+
+    uint128 lpTailLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+        sqrtPriceAtTail,
+        TickMath.getSqrtPriceAtTick(posTickLower),
+        TickMath.getSqrtPriceAtTick(posTickUpper),
+        isToken0 ? bondingAssetsRemaining : 0,
+        isToken0 ? 0 : bondingAssetsRemaining
+    );
+
+    require(posTickLower < posTickUpper, TickRangeMisordered(posTickLower, posTickUpper));
+
+    lpTail = Position({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, salt: salt });
 }

@@ -131,7 +131,8 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         int24 offset = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
         (Curve[] memory adjustedCurves,,) = adjustCurves(data.curves, offset, data.poolKey.tickSpacing, data.isToken0);
-        Position[] memory positions = calculatePositions(adjustedCurves, data.poolKey, balance0, data.isToken0);
+        Position[] memory positions =
+            calculatePositions(adjustedCurves, data.poolKey.tickSpacing, balance0, data.isToken0);
 
         data.poolKey.currency0.transfer(address(locker), balance0);
         data.poolKey.currency1.transfer(address(locker), balance1);
