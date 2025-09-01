@@ -17,7 +17,6 @@ import {
     UniswapV4MulticurveInitializer,
     InitData,
     BeneficiaryData,
-    WAD,
     CannotMigrateInsufficientTick,
     PoolAlreadyInitialized,
     PoolStatus,
@@ -25,6 +24,7 @@ import {
     PoolLocked,
     PoolAlreadyExited
 } from "src/UniswapV4MulticurveInitializer.sol";
+import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
