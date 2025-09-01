@@ -10,7 +10,9 @@ import { Currency } from "@v4-core/types/Currency.sol";
 
 import { isTickAligned } from "src/libraries/TickLibrary.sol";
 import { Position } from "src/types/Position.sol";
-import { calculateLpTail, calculateLogNormalDistribution, calculatePositions } from "src/libraries/Multicurve.sol";
+import {
+    calculateLpTail, calculateLogNormalDistribution, calculatePositions, Curve
+} from "src/libraries/Multicurve.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract MulticurveTest is Test {
@@ -53,44 +55,70 @@ contract MulticurveTest is Test {
         }
     }
 
-    function test_calculatePositions() public view {
+    function test_calculatePositions_NoTail() public pure {
         int24 tickSpacing = 8;
-        int24[] memory tickLower = new int24[](10);
-        int24[] memory tickUpper = new int24[](10);
-        uint16[] memory numPositions = new uint16[](10);
-        uint256[] memory shareToBeSold = new uint256[](10);
+        Curve[] memory curves = new Curve[](10);
 
         for (uint256 i; i < 10; ++i) {
-            tickLower[i] = int24(uint24(160_000 + i * 8));
-            tickUpper[i] = 240_000;
-            numPositions[i] = 2;
-            shareToBeSold[i] = WAD / 10;
+            curves[i].tickLower = int24(uint24(160_000 + i * 8));
+            curves[i].tickUpper = 240_000;
+            curves[i].numPositions = 5;
+            curves[i].shares = WAD / 10;
         }
 
-        Position[] memory positions = calculatePositions(
-            PoolKey({
-                currency0: Currency.wrap(address(0)),
-                currency1: Currency.wrap(address(0)),
-                fee: 0,
-                tickSpacing: tickSpacing,
-                hooks: IHooks(address(0))
-            }),
-            true,
-            numPositions,
-            tickLower,
-            tickUpper,
-            shareToBeSold,
-            1e27
-        );
+        Position[] memory positions = calculatePositions(curves, tickSpacing, 1e27, 0, true);
+        assertEq(positions.length, 50, "Incorrect number of positions");
+    }
 
-        _printPositions(positions);
+    function test_calculatePositions_WithTail() public pure {
+        int24 tickSpacing = 8;
+        Curve[] memory curves = new Curve[](10);
+
+        for (uint256 i; i < 10; ++i) {
+            curves[i].tickLower = int24(uint24(160_000 + i * 8));
+            curves[i].tickUpper = 240_000;
+            curves[i].numPositions = 5;
+            curves[i].shares = WAD / 11;
+        }
+
+        Position[] memory positions = calculatePositions(curves, tickSpacing, 1e27, 0, true);
+        assertEq(positions.length, 51, "Incorrect number of positions");
+    }
+
+    function test_calculatePositions_WithHead() public pure {
+        int24 tickSpacing = 8;
+        Curve[] memory curves = new Curve[](10);
+
+        for (uint256 i; i < 10; ++i) {
+            curves[i].tickLower = int24(uint24(160_000 + i * 8));
+            curves[i].tickUpper = 240_000;
+            curves[i].numPositions = 5;
+            curves[i].shares = WAD / 10;
+        }
+
+        Position[] memory positions = calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
+        assertEq(positions.length, 51, "Incorrect number of positions");
+    }
+
+    function test_calculatePositions_WithHeadAndTail() public pure {
+        int24 tickSpacing = 8;
+        Curve[] memory curves = new Curve[](10);
+
+        for (uint256 i; i < 10; ++i) {
+            curves[i].tickLower = int24(uint24(160_000 + i * 8));
+            curves[i].tickUpper = 240_000;
+            curves[i].numPositions = 5;
+            curves[i].shares = WAD / 11;
+        }
+
+        Position[] memory positions = calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
+        assertEq(positions.length, 52, "Incorrect number of positions");
     }
 
     function _printPositions(
         Position[] memory positions
-    ) internal view {
+    ) internal pure {
         for (uint256 i; i < positions.length; ++i) {
-            console.log("-----");
             console.log("Position #%s", i);
             console.log("Salt: %s", uint256(positions[i].salt));
             console.log("Lower tick %s", positions[i].tickLower);
