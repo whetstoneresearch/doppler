@@ -8,7 +8,11 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { Position } from "src/types/Position.sol";
 import {
     StreamableFeesLockerV2,
     MigratorApproval,
@@ -17,116 +21,14 @@ import {
     StreamAlreadyUnlocked
 } from "src/StreamableFeesLockerV2.sol";
 
-contract PoolManagerMock is IPoolManager {
-    function protocolFeesAccrued(
-        Currency currency
-    ) external view override returns (uint256 amount) { }
-
-    function setProtocolFee(PoolKey memory key, uint24 newProtocolFee) external override { }
-
-    function setProtocolFeeController(
-        address controller
-    ) external override { }
-
-    function collectProtocolFees(
-        address recipient,
-        Currency currency,
-        uint256 amount
-    ) external override returns (uint256 amountCollected) { }
-
-    function protocolFeeController() external view override returns (address) { }
-
-    function balanceOf(address owner, uint256 id) external view override returns (uint256 amount) { }
-
-    function allowance(address owner, address spender, uint256 id) external view override returns (uint256 amount) { }
-
-    function isOperator(address owner, address spender) external view override returns (bool approved) { }
-
-    function transfer(address receiver, uint256 id, uint256 amount) external override returns (bool) { }
-
-    function transferFrom(
-        address sender,
-        address receiver,
-        uint256 id,
-        uint256 amount
-    ) external override returns (bool) { }
-
-    function approve(address spender, uint256 id, uint256 amount) external override returns (bool) { }
-
-    function setOperator(address operator, bool approved) external override returns (bool) { }
-
-    function extsload(
-        bytes32 slot
-    ) external view override returns (bytes32 value) { }
-
-    function extsload(bytes32 startSlot, uint256 nSlots) external view override returns (bytes32[] memory values) { }
-
-    function extsload(
-        bytes32[] calldata slots
-    ) external view override returns (bytes32[] memory values) { }
-
-    function exttload(
-        bytes32 slot
-    ) external view override returns (bytes32 value) { }
-
-    function exttload(
-        bytes32[] calldata slots
-    ) external view override returns (bytes32[] memory values) { }
-
-    function unlock(
-        bytes calldata data
-    ) external override returns (bytes memory) { }
-
-    function initialize(PoolKey memory key, uint160 sqrtPriceX96) external override returns (int24 tick) { }
-
-    function modifyLiquidity(
-        PoolKey memory key,
-        ModifyLiquidityParams memory params,
-        bytes calldata hookData
-    ) external override returns (BalanceDelta callerDelta, BalanceDelta feesAccrued) { }
-
-    function swap(
-        PoolKey memory key,
-        SwapParams memory params,
-        bytes calldata hookData
-    ) external override returns (BalanceDelta swapDelta) { }
-
-    function donate(
-        PoolKey memory key,
-        uint256 amount0,
-        uint256 amount1,
-        bytes calldata hookData
-    ) external override returns (BalanceDelta) { }
-
-    function sync(
-        Currency currency
-    ) external override { }
-
-    function take(Currency currency, address to, uint256 amount) external override { }
-
-    function settle() external payable override returns (uint256 paid) { }
-
-    function settleFor(
-        address recipient
-    ) external payable override returns (uint256 paid) { }
-
-    function clear(Currency currency, uint256 amount) external override { }
-
-    function mint(address to, uint256 id, uint256 amount) external override { }
-
-    function burn(address from, uint256 id, uint256 amount) external override { }
-
-    function updateDynamicLPFee(PoolKey memory key, uint24 newDynamicLPFee) external override { }
-}
-
-contract StreamableFeesLockerV2Test is Test {
-    IPoolManager public poolManager;
+contract StreamableFeesLockerV2Test is Deployers {
     StreamableFeesLockerV2 public locker;
     address public owner = makeAddr("Owner");
 
     function setUp() public {
-        poolManager = new PoolManagerMock();
-        locker = new StreamableFeesLockerV2(poolManager, owner);
+        deployFreshManagerAndRouters();
+        deployMintAndApprove2Currencies();
+        locker = new StreamableFeesLockerV2(manager, owner);
     }
 
     function test_approveMigrator_ApprovesNewMigrator() public {
@@ -158,5 +60,52 @@ contract StreamableFeesLockerV2Test is Test {
         locker.revokeMigrator(migrator);
 
         assertFalse(locker.approvedMigrators(migrator), "Migrator should be revoked");
+    }
+
+    function test_lock_RevertsWhenSenderNotApprovedMigrator() public {
+        (
+            PoolKey memory key,
+            uint32 lockDuration,
+            address recipient,
+            BeneficiaryData[] memory beneficiaries,
+            Position[] memory positions
+        ) = _prepareLockData();
+
+        vm.expectRevert(NotApprovedMigrator.selector);
+        locker.lock(key, lockDuration, recipient, beneficiaries, positions);
+    }
+
+    function _prepareLockData()
+        internal
+        returns (
+            PoolKey memory key,
+            uint32 lockDuration,
+            address recipient,
+            BeneficiaryData[] memory beneficiaries,
+            Position[] memory positions
+        )
+    {
+        key = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            fee: 10,
+            tickSpacing: 3000,
+            hooks: IHooks(address(0))
+        });
+
+        recipient = makeAddr("Recipient");
+        lockDuration = 1 days;
+
+        beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.5e18 });
+
+        positions = new Position[](2);
+        for (uint256 i; i != positions.length; ++i) {
+            positions[i].salt = bytes32(i);
+            positions[i].tickLower = -100_000;
+            positions[i].tickUpper = -200_000;
+            positions[i].liquidity = 1e18;
+        }
     }
 }
