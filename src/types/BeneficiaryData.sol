@@ -3,10 +3,10 @@ pragma solidity ^0.8.24;
 
 import { WAD } from "src/types/Wad.sol";
 
-/// @dev Thrown when the beneficiaries are not in ascending order
+/// @dev Thrown when the beneficiaries are not sorted in ascending order
 error UnorderedBeneficiaries();
 
-/// @notice Thrown when shares are invalid
+/// @notice Thrown when shares are invalid (greater than WAD)
 error InvalidShares();
 
 /// @notice Thrown when protocol owner beneficiary is not found
@@ -15,12 +15,15 @@ error InvalidProtocolOwnerBeneficiary();
 /// @notice Thrown when total shares are not equal to WAD
 error InvalidTotalShares();
 
-/// @notice Thrown when protocol owner shares are invalid
+/// @notice Thrown when protocol owner shares are invalid (lower than 0.05 WAD)
 error InvalidProtocolOwnerShares();
 
-/// @notice Data structure for beneficiary information
-/// @param beneficiary Address of the beneficiary
-/// @param shares Share of fees allocated to this beneficiary (in WAD)
+/**
+ * @notice Data structure for beneficiary information
+ * @param beneficiary Address of the beneficiary
+ * @param beneficiaries
+ * @param shares Share of fees allocated to this beneficiary (in WAD)
+ */
 struct BeneficiaryData {
     address beneficiary;
     uint96 shares;
@@ -28,6 +31,7 @@ struct BeneficiaryData {
 
 /**
  * @dev Validates beneficiaries array and ensures protocol owner compliance
+ * @param protocolOwner Address of the protocol owner
  * @param beneficiaries Array of beneficiaries to validate
  */
 function validateBeneficiaries(address protocolOwner, BeneficiaryData[] memory beneficiaries) pure {
