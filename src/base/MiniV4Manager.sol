@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
+import { SafeCast } from "@v4-core/libraries/SafeCast.sol";
 import { IPoolManager, PoolKey, BalanceDelta } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -43,6 +44,9 @@ struct CallbackData {
  */
 abstract contract MiniV4Manager is IUnlockCallback {
     using BalanceDeltaLibrary for BalanceDelta;
+    using SafeCast for int128;
+    using SafeCast for uint128;
+    using SafeCast for uint256;
 
     /// @notice Address of Uniswap V4 `PoolManager` contract
     IPoolManager public immutable poolManager;
@@ -141,7 +145,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
             IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
                 tickLower: pos.tickLower,
                 tickUpper: pos.tickUpper,
-                liquidityDelta: int128(pos.liquidity),
+                liquidityDelta: pos.liquidity.toInt256(),
                 salt: pos.salt // TODO: Not sure if we really need to set one
              });
 
@@ -211,23 +215,22 @@ abstract contract MiniV4Manager is IUnlockCallback {
      */
     function _handleSettle(PoolKey memory poolKey, BalanceDelta delta) private {
         if (delta.amount0() > 0) {
-            poolManager.take(poolKey.currency0, address(this), uint128(delta.amount0()));
+            poolManager.take(poolKey.currency0, address(this), delta.amount0().toUint128());
         }
 
         if (delta.amount1() > 0) {
-            poolManager.take(poolKey.currency1, address(this), uint128(delta.amount1()));
+            poolManager.take(poolKey.currency1, address(this), delta.amount1().toUint128());
         }
 
         if (delta.amount0() < 0) {
             poolManager.sync(poolKey.currency0);
-
-            poolKey.currency0.transfer(address(poolManager), uint128(-delta.amount0()));
+            poolKey.currency0.transfer(address(poolManager), uint256(-int256(delta.amount0())));
             poolManager.settle();
         }
 
         if (delta.amount1() < 0) {
             poolManager.sync(poolKey.currency1);
-            poolKey.currency1.transfer(address(poolManager), uint128(-delta.amount1()));
+            poolKey.currency1.transfer(address(poolManager), uint256(-int256(delta.amount1())));
             poolManager.settle();
         }
     }
