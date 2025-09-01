@@ -35,7 +35,7 @@ struct AssetData {
 }
 
 /**
- * @title UniswapV4MulticurveMigrator
+ * @title Doppler Uniswap V4 Multicurve Migrator
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice Migrates liquidity into a fresh Uniswap V4 pool and distributes it across multiple positions,
