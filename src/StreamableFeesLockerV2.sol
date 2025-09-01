@@ -14,12 +14,14 @@ import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
 /**
- * @notice Data structure for position information
- * @param recipient Address that will receive the NFT after unlocking
- * @param startDate Timestamp when the position was locked
- * @param lockDuration Duration of the position lock
- * @param isUnlocked Whether the position has been unlocked
+ * @notice Data structure for stream information
+ * @param poolKey Key of the associated Uniswap V4 pool
+ * @param recipient Address receiving the token balances on unlock
+ * @param startDate Timestamp when the stream started
+ * @param lockDuration Duration for which the position is locked
+ * @param isUnlocked True if the position has been unlocked
  * @param beneficiaries Array of beneficiaries and their shares
+ * @param positions Array of positions that are locked in the stream
  */
 struct StreamData {
     PoolKey poolKey;
@@ -42,19 +44,19 @@ error StreamAlreadyUnlocked();
 
 /**
  * @notice Emitted when a position is locked
- * @param poolId ID of the Uniswap V4 pool
+ * @param poolId Id of the associated Uniswap V4 pool
  * @param beneficiaries Array of beneficiaries and their shares
  * @param unlockDate Timestamp when the position will be unlocked
  */
 event Lock(PoolId indexed poolId, BeneficiaryData[] beneficiaries, uint256 unlockDate);
 
-/// @notice Emitted when a position is unlocked
-/// @param recipient Address that received the NFT
+/// @notice Emitted when a new stream is unlocked
+/// @param recipient Address receiving the token balances on unlock
 event Unlock(PoolId indexed poolId, address recipient);
 
-/// @notice Emitted when a migrator is approved
+/// @notice Emitted when a migrator status is updated
 /// @param migrator Address of the migrator
-/// @param approval Whether the migrator is approved
+/// @param approval True if the migrator is approved
 event MigratorApproval(address indexed migrator, bool approval);
 
 /**
@@ -65,6 +67,7 @@ event MigratorApproval(address indexed migrator, bool approval);
  * @dev Allows locking positions for a specified duration and streaming fees to multiple beneficiaries
  */
 contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
+    /// @notice Mapping of Uniswap V4 pool ids and their respective streams
     mapping(PoolId poolId => StreamData) public streams;
 
     /// @notice Mapping of approved migrators
@@ -73,12 +76,15 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
     /// @notice Anyone can send ETH to this contract
     receive() external payable { }
 
-    /// @param owner_ Address of the owner of the contract
+    /**
+     * @param poolManager_ Address of the Uniswap V4 PoolManager contract
+     * @param owner_ Address of the owner of the contract
+     */
     constructor(IPoolManager poolManager_, address owner_) Ownable(owner_) MiniV4Manager(poolManager_) {
         poolManager = poolManager_;
     }
 
-    /// @notice Modifier to restrict sender to approved migrators only
+    /// @notice Checks if the `msg.sender` is an approved migrator
     modifier onlyApprovedMigrator() {
         if (!approvedMigrators[msg.sender]) {
             revert NotApprovedMigrator();
@@ -86,6 +92,14 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
         _;
     }
 
+    /**
+     * @notice Locks positions for a specified duration and sets its beneficiaries
+     * @param poolKey Key of the Uniswap V4 pool to which the positions belong
+     * @param lockDuration Duration for which the positions will be locked
+     * @param recipient Recipient address receiving the token balances on unlock
+     * @param beneficiaries Array of beneficiaries and their shares
+     * @param positions Array of positions to lock
+     */
     function lock(
         PoolKey memory poolKey,
         uint32 lockDuration,
@@ -108,19 +122,18 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
         });
 
         _storeBeneficiaries(poolId, owner(), beneficiaries);
+        getPoolKey[poolId] = poolKey;
         _mint(poolKey, positions);
 
         emit Lock(poolId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + lockDuration : 0);
     }
 
-    /// @notice Collect fees from a Uniswap V4 pool and accrue them to beneficiaries
+    /// @inheritdoc FeesManager
     function _collectFees(
         PoolId poolId
     ) internal override returns (BalanceDelta fees) {
         StreamData memory stream = streams[poolId];
         require(stream.startDate != 0, StreamNotFound());
-
-        // require(stream.isUnlocked != true, StreamAlreadyUnlocked());
 
         if (stream.isUnlocked == false) {
             fees = _collect(stream.poolKey, stream.positions);
@@ -139,8 +152,10 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
         }
     }
 
-    /// @notice Approves a migrator
-    /// @param migrator Address of the migrator
+    /**
+     * @notice Approves a migrator
+     * @param migrator Address of the migrator
+     */
     function approveMigrator(
         address migrator
     ) external onlyOwner {
@@ -150,8 +165,10 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
         }
     }
 
-    /// @notice Revokes a migrator
-    /// @param migrator Address of the migrator
+    /**
+     * @notice Revokes a migrator
+     * @param migrator Address of the migrator
+     */
     function revokeMigrator(
         address migrator
     ) external onlyOwner {
