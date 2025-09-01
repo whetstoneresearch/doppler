@@ -7,6 +7,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, validateBeneficiaries } from "src/types/BeneficiaryData.sol";
@@ -15,6 +16,7 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { Position } from "src/types/Position.sol";
 import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
 
 /**
  * @notice Data to use for the migration
@@ -23,8 +25,10 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
  * @param beneficiaries Array of beneficiaries used by the locker contract
  */
 struct AssetData {
+    bool isToken0;
     PoolKey poolKey;
     uint32 lockDuration;
+    Curve[] curves;
     BeneficiaryData[] beneficiaries;
 }
 
@@ -57,8 +61,13 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
     }
 
     function initialize(address asset, address numeraire, bytes calldata data) external onlyAirlock returns (address) {
-        (uint24 fee, int24 tickSpacing, uint32 lockDuration, BeneficiaryData[] memory beneficiaries, int24 spread) =
-            abi.decode(data, (uint24, int24, uint32, BeneficiaryData[], int24));
+        (
+            uint24 fee,
+            int24 tickSpacing,
+            uint32 lockDuration,
+            BeneficiaryData[] memory beneficiaries,
+            Curve[] memory curves
+        ) = abi.decode(data, (uint24, int24, uint32, BeneficiaryData[], Curve[]));
 
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
@@ -72,8 +81,13 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
             tickSpacing: tickSpacing
         });
 
-        getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
-            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
+        getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] = AssetData({
+            isToken0: Currency.unwrap(poolKey.currency0) == asset,
+            poolKey: poolKey,
+            lockDuration: lockDuration,
+            beneficiaries: beneficiaries,
+            curves: curves
+        });
 
         // Uniswap V4 pools are represented by their PoolKey, so we return an empty address instead
         return EMPTY_ADDRESS;
@@ -99,8 +113,12 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
             balance0 = ERC20(token0).balanceOf(address(this));
         }
 
-        // TODO: Compute the positions
-        Position[] memory positions;
+        int24 offset = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+        Curve[] memory adjustedCurves = adjustCurves(data.isToken0, data.poolKey.tickSpacing, offset, data.curves);
+        Position[] memory positions = calculatePositions(data.poolKey, data.isToken0, adjustedCurves, balance0);
+
+        data.poolKey.currency0.transfer(address(locker), balance0);
+        data.poolKey.currency1.transfer(address(locker), balance1);
 
         locker.lock(data.poolKey, data.lockDuration, recipient, data.beneficiaries, positions);
     }
