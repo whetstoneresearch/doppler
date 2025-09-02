@@ -150,7 +150,7 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.balanceOf(alice), 10);
 
         // For deterministic IDs, the 5th NFT has tokenId 5 owned by alice.
-        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 4), 5);
 
         // Freeze the 5th NFT by its index (zero-based index 4).
         uint256[] memory idx = new uint256[](1);
@@ -163,7 +163,7 @@ contract DopplerDN404Test is Test {
         token.transfer(bob, 9 * UNIT);
         assertEq(mirror.balanceOf(alice), 1);
         // The remaining NFT at index 0 must be tokenId 5.
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 5);
     }
 
     function test_freezeTokenIDsByIndex_IndexOutOfBounds() public {
@@ -200,8 +200,8 @@ contract DopplerDN404Test is Test {
         token.transfer(bob, 1 * UNIT);
         // 2 frozen NFTs remain with alice at indices 0 and 1.
         assertEq(mirror.balanceOf(alice), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
     }
 
     function test_directTransferFrozenNFT_DecrementsSenderFrozenBalance() public {
@@ -225,8 +225,8 @@ contract DopplerDN404Test is Test {
         assertEq(token.frozenBalances(alice), 0);
         assertEq(token.frozenBalances(bob), 0);
         // Bob now has tokenId 1 at index 0; Alice keeps tokenId 2.
-        assertEq(token.tokenOfOwnerByIndex(bob, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 2);
     }
 
     function test_directTransferNonFrozenNFT_DoesNotAffectFrozenBalance() public {
@@ -249,9 +249,9 @@ contract DopplerDN404Test is Test {
         assertEq(token.frozenBalances(alice), UNIT);
         assertEq(token.frozenBalances(bob), 0);
         // Bob owns tokenId 3; Alice owns tokenIds [1,2] in order.
-        assertEq(token.tokenOfOwnerByIndex(bob, 0), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
     }
 
     function test_skipNFT_TogglingPreventsMintOnTransfer() public {
@@ -275,15 +275,15 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.balanceOf(alice), 5);
 
         // Expect sequential token IDs by index.
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
-        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 4), 5);
 
         // Out of bounds should revert.
         vm.expectRevert(bytes("Owner index out of bounds"));
-        token.tokenOfOwnerByIndex(alice, 5);
+        mirror.tokenOfOwnerByIndex(alice, 5);
     }
 
     function test_tokenOfOwnerByIndex_ReflectsSwapOnERC721Transfer() public {
@@ -299,18 +299,18 @@ contract DopplerDN404Test is Test {
 
         // DN404 uses swap-and-pop, so alice's owned list becomes [1,2,5,4]
         assertEq(mirror.balanceOf(alice), 4);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 5);
-        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 4);
         vm.expectRevert(bytes("Owner index out of bounds"));
-        token.tokenOfOwnerByIndex(alice, 4);
+        mirror.tokenOfOwnerByIndex(alice, 4);
 
         // Bob received tokenId 3 at index 0
         assertEq(mirror.balanceOf(bob), 1);
-        assertEq(token.tokenOfOwnerByIndex(bob, 0), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 3);
         vm.expectRevert(bytes("Owner index out of bounds"));
-        token.tokenOfOwnerByIndex(bob, 1);
+        mirror.tokenOfOwnerByIndex(bob, 1);
     }
 
     function test_tokenOfOwnerByIndex_ERC20UnitTransferMovesEndFirst() public {
@@ -325,12 +325,12 @@ contract DopplerDN404Test is Test {
 
         // Alice keeps [1,2,3,4]; Bob gets [5]
         assertEq(mirror.balanceOf(alice), 4);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 4);
         assertEq(mirror.balanceOf(bob), 1);
-        assertEq(token.tokenOfOwnerByIndex(bob, 0), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 5);
     }
 
     function test_tokenOfOwnerByIndex_RespectsFrozenReordering() public {
@@ -345,18 +345,18 @@ contract DopplerDN404Test is Test {
         token.freezeTokenIDsByIndex(idx);
 
         // Expect owned order to be [3,2,1,4,5]
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 3), 4);
-        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 4), 5);
     }
 
     function test_tokenOfOwnerByIndex_EmptyOwnerReverts() public {
         address nobody = address(0x1234);
         assertEq(mirror.balanceOf(nobody), 0);
         vm.expectRevert(bytes("Owner index out of bounds"));
-        token.tokenOfOwnerByIndex(nobody, 0);
+        mirror.tokenOfOwnerByIndex(nobody, 0);
     }
 
     function test_tokenOfOwnerByIndex_SkipNFTRecipientEOA_Reverts() public {
@@ -366,7 +366,7 @@ contract DopplerDN404Test is Test {
         token.transfer(alice, 3 * UNIT);
         assertEq(mirror.balanceOf(alice), 0);
         vm.expectRevert(bytes("Owner index out of bounds"));
-        token.tokenOfOwnerByIndex(alice, 0);
+        mirror.tokenOfOwnerByIndex(alice, 0);
     }
 
     function test_tokenOfOwnerByIndex_SkipNFTRecipientContract_Reverts() public {
@@ -375,7 +375,7 @@ contract DopplerDN404Test is Test {
         token.transfer(address(receiver), 2 * UNIT);
         assertEq(mirror.balanceOf(address(receiver)), 0);
         vm.expectRevert(bytes("Owner index out of bounds"));
-        token.tokenOfOwnerByIndex(address(receiver), 0);
+        mirror.tokenOfOwnerByIndex(address(receiver), 0);
     }
 
     function test_tokenOfOwnerByIndex_MultiUnitTransferMovesLastTwo() public {
@@ -389,14 +389,14 @@ contract DopplerDN404Test is Test {
 
         // Alice loses last two: now [1,2,3]
         assertEq(mirror.balanceOf(alice), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 3);
 
         // Bob receives [5,4] in that order.
         assertEq(mirror.balanceOf(bob), 2);
-        assertEq(token.tokenOfOwnerByIndex(bob, 0), 5);
-        assertEq(token.tokenOfOwnerByIndex(bob, 1), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 1), 4);
     }
 
     function test_tokenOfOwnerByIndex_FreezeMultipleIndices_ReordersAsExpected() public {
@@ -411,11 +411,11 @@ contract DopplerDN404Test is Test {
         vm.prank(alice);
         token.freezeTokenIDsByIndex(idx);
 
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 2);
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 4);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 3), 1);
-        assertEq(token.tokenOfOwnerByIndex(alice, 4), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 4), 5);
     }
 
     function test_tokenOfOwnerByIndex_MultipleFrozenThenTransferOne() public {
@@ -439,15 +439,15 @@ contract DopplerDN404Test is Test {
         // Frozen balance decreased by one UNIT; first element of prefix (tokenId 2) remains at index 0.
         assertEq(token.frozenBalances(alice), 1 * UNIT);
         assertEq(mirror.balanceOf(alice), 4);
-        assertEq(token.tokenOfOwnerByIndex(alice, 0), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 2);
         // Remaining order becomes [2,5,3,1]
-        assertEq(token.tokenOfOwnerByIndex(alice, 1), 5);
-        assertEq(token.tokenOfOwnerByIndex(alice, 2), 3);
-        assertEq(token.tokenOfOwnerByIndex(alice, 3), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 5);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 1);
 
         // Bob now owns tokenId 4
         assertEq(mirror.balanceOf(bob), 1);
-        assertEq(token.tokenOfOwnerByIndex(bob, 0), 4);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 4);
     }
 }
 
