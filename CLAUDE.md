@@ -1,0 +1,1 @@
+- active development is over for anything involving uniswap v2. ignore v2-related files, contracts, issues, settings,etc. unless I specifically ask you to consider V2 in my question
