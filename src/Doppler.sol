@@ -249,6 +249,8 @@ contract Doppler is BaseHook {
     /// @dev Range of the upper slug
     int24 internal upperSlugRange;
 
+    int24 internal topOfCurveTick;
+
     /// @notice Only the pool manager can send ETH to this contract
     receive() external payable {
         if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
@@ -495,43 +497,47 @@ contract Doppler is BaseHook {
         BalanceDelta swapDelta,
         bytes calldata
     ) internal override returns (bytes4, int128) {
-        if (insufficientProceeds) {
-            return (BaseHook.afterSwap.selector, 0);
-        }
-        // Get current tick
+        if (insufficientProceeds) return (BaseHook.afterSwap.selector, 0);
+
+        // Read current tick based on `sqrtPriceX96` as its more accurate in extreme edge cases
         PoolId poolId = key.toId();
         (uint160 sqrtPriceX96,, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
-        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96); // read current tick based sqrtPrice as its more accurate in extreme edge cases
+        int24 currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
 
-        if (currentTick == TickMath.MIN_TICK || currentTick == TickMath.MAX_TICK) {
-            // We sold all the asset tokens and the pool has reached the MIN or MAX tick, so we need to set the price
-            // back to the top of the higher PD slug
-            Position memory position = positions[bytes32(uint256(NUM_DEFAULT_SLUGS + numPDSlugs - 1))];
-            int24 targetTick = isToken0 ? position.tickLower : position.tickUpper;
+        bool tickAboveCurve = isToken0 ? currentTick > topOfCurveTick : currentTick < topOfCurveTick;
 
-            // Then we swap from the MIN or MAX tick to the target tick
+        int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
+        bool tickBelowCurve = isToken0 ? currentTick < tickLower : currentTick > tickLower;
+
+        // If the current tick is out of our range, we reset it to the top or the bottom of our price curve
+        if (tickAboveCurve) {
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
                     zeroForOne: isToken0,
                     amountSpecified: 1,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(targetTick)
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? topOfCurveTick + 1 : topOfCurveTick - 1)
                 }),
                 ""
             );
+            (, currentTick,,) = poolManager.getSlot0(poolId);
+        } else if (tickBelowCurve) {
+            poolManager.swap(
+                key,
+                IPoolManager.SwapParams({
+                    zeroForOne: !isToken0,
+                    amountSpecified: 1,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? tickLower - 1 : tickLower + 1)
+                }),
+                ""
+            );
+            (, currentTick,,) = poolManager.getSlot0(poolId);
         }
 
-        // Get the lower tick of the lower slug
-        int24 tickLower = positions[LOWER_SLUG_SALT].tickLower;
-        uint24 swapFee = insufficientProceeds
-            ? 0
-            : (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee()).calculateSwapFee(
-                lpFee
-            );
+        uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
+            .calculateSwapFee(lpFee);
 
         if (isToken0) {
-            if (currentTick < tickLower) revert SwapBelowRange();
-
             int128 amount0 = swapDelta.amount0();
             if (amount0 >= 0) {
                 state.totalTokensSold += uint128(amount0);
@@ -548,8 +554,6 @@ contract Doppler is BaseHook {
                 state.totalProceeds += proceedsLessFee;
             }
         } else {
-            if (currentTick > tickLower) revert SwapBelowRange();
-
             int128 amount1 = swapDelta.amount1();
             if (amount1 >= 0) {
                 state.totalTokensSold += uint128(amount1);
@@ -587,7 +591,7 @@ contract Doppler is BaseHook {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) internal view override onlyPoolManager returns (bytes4) {
+    ) internal view override returns (bytes4) {
         if (caller != address(this)) revert CannotAddLiquidity();
 
         return BaseHook.beforeAddLiquidity.selector;
@@ -619,100 +623,25 @@ contract Doppler is BaseHook {
         int256 accumulatorDelta;
         int256 newAccumulator;
         int24 adjustmentTick;
-        // Handle empty epochs
-        // accumulatorDelta should always be nonzero if epochsPassed > 1, so we don't need the check
-        if (epochsPassed > 1) {
-            // handle the price adjustment that should have happened in the first empty epoch
-            int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
-            bool lteExpectedSoldInFirstEpoch =
-                totalTokensSold_ <= _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
 
-            if (initialNetSold < 0 && lteExpectedSoldInFirstEpoch) {
-                accumulatorDelta += _getMaxTickDeltaPerEpoch();
-            } else if (lteExpectedSoldInFirstEpoch) {
-                accumulatorDelta += _getMaxTickDeltaPerEpoch()
-                    * int256(
-                        WAD
-                            - FullMath.mulDiv(
-                                totalTokensSold_, WAD, _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1))
-                            )
-                    ) / I_WAD;
-            } else {
-                int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
+        // handle the price adjustment that should have happened in the first empty epoch
+        int256 initialNetSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
+        uint256 expectedSoldFirstEpoch = _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
+        bool lteExpectedSoldInFirstEpoch = totalTokensSold_ <= expectedSoldFirstEpoch;
 
-                int24 adjustmentTickDelta = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
-
-                // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
-                // The upperTick is not always placed so we have to compute its placement in case it's not
-                // This depends on the invariant that upperSlug.tickLower == currentTick at the time of rebalancing
-                adjustmentTick = isToken0
-                    ? upperSlugPosition.tickLower + adjustmentTickDelta
-                    : upperSlugPosition.tickLower - adjustmentTickDelta;
-                int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
-
-                uint256 epochsRemaining = totalEpochs - currentEpoch;
-                int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-                liquidityBound = epochsRemaining < numPDSlugs
-                    ? positions[bytes32(uint256(NUM_DEFAULT_SLUGS + epochsRemaining))].tickUpper
-                    : liquidityBound;
-
-                // We bound the currentTick by the top of the curve (tauTick + gamma)
-                // This is necessary because there is no liquidity above the curve and we need to
-                // ensure that the accumulatorDelta is just based on meaningful (in range) ticks
-                if (isToken0) {
-                    currentTick = currentTick > liquidityBound ? liquidityBound : currentTick;
-                } else {
-                    currentTick = currentTick < liquidityBound ? liquidityBound : currentTick;
-                }
-
-                accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
-            }
-
-            // apply max tick delta for remaining empty epochs
-            // -2 because we already applied the first empty epoch and will apply the last epoch later
-            // only max DA for every epoch where we are below expected amount sold
-            uint256 expectedSoldInLastEpoch = _getExpectedAmountSoldWithEpochOffset(-2);
-            bool isLtExpectedSoldInLastEpoch = totalTokensSold_ < expectedSoldInLastEpoch;
-
-            if (isLtExpectedSoldInLastEpoch) {
-                // find how many empty epochs are implied by the difference between expected amount sold and total tokens sold
-                int256 offset = -2;
-                uint256 expectedSold = expectedSoldInLastEpoch;
-                uint256 emptyEpochs;
-
-                do {
-                    emptyEpochs++;
-                    offset--;
-                    expectedSold = _getExpectedAmountSoldWithEpochOffset(offset);
-                    isLtExpectedSoldInLastEpoch = totalTokensSold_ < expectedSold;
-                } while (isLtExpectedSoldInLastEpoch);
-
-                accumulatorDelta += _getMaxTickDeltaPerEpoch() * int256(emptyEpochs);
-            }
-
-            state.totalTokensSoldLastEpoch = totalTokensSold_;
-        }
-
-        // Get the expected amount sold and the net sold in the last epoch
-        uint256 expectedAmountSold = _getExpectedAmountSoldWithEpochOffset(0);
-        int256 netSold = int256(totalTokensSold_) - int256(state.totalTokensSoldLastEpoch);
-
-        state.totalTokensSoldLastEpoch = totalTokensSold_;
-
-        bool lteExpectedSold = totalTokensSold_ <= expectedAmountSold;
-
-        // Possible if no tokens purchased or tokens are sold back into the pool
-        if (netSold < 0 && lteExpectedSold) {
+        if (initialNetSold < 0 && lteExpectedSoldInFirstEpoch) {
             adjustmentTick = upperSlugPosition.tickLower;
             accumulatorDelta += _getMaxTickDeltaPerEpoch();
-        } else if (lteExpectedSold) {
+        } else if (lteExpectedSoldInFirstEpoch) {
             // Safe from overflow since we use 256 bits with a maximum value of (2**24-1) * 1e18
             adjustmentTick = _alignComputedTickWithTickSpacing(currentTick, key.tickSpacing);
-            accumulatorDelta += _getMaxTickDeltaPerEpoch()
-                * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedAmountSold)) / I_WAD;
-        } else {
-            int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
 
+            // Otherwise, we only apply a partial Dutch auction adjustment
+            accumulatorDelta += _getMaxTickDeltaPerEpoch()
+                * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedSoldFirstEpoch)) / I_WAD;
+        } else {
+            // If we sold more than expected, we apply the oversold logic
+            int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
             int24 adjustmentTickDelta = upperSlugRange > key.tickSpacing ? upperSlugRange : key.tickSpacing;
 
             // The expectedTick is where the upperSlug.tickUpper is/would be placed in the previous epoch
@@ -723,11 +652,7 @@ contract Doppler is BaseHook {
                 : upperSlugPosition.tickLower - adjustmentTickDelta;
             int24 expectedTick = _alignComputedTickWithTickSpacing(adjustmentTick, key.tickSpacing);
 
-            uint256 epochsRemaining = totalEpochs - currentEpoch;
             int24 liquidityBound = isToken0 ? tauTick + gamma : tauTick - gamma;
-            liquidityBound = epochsRemaining < numPDSlugs
-                ? positions[bytes32(uint256(NUM_DEFAULT_SLUGS + epochsRemaining))].tickUpper
-                : liquidityBound;
 
             // We bound the currentTick by the top of the curve (tauTick + gamma)
             // This is necessary because there is no liquidity above the curve and we need to
@@ -740,6 +665,18 @@ contract Doppler is BaseHook {
 
             accumulatorDelta += int256(currentTick - expectedTick) * I_WAD;
         }
+
+        while (epochsPassed > 1) {
+            epochsPassed--;
+            uint256 expectedSold = _getExpectedAmountSoldWithEpochOffset(-int256(epochsPassed - 1));
+
+            if (totalTokensSold_ < expectedSold) {
+                accumulatorDelta += _getMaxTickDeltaPerEpoch()
+                    * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedSold)) / I_WAD;
+            }
+        }
+
+        state.totalTokensSoldLastEpoch = totalTokensSold_;
 
         newAccumulator = state.tickAccumulator + accumulatorDelta;
         // Only sstore if there is a nonzero delta
@@ -776,7 +713,7 @@ contract Doppler is BaseHook {
         }
 
         // Remove existing positions, track removed tokens
-        (BalanceDelta positionDeltas, BalanceDelta feeDeltas) = _clearPositions(prevPositions, key);
+        (BalanceDelta positionDeltas,) = _clearPositions(prevPositions, key);
 
         uint256 numeraireAvailable;
         uint256 assetAvailable;
@@ -785,12 +722,12 @@ contract Doppler is BaseHook {
             numeraireAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
                 - uint128(state.feesAccrued.amount1());
             assetAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
-                - uint128(feeDeltas.amount0());
+                - uint128(state.feesAccrued.amount0());
         } else {
             numeraireAvailable = uint256(uint128(positionDeltas.amount0())) + key.currency0.balanceOfSelf()
                 - uint128(state.feesAccrued.amount0());
             assetAvailable = uint256(uint128(positionDeltas.amount1())) + key.currency1.balanceOfSelf()
-                - uint128(feeDeltas.amount1());
+                - uint128(state.feesAccrued.amount1());
         }
 
         // Compute new positions
@@ -1088,10 +1025,7 @@ contract Doppler is BaseHook {
             return new SlugData[](0);
         }
 
-        uint256 epochT1toT2Delta;
-        if (epochEndTime != nextEpochEndTime) {
-            epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
-        }
+        uint256 epochT1toT2Delta = _getNormalizedTimeElapsed(nextEpochEndTime) - _getNormalizedTimeElapsed(epochEndTime);
 
         uint256 pdSlugsToLp = numPDSlugs;
         for (uint256 i = numPDSlugs; i > 0; --i) {
@@ -1235,6 +1169,8 @@ contract Doppler is BaseHook {
             }
         }
 
+        topOfCurveTick = newPositions[newPositions.length - 1].tickUpper;
+
         int256 currency0Delta = poolManager.currencyDelta(address(this), key.currency0);
         int256 currency1Delta = poolManager.currencyDelta(address(this), key.currency1);
 
@@ -1276,6 +1212,7 @@ contract Doppler is BaseHook {
     }
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
+    /// or remove liquidity during migration
     /// @param data The callback data (key, sender, tick)
     function unlockCallback(
         bytes calldata data
@@ -1380,12 +1317,17 @@ contract Doppler is BaseHook {
         int24 currentTick
     ) internal view returns (SlugData memory slug) {
         uint160 targetPriceX96;
-        if (isToken0) {
+
+        if (totalTokensSold_ == 0) {
+            targetPriceX96 = 0;
+        } else if (isToken0) {
             // Q96 Target price (not sqrtPrice)
-            targetPriceX96 = _computeTargetPriceX96(totalProceeds_, totalTokensSold_);
+            targetPriceX96 =
+                _computeTargetPriceX96(totalProceeds_, totalTokensSold_ - uint128(state.feesAccrued.amount0()));
         } else {
             // Q96 Target price (not sqrtPrice)
-            targetPriceX96 = _computeTargetPriceX96(totalTokensSold_, totalProceeds_);
+            targetPriceX96 =
+                _computeTargetPriceX96(totalTokensSold_ - uint128(state.feesAccrued.amount1()), totalProceeds_);
         }
 
         if (targetPriceX96 == 0) {
