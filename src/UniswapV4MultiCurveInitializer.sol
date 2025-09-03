@@ -170,6 +170,12 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
             emit Lock(asset, beneficiaries);
         }
 
+        // If any dust asset tokens are left in this contract after providing liquidity, we send them
+        // back to the Airlock so they'll be transferred to the associated governance or burnt
+        if (Currency.wrap(asset).balanceOfSelf() > 0) {
+            Currency.wrap(asset).transfer(address(airlock), Currency.wrap(asset).balanceOfSelf());
+        }
+
         // Uniswap V4 pools don't have addresses, so we are returning the asset address
         // instead to retrieve the associated state later during the `exitLiquidity` call
         return asset;
