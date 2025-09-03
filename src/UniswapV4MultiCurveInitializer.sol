@@ -204,10 +204,10 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         token0 = Currency.unwrap(state.poolKey.currency0);
         token1 = Currency.unwrap(state.poolKey.currency1);
 
-        int24 tick;
-        (sqrtPriceX96, tick,,) = poolManager.getSlot0(state.poolKey.toId());
+        (, int24 tick,,) = poolManager.getSlot0(state.poolKey.toId());
         int24 farTick = state.farTick;
         require(asset == token0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
+        sqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
 
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, state.positions);
         balance0 = uint128(balanceDelta.amount0());
