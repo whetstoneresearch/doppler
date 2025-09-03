@@ -449,6 +449,72 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.balanceOf(bob), 1);
         assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 4);
     }
+
+    function test_tokenByIndex_BasicGlobalEnumeration() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        // Mint 3 NFTs to alice and 2 to bob (EOAs auto-mint NFTs).
+        token.transfer(alice, 3 * UNIT);
+        token.transfer(bob, 2 * UNIT);
+
+        // Total NFT supply should be 5.
+        assertEq(mirror.totalSupply(), 5);
+        // tokenByIndex should enumerate token IDs in ascending ID order.
+        assertEq(mirror.tokenByIndex(0), 1);
+        assertEq(mirror.tokenByIndex(1), 2);
+        assertEq(mirror.tokenByIndex(2), 3);
+        assertEq(mirror.tokenByIndex(3), 4);
+        assertEq(mirror.tokenByIndex(4), 5);
+
+        // Out of bounds should revert.
+        vm.expectRevert(bytes("Global index out of bounds"));
+        mirror.tokenByIndex(5);
+    }
+
+    function test_tokenByIndex_ReflectsBurnsAndGaps() public {
+        address alice = address(0xa11ce);
+        // Mint 5 NFTs to alice -> IDs [1..5].
+        token.transfer(alice, 5 * UNIT);
+        assertEq(mirror.totalSupply(), 5);
+
+        // Transfer 2 units back to this contract (a contract defaults to skipNFT=true),
+        // which burns alice's last 2 NFTs (IDs 5 and 4).
+        vm.prank(alice);
+        token.transfer(address(this), 2 * UNIT);
+
+        // Total NFT supply now 3, IDs {1,2,3} should remain globally.
+        assertEq(mirror.totalSupply(), 3);
+        assertEq(mirror.tokenByIndex(0), 1);
+        assertEq(mirror.tokenByIndex(1), 2);
+        assertEq(mirror.tokenByIndex(2), 3);
+        vm.expectRevert(bytes("Global index out of bounds"));
+        mirror.tokenByIndex(3);
+    }
+
+    function test_tokenByIndex_MixedOwnersAndReordersDoNotAffectGlobalOrder() public {
+        address alice = address(0xa11ce);
+        address bob = address(0xb0b);
+        // Mint 4 NFTs to alice -> IDs [1..4].
+        token.transfer(alice, 4 * UNIT);
+        // Transfer 1 unit from alice to bob (moves last NFT ID 4 to bob).
+        vm.prank(alice);
+        token.transfer(bob, UNIT);
+
+        // Check per-owner ordering changes as expected.
+        assertEq(mirror.balanceOf(alice), 3);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 0), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
+        assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 3);
+        assertEq(mirror.balanceOf(bob), 1);
+        assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 4);
+
+        // Global order remains by tokenId across all owners.
+        assertEq(mirror.totalSupply(), 4);
+        assertEq(mirror.tokenByIndex(0), 1);
+        assertEq(mirror.tokenByIndex(1), 2);
+        assertEq(mirror.tokenByIndex(2), 3);
+        assertEq(mirror.tokenByIndex(3), 4);
+    }
 }
 
 contract NFTSkippingReceiver { }

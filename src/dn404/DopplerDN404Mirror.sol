@@ -15,4 +15,9 @@ contract DopplerDN404Mirror is DN404Mirror {
         address payable base = payable(baseERC20());
         return DopplerDN404(base).tokenOfOwnerByIndex(owner, index);
     }
+
+    function tokenByIndex(uint256 index) external view returns (uint256) {
+        address payable base = payable(baseERC20());
+        return DopplerDN404(base).tokenByIndex(index);
+    }
 }

@@ -200,4 +200,37 @@ contract DopplerDN404 is DN404, Ownable {
         Uint32Map storage owned = $.owned[owner];
         id = _get(owned, index);
     }
+
+    /// @notice Returns the token ID at the given global `index` across all existing NFTs.
+    /// Mirrors the behavior of ERC721Enumerable's `tokenByIndex`, iterating over the
+    /// DN404 ownership map in token ID order. Reverts if `index` is out of bounds.
+    /// @param index Zero-based index into the global ordered list of existing token IDs.
+    /// @return id The token ID at the given global index.
+    function tokenByIndex(uint256 index) external view returns (uint256 id) {
+        DN404Storage storage $ = _getDN404Storage();
+        uint256 total = $.totalNFTSupply;
+        if (index >= total) revert("Global index out of bounds");
+
+        // Iterate over the possible token ID space [start .. start + idLimit - 1]
+        // and count existing tokens until we reach `index`.
+        uint256 start = _toUint(_useOneIndexed());
+        uint256 idLimit = $.totalSupply / _unit();
+        Uint32Map storage oo = $.oo;
+
+        uint256 found;
+        // Scan at most `idLimit` slots, which bounds the NFT ID space.
+        for (uint256 i = 0; i < idLimit; i++) {
+            uint256 candidate = start + i;
+            if (_get(oo, _ownershipIndex(candidate)) != 0) {
+                if (found == index) {
+                    return candidate;
+                }
+                unchecked {
+                    ++found;
+                }
+            }
+        }
+
+        revert("Global index out of bounds");
+    }
 }
