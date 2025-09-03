@@ -129,22 +129,7 @@ function calculatePositions(
         totalAssetSupplied += curveSupply;
     }
 
-    require(totalShares <= WAD, InvalidTotalShares());
-
-    // Flush the rest into the tail
-    Position memory lpTailPosition = calculateLpTail(
-        bytes32(positions.length),
-        positions[0].tickLower,
-        positions[length - 1].tickUpper,
-        isToken0,
-        numTokensToSell - totalAssetSupplied,
-        tickSpacing
-    );
-
-    if (lpTailPosition.liquidity > 0) {
-        positions = concat(positions, new Position[](1));
-        positions[positions.length - 1] = lpTailPosition;
-    }
+    require(totalShares == WAD, InvalidTotalShares());
 
     // If there's any supply of the other currency, we can compute the head position using the inverse logic of the tail
     if (otherCurrencySupply > 0) {
@@ -265,7 +250,7 @@ function calculateLogNormalDistribution(
  * @param tickLower Global lower tick of the bonding curve range
  * @param tickUpper Global upper tick of the bonding curve range
  * @param isToken0 True if the asset we're selling is token0, false otherwise
- * @param bondingAssetsRemaining Amount of asset tokens remaining to be bonded in the LP tail position
+ * @param supply Amount of asset tokens remaining to be bonded in the LP tail position
  * @param tickSpacing Tick spacing of the Uniswap V4 pool
  * @return lpTail Final LP tail position
  */
@@ -274,7 +259,7 @@ function calculateLpTail(
     int24 tickLower,
     int24 tickUpper,
     bool isToken0,
-    uint256 bondingAssetsRemaining,
+    uint256 supply,
     int24 tickSpacing
 ) pure returns (Position memory lpTail) {
     int24 tailTick = isToken0 ? tickUpper : tickLower;
@@ -287,8 +272,8 @@ function calculateLpTail(
         sqrtPriceAtTail,
         TickMath.getSqrtPriceAtTick(posTickLower),
         TickMath.getSqrtPriceAtTick(posTickUpper),
-        isToken0 ? bondingAssetsRemaining : 0,
-        isToken0 ? 0 : bondingAssetsRemaining
+        isToken0 ? supply : 0,
+        isToken0 ? 0 : supply
     );
 
     require(posTickLower < posTickUpper, TickRangeMisordered(posTickLower, posTickUpper));
