@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { console } from "forge-std/Console.sol";
+
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
@@ -106,11 +109,16 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         vm.prank(address(airlock));
         migrator.initialize(asset, numeraire, data);
 
-        currency0.transfer(address(migrator), 100e18);
-        currency1.transfer(address(migrator), 100e18);
+        currency0.transfer(address(migrator), 0);
+        currency1.transfer(address(migrator), 5.283036535683276892847566350791176514e36);
 
         vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), recipient);
+        migrator.migrate(
+            1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_341,
+            Currency.unwrap(currency0),
+            Currency.unwrap(currency1),
+            recipient
+        );
     }
 
     function _prepareInitializeData()
@@ -131,8 +139,8 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
 
-        curves = new Curve[](1);
-        curves[0] = Curve({ tickLower: -100_000, tickUpper: 100_000, shares: WAD, numPositions: 4 });
-        // curves[1] = Curve({ tickLower: -50_000, tickUpper: 50_000, shares: WAD / 2, numPositions: 4 });
+        curves = new Curve[](2);
+        curves[0] = Curve({ tickLower: -100_000, tickUpper: 0, shares: WAD / 2, numPositions: 5 });
+        curves[1] = Curve({ tickLower: -50_000, tickUpper: 0, shares: WAD / 2, numPositions: 5 });
     }
 }
