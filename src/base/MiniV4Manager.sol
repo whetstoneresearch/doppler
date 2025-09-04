@@ -223,15 +223,21 @@ abstract contract MiniV4Manager is IUnlockCallback {
         }
 
         if (delta.amount0() < 0) {
-            poolManager.sync(poolKey.currency0);
-            poolKey.currency0.transfer(address(poolManager), uint256(-int256(delta.amount0())));
-            poolManager.settle();
+            _pay(poolKey.currency0, poolManager, uint256(-int256(delta.amount0())));
         }
 
         if (delta.amount1() < 0) {
-            poolManager.sync(poolKey.currency1);
-            poolKey.currency1.transfer(address(poolManager), uint256(-int256(delta.amount1())));
-            poolManager.settle();
+            _pay(poolKey.currency1, poolManager, uint256(-int256(delta.amount1())));
+        }
+    }
+
+    function _pay(Currency currency, IPoolManager manager, uint256 amount) private {
+        if (currency.isAddressZero()) {
+            manager.settle{ value: amount }();
+        } else {
+            manager.sync(currency);
+            currency.transfer(address(manager), amount);
+            manager.settle();
         }
     }
 }
