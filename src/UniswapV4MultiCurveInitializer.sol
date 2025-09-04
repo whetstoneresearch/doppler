@@ -238,4 +238,15 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     ) external view returns (Position[] memory) {
         return getState[asset].positions;
     }
+
+    /**
+     * @notice Returns the beneficiaries and their shares for the given `asset`
+     * @param asset Address of the asset used for the Uniswap V4 pool
+     * @return beneficiaries Array of beneficiaries with their shares
+     */
+    function getBeneficiaries(
+        address asset
+    ) external view returns (BeneficiaryData[] memory) {
+        return getState[asset].beneficiaries;
+    }
 }
