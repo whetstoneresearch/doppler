@@ -97,8 +97,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         );
 
         uint128 liquidity = manager.getLiquidity(poolId);
-        // TODO: Why is this failing? The pool has liquidity, we can check any position to prove it.
-        // assertGt(liquidity, 0, "Liquidity is zero");
+        assertGt(liquidity, 0, "Liquidity is zero");
     }
 
     function test_initialize_UpdatesState() public {
