@@ -11,7 +11,11 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { isTickAligned } from "src/libraries/TickLibrary.sol";
 import { Position } from "src/types/Position.sol";
 import {
-    calculateLpTail, calculateLogNormalDistribution, calculatePositions, Curve
+    calculateLpTail,
+    calculateLogNormalDistribution,
+    calculatePositions,
+    Curve,
+    InvalidTotalShares
 } from "src/libraries/Multicurve.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -21,11 +25,10 @@ contract MulticurveTest is Test {
         int24 tickLower = 160_000;
         int24 tickUpper = 240_000;
         bool isToken0 = true;
-        uint256 bondingAssetsRemaining = 1e18;
+        uint256 supply = 1e18;
         int24 tickSpacing = 8;
 
-        Position memory lpTail =
-            calculateLpTail(salt, tickLower, tickUpper, isToken0, bondingAssetsRemaining, tickSpacing);
+        Position memory lpTail = calculateLpTail(salt, tickLower, tickUpper, isToken0, supply, tickSpacing);
 
         assertEq(lpTail.salt, salt, "Incorrect salt");
         assertEq(lpTail.tickLower, tickUpper, "Incorrect lower tick");
@@ -55,7 +58,7 @@ contract MulticurveTest is Test {
         }
     }
 
-    function test_calculatePositions_NoTail() public pure {
+    function test_calculatePositions() public pure {
         int24 tickSpacing = 8;
         Curve[] memory curves = new Curve[](10);
 
@@ -70,7 +73,8 @@ contract MulticurveTest is Test {
         assertEq(positions.length, 50, "Incorrect number of positions");
     }
 
-    function test_calculatePositions_WithTail() public pure {
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_calculatePositions_RevertsWhenInvalidTotalShares() public {
         int24 tickSpacing = 8;
         Curve[] memory curves = new Curve[](10);
 
@@ -81,8 +85,8 @@ contract MulticurveTest is Test {
             curves[i].shares = WAD / 11;
         }
 
-        Position[] memory positions = calculatePositions(curves, tickSpacing, 1e27, 0, true);
-        assertEq(positions.length, 51, "Incorrect number of positions");
+        vm.expectRevert(InvalidTotalShares.selector);
+        calculatePositions(curves, tickSpacing, 1e27, 0, true);
     }
 
     function test_calculatePositions_WithHead() public pure {
@@ -98,21 +102,6 @@ contract MulticurveTest is Test {
 
         Position[] memory positions = calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
         assertEq(positions.length, 51, "Incorrect number of positions");
-    }
-
-    function test_calculatePositions_WithHeadAndTail() public pure {
-        int24 tickSpacing = 8;
-        Curve[] memory curves = new Curve[](10);
-
-        for (uint256 i; i < 10; ++i) {
-            curves[i].tickLower = int24(uint24(160_000 + i * 8));
-            curves[i].tickUpper = 240_000;
-            curves[i].numPositions = 5;
-            curves[i].shares = WAD / 11;
-        }
-
-        Position[] memory positions = calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
-        assertEq(positions.length, 52, "Incorrect number of positions");
     }
 
     function _printPositions(
