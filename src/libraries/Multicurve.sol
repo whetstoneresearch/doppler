@@ -91,7 +91,7 @@ function adjustCurves(
         if (upperTickBoundary < adjustedCurve.tickUpper) upperTickBoundary = adjustedCurve.tickUpper;
 
         // Accumulate the shares
-        totalShares += adjustedCurves[i].shares;
+        totalShares += adjustedCurve.shares;
 
         adjustedCurves[i] = adjustedCurve;
     }
