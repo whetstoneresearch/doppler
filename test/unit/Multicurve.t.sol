@@ -11,6 +11,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { isTickAligned } from "src/libraries/TickLibrary.sol";
 import { Position } from "src/types/Position.sol";
 import {
+    adjustCurves,
     calculateLpTail,
     calculateLogNormalDistribution,
     calculatePositions,
@@ -20,6 +21,76 @@ import {
 import { WAD } from "src/types/Wad.sol";
 
 contract MulticurveTest is Test {
+    function test_adjustCurves_NoOffset() public pure {
+        Curve[] memory curves = new Curve[](1);
+        curves[0].tickLower = 160_000;
+        curves[0].tickUpper = 240_000;
+        curves[0].numPositions = 1;
+        curves[0].shares = WAD;
+
+        (Curve[] memory adjustedCurves,,) = adjustCurves(curves, 0, int24(8), true);
+
+        assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
+        assertEq(adjustedCurves[0].tickLower, curves[0].tickLower, "Incorrect lower tick");
+        assertEq(adjustedCurves[0].tickUpper, curves[0].tickUpper, "Incorrect upper tick");
+        assertEq(adjustedCurves[0].numPositions, 1, "Incorrect number of positions");
+        assertEq(adjustedCurves[0].shares, WAD, "Incorrect shares");
+    }
+
+    function test_adjustCurves_NoOffsetNotTokenZero() public pure {
+        Curve[] memory curves = new Curve[](1);
+        curves[0].tickLower = 160_000;
+        curves[0].tickUpper = 240_000;
+        curves[0].numPositions = 1;
+        curves[0].shares = WAD;
+
+        (Curve[] memory adjustedCurves,,) = adjustCurves(curves, 0, int24(8), false);
+
+        assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
+        assertEq(adjustedCurves[0].tickLower, -curves[0].tickUpper, "Incorrect lower tick");
+        assertEq(adjustedCurves[0].tickUpper, -curves[0].tickLower, "Incorrect upper tick");
+        assertEq(adjustedCurves[0].numPositions, 1, "Incorrect number of positions");
+        assertEq(adjustedCurves[0].shares, WAD, "Incorrect shares");
+    }
+
+    function test_adjustCurves_WithOffset() public pure {
+        int24 offset = 16_000;
+
+        Curve[] memory curves = new Curve[](1);
+        curves[0].tickLower = 0;
+        curves[0].tickUpper = 32_000;
+        curves[0].numPositions = 1;
+        curves[0].shares = WAD;
+
+        console.log("WTF", curves[0].tickLower + offset);
+
+        (Curve[] memory adjustedCurves,,) = adjustCurves(curves, offset, int24(8), true);
+
+        assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
+        assertEq(adjustedCurves[0].tickLower, curves[0].tickLower + offset, "Incorrect lower tick");
+        assertEq(adjustedCurves[0].tickUpper, curves[0].tickUpper + offset, "Incorrect upper tick");
+        assertEq(adjustedCurves[0].numPositions, 1, "Incorrect number of positions");
+        assertEq(adjustedCurves[0].shares, WAD, "Incorrect shares");
+    }
+
+    function test_adjustCurves_WithOffsetNotTokenZero() public pure {
+        int24 offset = 16_000;
+
+        Curve[] memory curves = new Curve[](1);
+        curves[0].tickLower = 0;
+        curves[0].tickUpper = 32_000;
+        curves[0].numPositions = 1;
+        curves[0].shares = WAD;
+
+        (Curve[] memory adjustedCurves,,) = adjustCurves(curves, offset, int24(8), false);
+
+        assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
+        assertEq(adjustedCurves[0].tickLower, -curves[0].tickUpper + offset, "Incorrect lower tick");
+        assertEq(adjustedCurves[0].tickUpper, -curves[0].tickLower + offset, "Incorrect upper tick");
+        assertEq(adjustedCurves[0].numPositions, 1, "Incorrect number of positions");
+        assertEq(adjustedCurves[0].shares, WAD, "Incorrect shares");
+    }
+
     function test_calculateLpTail() public pure {
         bytes32 salt = bytes32("salt");
         int24 tickLower = 160_000;
