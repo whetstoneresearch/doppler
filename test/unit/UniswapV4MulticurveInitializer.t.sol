@@ -50,7 +50,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         airlock = new Airlock(airlockOwner);
         currency0.transfer(address(airlock), currency0.balanceOfSelf());
         // currency1.transfer(address(airlock), currency1.balanceOfSelf());
-        hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
+        hook = UniswapV4MulticurveInitializerHook(
+            address(uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144))
+        );
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, hook);
 
         vm.startPrank(address(airlock));
