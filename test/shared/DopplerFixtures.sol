@@ -30,7 +30,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { MAX_TICK_SPACING } from "src/Doppler.sol";
-import { DopplerTickLibrary } from "../utils/DopplerTickLibrary.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
@@ -164,10 +164,8 @@ contract DopplerFixtures is Deployers {
     ) internal returns (address _asset, PoolKey memory _poolKey) {
         DopplerConfig memory config = _defaultDopplerConfig();
 
-        int24 startTick =
-            DopplerTickLibrary.alignComputedTickWithTickSpacing(_isAssetToken0, DEFAULT_START_TICK, _tickSpacing);
-        int24 endTick =
-            DopplerTickLibrary.alignComputedTickWithTickSpacing(_isAssetToken0, DEFAULT_END_TICK, _tickSpacing);
+        int24 startTick = alignTick(_isAssetToken0, DEFAULT_START_TICK, _tickSpacing);
+        int24 endTick = alignTick(_isAssetToken0, DEFAULT_END_TICK, _tickSpacing);
         int24 gamma = (DEFAULT_GAMMA / _tickSpacing) * _tickSpacing; // align gamma with tickSpacing, rounding down
 
         bytes memory tokenFactoryData = _defaultTokenFactoryData();

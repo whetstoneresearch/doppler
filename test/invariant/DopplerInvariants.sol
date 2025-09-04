@@ -8,7 +8,7 @@ import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
 import { State, LOWER_SLUG_SALT } from "src/Doppler.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { DopplerTickLibrary } from "test/utils/DopplerTickLibrary.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;
@@ -140,10 +140,7 @@ contract DopplerInvariantsTest is BaseTest {
         vm.warp(DEFAULT_STARTING_TIME - 1);
         (,,, int24 tickSpacing,) = hook.poolKey();
 
-        assertEq(
-            DopplerTickLibrary.alignComputedTickWithTickSpacing(hook.isToken0(), hook.getCurrentTick(), tickSpacing),
-            hook.startingTick()
-        );
+        assertEq(alignTick(hook.isToken0(), hook.getCurrentTick(), tickSpacing), hook.startingTick());
     }
 
     function invariant_EpochsAdvanceWithTime() public view {

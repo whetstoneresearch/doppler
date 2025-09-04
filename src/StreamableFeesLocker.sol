@@ -8,14 +8,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
 import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-/// @notice Data structure for beneficiary information
-/// @param beneficiary Address of the beneficiary
-/// @param shares Share of fees allocated to this beneficiary (in WAD)
-
-struct BeneficiaryData {
-    address beneficiary;
-    uint96 shares;
-}
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 
 /// @notice Data structure for position information
 /// @param recipient Address that will receive the NFT after unlocking

@@ -8,7 +8,7 @@ import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { ICustomLPUniswapV2Migrator } from "src/extensions/interfaces/ICustomLPUniswapV2Migrator.sol";
-import { MigrationMath } from "src/libs/MigrationMath.sol";
+import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { CustomLPUniswapV2Locker } from "src/extensions/CustomLPUniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
