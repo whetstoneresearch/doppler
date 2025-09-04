@@ -96,7 +96,7 @@ function adjustCurves(
         adjustedCurves[i] = adjustedCurve;
     }
 
-    require(totalShares <= WAD, InvalidTotalShares());
+    require(totalShares == WAD, InvalidTotalShares());
     // TODO: Might be an unnecessary check
     isRangeOrdered(lowerTickBoundary, upperTickBoundary);
 }
