@@ -260,3 +260,42 @@ function calculateLpTail(
 
     lpTail = Position({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, salt: salt });
 }
+
+/**
+ * @dev Calculates the final LP position that extends from the far tick to the pool's min/max tick, this position
+ * ensures price equivalence between Uniswap v2 and v3 pools beyond the LBP range
+ * @param salt Salt of the position, likely its index in the array of positions
+ * @param globalTickLower Global lower tick of the bonding curve range
+ * @param globalTickUpper Global upper tick of the bonding curve range
+ * @param isToken0 True if the asset we're selling is token0, false otherwise
+ * @param supply Amount of asset tokens remaining to be bonded in the LP tail position
+ * @param tickSpacing Tick spacing of the Uniswap V4 pool
+ * @return headPosition Final LP head position
+ */
+function calculateHead(
+    bytes32 salt,
+    int24 globalTickLower,
+    int24 globalTickUpper,
+    bool isToken0,
+    uint256 supply,
+    int24 tickSpacing
+) pure returns (Position memory headPosition) {
+    int24 tailTick = isToken0 ? globalTickUpper : globalTickLower;
+    uint160 sqrtPriceAtTail = TickMath.getSqrtPriceAtTick(tailTick);
+
+    int24 posTickLower = isToken0 ? tailTick + tickSpacing : alignTick(isToken0, TickMath.MIN_TICK, tickSpacing);
+    int24 posTickUpper = isToken0 ? alignTick(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick - tickSpacing;
+
+    uint128 lpTailLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+        sqrtPriceAtTail,
+        TickMath.getSqrtPriceAtTick(posTickLower),
+        TickMath.getSqrtPriceAtTick(posTickUpper),
+        isToken0 ? supply - 1 : 0,
+        isToken0 ? 0 : supply - 1
+    );
+
+    require(posTickLower < posTickUpper, TickRangeMisordered(posTickLower, posTickUpper));
+
+    headPosition =
+        Position({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, salt: salt });
+}
