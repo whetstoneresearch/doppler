@@ -111,7 +111,6 @@ function calculatePositions(
     bool isToken0
 ) pure returns (Position[] memory positions) {
     uint256 length = curves.length;
-    uint256 totalAssetSupplied;
     uint256 totalShares;
 
     for (uint256 i; i != length; ++i) {
@@ -124,9 +123,6 @@ function calculatePositions(
         );
 
         positions = concat(positions, newPositions);
-
-        // Update the bonding assets remaining
-        totalAssetSupplied += curveSupply;
     }
 
     require(totalShares == WAD, InvalidTotalShares());
