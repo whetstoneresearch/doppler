@@ -31,7 +31,7 @@ contract MulticurveTest is Test {
         Position memory lpTail = calculateLpTail(salt, tickLower, tickUpper, isToken0, supply, tickSpacing);
 
         assertEq(lpTail.salt, salt, "Incorrect salt");
-        assertEq(lpTail.tickLower, tickUpper, "Incorrect lower tick");
+        assertEq(lpTail.tickLower, tickUpper + tickSpacing, "Incorrect lower tick");
         assertEq(lpTail.tickUpper, TickMath.MAX_TICK, "Incorrect upper tick");
         assertGt(lpTail.liquidity, 0, "Incorrect liquidity");
     }
@@ -105,7 +105,7 @@ contract MulticurveTest is Test {
 
         Position memory headPosition = positions[positions.length - 1];
         assertEq(headPosition.tickLower, TickMath.MIN_TICK, "Incorrect head position lower tick");
-        assertEq(headPosition.tickUpper, 160_000, "Incorrect head position upper tick");
+        assertEq(headPosition.tickUpper, 160_000 - tickSpacing, "Incorrect head position upper tick");
     }
 
     function _printPositions(

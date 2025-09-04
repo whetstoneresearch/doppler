@@ -240,8 +240,8 @@ function calculateLpTail(
     int24 tailTick = isToken0 ? tickUpper : tickLower;
     uint160 sqrtPriceAtTail = TickMath.getSqrtPriceAtTick(tailTick);
 
-    int24 posTickLower = isToken0 ? tailTick : alignTick(isToken0, TickMath.MIN_TICK, tickSpacing);
-    int24 posTickUpper = isToken0 ? alignTick(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick;
+    int24 posTickLower = isToken0 ? tailTick + tickSpacing : alignTick(isToken0, TickMath.MIN_TICK, tickSpacing);
+    int24 posTickUpper = isToken0 ? alignTick(isToken0, TickMath.MAX_TICK, tickSpacing) : tailTick - tickSpacing;
 
     uint128 lpTailLiquidity = LiquidityAmounts.getLiquidityForAmounts(
         sqrtPriceAtTail,
