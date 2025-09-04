@@ -252,8 +252,8 @@ function calculateLpTail(
         sqrtPriceAtTail,
         TickMath.getSqrtPriceAtTick(posTickLower),
         TickMath.getSqrtPriceAtTick(posTickUpper),
-        isToken0 ? supply : 0,
-        isToken0 ? 0 : supply
+        isToken0 ? supply - 1 : 0,
+        isToken0 ? 0 : supply - 1
     );
 
     require(posTickLower < posTickUpper, TickRangeMisordered(posTickLower, posTickUpper));
