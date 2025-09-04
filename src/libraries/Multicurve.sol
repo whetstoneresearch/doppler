@@ -76,6 +76,7 @@ function adjustCurves(
         }
 
         if (offset != 0) {
+            isTickAligned(offset, tickSpacing);
             adjustedCurve.tickLower += offset;
             adjustedCurve.tickUpper += offset;
         }
