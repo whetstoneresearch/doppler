@@ -60,10 +60,20 @@ function adjustCurves(
     upperTickBoundary = TickMath.MIN_TICK;
 
     for (uint256 i; i != length; ++i) {
-        Curve memory adjustedCurve = curves[i];
+        Curve memory adjustedCurve = Curve({
+            tickLower: curves[i].tickLower,
+            tickUpper: curves[i].tickUpper,
+            numPositions: curves[i].numPositions,
+            shares: curves[i].shares
+        });
 
         require(adjustedCurve.numPositions > 0, ZeroPosition());
         require(adjustedCurve.shares > 0, ZeroShare());
+
+        // Flip the ticks if the asset is token1
+        if (!isToken0) {
+            (adjustedCurve.tickLower, adjustedCurve.tickUpper) = (-adjustedCurve.tickUpper, -adjustedCurve.tickLower);
+        }
 
         if (offset != 0) {
             adjustedCurve.tickLower += offset;
@@ -72,12 +82,6 @@ function adjustCurves(
 
         isTickAligned(adjustedCurve.tickLower, tickSpacing);
         isTickAligned(adjustedCurve.tickUpper, tickSpacing);
-
-        // Flip the ticks if the asset is token1
-        if (!isToken0) {
-            adjustedCurve.tickLower = -adjustedCurve.tickUpper;
-            adjustedCurve.tickUpper = -adjustedCurve.tickLower;
-        }
 
         isRangeOrdered(adjustedCurve.tickLower, adjustedCurve.tickUpper);
 
