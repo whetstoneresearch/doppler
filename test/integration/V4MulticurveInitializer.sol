@@ -3,9 +3,14 @@ pragma solidity ^0.8.13;
 
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
+import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -45,15 +50,15 @@ contract V4MulticurveInitializer is Deployers {
     GovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
     LiquidityMigratorMock public mockLiquidityMigrator;
+    TestERC20 public numeraire;
 
     PoolKey public poolKey;
     PoolId public poolId;
 
     function setUp() public {
         deployFreshManagerAndRouters();
-        deployMintAndApprove2Currencies();
-        vm.label(Currency.unwrap(currency0), "Currency0");
-        vm.label(Currency.unwrap(currency1), "Currency1");
+        numeraire = new TestERC20(1e48);
+        vm.label(address(numeraire), "Numeraire");
 
         airlock = new Airlock(airlockOwner);
         tokenFactory = new TokenFactory(address(airlock));
@@ -119,14 +124,12 @@ contract V4MulticurveInitializer is Deployers {
             address(tokenFactory)
         );
 
-        // bool isToken0 = tokenAddress < address(0);
-
-        InitData memory initData = _prepareInitData();
+        InitData memory initData = _prepareInitData(tokenAddress);
 
         CreateParams memory params = CreateParams({
             initialSupply: initialSupply,
             numTokensToSell: initialSupply,
-            numeraire: Currency.unwrap(currency1),
+            numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
             tokenFactoryData: abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
             governanceFactory: IGovernanceFactory(governanceFactory),
@@ -142,7 +145,74 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function _prepareInitData() internal returns (InitData memory) {
+    function test_migrate_MulticurveInitializerV4(
+        bytes32 salt
+    ) public {
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData = _prepareInitData(tokenAddress);
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        (address asset,,,,) = airlock.create(params);
+        require(asset == tokenAddress, "Asset address mismatch");
+
+        vm.label(asset, "Asset");
+        bool isToken0 = asset < address(numeraire);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: int256(initialSupply),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        vm.prank(airlockOwner);
+        airlock.migrate(asset);
+    }
+
+    function _prepareInitData(
+        address token
+    ) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
 
@@ -152,6 +222,11 @@ contract V4MulticurveInitializer is Deployers {
             curves[i].numPositions = 10;
             curves[i].shares = WAD / 10;
         }
+
+        Currency currency0 = Currency.wrap(address(numeraire));
+        Currency currency1 = Currency.wrap(address(token));
+
+        (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
 
         poolKey = PoolKey({
             currency0: currency0,
