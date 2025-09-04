@@ -62,8 +62,6 @@ contract MulticurveTest is Test {
         curves[0].numPositions = 1;
         curves[0].shares = WAD;
 
-        console.log("WTF", curves[0].tickLower + offset);
-
         (Curve[] memory adjustedCurves,,) = adjustCurves(curves, offset, int24(8), true);
 
         assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
