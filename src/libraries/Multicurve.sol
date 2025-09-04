@@ -195,8 +195,8 @@ function calculateLogNormalDistribution(
             // If curveSupply is 0, we skip the liquidity calculation as we are burning max liquidity in each position
             if (curveSupply != 0) {
                 liquidity = isToken0
-                    ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition)
-                    : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition);
+                    ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
+                    : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
 
                 totalAssetSupplied += (
                     isToken0
