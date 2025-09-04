@@ -9,6 +9,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
@@ -160,6 +161,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         getState[asset] = state;
         getAsset[poolKey.toId()] = asset;
 
+        SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
         _mint(poolKey, positions);
 
         emit Create(address(poolManager), asset, numeraire);

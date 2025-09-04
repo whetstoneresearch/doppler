@@ -47,9 +47,17 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     function setUp() public {
         deployFreshManagerAndRouters();
         (currency0, currency1) = deployAndMint2Currencies();
-        hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
         airlock = new Airlock(airlockOwner);
+        currency0.transfer(address(airlock), currency0.balanceOfSelf());
+        // currency1.transfer(address(airlock), currency1.balanceOfSelf());
+        hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, hook);
+
+        vm.startPrank(address(airlock));
+        ERC20(Currency.unwrap(currency0)).approve(address(initializer), type(uint256).max);
+        ERC20(Currency.unwrap(currency1)).approve(address(initializer), type(uint256).max);
+        vm.stopPrank();
+
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(hook));
         vm.label(Currency.unwrap(currency0), "Currency0");
         vm.label(Currency.unwrap(currency1), "Currency1");
@@ -77,7 +85,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitData();
 
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
         vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
@@ -93,7 +100,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitData();
 
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
         vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
@@ -107,7 +113,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitData();
 
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
         vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
@@ -121,7 +126,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitDataLock();
 
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
         vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
@@ -142,7 +146,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitData();
 
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
         vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
@@ -167,7 +170,6 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitData();
 
-        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
         vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
