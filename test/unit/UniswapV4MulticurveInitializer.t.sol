@@ -129,6 +129,13 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
         (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
         assertEq(uint8(status), uint8(PoolStatus.Locked), "Pool status should be locked");
+
+        BeneficiaryData[] memory beneficiaries = initializer.getBeneficiaries(Currency.unwrap(currency0));
+
+        for (uint256 i; i < initData.beneficiaries.length; i++) {
+            assertEq(beneficiaries[i].beneficiary, initData.beneficiaries[i].beneficiary, "Incorrect beneficiary");
+            assertEq(beneficiaries[i].shares, initData.beneficiaries[i].shares, "Incorrect shares");
+        }
     }
 
     function test_initialize_StoresPoolState() public {
