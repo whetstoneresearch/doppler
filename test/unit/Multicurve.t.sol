@@ -44,7 +44,7 @@ contract MulticurveTest is Test {
         uint16 numPositions = 10;
         uint256 curveSupply = 1e27;
 
-        (Position[] memory positions,) =
+        Position[] memory positions =
             calculateLogNormalDistribution(0, tickLower, tickUpper, tickSpacing, isToken0, numPositions, curveSupply);
 
         assertEq(positions.length, numPositions, "Incorrect number of positions");

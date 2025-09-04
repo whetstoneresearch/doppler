@@ -118,7 +118,7 @@ function calculatePositions(
         uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].shares, WAD);
 
         // Calculate the positions for this curve
-        (Position[] memory newPositions,) = calculateLogNormalDistribution(
+        Position[] memory newPositions = calculateLogNormalDistribution(
             i, curves[i].tickLower, curves[i].tickUpper, tickSpacing, isToken0, curves[i].numPositions, curveSupply
         );
 
@@ -167,7 +167,7 @@ function calculateLogNormalDistribution(
     bool isToken0,
     uint16 numPositions,
     uint256 curveSupply
-) pure returns (Position[] memory, uint256) {
+) pure returns (Position[] memory) {
     int24 farTick = isToken0 ? tickUpper : tickLower;
     int24 closeTick = isToken0 ? tickLower : tickUpper;
     int24 spread = tickUpper - tickLower;
@@ -176,7 +176,6 @@ function calculateLogNormalDistribution(
     uint256 amountPerPosition = FullMath.mulDiv(curveSupply, WAD, numPositions * WAD);
     uint256 totalAssetSupplied;
     Position[] memory positions = new Position[](numPositions);
-    uint256 reserves;
 
     for (uint256 i; i < numPositions; i++) {
         // Calculate the ticks position * 1/n to optimize the division
@@ -203,28 +202,6 @@ function calculateLogNormalDistribution(
                         ? SqrtPriceMath.getAmount0Delta(startingSqrtPriceX96, farSqrtPriceX96, liquidity, true)
                         : SqrtPriceMath.getAmount1Delta(farSqrtPriceX96, startingSqrtPriceX96, liquidity, true)
                 );
-
-                // Note: we keep track how the theoretical reserves amount at that time to then calculate the breakeven
-                // liquidity amount once we get to the end of the loop, we will know exactly how many of the reserve
-                // assets have been raised, and we can calculate the total amount of reserves after the endTick which
-                // makes swappers and LPs indifferent between Uniswap v2 (CPMM) and Uniswap v3 (CLAMM) we can then bond
-                // the tokens to the Uniswap v2 pool by moving them over to the Uniswap v3 pool whenever possible, but
-                // there is no rush as it goes up
-                reserves += (
-                    isToken0
-                        ? SqrtPriceMath.getAmount1Delta(
-                            farSqrtPriceX96,
-                            startingSqrtPriceX96,
-                            liquidity,
-                            false // round against the reserves to undercount eventual liquidity
-                        )
-                        : SqrtPriceMath.getAmount0Delta(
-                            startingSqrtPriceX96,
-                            farSqrtPriceX96,
-                            liquidity,
-                            false // round against the reserves to undercount eventual liquidity
-                        )
-                );
             }
 
             positions[i] = Position({
@@ -236,7 +213,7 @@ function calculateLogNormalDistribution(
         }
     }
 
-    return (positions, reserves);
+    return positions;
 }
 
 /**
