@@ -11,6 +11,7 @@ import { Doppler } from "src/Doppler.sol";
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -53,6 +54,31 @@ function mineV4MigratorHook(
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), migratorHookInitHash, address(params.hookDeployer));
         if (uint160(hook) & FLAG_MASK == flagsMigratorHook && hook.code.length == 0) {
+            return (bytes32(salt), hook);
+        }
+    }
+    revert("AirlockMiner: could not find salt");
+}
+
+function mineV4MulticurveHook(
+    MineV4MigratorHookParams memory params
+) view returns (bytes32, address) {
+    bytes32 multicurveHookInitHash = keccak256(
+        abi.encodePacked(
+            type(UniswapV4MulticurveInitializerHook).creationCode,
+            abi.encode(
+                params.poolManager,
+                params.migrator // In that case it's the initializer address
+            )
+        )
+    );
+
+    for (uint256 salt; salt < 200_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
+        if (
+            uint160(hook) & FLAG_MASK == uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_INITIALIZE_FLAG)
+                && hook.code.length == 0
+        ) {
             return (bytes32(salt), hook);
         }
     }
