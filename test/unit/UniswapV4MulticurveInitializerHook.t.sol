@@ -19,9 +19,31 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
     IPoolManager.ModifyLiquidityParams internal emptyParams;
 
     function setUp() public {
-        hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
+        hook = UniswapV4MulticurveInitializerHook(
+            address(uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144))
+        );
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(poolManager, initializer), address(hook));
     }
+
+    /// beforeInitialize ///
+
+    function test_beforeInitialize_RevertsWhenSenderParamNotPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        hook.beforeInitialize(address(0), emptyPoolKey, 0);
+    }
+
+    function test_beforeInitialize_RevertsWhenSenderParamNotInitializer() public {
+        vm.prank(poolManager);
+        vm.expectRevert(OnlyInitializer.selector);
+        hook.beforeInitialize(address(0), emptyPoolKey, 0);
+    }
+
+    function test_beforeInitialize_PassesWhenSenderParamInitializer() public {
+        vm.prank(poolManager);
+        hook.beforeInitialize(initializer, emptyPoolKey, 0);
+    }
+
+    /// beforeAddLiquidity ///
 
     function test_beforeAddLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);

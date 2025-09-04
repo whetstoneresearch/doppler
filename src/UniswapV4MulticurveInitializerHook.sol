@@ -40,6 +40,15 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
     }
 
     /// @inheritdoc BaseHook
+    function _beforeInitialize(
+        address sender,
+        PoolKey calldata,
+        uint160
+    ) internal view override onlyInitializer(sender) returns (bytes4) {
+        return BaseHook.beforeInitialize.selector;
+    }
+
+    /// @inheritdoc BaseHook
     function _beforeAddLiquidity(
         address sender,
         PoolKey calldata,
@@ -52,7 +61,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
     /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize: false,
+            beforeInitialize: true,
             afterInitialize: false,
             beforeAddLiquidity: true,
             beforeRemoveLiquidity: false,
