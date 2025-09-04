@@ -36,6 +36,7 @@ abstract contract DeployV4Script is Script {
     }
 }
 
+/// @dev forge script DeployV4BaseScript --private-key $PRIVATE_KEY --verify --rpc-url $BASE_MAINNET_RPC_URL --slow --broadcast
 contract DeployV4BaseScript is DeployV4Script {
     function setUp() public override {
         _scriptData = V4ScriptData({
@@ -47,6 +48,7 @@ contract DeployV4BaseScript is DeployV4Script {
     }
 }
 
+/// @dev forge script DeployV4BaseSepoliaScript --private-key $PRIVATE_KEY --verify --rpc-url $BASE_SEPOLIA_RPC_URL --slow --broadcast
 contract DeployV4BaseSepoliaScript is DeployV4Script {
     function setUp() public override {
         _scriptData = V4ScriptData({
