@@ -30,6 +30,7 @@ import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { Airlock } from "src/Airlock.sol";
 
 contract UniswapV4MulticurveInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -37,7 +38,8 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public hook;
-    address public airlock = makeAddr("Airlock");
+    address public airlockOwner = makeAddr("AirlockOwner");
+    Airlock public airlock;
 
     PoolKey internal poolKey;
     PoolId internal poolId;
@@ -46,7 +48,8 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         deployFreshManagerAndRouters();
         (currency0, currency1) = deployAndMint2Currencies();
         hook = UniswapV4MulticurveInitializerHook(address(uint160(Hooks.BEFORE_ADD_LIQUIDITY_FLAG) ^ (0x4444 << 144)));
-        initializer = new UniswapV4MulticurveInitializer(airlock, manager, hook);
+        airlock = new Airlock(airlockOwner);
+        initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, hook);
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(hook));
         vm.label(Currency.unwrap(currency0), "Currency0");
         vm.label(Currency.unwrap(currency1), "Currency1");
@@ -55,7 +58,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     // constructor() //
 
     function test_constructor() public view {
-        assertEq(address(initializer.airlock()), airlock);
+        assertEq(address(initializer.airlock()), address(airlock));
         assertEq(address(initializer.poolManager()), address(manager));
         assertEq(address(initializer.hook()), address(hook));
     }
@@ -75,12 +78,12 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
 
         currency0.transfer(address(initializer), totalTokensOnBondingCurve);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
         vm.expectRevert(PoolAlreadyInitialized.selector);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), 1e27, bytes32(0), abi.encode(initData)
         );
@@ -91,7 +94,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
 
         currency0.transfer(address(initializer), totalTokensOnBondingCurve);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
@@ -100,19 +103,55 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         assertGt(liquidity, 0, "Liquidity is zero");
     }
 
-    function test_initialize_UpdatesState() public {
+    function test_initialize_InitializesPool() public {
         uint256 totalTokensOnBondingCurve = 1e27;
         InitData memory initData = _prepareInitData();
 
         currency0.transfer(address(initializer), totalTokensOnBondingCurve);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
 
         (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
-        // assertEq(numeraire, Currency.unwrap(currency0), "Incorrect numeraire");
+    }
+
+    function test_initialize_LocksPool() public {
+        uint256 totalTokensOnBondingCurve = 1e27;
+        InitData memory initData = _prepareInitDataLock();
+
+        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
+        vm.prank(address(airlock));
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
+        );
+
+        (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
+        assertEq(uint8(status), uint8(PoolStatus.Locked), "Pool status should be locked");
+    }
+
+    function test_initialize_StoresPoolState() public {
+        uint256 totalTokensOnBondingCurve = 1e27;
+        InitData memory initData = _prepareInitData();
+
+        currency0.transfer(address(initializer), totalTokensOnBondingCurve);
+        vm.prank(address(airlock));
+        initializer.initialize(
+            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
+        );
+
+        (address numeraire, PoolStatus status, PoolKey memory key, int24 farTick) =
+            initializer.getState(Currency.unwrap(currency0));
+        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be initialized");
+
+        assertEq(numeraire, Currency.unwrap(currency1), "Incorrect numeraire");
+        assertEq(Currency.unwrap(key.currency0), Currency.unwrap(currency0), "Incorrect currency0");
+        assertEq(Currency.unwrap(key.currency1), Currency.unwrap(currency1), "Incorrect currency1");
+        assertEq(key.fee, initData.fee, "Incorrect fee");
+        assertEq(key.tickSpacing, initData.tickSpacing, "Incorrect tick spacing");
+        assertEq(address(key.hooks), address(hook), "Incorrect hook");
+        assertEq(farTick, 240_000, "Incorrect far tick");
     }
 
     // exitLiquidity() //
@@ -122,13 +161,13 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
 
         currency0.transfer(address(initializer), totalTokensOnBondingCurve);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.initialize(
             Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
         );
         (,,, int24 farTick) = initializer.getState(Currency.unwrap(currency0));
         _buyUntilFarTick(totalTokensOnBondingCurve, farTick, true);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.exitLiquidity(Currency.unwrap(currency0));
 
         (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
@@ -161,13 +200,13 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     function test_exitLiquidity_RevertsWhenPoolNotInitialized() public {
         test_exitLiquidity();
         vm.expectRevert(PoolAlreadyExited.selector);
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         initializer.exitLiquidity(Currency.unwrap(currency0));
     }
 
     function test_exitLiquidity_RevertsWhenInsufficientTick() public {
         test_initialize_AddsLiquidity();
-        vm.prank(airlock);
+        vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, 160_000));
         initializer.exitLiquidity(Currency.unwrap(currency0));
     }
@@ -198,6 +237,15 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
 
         return InitData({ fee: 0, tickSpacing: tickSpacing, curves: curves, beneficiaries: beneficiaries });
+    }
+
+    function _prepareInitDataLock() internal returns (InitData memory) {
+        InitData memory initData = _prepareInitData();
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: 0.05e18 });
+        initData.beneficiaries = beneficiaries;
+        return initData;
     }
 
     function _buyUntilFarTick(uint256 totalTokensOnBondingCurve, int24 farTick, bool isToken0) internal {
