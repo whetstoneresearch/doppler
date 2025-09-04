@@ -173,7 +173,7 @@ function calculateLogNormalDistribution(
     int24 spread = tickUpper - tickLower;
 
     uint160 farSqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
-    uint256 amountPerPosition = FullMath.mulDiv(curveSupply, WAD, numPositions * WAD);
+    uint256 amountPerPosition = curveSupply / numPositions;
     uint256 totalAssetSupplied;
     Position[] memory positions = new Position[](numPositions);
 
