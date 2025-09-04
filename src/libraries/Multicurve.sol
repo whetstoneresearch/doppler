@@ -113,11 +113,18 @@ function calculatePositions(
     uint256 length = curves.length;
     uint256 totalShares;
 
+    int24 lowerTickBoundary = TickMath.MAX_TICK;
+    int24 upperTickBoundary = TickMath.MIN_TICK;
+
     for (uint256 i; i != length; ++i) {
         totalShares += curves[i].shares;
-        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].shares, WAD);
+
+        // Calculate the boundaries
+        if (lowerTickBoundary > curves[i].tickLower) lowerTickBoundary = curves[i].tickLower;
+        if (upperTickBoundary < curves[i].tickUpper) upperTickBoundary = curves[i].tickUpper;
 
         // Calculate the positions for this curve
+        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].shares, WAD);
         Position[] memory newPositions = calculateLogNormalDistribution(
             i, curves[i].tickLower, curves[i].tickUpper, tickSpacing, isToken0, curves[i].numPositions, curveSupply
         );
@@ -130,12 +137,7 @@ function calculatePositions(
     // If there's any supply of the other currency, we can compute the head position using the inverse logic of the tail
     if (otherCurrencySupply > 0) {
         Position memory headPosition = calculateLpTail(
-            bytes32(positions.length),
-            positions[0].tickLower,
-            positions[length - 1].tickUpper,
-            !isToken0,
-            otherCurrencySupply,
-            tickSpacing
+            bytes32(positions.length), lowerTickBoundary, upperTickBoundary, !isToken0, otherCurrencySupply, tickSpacing
         );
 
         if (headPosition.liquidity > 0) {

@@ -102,6 +102,10 @@ contract MulticurveTest is Test {
 
         Position[] memory positions = calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
         assertEq(positions.length, 51, "Incorrect number of positions");
+
+        Position memory headPosition = positions[positions.length - 1];
+        assertEq(headPosition.tickLower, TickMath.MIN_TICK, "Incorrect head position lower tick");
+        assertEq(headPosition.tickUpper, 160_000, "Incorrect head position upper tick");
     }
 
     function _printPositions(
