@@ -97,8 +97,6 @@ function adjustCurves(
     }
 
     require(totalShares == WAD, InvalidTotalShares());
-    // TODO: Might be an unnecessary check
-    isRangeOrdered(lowerTickBoundary, upperTickBoundary);
 }
 
 /**
