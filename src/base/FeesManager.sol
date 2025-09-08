@@ -102,6 +102,12 @@ abstract contract FeesManager is ReentrancyGuard {
         _releaseFees(poolId, msg.sender);
         _releaseFees(poolId, newBeneficiary);
 
+        // If the new beneficiary had no shares before, we need to initialize their lastCumulatedFees
+        if (getShares[poolId][newBeneficiary] == 0) {
+            getLastCumulatedFees0[poolId][newBeneficiary] = getCumulatedFees0[poolId];
+            getLastCumulatedFees1[poolId][newBeneficiary] = getCumulatedFees1[poolId];
+        }
+
         // No need to check if shares > WAD, since we already validated this in `_storeBeneficiaries`
         getShares[poolId][newBeneficiary] += getShares[poolId][msg.sender];
         getShares[poolId][msg.sender] = 0;
