@@ -8,21 +8,6 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 
-/// @dev Thrown when the beneficiaries are not sorted in ascending order
-error UnorderedBeneficiaries();
-
-/// @notice Thrown when shares are invalid (greater than WAD)
-error InvalidShares();
-
-/// @notice Thrown when protocol owner beneficiary is not found
-error InvalidProtocolOwnerBeneficiary();
-
-/// @notice Thrown when total shares are not equal to WAD
-error InvalidTotalShares();
-
-/// @notice Thrown when protocol owner shares are invalid (lower than 0.05 WAD)
-error InvalidProtocolOwnerShares();
-
 /// @notice Thrown when the new beneficiary is the same as the caller
 error InvalidNewBeneficiary();
 
@@ -118,44 +103,6 @@ abstract contract FeesManager is ReentrancyGuard {
         getShares[poolId][msg.sender] = 0;
 
         emit UpdateBeneficiary(poolId, msg.sender, newBeneficiary);
-    }
-
-    /**
-     * @dev Validates and stores an array of beneficiaries for a given `poolId` Uniswap V4 pool
-     * @param poolId Pool id of the associated Uniswap V4 pool
-     * @param protocolOwner Address of the protocol owner, required as a beneficiary with a minimum of 5% shares
-     * @param beneficiaries Array with sorted addresses and shares specified in WAD (with a total sum of 1 WAD)
-     */
-    function _storeBeneficiaries(
-        PoolId poolId,
-        address protocolOwner,
-        BeneficiaryData[] memory beneficiaries
-    ) internal {
-        address prevBeneficiary;
-        uint256 totalShares;
-        bool foundProtocolOwner;
-
-        for (uint256 i; i != beneficiaries.length; ++i) {
-            BeneficiaryData memory beneficiary = beneficiaries[i];
-
-            // Validate ordering and shares
-            require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
-            require(beneficiary.shares > 0, InvalidShares());
-
-            // Check for protocol owner and validate minimum share requirement
-            if (beneficiary.beneficiary == protocolOwner) {
-                require(beneficiary.shares >= WAD / 20, InvalidProtocolOwnerShares());
-                foundProtocolOwner = true;
-            }
-
-            prevBeneficiary = beneficiary.beneficiary;
-            totalShares += beneficiary.shares;
-
-            getShares[poolId][prevBeneficiary] = beneficiary.shares;
-        }
-
-        require(totalShares == WAD, InvalidTotalShares());
-        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
     }
 
     /**

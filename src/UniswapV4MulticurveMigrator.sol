@@ -10,13 +10,14 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
-import { BeneficiaryData, validateBeneficiaries } from "src/types/BeneficiaryData.sol";
+import { BeneficiaryData, validateBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { Position } from "src/types/Position.sol";
 import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { WAD } from "src/types/Wad.sol";
 
 /**
  * @notice Data to use for the migration
@@ -88,8 +89,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
-        // TODO: Beneficiaries are also validated in the locker, doing it twice is redundant but might be safer
-        validateBeneficiaries(airlock.owner(), beneficiaries);
+        validateBeneficiaries(beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
