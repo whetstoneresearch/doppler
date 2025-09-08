@@ -19,7 +19,6 @@ import {
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import "forge-std/console.sol";
 
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;
