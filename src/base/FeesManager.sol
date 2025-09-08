@@ -23,6 +23,9 @@ error InvalidTotalShares();
 /// @notice Thrown when protocol owner shares are invalid (lower than 0.05 WAD)
 error InvalidProtocolOwnerShares();
 
+/// @notice Thrown when the new beneficiary is the same as the caller
+error InvalidNewBeneficiary();
+
 /**
  * @notice Emitted a beneficiary collects their fees
  * @param poolId Id of the Uniswap V4 pool
@@ -99,6 +102,8 @@ abstract contract FeesManager is ReentrancyGuard {
      * @param newBeneficiary Address of the new beneficiary
      */
     function updateBeneficiary(PoolId poolId, address newBeneficiary) external nonReentrant {
+        require(newBeneficiary != msg.sender, InvalidNewBeneficiary());
+
         _releaseFees(poolId, msg.sender);
         _releaseFees(poolId, newBeneficiary);
 
