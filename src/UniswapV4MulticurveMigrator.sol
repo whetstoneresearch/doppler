@@ -144,7 +144,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         locker.lock(data.poolKey, data.lockDuration, recipient, data.beneficiaries, positions);
 
-        // TODO: Not true per se but this value is not used at the moment
+        // Not true per se but this value is not used in the Airlock so we'll return 0 to avoid extra computation
         return 0;
     }
 }
