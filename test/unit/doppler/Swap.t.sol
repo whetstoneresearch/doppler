@@ -23,6 +23,7 @@ import {
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;
@@ -138,7 +139,7 @@ contract SwapTest is BaseTest {
 
         assertEq(
             upperSlug.tickUpper,
-            DopplerTickLibrary.alignComputedTickWithTickSpacing(isToken0, currentTick, key.tickSpacing),
+            alignTick(isToken0, currentTick, key.tickSpacing),
             "Current tick should be equal to upper slug tick upper"
         );
     }
