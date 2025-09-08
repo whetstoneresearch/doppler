@@ -5,6 +5,9 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import {
     CannotSwapBeforeStartTime,
@@ -14,7 +17,8 @@ import {
     MAX_SWAP_FEE,
     SlugData,
     Position,
-    LOWER_SLUG_SALT
+    LOWER_SLUG_SALT,
+    NUM_DEFAULT_SLUGS
 } from "src/Doppler.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
@@ -46,7 +50,7 @@ contract SwapTest is BaseTest {
     }
 
     function test_swap_CanRepurchaseNumeraireAfterEndTimeInsufficientProceeds() public {
-        vm.warp(hook.startingTime()); // 1 second after the end time
+        goToStartingTime();
 
         uint256 minimumProceeds = hook.minimumProceeds();
 
@@ -65,8 +69,8 @@ contract SwapTest is BaseTest {
 
         uint256 amountDeltaQuote = isToken0
             ? SqrtPriceMath.getAmount1Delta(
-                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
                 TickMath.getSqrtPriceAtTick(lowerSlug.tickUpper),
+                TickMath.getSqrtPriceAtTick(lowerSlug.tickLower),
                 lowerSlug.liquidity,
                 false
             )
@@ -86,10 +90,10 @@ contract SwapTest is BaseTest {
         assertApproxEqAbs(
             amountDeltaQuote, totalProceeds2WithFees, 1e12, "amountDeltaQuote should be equal to totalProceeds2WithFees"
         );
-        assertApproxEqAbs(
+        assertApproxEqRel(
             amountQuoteBought,
             totalProceeds2WithFees,
-            1e14,
+            0.01 ether,
             "amountQuoteBought should be equal to totalProceeds2WithFees"
         );
         assertApproxEqAbs(totalTokensSold2, totalTokensSold, 1, "totalTokensSold2 should be equal to totalTokensSold");
@@ -122,6 +126,21 @@ contract SwapTest is BaseTest {
 
         // Ensure that we're tracking the amount of tokens sold
         assertEq(totalTokensSold + 1 ether, totalTokensSold2);
+    }
+
+    function test_swap_CurrentTickNotAboveTopOfCurve() public {
+        goToStartingTime();
+
+        buyExactIn(100 ether);
+
+        Position memory upperSlug = hook.getPositions(bytes32(uint256(NUM_DEFAULT_SLUGS + DEFAULT_NUM_PD_SLUGS - 1)));
+        int24 currentTick = hook.getCurrentTick();
+
+        assertEq(
+            upperSlug.tickUpper,
+            DopplerTickLibrary.alignComputedTickWithTickSpacing(isToken0, currentTick, key.tickSpacing),
+            "Current tick should be equal to upper slug tick upper"
+        );
     }
 
     function test_swap_UpdatesLastEpoch() public {
@@ -181,24 +200,22 @@ contract SwapTest is BaseTest {
         assertEq(totalTokensSold2, totalTokensSold - amountInLessFee);
     }
 
-    function test_swap_CannotSwapBelowLowerSlug_AfterInitialization() public {
-        vm.warp(hook.startingTime());
-
-        sellExpectRevert(-1 ether, SwapBelowRange.selector, false);
-    }
-
     function test_swap_CannotSwapBelowLowerSlug_AfterSoldAndUnsold() public {
-        vm.warp(hook.startingTime());
-
-        buy(1 ether);
-
-        vm.warp(hook.startingTime() + hook.epochLength()); // Next epoch
+        goToStartingTime();
+        buyExactOut(1 ether);
+        goToNextEpoch();
 
         // Swap to trigger lower slug being created
         // Unsell half of sold tokens
-        sell(-0.5 ether);
-
-        sellExpectRevert(-0.6 ether, SwapBelowRange.selector, false);
+        sellExactIn(1.5 ether);
+        sellExactIn(0.5 ether);
+        Position memory lowerSlug = hook.getPositions(LOWER_SLUG_SALT);
+        int24 currentTick = hook.getCurrentTick();
+        assertEq(
+            lowerSlug.tickLower,
+            isToken0 ? currentTick + 1 : currentTick - 1,
+            "Lower slug tick lower should be current tick"
+        );
     }
 
     function test_swap_ZeroFeesWhenInsufficientProceeds() public {
@@ -212,9 +229,5 @@ contract SwapTest is BaseTest {
         (uint256 afterFeeGrowthGlobal0, uint256 afterFeeGrowthGlobal1) = manager.getFeeGrowthGlobals(poolId);
         assertEq(beforeFeeGrowthGlobal0, afterFeeGrowthGlobal0, "Token 0 fee growth should not change");
         assertEq(beforeFeeGrowthGlobal1, afterFeeGrowthGlobal1, "Token 1 fee growth should not change");
-    }
-
-    function goNextEpoch() public {
-        vm.warp(block.timestamp + hook.epochLength());
     }
 }

@@ -14,6 +14,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
@@ -28,6 +30,9 @@ import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
     IAllowanceTransfer public permit2;
@@ -41,13 +46,10 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    function test_migrate_v4(
-        int16 tickSpacing
-    ) public {
-        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
+    function setUp() public override {
+        super.setUp();
 
         permit2 = IAllowanceTransfer(deployPermit2());
-
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -67,6 +69,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
+    }
+
+    function test_migrate_v4(
+        int16 tickSpacing
+    ) public {
+        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
 
         address integrator = makeAddr("integrator");
 
