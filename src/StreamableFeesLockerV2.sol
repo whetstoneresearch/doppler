@@ -39,10 +39,6 @@ error NotApprovedMigrator();
 /// @notice Thrown when a stream is not found
 error StreamNotFound();
 
-/// @notice Thrown when a stream is already unlocked
-error StreamAlreadyUnlocked();
-// TODO: This one might not be neeede
-
 /**
  * @notice Emitted when a position is locked
  * @param poolId Id of the associated Uniswap V4 pool
