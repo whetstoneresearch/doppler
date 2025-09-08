@@ -54,7 +54,7 @@ struct InitData {
     BeneficiaryData[] beneficiaries;
 }
 
-/// @notice Status of the pool
+/// @notice Possible status of a pool, note a locked pool cannot be exited
 enum PoolStatus {
     Uninitialized,
     Initialized,
@@ -85,7 +85,41 @@ struct PoolState {
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice Initializes a fresh Uniswap V4 pool and distributes liquidity across multiple positions, as
- * described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf)
+ * described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf).
+ *
+ * Liquidity pools can be initialized with two different flows:
+ *
+ * A. No beneficiaries (possible migration)
+ *
+ * ┌─────────────┐┌───────────┐      ┌──────┐
+ * │Uninitialized││Initialized│      │Exited│
+ * └──────┬──────┘└─────┬─────┘      └──┬───┘
+ *        │             │               │
+ *        │initialize() │               │
+ *        │────────────>│               │
+ *        │             │               │
+ *        │             │exitLiquidity()│
+ *        │             │──────────────>│
+ * ┌──────┴──────┐┌─────┴─────┐      ┌──┴───┐
+ * │Uninitialized││Initialized│      │Exited│
+ * └─────────────┘└───────────┘      └──────┘
+ *
+ *
+ * B. With beneficiaries (locked pool, no migration)
+ *
+ * ┌─────────────┐  ┌──────┐
+ * │Uninitialized│  │Locked│
+ * └──────┬──────┘  └──┬───┘
+ *        │            │
+ *        │initialize()│
+ *        │───────────>│
+ * ┌──────┴──────┐  ┌──┴───┐
+ * │Uninitialized│  │Locked│
+ * └─────────────┘  └──────┘
+ *
+ * Passing beneficiaries during the initialization will "lock" the pool, preventing any future migration. However
+ * this will allow the collection of fees by the designed beneficiaries. If no beneficiaries are passed, the pool
+ * can be migrated later if the conditions are met.
  */
 contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
