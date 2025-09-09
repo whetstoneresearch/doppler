@@ -10,7 +10,7 @@ import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
-import { BeneficiaryData, storeBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
+import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -124,8 +124,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
             positions: positions
         });
 
-        storeBeneficiaries(beneficiaries, owner(), MIN_PROTOCOL_OWNER_SHARES, poolId, getShares);
-        getPoolKey[poolId] = poolKey;
+        _storeBeneficiaries(beneficiaries, owner(), MIN_PROTOCOL_OWNER_SHARES, poolKey);
         _mint(poolKey, positions);
 
         emit Lock(poolId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + lockDuration : 0);

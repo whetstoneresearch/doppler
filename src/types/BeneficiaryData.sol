@@ -34,19 +34,23 @@ struct BeneficiaryData {
 }
 
 /**
- * @dev Validates beneficiaries array, ensures protocol owner compliance and store the shares
+ * @dev Validates an array of beneficiaries and stores them if requested. The requirements are as follows:
+ * - Beneficiaries must be unique and addresses should be sorted in ascending order
+ * - Each share must be greater than 0
+ * - The sum of all shares must equal `WAD` (`1e18`)
+ * - The protocol owner must be included as a beneficiary with at least the specified minimum shares
  * @param beneficiaries Array with sorted addresses and shares specified in WAD (with a total sum of 1 WAD)
  * @param protocolOwner Address of the protocol owner, required as a beneficiary with a minimum of shares
  * @param protocolOwnerShares Minimum of shares required for the protocol owner
- * @param poolId Id of the Uniswap V4 pool, if not zero the shares will be stored in the provided mapping
- * @param getShares Mapping of pool ids to beneficiary addresses to their respective shares
+ * @param poolId Pool id of the associated Uniswap V4 pool, pass `PoolId.wrap(bytes32(0))` to skip storing
+ * @param storeBeneficiary Function to call to store each beneficiary (if `poolId` is not zero)
  */
 function storeBeneficiaries(
     BeneficiaryData[] memory beneficiaries,
     address protocolOwner,
     uint96 protocolOwnerShares,
     PoolId poolId,
-    mapping(PoolId => mapping(address => uint256)) storage getShares
+    function(PoolId, BeneficiaryData memory) storeBeneficiary
 ) {
     address prevBeneficiary;
     uint256 totalShares;
@@ -72,46 +76,7 @@ function storeBeneficiaries(
         totalShares += beneficiary.shares;
 
         // If a pool id is passed, we use it to store the shares
-        if (PoolId.unwrap(poolId) != bytes32(0)) getShares[poolId][prevBeneficiary] = beneficiary.shares;
-    }
-
-    require(totalShares == WAD, InvalidTotalShares());
-    require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
-}
-
-/**
- * @dev Validates beneficiaries array, ensures protocol owner compliance
- * @param beneficiaries Array with sorted addresses and shares specified in WAD (with a total sum of 1 WAD)
- * @param protocolOwner Address of the protocol owner, required as a beneficiary with a minimum of shares
- * @param protocolOwnerShares Minimum of shares required for the protocol owner
- */
-function validateBeneficiaries(
-    BeneficiaryData[] memory beneficiaries,
-    address protocolOwner,
-    uint96 protocolOwnerShares
-) pure {
-    address prevBeneficiary;
-    uint256 totalShares;
-    bool foundProtocolOwner;
-
-    for (uint256 i; i < beneficiaries.length; i++) {
-        BeneficiaryData memory beneficiary = beneficiaries[i];
-
-        // Validate ordering and shares
-        require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
-        require(beneficiary.shares > 0, InvalidShares());
-
-        // Check for protocol owner and validate minimum share requirement
-        if (beneficiary.beneficiary == protocolOwner) {
-            require(
-                beneficiary.shares >= protocolOwnerShares,
-                InvalidProtocolOwnerShares(protocolOwnerShares, beneficiary.shares)
-            );
-            foundProtocolOwner = true;
-        }
-
-        prevBeneficiary = beneficiary.beneficiary;
-        totalShares += beneficiary.shares;
+        if (PoolId.unwrap(poolId) != bytes32(0)) storeBeneficiary(poolId, beneficiary);
     }
 
     require(totalShares == WAD, InvalidTotalShares());

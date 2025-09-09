@@ -18,7 +18,7 @@ import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
 
 /**
@@ -201,8 +201,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         emit Create(address(poolManager), asset, numeraire);
 
         if (beneficiaries.length != 0) {
-            _storeBeneficiaries(poolKey.toId(), airlock.owner(), beneficiaries);
-            getPoolKey[poolKey.toId()] = poolKey;
+            _storeBeneficiaries(beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, poolKey);
             emit Lock(asset, beneficiaries);
         }
 

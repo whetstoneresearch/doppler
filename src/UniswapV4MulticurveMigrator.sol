@@ -8,13 +8,14 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
-import { BeneficiaryData, validateBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
+import { BeneficiaryData, storeBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { Position } from "src/types/Position.sol";
-import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
+import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -89,7 +90,11 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
-        validateBeneficiaries(beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
+
+        // We intentionnaly pass an empty PoolId to avoid storing the shares in this contract
+        storeBeneficiaries(
+            beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _storeBeneficiary
+        );
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -147,4 +152,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         // Not true per se but this value is not used in the Airlock so we'll return 0 to avoid extra computation
         return 0;
     }
+
+    /// @dev Dummy function to pass to `storeBeneficiaries` since we only want to validate the beneficiaries here
+    function _storeBeneficiary(PoolId, BeneficiaryData memory) private { }
 }

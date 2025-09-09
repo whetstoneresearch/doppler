@@ -11,17 +11,16 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 import { WAD } from "src/types/Wad.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
-    FeesManager,
+    BeneficiaryData,
     UnorderedBeneficiaries,
     InvalidShares,
     InvalidProtocolOwnerShares,
     InvalidTotalShares,
     InvalidProtocolOwnerBeneficiary,
-    Collect,
-    UpdateBeneficiary
-} from "src/base/FeesManager.sol";
+    MIN_PROTOCOL_OWNER_SHARES
+} from "src/types/BeneficiaryData.sol";
+import { FeesManager, Collect, UpdateBeneficiary } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
     PoolManagerMock internal poolManager;
@@ -42,13 +41,11 @@ contract FeesManagerImplementation is FeesManager {
     }
 
     function storeBeneficiaries(
-        PoolKey memory poolKey,
+        BeneficiaryData[] memory beneficiaries,
         address protocolOwner,
-        BeneficiaryData[] memory beneficiaries
+        PoolKey memory poolKey
     ) external {
-        PoolId poolId = poolKey.toId();
-        getPoolKey[poolId] = poolKey;
-        _storeBeneficiaries(poolId, protocolOwner, beneficiaries);
+        _storeBeneficiaries(beneficiaries, protocolOwner, MIN_PROTOCOL_OWNER_SHARES, poolKey);
     }
 }
 
@@ -110,7 +107,7 @@ contract FeesManagerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
 
         assertEq(feesManager.getShares(poolId, address(0xaaa)), 0.95e18);
         assertEq(feesManager.getShares(poolId, protocolOwner), 0.05e18);
@@ -122,7 +119,7 @@ contract FeesManagerTest is Test {
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
 
         vm.expectRevert(InvalidShares.selector);
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
     }
 
     function test_storeBeneficiaries_RevertsWhenUnorderedBeneficiaries() public {
@@ -132,7 +129,7 @@ contract FeesManagerTest is Test {
         beneficiaries[2] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
 
         vm.expectRevert(UnorderedBeneficiaries.selector);
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidProtocolOwnerShares() public {
@@ -140,8 +137,8 @@ contract FeesManagerTest is Test {
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.96e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.04e18 });
 
-        vm.expectRevert(InvalidProtocolOwnerShares.selector);
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerShares.selector, MIN_PROTOCOL_OWNER_SHARES, 0.04e18));
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidProtocolOwnerBeneficiary() public {
@@ -150,7 +147,7 @@ contract FeesManagerTest is Test {
         beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbbb), shares: 0.5e18 });
 
         vm.expectRevert(InvalidProtocolOwnerBeneficiary.selector);
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidTotalShares() public {
@@ -158,14 +155,14 @@ contract FeesManagerTest is Test {
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.96e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
         vm.expectRevert(InvalidTotalShares.selector);
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
     }
 
     function test_collectFees() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
 
         uint256 fees0 = 10e18;
         uint256 fees1 = 20e18;
@@ -196,7 +193,7 @@ contract FeesManagerTest is Test {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
-        feesManager.storeBeneficiaries(poolKey, protocolOwner, beneficiaries);
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
 
         vm.expectEmit();
         emit UpdateBeneficiary(poolId, address(0xaaa), address(0xbbb));

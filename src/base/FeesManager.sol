@@ -8,6 +8,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 
+import { storeBeneficiaries } from "src/types/BeneficiaryData.sol";
+
 /// @notice Thrown when the new beneficiary is the same as the caller
 error InvalidNewBeneficiary();
 
@@ -106,6 +108,24 @@ abstract contract FeesManager is ReentrancyGuard {
     }
 
     /**
+     * @dev Validates and stores the beneficiaries for a given Uniswap V4 pool
+     * @param beneficiaries Array of beneficiaries (see `storeBeneficiaries` in `BeneficiaryData` for requirements)
+     * @param protocolOwner Address of the protocol owner
+     * @param protocolOwnerShares Minimum shares allocated to the protocol owner
+     * @param poolKey Key of the Uniswap V4 pool to which the beneficiaries are associated
+     */
+    function _storeBeneficiaries(
+        BeneficiaryData[] memory beneficiaries,
+        address protocolOwner,
+        uint96 protocolOwnerShares,
+        PoolKey memory poolKey
+    ) internal {
+        PoolId poolId = poolKey.toId();
+        getPoolKey[poolId] = poolKey;
+        storeBeneficiaries(beneficiaries, protocolOwner, protocolOwnerShares, poolId, _storeBeneficiary);
+    }
+
+    /**
      * @dev Distributes the available fees for a specified `beneficiary` address
      * @param poolId Pool id of the Uniswap V4 pool to collect fees from
      * @param beneficiary Address of the beneficiary claiming the fees
@@ -138,4 +158,13 @@ abstract contract FeesManager is ReentrancyGuard {
     function _collectFees(
         PoolId poolId
     ) internal virtual returns (BalanceDelta fees);
+
+    /**
+     * @dev Stores the shares of a beneficiary for a given Uniswap V4 pool
+     * @param poolId Pool id of the associated Uniswap V4 pool
+     * @param beneficiary Beneficiary data structure containing the address and shares
+     */
+    function _storeBeneficiary(PoolId poolId, BeneficiaryData memory beneficiary) private {
+        getShares[poolId][beneficiary.beneficiary] = beneficiary.shares;
+    }
 }
