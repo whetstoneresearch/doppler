@@ -19,7 +19,6 @@ import {
     MigratorApproval,
     NotApprovedMigrator,
     StreamNotFound,
-    StreamAlreadyUnlocked,
     Lock
 } from "src/StreamableFeesLockerV2.sol";
 
