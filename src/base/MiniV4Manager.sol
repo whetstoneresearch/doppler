@@ -231,6 +231,12 @@ abstract contract MiniV4Manager is IUnlockCallback {
         }
     }
 
+    /**
+     * @dev Pays a debt to the `PoolManager` contract, either using native ETH or an arbitrary ERC20 token
+     * @param currency Currency to pay, pass address zero for native ETH
+     * @param manager Address of the `PoolManager`
+     * @param amount Amount to pay
+     */
     function _pay(Currency currency, IPoolManager manager, uint256 amount) private {
         if (currency.isAddressZero()) {
             manager.settle{ value: amount }();
