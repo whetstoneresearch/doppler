@@ -18,4 +18,15 @@ contract TickLibraryTest is Test {
         assertEq(alignTick(false, -3, 2), int24(-2));
         assertEq(alignTick(false, 3, 2), int24(4));
     }
+
+    function test_isTickAligned() public pure {
+        isTickAligned(4, 2);
+        isTickAligned(-4, 2);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_isTickAligned_RevertsIfTickNotAligned() public {
+        vm.expectRevert(abi.encodeWithSelector(TickNotAligned.selector, 3));
+        isTickAligned(3, 2);
+    }
 }
