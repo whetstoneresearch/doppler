@@ -201,5 +201,12 @@ contract FeesManagerTest is Test {
         feesManager.updateBeneficiary(poolId, address(0xbbb));
         assertEq(feesManager.getShares(poolId, address(0xaaa)), 0, "Incorrect previous beneficiary shares");
         assertEq(feesManager.getShares(poolId, address(0xbbb)), 0.95e18, "Incorrect new beneficiary shares");
+        uint256 getCumulatedFees0 = feesManager.getCumulatedFees0(poolId);
+        uint256 getCumulatedFees1 = feesManager.getCumulatedFees1(poolId);
+
+        assertEq(feesManager.getLastCumulatedFees0(poolId, address(0xbbb)), getCumulatedFees0);
+        assertEq(feesManager.getLastCumulatedFees1(poolId, address(0xbbb)), getCumulatedFees1);
+        assertEq(feesManager.getLastCumulatedFees0(poolId, address(0xaaa)), getCumulatedFees0);
+        assertEq(feesManager.getLastCumulatedFees1(poolId, address(0xaaa)), getCumulatedFees1);
     }
 }
