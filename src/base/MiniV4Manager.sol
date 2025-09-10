@@ -153,8 +153,8 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 tickLower: pos.tickLower,
                 tickUpper: pos.tickUpper,
                 liquidityDelta: pos.liquidity.toInt256(),
-                salt: pos.salt // TODO: Not sure if we really need to set one
-             });
+                salt: pos.salt
+            });
 
             (BalanceDelta delta,) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
             balanceDelta = balanceDelta + delta;
