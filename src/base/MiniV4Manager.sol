@@ -73,29 +73,33 @@ abstract contract MiniV4Manager is IUnlockCallback {
         Actions action = callbackData.action;
 
         BalanceDelta balanceDelta;
-        BalanceDelta totalFeesAccrued;
+        BalanceDelta feesAccrued;
 
         if (action == Actions.Mint) {
             balanceDelta = _handleMint(callbackData.poolKey, callbackData.positions);
         } else if (action == Actions.Burn) {
-            (balanceDelta, totalFeesAccrued) = _handleBurn(callbackData.poolKey, callbackData.positions);
+            (balanceDelta, feesAccrued) = _handleBurn(callbackData.poolKey, callbackData.positions);
         } else if (action == Actions.Collect) {
-            totalFeesAccrued = _handleCollect(callbackData.poolKey, callbackData.positions);
+            feesAccrued = _handleCollect(callbackData.poolKey, callbackData.positions);
         } else {
             revert InvalidCallbackAction(uint8(action));
         }
 
         _handleSettle(callbackData.poolKey, balanceDelta);
-        return abi.encode(balanceDelta, totalFeesAccrued);
+        return abi.encode(balanceDelta, feesAccrued);
     }
 
     /**
      * @dev Calls the `PoolManager` to mint the given `positions` from the specified `poolKey` pool
      * @param poolKey Key of the Uniswap V4 pool to mint from
      * @param positions Array of `Position` struct to mint
+     * @return balanceDelta Balances denominated in `token0` and `token1` retrieved from the minted positions
      */
-    function _mint(PoolKey memory poolKey, Position[] memory positions) internal {
-        poolManager.unlock(abi.encode(CallbackData({ action: Actions.Mint, poolKey: poolKey, positions: positions })));
+    function _mint(PoolKey memory poolKey, Position[] memory positions) internal returns (BalanceDelta balanceDelta) {
+        bytes memory data = poolManager.unlock(
+            abi.encode(CallbackData({ action: Actions.Mint, poolKey: poolKey, positions: positions }))
+        );
+        (balanceDelta,) = abi.decode(data, (BalanceDelta, BalanceDelta));
     }
 
     /**
@@ -119,13 +123,16 @@ abstract contract MiniV4Manager is IUnlockCallback {
      * @dev Calls the `PoolManager` to collect fees earned by the given `positions` in the specified `poolKey` pool
      * @param poolKey Key of the Uniswap V4 pool to collect fees from
      * @param positions Array of `Position` struct
-     * @return totalFees Fees collected from the given positions, denominated in `token0` and `token1`
+     * @return feesAccrued Fees collected from the given positions, denominated in `token0` and `token1`
      */
-    function _collect(PoolKey memory poolKey, Position[] memory positions) internal returns (BalanceDelta totalFees) {
+    function _collect(
+        PoolKey memory poolKey,
+        Position[] memory positions
+    ) internal returns (BalanceDelta feesAccrued) {
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ action: Actions.Collect, poolKey: poolKey, positions: positions }))
         );
-        (totalFees) = abi.decode(data, (BalanceDelta));
+        (feesAccrued) = abi.decode(data, (BalanceDelta));
     }
 
     /**
