@@ -272,9 +272,6 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         // Total liquidity provided into the pool
         liquidity = belowPriceLiquidity + abovePriceLiquidity;
 
-        // This should never happen, but we keep it for safety
-        if (belowPriceLiquidity == 0 && abovePriceLiquidity == 0) revert ZeroLiquidity();
-
         // Check if the balances are sufficient to place liquidity below or above the current price,
         // if we don't have enough liquidity, we simply don't place a position
         uint8 positionsToMint;
