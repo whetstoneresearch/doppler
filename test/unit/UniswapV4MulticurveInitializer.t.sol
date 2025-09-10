@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { console } from "forge-std/console.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
@@ -182,15 +181,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         (,,, int24 farTick) = initializer.getState(Currency.unwrap(currency0));
         _buyUntilFarTick(totalTokensOnBondingCurve, farTick, true);
         vm.prank(address(airlock));
-        (
-            uint160 sqrtPriceX96,
-            address token0,
-            uint128 fees0,
-            uint128 balance0,
-            address token1,
-            uint128 fees1,
-            uint128 balance1
-        ) = initializer.exitLiquidity(Currency.unwrap(currency0));
+        (uint160 sqrtPriceX96,,,,,,) = initializer.exitLiquidity(Currency.unwrap(currency0));
 
         assertEq(sqrtPriceX96, TickMath.getSqrtPriceAtTick(farTick), "Incorrect returned sqrtPriceX96");
 
