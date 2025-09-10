@@ -18,7 +18,6 @@ import { Position } from "src/types/Position.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
-import { WAD } from "src/types/Wad.sol";
 
 /**
  * @notice Data to use for the migration
