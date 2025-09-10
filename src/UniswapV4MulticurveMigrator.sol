@@ -40,6 +40,13 @@ struct AssetData {
 error PoolNotInitialized();
 
 /**
+ * @notice Emitted when an asset is migrated
+ * @param asset Address of the asset token
+ * @param poolKey Pool receiving the migrated liquidity
+ */
+event Migrate(address indexed asset, PoolKey poolKey);
+
+/**
  * @title Doppler Uniswap V4 Multicurve Migrator
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
@@ -148,6 +155,8 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         data.poolKey.currency1.transfer(address(locker), balance1);
 
         locker.lock(data.poolKey, data.lockDuration, recipient, data.beneficiaries, positions);
+
+        emit Migrate(data.isToken0 ? token0 : token1, data.poolKey);
 
         // Not true per se but this value is not used in the Airlock so we'll return 0 to avoid extra computation
         return 0;
