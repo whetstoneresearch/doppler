@@ -14,6 +14,13 @@ error OnlyInitializer();
 
 /**
  * @notice Emitted when a Swap occurs
+ * @param sender Address calling the PoolManager
+ * @param poolKey Key of the related pool
+ * @param poolId Id of the related pool
+ * @param params Parameters of the swap
+ * @param amount0 Balance denominated in token0
+ * @param amount1 Balance denominated in token1
+ * @param hookData Data passed to the hook
  */
 event Swap(
     address indexed sender,
