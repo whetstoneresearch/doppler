@@ -12,7 +12,7 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Constants } from "@v4-core-test/utils/Constants.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 
@@ -43,27 +43,13 @@ contract MiniV4ManagerTest is Deployers {
     using PoolIdLibrary for PoolKey;
 
     MiniV4ManagerImplementation public mini;
-
     PoolKey public poolKey;
+    uint128 amount0 = 1e18;
+    uint128 amount1 = 1e18;
 
     function setUp() public {
         deployFreshManagerAndRouters();
-        deployMintAndApprove2Currencies();
-        vm.label(Currency.unwrap(currency0), "Currency0");
-        vm.label(Currency.unwrap(currency1), "Currency1");
-
-        poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            tickSpacing: 1,
-            fee: 3000,
-            hooks: IHooks(address(0))
-        });
-        manager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
-
         mini = new MiniV4ManagerImplementation(manager);
-        currency0.transfer(address(mini), currency0.balanceOfSelf() / 2);
-        currency1.transfer(address(mini), currency1.balanceOfSelf() / 2);
     }
 
     function test_constructor() public view {
@@ -75,14 +61,21 @@ contract MiniV4ManagerTest is Deployers {
         mini.unlockCallback(new bytes(0));
     }
 
-    function test_mint() public returns (Position[] memory positions) {
-        positions = new Position[](4);
+    function test_mint() public returns (Position[] memory) {
+        _setUpTokens();
+        return _mint();
+    }
 
-        uint128 amount0 = 1e18;
-        uint128 amount1 = 1e18;
+    function test_mintWithETH() public returns (Position[] memory) {
+        _setUpEth();
+        return _mint();
+    }
+
+    function _mint() public returns (Position[] memory positions) {
+        positions = new Position[](4);
         uint128 totalLiquidity;
 
-        for (uint256 i; i < 4; i++) {
+        for (uint256 i; i < 4; ++i) {
             int24 tickLower = -1000 * int24(uint24(i + 1));
             int24 tickUpper = -tickLower;
 
@@ -119,12 +112,28 @@ contract MiniV4ManagerTest is Deployers {
 
         int128 swapAmount = -0.1e18;
 
-        swap(swapAmount, true);
+        _swap(swapAmount, true, false);
         BalanceDelta feesAccrued = mini.collect(poolKey, positions);
         assertGt(feesAccrued.amount0(), 0, "Incorrect fees0");
         assertEq(feesAccrued.amount1(), 0, "Incorrect fees1");
 
-        swap(swapAmount, false);
+        _swap(swapAmount, false, false);
+        feesAccrued = mini.collect(poolKey, positions);
+        assertEq(feesAccrued.amount0(), 0, "Incorrect fees0");
+        assertGt(feesAccrued.amount1(), 0, "Incorrect fees1");
+    }
+
+    function test_collectWithEth() public {
+        Position[] memory positions = test_mint();
+
+        int128 swapAmount = -0.1e18;
+
+        _swap(swapAmount, true, true);
+        BalanceDelta feesAccrued = mini.collect(poolKey, positions);
+        assertGt(feesAccrued.amount0(), 0, "Incorrect fees0");
+        assertEq(feesAccrued.amount1(), 0, "Incorrect fees1");
+
+        _swap(swapAmount, false, true);
         feesAccrued = mini.collect(poolKey, positions);
         assertEq(feesAccrued.amount0(), 0, "Incorrect fees0");
         assertGt(feesAccrued.amount1(), 0, "Incorrect fees1");
@@ -134,8 +143,8 @@ contract MiniV4ManagerTest is Deployers {
         Position[] memory positions = test_mint();
 
         int128 swapAmount = -0.1e18;
-        swap(swapAmount, true);
-        swap(swapAmount, false);
+        _swap(swapAmount, true, false);
+        _swap(swapAmount, false, false);
 
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = mini.burn(poolKey, positions);
         assertGt(balanceDelta.amount0(), 0, "Incorrect balanceDelta0");
@@ -144,8 +153,62 @@ contract MiniV4ManagerTest is Deployers {
         assertGt(feesAccrued.amount1(), 0, "Incorrect fees1");
     }
 
-    function swap(int128 amountSpecified, bool zeroForOne) internal returns (BalanceDelta balanceDelta) {
-        return swapRouter.swap(
+    function test_burnWithEth() public {
+        Position[] memory positions = test_mint();
+
+        int128 swapAmount = -0.1e18;
+        _swap(swapAmount, true, true);
+        _swap(swapAmount, false, true);
+
+        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = mini.burn(poolKey, positions);
+        assertGt(balanceDelta.amount0(), 0, "Incorrect balanceDelta0");
+        assertGt(balanceDelta.amount1(), 0, "Incorrect balanceDelta1");
+        assertGt(feesAccrued.amount0(), 0, "Incorrect fees0");
+        assertGt(feesAccrued.amount1(), 0, "Incorrect fees1");
+    }
+
+    function _setUpTokens() internal {
+        deployMintAndApprove2Currencies();
+        vm.label(Currency.unwrap(currency0), "Currency0");
+        vm.label(Currency.unwrap(currency1), "Currency1");
+
+        poolKey = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            tickSpacing: 1,
+            fee: 3000,
+            hooks: IHooks(address(0))
+        });
+        manager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
+        currency0.transfer(address(mini), amount0 * 4);
+        currency1.transfer(address(mini), amount1 * 4);
+    }
+
+    function _setUpEth() internal {
+        currency1 = deployMintAndApproveCurrency();
+        vm.label(Currency.unwrap(currency1), "Currency1");
+
+        poolKey = PoolKey({
+            currency0: CurrencyLibrary.ADDRESS_ZERO,
+            currency1: currency1,
+            tickSpacing: 1,
+            fee: 3000,
+            hooks: IHooks(address(0))
+        });
+        manager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
+        vm.deal(address(mini), amount0 * 4);
+        currency1.transfer(address(mini), amount1 * 4);
+    }
+
+    function _swap(int128 amountSpecified, bool zeroForOne, bool useEth) internal returns (BalanceDelta balanceDelta) {
+        if (useEth) {
+            // Not entirely correct since a positive amountSpecified means exact output, but fine for testing
+            vm.deal(address(this), uint128(-amountSpecified));
+        } else {
+            // No need to mint more tokens since all the initial supply is already in this contract
+        }
+
+        return swapRouter.swap{ value: useEth ? uint128(-amountSpecified) : 0 }(
             poolKey,
             IPoolManager.SwapParams({
                 zeroForOne: zeroForOne,
