@@ -75,22 +75,42 @@ contract MiniV4ManagerTest is Deployers {
     }
 
     function test_mint() public returns (Position[] memory positions) {
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            Constants.SQRT_PRICE_1_1, TickMath.getSqrtPriceAtTick(-1000), TickMath.getSqrtPriceAtTick(1000), 1e18, 1e18
-        );
+        positions = new Position[](4);
 
-        positions = new Position[](1);
-        positions[0] = Position({ tickLower: -1000, tickUpper: 1000, liquidity: liquidity, salt: bytes32(0) });
+        uint128 amount0 = 1e18;
+        uint128 amount1 = 1e18;
+        uint128 totalLiquidity;
+
+        for (uint256 i; i < 4; i++) {
+            int24 tickLower = -1000 * int24(uint24(i + 1));
+            int24 tickUpper = -tickLower;
+
+            uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+                Constants.SQRT_PRICE_1_1,
+                TickMath.getSqrtPriceAtTick(tickLower),
+                TickMath.getSqrtPriceAtTick(tickUpper),
+                amount0,
+                amount1
+            );
+
+            totalLiquidity += liquidity;
+            positions[i] =
+                Position({ tickLower: tickLower, tickUpper: tickUpper, liquidity: liquidity, salt: bytes32(i) });
+        }
 
         (BalanceDelta balanceDelta) = mini.mint(poolKey, positions);
-        assertEq(balanceDelta.amount0(), -1e18, "Wrong balance0 delta");
-        assertEq(balanceDelta.amount1(), -1e18, "Wrong balance1 delta");
+        assertEq(balanceDelta.amount0(), -int128(amount0 * 4), "Wrong balance0 delta");
+        assertEq(balanceDelta.amount1(), -int128(amount1 * 4), "Wrong balance1 delta");
 
         uint128 poolLiquidity = manager.getLiquidity(poolKey.toId());
-        assertEq(liquidity, poolLiquidity, "Incorrect pool liquidity");
+        assertEq(totalLiquidity, poolLiquidity, "Incorrect pool liquidity");
 
-        (uint128 positionLiquidity,,) = manager.getPositionInfo(poolKey.toId(), address(mini), -1000, 1000, 0);
-        assertEq(liquidity, positionLiquidity, "Incorrect position liquidity");
+        for (uint256 i; i != positions.length; ++i) {
+            Position memory pos = positions[i];
+            (uint128 positionLiquidity,,) =
+                manager.getPositionInfo(poolKey.toId(), address(mini), pos.tickLower, pos.tickUpper, pos.salt);
+            assertEq(pos.liquidity, positionLiquidity, "Incorrect position liquidity");
+        }
     }
 
     function test_collect() public {
@@ -113,15 +133,14 @@ contract MiniV4ManagerTest is Deployers {
         Position[] memory positions = test_mint();
 
         int128 swapAmount = -0.1e18;
-        BalanceDelta swapBalanceDelta = swap(swapAmount, true);
-        swap(swapBalanceDelta.amount1(), false);
+        swap(swapAmount, true);
+        swap(swapAmount, false);
 
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = mini.burn(poolKey, positions);
-
-        console.log("balanceDelta0", balanceDelta.amount0());
-        console.log("balanceDelta1", balanceDelta.amount1());
-        console.log("feesAccrued0", feesAccrued.amount0());
-        console.log("feesAccrued1", feesAccrued.amount1());
+        assertGt(balanceDelta.amount0(), 0, "Incorrect balanceDelta0");
+        assertGt(balanceDelta.amount1(), 0, "Incorrect balanceDelta1");
+        assertGt(feesAccrued.amount0(), 0, "Incorrect fees0");
+        assertGt(feesAccrued.amount1(), 0, "Incorrect fees1");
     }
 
     function swap(int128 amountSpecified, bool zeroForOne) internal returns (BalanceDelta balanceDelta) {
