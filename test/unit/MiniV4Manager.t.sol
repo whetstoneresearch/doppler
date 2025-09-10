@@ -19,6 +19,7 @@ import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { MiniV4Manager, CallerNotPoolManager } from "src/base/MiniV4Manager.sol";
 import { Position } from "src/types/Position.sol";
 
+/// @dev Obviously not for production use, these functions should never be exposed without access control
 contract MiniV4ManagerImplementation is MiniV4Manager {
     constructor(
         IPoolManager poolManager_
