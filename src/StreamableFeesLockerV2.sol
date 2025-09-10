@@ -12,7 +12,6 @@ import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
-import { WAD } from "src/types/Wad.sol";
 
 /**
  * @notice Data structure for stream information
