@@ -40,15 +40,11 @@ contract UniswapV4MigratorHook is BaseHook {
         migrator = address(migrator_);
     }
 
-    /// @notice Hook that runs before pool initialization
-    /// @param sender Address of the caller
-    /// @param key Pool key containing pool parameters
-    /// @param sqrtPriceX96 Initial sqrt price of the pool
-    /// @return selector The hook selector
+    /// @inheritdoc BaseHook
     function _beforeInitialize(
         address sender,
-        PoolKey calldata key,
-        uint160 sqrtPriceX96
+        PoolKey calldata,
+        uint160
     ) internal view override onlyMigrator(sender) returns (bytes4) {
         return BaseHook.beforeInitialize.selector;
     }
