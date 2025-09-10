@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import { SafeCast } from "@v4-core/libraries/SafeCast.sol";
 import { IPoolManager, PoolKey, BalanceDelta } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
