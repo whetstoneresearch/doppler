@@ -11,7 +11,6 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 
-import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
