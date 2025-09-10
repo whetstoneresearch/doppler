@@ -5,9 +5,9 @@ import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
-
 import { storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 
 /// @notice Thrown when the new beneficiary is the same as the caller
