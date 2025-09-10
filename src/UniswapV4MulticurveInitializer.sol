@@ -260,7 +260,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     ) internal override returns (BalanceDelta fees) {
         PoolState memory state = getState[getAsset[poolId]];
         require(state.status == PoolStatus.Locked, PoolNotLocked());
-        return _collect(state.poolKey, state.positions);
+        fees = _collect(state.poolKey, state.positions);
     }
 
     /**

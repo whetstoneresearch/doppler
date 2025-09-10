@@ -80,7 +80,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
         } else if (action == Actions.Burn) {
             (balanceDelta, feesAccrued) = _handleBurn(callbackData.poolKey, callbackData.positions);
         } else if (action == Actions.Collect) {
-            feesAccrued = _handleCollect(callbackData.poolKey, callbackData.positions);
+            (balanceDelta, feesAccrued) = _handleCollect(callbackData.poolKey, callbackData.positions);
         } else {
             revert InvalidCallbackAction(uint8(action));
         }
@@ -132,7 +132,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ action: Actions.Collect, poolKey: poolKey, positions: positions }))
         );
-        (feesAccrued) = abi.decode(data, (BalanceDelta));
+        (, feesAccrued) = abi.decode(data, (BalanceDelta, BalanceDelta));
     }
 
     /**
@@ -165,13 +165,13 @@ abstract contract MiniV4Manager is IUnlockCallback {
      * @dev Handles the burning of the positions during the `PoolManager` callback call
      * @param poolKey Key of the Uniswap V4 pool to burn from
      * @param positions Array of `Position` struct to burn
-     * @return balanceDelta Current delta of positive balances denominated in `token0` and `token1`
+     * @return totalBalanceDelta Current delta of positive balances denominated in `token0` and `token1`
      * @return totalFeesAccrued Fees accrued from the burnt positions since last collection (included in `balanceDelta`)
      */
     function _handleBurn(
         PoolKey memory poolKey,
         Position[] memory positions
-    ) private returns (BalanceDelta balanceDelta, BalanceDelta totalFeesAccrued) {
+    ) private returns (BalanceDelta totalBalanceDelta, BalanceDelta totalFeesAccrued) {
         uint256 length = positions.length;
 
         for (uint256 i; i != length; ++i) {
@@ -183,8 +183,9 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 salt: pos.salt
             });
 
-            (BalanceDelta delta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
-            balanceDelta = balanceDelta + delta;
+            (BalanceDelta balanceDelta, BalanceDelta feesAccrued) =
+                poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+            totalBalanceDelta = totalBalanceDelta + balanceDelta;
             totalFeesAccrued = totalFeesAccrued + feesAccrued;
         }
     }
@@ -193,12 +194,14 @@ abstract contract MiniV4Manager is IUnlockCallback {
      * @dev Handles the collection of the fees during the `PoolManager` callback call
      * @param poolKey Key of the Uniswap V4 pool to collect fees from
      * @param positions Array of `Position` struct to collect fees from
-     * @return totalFees Fees collected from the positions
+     * @return totalBalanceDelta Balance delta denominated in `token0` and `token1` retrieved from the collected fees,
+     * it should be equal to the `feesAccrued`, we're still passing them for informative purposes though
+     * @return totalFees Total fees collected from the positions
      */
     function _handleCollect(
         PoolKey memory poolKey,
         Position[] memory positions
-    ) private returns (BalanceDelta totalFees) {
+    ) private returns (BalanceDelta totalBalanceDelta, BalanceDelta totalFees) {
         uint256 length = positions.length;
 
         for (uint256 i; i != length; ++i) {
@@ -210,7 +213,10 @@ abstract contract MiniV4Manager is IUnlockCallback {
                 salt: pos.salt
             });
 
-            (, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+            (BalanceDelta balanceDelta, BalanceDelta feesAccrued) =
+                poolManager.modifyLiquidity(poolKey, params, new bytes(0));
+
+            totalBalanceDelta = totalBalanceDelta + balanceDelta;
             totalFees = totalFees + feesAccrued;
         }
     }
