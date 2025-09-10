@@ -3,12 +3,27 @@ pragma solidity ^0.8.24;
 
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
 error OnlyInitializer();
+
+/**
+ * @notice Emitted when a Swap occurs
+ */
+event Swap(
+    address indexed sender,
+    PoolKey indexed poolKey,
+    PoolId indexed poolId,
+    IPoolManager.SwapParams params,
+    int128 amount0,
+    int128 amount1,
+    bytes hookData
+);
 
 /**
  * @title Uniswap V4 Multicurve Hook
@@ -59,6 +74,19 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
     }
 
     /// @inheritdoc BaseHook
+    function _afterSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
+        bytes calldata hookData
+    ) internal override returns (bytes4, int128) {
+        emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
+
+        return (BaseHook.afterSwap.selector, 0);
+    }
+
+    /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
@@ -68,7 +96,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
             afterAddLiquidity: false,
             afterRemoveLiquidity: false,
             beforeSwap: false,
-            afterSwap: false,
+            afterSwap: true,
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
