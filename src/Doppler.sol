@@ -1212,6 +1212,7 @@ contract Doppler is BaseHook {
     }
 
     /// @notice Callback to add liquidity to the pool in afterInitialize
+    /// or remove liquidity during migration
     /// @param data The callback data (key, sender, tick)
     function unlockCallback(
         bytes calldata data

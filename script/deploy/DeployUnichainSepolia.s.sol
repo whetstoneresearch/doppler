@@ -2,13 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { DeployScript, ScriptData } from "script/deploy/Deploy.s.sol";
+import { ChainIds } from "script/ChainIds.sol";
 
 contract DeployUnichainSepolia is DeployScript {
     function setUp() public override {
         _scriptData = ScriptData({
-            deployBundler: true,
-            deployLens: true,
-            explorerUrl: "https://unichain-sepolia.blockscout.com/address/",
+            chainId: ChainIds.UNICHAIN_SEPOLIA,
             poolManager: 0x00B036B58a818B1BC34d502D3fE730Db729e62AC,
             protocolOwner: 0xaCE07c3c1D3b556D42633211f0Da71dc6F6d1c42,
             quoterV2: 0xbc02cBE6e4E29B504b67b0187A0178E13871fA3C,

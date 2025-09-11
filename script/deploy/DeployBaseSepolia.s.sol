@@ -2,13 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { DeployScript, ScriptData } from "script/deploy/Deploy.s.sol";
+import { ChainIds } from "script/ChainIds.sol";
 
 contract DeployBaseSepolia is DeployScript {
     function setUp() public override {
         _scriptData = ScriptData({
-            deployBundler: true,
-            deployLens: true,
-            explorerUrl: "https://base-sepolia.blockscout.com/address/",
+            chainId: ChainIds.BASE_SEPOLIA,
             poolManager: 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408,
             protocolOwner: 0xaCE07c3c1D3b556D42633211f0Da71dc6F6d1c42,
             quoterV2: 0xC5290058841028F1614F3A6F0F5816cAd0df5E27,
