@@ -196,7 +196,21 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         TestERC20(token1).mint(address(migrator), scenario.balance1);
 
         vm.prank(address(airlock));
-        migrator.migrate(scenario.sqrtPrice, token0, token1, address(0xdead));
+        migrator.migrate(scenario.sqrtPrice, token0, token1, scenario.recipient);
+
+        if (scenario.recipient != address(0xdead)) {
+            assertGe(TestERC20(address(lpm)).balanceOf(address(scenario.recipient)), 1, "Wrong recipient balance");
+            assertGe(TestERC20(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance with recipient");
+        } else {
+            assertGe(TestERC20(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance without recipient");
+        }
+
+        if (scenario.isUsingETH) {
+            assertEq(address(migrator).balance, 0, "Migrator should have no ETH left");
+        } else {
+            assertEq(TestERC20(token0).balanceOf(address(migrator)), 0, "Migrator should have no token0 left");
+        }
+        assertEq(TestERC20(token1).balanceOf(address(migrator)), 0, "Migrator should have no token1 left");
     }
 
     /*
