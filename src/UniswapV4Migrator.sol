@@ -355,7 +355,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                     poolKey,
                     lowerTick,
                     currentTick - poolKey.tickSpacing,
-                    uint128(timeLockBelowPriceLiquidity),
+                    uint128(timeLockBelowPriceLiquidity) - 1,
                     0,
                     uint128(balance1),
                     recipient,
