@@ -70,6 +70,7 @@ abstract contract DeployV4MigratorOnlyScript is Script {
     }
 }
 
+/// @dev forge script DeployV4MigratorOnlyBaseSepoliaScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $BASE_SEPOLIA_RPC_URL
 contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
     function setUp() public override {
         _scriptData = ScriptData({
@@ -82,6 +83,7 @@ contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
     }
 }
 
+/// @dev forge script DeployV4MigratorOnlyBaseScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $BASE_MAINNET_RPC_URL
 contract DeployV4MigratorOnlyBaseScript is DeployV4MigratorOnlyScript {
     function setUp() public override {
         _scriptData = ScriptData({
@@ -90,6 +92,32 @@ contract DeployV4MigratorOnlyBaseScript is DeployV4MigratorOnlyScript {
             positionManager: 0x7C5f5A4bBd8fD63184577525326123B519429bDc,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
             streamableFeesLocker: 0x0A00775D71a42cd33D62780003035e7F5b47bD3A
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorOnlyUnichainSepoliaScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $UNICHAIN_SEPOLIA_RPC_URL
+contract DeployV4MigratorOnlyUnichainSepoliaScript is DeployV4MigratorOnlyScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0d2f38d807bfAd5C18e430516e10ab560D300caF,
+            poolManager: 0x00B036B58a818B1BC34d502D3fE730Db729e62AC,
+            positionManager: 0xf969Aee60879C54bAAed9F3eD26147Db216Fd664,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
+            streamableFeesLocker: 0x1728E8B3282502f275949109331E070b819B38eA
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorOnlyUnichainScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $UNICHAIN_MAINNET_RPC_URL
+contract DeployV4MigratorOnlyUnichainScript is DeployV4MigratorOnlyScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x77EbfBAE15AD200758E9E2E61597c0B07d731254,
+            poolManager: 0x1F98400000000000000000000000000000000004,
+            positionManager: 0x4529A01c7A0410167c5740C487A8DE60232617bf,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
+            streamableFeesLocker: 0x6ddfED58D238Ca3195E49d8ac3d4cEa6386E5C33
         });
     }
 }
