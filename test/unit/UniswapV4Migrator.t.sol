@@ -106,73 +106,14 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         assertEq(lockDuration, LOCK_DURATION);
     }
 
-    struct MigrationScenario {
-        uint160 sqrtPrice;
-        uint256 balance0;
-        uint256 balance1;
-        bool isUsingETH;
-        bool hasBeneficiaries;
-        address recipient;
-    }
-
-    // TODO: Improve this test by fuzzing the parameters. This might be a tricky though because depending on the
-    // token balances we can easily hit the maximum liquidity per tick. Also more parameters can be added to the
-    // scenario struct, such as: tick spacing, beneficiary shares, etc.
-    function test_migrate_scenarios() public {
-        MigrationScenario[] memory scenarios = new MigrationScenario[](5);
-
-        scenarios[0] = MigrationScenario({
-            sqrtPrice: 6_786_529_797_232_128_452_535_845,
-            balance0: 2456,
-            balance1: 1e20,
-            isUsingETH: false,
-            hasBeneficiaries: true,
-            recipient: address(0xdead)
-        });
-        scenarios[1] = MigrationScenario({
-            sqrtPrice: 6_786_529_797_232_128_452_535_845,
-            balance0: 1e20,
-            balance1: 2456,
-            isUsingETH: false,
-            hasBeneficiaries: true,
-            recipient: address(0xdead)
-        });
-        scenarios[2] = MigrationScenario({
-            sqrtPrice: 6_786_529_797_232_128_452_535_845,
-            balance0: 2456,
-            balance1: 1e20,
-            isUsingETH: true,
-            hasBeneficiaries: true,
-            recipient: address(0xdead)
-        });
-        scenarios[3] = MigrationScenario({
-            sqrtPrice: 6_786_529_797_232_128_452_535_845,
-            balance0: 1e20,
-            balance1: 2456,
-            isUsingETH: true,
-            hasBeneficiaries: true,
-            recipient: address(0xdead)
-        });
-        scenarios[4] = MigrationScenario({
-            sqrtPrice: 6_786_529_797_232_128_452_535_845,
-            balance0: 5.13 ether,
-            balance1: 245e6,
-            isUsingETH: true,
-            hasBeneficiaries: true,
-            recipient: address(0xbeef)
-        });
-
-        for (uint256 i; i < scenarios.length; ++i) {
-            _migrate(scenarios[i]);
-        }
-    }
-
-    function _migrate(
-        MigrationScenario memory scenario
-    ) internal {
+    function test_migrate(bool isUsingETH, bool hasRecipient, uint64 balance0, uint64 balance1) public {
+        vm.assume((balance0 > 1e18 && balance1 < 1e18) || (balance0 < 1e18 && balance1 > 1e18));
         _setUpTokens();
 
-        if (scenario.isUsingETH) {
+        // TODO: Fuzz the sqrtPrice
+        uint160 sqrtPriceX96 = 6_786_529_797_232_128_452_535_845;
+
+        if (isUsingETH) {
             asset = numeraire;
             token1 = asset;
             token0 = address(0);
@@ -184,88 +125,30 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
 
         vm.prank(address(airlock));
-        migrator.initialize(
-            asset,
-            numeraire,
-            abi.encode(FEE, 1, LOCK_DURATION, scenario.hasBeneficiaries ? beneficiaries : new BeneficiaryData[](0))
-        );
+        migrator.initialize(asset, numeraire, abi.encode(FEE, 1, LOCK_DURATION, beneficiaries));
 
-        scenario.isUsingETH
-            ? deal(address(migrator), scenario.balance0)
-            : TestERC20(token0).mint(address(migrator), scenario.balance0);
-        TestERC20(token1).mint(address(migrator), scenario.balance1);
+        isUsingETH ? deal(address(migrator), balance0) : TestERC20(token0).mint(address(migrator), balance0);
+        TestERC20(token1).mint(address(migrator), balance1);
+
+        address recipient = hasRecipient ? RECIPIENT : address(0xdead);
 
         vm.prank(address(airlock));
-        migrator.migrate(scenario.sqrtPrice, token0, token1, scenario.recipient);
+        migrator.migrate(sqrtPriceX96, token0, token1, recipient);
 
-        if (scenario.recipient != address(0xdead)) {
-            assertGe(TestERC20(address(lpm)).balanceOf(address(scenario.recipient)), 1, "Wrong recipient balance");
+        if (recipient != address(0xdead)) {
+            assertGe(TestERC20(address(lpm)).balanceOf(address(recipient)), 1, "Wrong recipient balance");
             assertGe(TestERC20(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance with recipient");
         } else {
             assertGe(TestERC20(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance without recipient");
         }
 
-        if (scenario.isUsingETH) {
+        if (isUsingETH) {
             assertEq(address(migrator).balance, 0, "Migrator should have no ETH left");
         } else {
             assertEq(TestERC20(token0).balanceOf(address(migrator)), 0, "Migrator should have no token0 left");
         }
         assertEq(TestERC20(token1).balanceOf(address(migrator)), 0, "Migrator should have no token1 left");
     }
-
-    /*
-    // TODO: Update this test
-    function test_migrate_NoOpGovernance_SendsAllToLocker() public {
-        vm.skip(true);
-
-        // Initialize with empty beneficiary data for no-op governance
-        vm.prank(address(airlock));
-        migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, new BeneficiaryData[](0))
-        );
-
-        // Setup balances
-        uint256 amount0 = 1000e18;
-        uint256 amount1 = 2000e18;
-        TestERC20(token0).mint(address(migrator), amount0);
-        TestERC20(token1).mint(address(migrator), amount1);
-
-        // Use DEAD_ADDRESS as recipient (simulating no-op governance)
-        address recipient = migrator.DEAD_ADDRESS();
-
-        PoolKey memory poolKey = PoolKey({
-            currency0: Currency.wrap(token0),
-            currency1: Currency.wrap(token1),
-            hooks: IHooks(address(0)),
-            fee: FEE,
-            tickSpacing: TICK_SPACING
-        });
-
-        // Mock pool manager calls
-        bytes memory getSlot0Call = abi.encodeWithSelector(this.extsload.selector, poolKey.toId());
-        vm.mockCall(manager, getSlot0Call, abi.encode(uint160(0), int24(0), uint24(0), uint24(0)));
-
-        bytes memory initializeCall =
-            abi.encodeWithSelector(IPoolManager.initialize.selector, poolKey, TickMath.MIN_SQRT_PRICE);
-        vm.mockCall(manager, initializeCall, new bytes(0));
-
-        // Mock position manager calls
-        // For no-op governance, we expect only ONE MINT_POSITION action
-        vm.mockCall(lpm, bytes(""), new bytes(0));
-
-        // Call migrate with DEAD_ADDRESS as recipient
-        vm.prank(address(airlock));
-        uint256 liquidity = migrator.migrate(TickMath.MIN_SQRT_PRICE, token0, token1, recipient);
-
-        // Verify the migrator recognizes this as no-op governance
-        assertTrue(liquidity > 0, "Liquidity should be greater than 0");
-
-        // In a real test, we would verify:
-        // 1. Only one NFT position was created (not two)
-        // 2. All liquidity went to the locker
-        // 3. No position was sent to the timelock
-    }
-    */
 
     function test_initialize_RevertZeroAddressBeneficiary() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
