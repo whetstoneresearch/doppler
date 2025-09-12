@@ -15,6 +15,11 @@ error OnlyMigrator();
 /// @notice Thrown when the caller is not the contract deployer
 error OnlyDeployer();
 
+/**
+ * @notice Emitted when liquidity is modified
+ * @param key Key of the related pool
+ * @param params Parameters of the liquidity modification
+ */
 event ModifyLiquidity(PoolKey key, IPoolManager.ModifyLiquidityParams params);
 
 /**
@@ -53,16 +58,7 @@ contract UniswapV4MigratorHook is BaseHook {
         return BaseHook.beforeInitialize.selector;
     }
 
-    function _beforeAddLiquidity(
-        address,
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata params,
-        bytes calldata
-    ) internal override returns (bytes4) {
-        emit ModifyLiquidity(key, params);
-        return (BaseHook.beforeAddLiquidity.selector);
-    }
-
+    /// @inheritdoc BaseHook
     function _afterAddLiquidity(
         address,
         PoolKey calldata key,
@@ -75,6 +71,19 @@ contract UniswapV4MigratorHook is BaseHook {
         return (BaseHook.afterAddLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
     }
 
+    /// @inheritdoc BaseHook
+    function _afterRemoveLiquidity(
+        address,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta,
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, BalanceDelta) {
+        emit ModifyLiquidity(key, params);
+        return (BaseHook.afterRemoveLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
+    }
+
     /// @notice Returns the hook permissions configuration
     /// @return permissions The hook permissions configuration
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -83,8 +92,8 @@ contract UniswapV4MigratorHook is BaseHook {
             afterInitialize: false,
             beforeAddLiquidity: false,
             beforeRemoveLiquidity: false,
-            afterAddLiquidity: false,
-            afterRemoveLiquidity: false,
+            afterAddLiquidity: true,
+            afterRemoveLiquidity: true,
             beforeSwap: false,
             afterSwap: false,
             beforeDonate: false,

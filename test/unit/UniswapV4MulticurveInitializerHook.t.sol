@@ -21,8 +21,10 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
     function setUp() public {
         hook = UniswapV4MulticurveInitializerHook(
             address(
-                uint160(Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG)
-                    ^ (0x4444 << 144)
+                uint160(
+                    Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                        | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
             )
         );
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(poolManager, initializer), address(hook));

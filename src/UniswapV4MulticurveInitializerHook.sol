@@ -3,14 +3,21 @@ pragma solidity ^0.8.24;
 
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
 error OnlyInitializer();
+
+/**
+ * @notice Emitted when liquidity is modified
+ * @param key Key of the related pool
+ * @param params Parameters of the liquidity modification
+ */
+event ModifyLiquidity(PoolKey key, IPoolManager.ModifyLiquidityParams params);
 
 /**
  * @notice Emitted when a Swap occurs
@@ -78,6 +85,32 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
         bytes calldata
     ) internal view override onlyInitializer(sender) returns (bytes4) {
         return BaseHook.beforeAddLiquidity.selector;
+    }
+
+    /// @inheritdoc BaseHook
+    function _afterAddLiquidity(
+        address,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta,
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, BalanceDelta) {
+        emit ModifyLiquidity(key, params);
+        return (BaseHook.afterAddLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
+    }
+
+    /// @inheritdoc BaseHook
+    function _afterRemoveLiquidity(
+        address,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta,
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, BalanceDelta) {
+        emit ModifyLiquidity(key, params);
+        return (BaseHook.afterRemoveLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
     }
 
     /// @inheritdoc BaseHook

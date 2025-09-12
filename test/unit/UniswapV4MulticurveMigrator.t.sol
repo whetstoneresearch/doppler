@@ -43,7 +43,13 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         vm.label(Currency.unwrap(currency1), "Currency1");
 
         airlock = new AirlockMock(owner);
-        hook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        hook = UniswapV4MigratorHook(
+            address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
+            )
+        );
         locker = new StreamableFeesLockerV2(manager, owner);
         migrator = new UniswapV4MulticurveMigrator(address(airlock), manager, hook, locker);
         deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(hook));
