@@ -66,13 +66,19 @@ contract V4MulticurveInitializer is Deployers {
         multicurveHook = UniswapV4MulticurveInitializerHook(
             address(
                 uint160(
-                    Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
                 ) ^ (0x4444 << 144)
             )
         );
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
-        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migratorHook = UniswapV4MigratorHook(
+            address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
+            )
+        );
         locker = new StreamableFeesLockerV2(manager, airlockOwner);
         migrator = new UniswapV4MulticurveMigrator(address(airlock), manager, migratorHook, locker);
         deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));

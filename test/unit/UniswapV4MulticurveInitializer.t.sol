@@ -52,8 +52,8 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         hook = UniswapV4MulticurveInitializerHook(
             address(
                 uint160(
-                    Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
                 ) ^ (0x4444 << 144)
             )
         );
