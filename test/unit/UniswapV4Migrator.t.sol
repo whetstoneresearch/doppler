@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test, console } from "forge-std/Test.sol";
+import { ERC721 } from "@solmate/tokens/ERC721.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
@@ -85,6 +86,8 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         token0 = address(asset);
         token1 = address(numeraire);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+        vm.label(token0, "Token0");
+        vm.label(token1, "Token1");
     }
 
     function test_initialize_StoresPoolKey() public {
@@ -137,10 +140,10 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         migrator.migrate(sqrtPriceX96, token0, token1, recipient);
 
         if (recipient != address(0xdead)) {
-            assertGe(TestERC20(address(lpm)).balanceOf(address(recipient)), 1, "Wrong recipient balance");
-            assertGe(TestERC20(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance with recipient");
+            assertGe(ERC721(address(lpm)).balanceOf(address(recipient)), 1, "Wrong recipient balance");
+            assertGe(ERC721(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance with recipient");
         } else {
-            assertGe(TestERC20(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance without recipient");
+            assertGe(ERC721(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance without recipient");
         }
 
         if (isUsingETH) {
