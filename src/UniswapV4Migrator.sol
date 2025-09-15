@@ -250,7 +250,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         if (currentTick < lowerTick || currentTick > upperTick) revert TickOutOfRange();
 
         // We're adding liquidity to two single-sided positions instead of a full range position, this is to ensure
-        // we're using as much tokens as possible and will result in more liquidity being added to the pool
+        // we're using as much tokens as possible and will result in more liquidity being added to the pool. Note that
+        // we decremented the balances by `1` (if possible) to avoid rounding issues during liquidity computation
         uint160 belowPriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(lowerTick),
@@ -271,7 +272,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         liquidity = belowPriceLiquidity + abovePriceLiquidity;
         require(liquidity > 0, ZeroLiquidity());
 
-        // We might mint up to 4 positions, let's compute the liquidity for each of them
+        // We might mint up to 4 positions, let's compute the liquidity for each of them and see if it's > 0
         bytes[] memory temporaryParams = new bytes[](4);
         uint8 positionsToMint;
 
@@ -284,7 +285,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 currentTick - poolKey.tickSpacing,
                 protocolLockerBelowPriceLiquidity,
                 0,
-                uint128(balance1),
+                balance1,
                 address(this),
                 new bytes(0)
             );
@@ -298,8 +299,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 currentTick + poolKey.tickSpacing,
                 upperTick,
                 protocolLockerAbovePriceLiquidity,
-                uint128(balance0),
-                uint128(0),
+                balance0,
+                0,
                 address(this),
                 new bytes(0)
             );
@@ -314,8 +315,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 lowerTick,
                 currentTick - poolKey.tickSpacing,
                 recipientBelowPriceLiquidity,
-                uint128(0),
-                uint128(balance1),
+                0,
+                balance1,
                 recipient,
                 new bytes(0)
             );
@@ -329,8 +330,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
                 poolKey,
                 currentTick + poolKey.tickSpacing,
                 upperTick,
-                uint128(recipientAbovePriceLiquidity),
-                uint128(balance0),
+                recipientAbovePriceLiquidity,
+                balance0,
                 0,
                 recipient,
                 new bytes(0)
