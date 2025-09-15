@@ -8,7 +8,7 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { MigrationMath } from "src/libs/MigrationMath.sol";
+import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";

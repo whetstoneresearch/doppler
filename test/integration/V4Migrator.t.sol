@@ -54,7 +54,13 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
         locker = new StreamableFeesLocker(positionManager, address(this));
-        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migratorHook = UniswapV4MigratorHook(
+            address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
+            )
+        );
         migrator = new UniswapV4Migrator(
             address(airlock),
             IPoolManager(manager),
