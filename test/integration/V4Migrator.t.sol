@@ -30,9 +30,6 @@ import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
     IAllowanceTransfer public permit2;
@@ -176,13 +173,6 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
 
         goToEndingTime();
         airlock.migrate(asset);
-
-        assertEq(ERC721(address(positionManager)).balanceOf(timelock), 1, "Timelock should have one token");
-        assertEq(ERC721(address(positionManager)).ownerOf(2), timelock, "Timelock should be the owner of the token");
-        assertEq(ERC721(address(positionManager)).balanceOf(address(locker)), 1, "Locker should have one token");
-        assertEq(
-            ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should be the owner of the token"
-        );
     }
 
     function sortBeneficiaries(
