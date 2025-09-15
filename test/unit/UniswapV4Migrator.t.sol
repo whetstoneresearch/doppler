@@ -106,6 +106,7 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         assertEq(lockDuration, LOCK_DURATION);
     }
 
+    /// forge-config: default.fuzz.runs = 512
     function test_migrate(bool isUsingETH, bool hasRecipient, uint64 balance0, uint64 balance1) public {
         vm.assume((balance0 > 1e18 && balance1 < 1e18) || (balance0 < 1e18 && balance1 > 1e18));
         _setUpTokens();
@@ -163,13 +164,10 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     }
 
     function test_initialize_RevertNoBeneficiaries() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
-        bytes memory positionData = abi.encode(RECIPIENT, beneficiaries);
-
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, new BeneficiaryData[](0))
         );
     }
 
