@@ -177,7 +177,6 @@ function calculateLogNormalDistribution(
 
     uint160 farSqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
     uint256 amountPerPosition = curveSupply / numPositions;
-    uint256 totalAssetSupplied;
     Position[] memory positions = new Position[](numPositions);
 
     for (uint256 i; i < numPositions; i++) {
@@ -199,12 +198,6 @@ function calculateLogNormalDistribution(
                 liquidity = isToken0
                     ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
                     : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
-
-                totalAssetSupplied += (
-                    isToken0
-                        ? SqrtPriceMath.getAmount0Delta(startingSqrtPriceX96, farSqrtPriceX96, liquidity, true)
-                        : SqrtPriceMath.getAmount1Delta(farSqrtPriceX96, startingSqrtPriceX96, liquidity, true)
-                );
             }
 
             positions[i] = Position({
