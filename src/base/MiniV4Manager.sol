@@ -250,10 +250,11 @@ abstract contract MiniV4Manager is IUnlockCallback {
      * @param amount Amount to pay
      */
     function _pay(Currency currency, IPoolManager manager, uint256 amount) private {
+        manager.sync(currency);
+
         if (currency.isAddressZero()) {
             manager.settle{ value: amount }();
         } else {
-            manager.sync(currency);
             currency.transfer(address(manager), amount);
             manager.settle();
         }
