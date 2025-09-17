@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
-
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
@@ -14,13 +9,7 @@ import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
-import {
-    StreamableFeesLockerV2,
-    MigratorApproval,
-    NotApprovedMigrator,
-    StreamNotFound,
-    Lock
-} from "src/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV2, MigratorApproval, NotApprovedMigrator, Lock } from "src/StreamableFeesLockerV2.sol";
 
 contract StreamableFeesLockerV2Test is Deployers {
     StreamableFeesLockerV2 public locker;

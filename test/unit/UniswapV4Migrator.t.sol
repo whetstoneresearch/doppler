@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
 import { ERC721 } from "@solmate/tokens/ERC721.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -26,8 +24,6 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 // We don't use the `PositionDescriptor` contract explictly here but importing it ensures it gets compiled
 import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
 import { PosmTestSetup } from "@v4-periphery-test/shared/PosmTestSetup.sol";
-import { Constants } from "@v4-core-test/utils/Constants.sol";
-import { Actions } from "@v4-periphery/libraries/Actions.sol";
 
 contract MockAirlock {
     address public owner;

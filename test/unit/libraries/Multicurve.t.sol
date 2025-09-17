@@ -4,9 +4,6 @@ pragma solidity ^0.8.24;
 import { Test, console } from "forge-std/Test.sol";
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 
 import { isTickAligned } from "src/libraries/TickLibrary.sol";
 import { Position } from "src/types/Position.sol";

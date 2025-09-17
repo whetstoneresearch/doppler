@@ -12,6 +12,7 @@ import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 
+/// forge-lint: disable-next-item(erc20-unchecked-transfer)
 contract UniswapV2LockerTest is Test {
     CustomLPUniswapV2Locker public locker;
     CustomLPUniswapV2Migrator public migrator = CustomLPUniswapV2Migrator(payable(address(0x88888)));

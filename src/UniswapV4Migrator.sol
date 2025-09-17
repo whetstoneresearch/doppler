@@ -18,7 +18,6 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { BeneficiaryData, storeBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { WAD } from "src/types/Wad.sol";
 import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { Airlock } from "src/Airlock.sol";

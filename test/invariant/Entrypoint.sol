@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { HookConfigs } from "test/shared/HookConfigs.sol";
-
 uint256 constant TOTAL_WEIGHTS = 100;
 
 contract Entrypoint {

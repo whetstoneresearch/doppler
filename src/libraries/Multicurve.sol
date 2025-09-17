@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 import { Position, concat } from "src/types/Position.sol";
 import { isTickAligned, alignTick, TickRangeMisordered, isRangeOrdered } from "src/libraries/TickLibrary.sol";

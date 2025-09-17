@@ -9,11 +9,8 @@ import {
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
-    MAX_TOTAL_PRE_MINT_WAD,
     PoolLocked,
     MintingNotStartedYet,
-    ExceedsYearlyMintCap,
-    ReleaseAmountInvalid,
     NoMintableAmount
 } from "src/DERC20.sol";
 import { IERC20Errors } from "@openzeppelin/interfaces/draft-IERC6093.sol";

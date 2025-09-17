@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
-import { IPoolManager, PoolKey, BalanceDelta } from "@v4-core/interfaces/IPoolManager.sol";
+import { IPoolManager, PoolKey } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
@@ -19,7 +19,6 @@ import {
     CannotMigrateInsufficientTick,
     PoolAlreadyInitialized,
     PoolStatus,
-    PoolState,
     PoolNotLocked,
     PoolAlreadyExited
 } from "src/UniswapV4MulticurveInitializer.sol";

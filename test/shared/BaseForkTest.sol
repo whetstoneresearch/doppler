@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
-import { UniswapV3Initializer, InitData } from "src/UniswapV3Initializer.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
@@ -16,7 +16,6 @@ import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
-import { MineV4Params, mineV4, MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
@@ -36,8 +35,7 @@ import {
     UNISWAP_V2_ROUTER_BASE,
     UNISWAP_V3_FACTORY_BASE_SEPOLIA,
     UNISWAP_V4_POOL_MANAGER_BASE_SEPOLIA,
-    UNISWAP_V4_POSITION_MANAGER_BASE_SEPOLIA,
-    WETH_BASE
+    UNISWAP_V4_POSITION_MANAGER_BASE_SEPOLIA
 } from "test/shared/Addresses.sol";
 
 abstract contract BaseForkTest is Test {

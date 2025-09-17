@@ -3,9 +3,6 @@ pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { IStateView } from "@v4-periphery/lens/StateView.sol";
-import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
-import { Airlock } from "src/Airlock.sol";
 import { UniswapV4Initializer, DopplerDeployer, IPoolManager } from "src/UniswapV4Initializer.sol";
 import { ChainIds } from "script/ChainIds.sol";
 

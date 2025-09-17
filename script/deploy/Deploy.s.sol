@@ -8,15 +8,7 @@ import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
-import {
-    Airlock,
-    ModuleState,
-    CreateParams,
-    ITokenFactory,
-    IGovernanceFactory,
-    IPoolInitializer,
-    ILiquidityMigrator
-} from "src/Airlock.sol";
+import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";

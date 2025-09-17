@@ -10,8 +10,6 @@ import {
     IPoolInitializer,
     ILiquidityMigrator
 } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { InitData } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 

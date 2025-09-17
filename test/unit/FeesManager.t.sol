@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 import { BalanceDelta, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";

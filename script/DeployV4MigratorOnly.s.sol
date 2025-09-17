@@ -5,7 +5,6 @@ import { Script, console } from "forge-std/Script.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { Airlock } from "src/Airlock.sol";
 import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";

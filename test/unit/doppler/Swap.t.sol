@@ -11,11 +11,9 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 import {
     CannotSwapBeforeStartTime,
-    SwapBelowRange,
     InvalidSwapAfterMaturityInsufficientProceeds,
     InvalidSwapAfterMaturitySufficientProceeds,
     MAX_SWAP_FEE,
-    SlugData,
     Position,
     LOWER_SLUG_SALT,
     NUM_DEFAULT_SLUGS
