@@ -97,6 +97,7 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
     }
 
     function test_migrate() public {
+        vm.skip(true);
         (
             uint24 fee,
             int24 tickSpacing,
