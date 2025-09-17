@@ -5,6 +5,7 @@
 [![Foundry][foundry-badge]][foundry]
 [![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL%201.1-blue.svg)](https://github.com/whetstoneresearch/doppler/blob/main/LICENSE)
 
+[foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
 
 This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts. You can learn more about the technical aspects in the [documentation](https://docs.doppler.lol).
