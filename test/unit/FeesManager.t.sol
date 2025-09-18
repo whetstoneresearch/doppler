@@ -20,7 +20,7 @@ import {
     InvalidProtocolOwnerBeneficiary,
     MIN_PROTOCOL_OWNER_SHARES
 } from "src/types/BeneficiaryData.sol";
-import { FeesManager, Collect, UpdateBeneficiary } from "src/base/FeesManager.sol";
+import { FeesManager, Collect, UpdateBeneficiary, Release } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
     PoolManagerMock internal poolManager;
@@ -103,6 +103,10 @@ contract FeesManagerTest is Test {
         poolId = poolKey.toId();
     }
 
+    /* ---------------------------------------------------------------------------------- */
+    /*                                storeBeneficiaries()                                */
+    /* ---------------------------------------------------------------------------------- */
+
     function test_storeBeneficiaries_StoresBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
@@ -158,7 +162,11 @@ contract FeesManagerTest is Test {
         feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
     }
 
-    function test_collectFees() public {
+    /* --------------------------------------------------------------------------- */
+    /*                                collectFees()                                */
+    /* --------------------------------------------------------------------------- */
+
+    function test_collectFees_CollectPoolFees() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
@@ -168,6 +176,9 @@ contract FeesManagerTest is Test {
         uint256 fees1 = 20e18;
 
         poolManager.setFees(fees0, fees1);
+
+        vm.expectEmit();
+        emit Collect(poolId, fees0, fees1);
         feesManager.collectFees(poolId);
 
         assertEq(feesManager.getCumulatedFees0(poolId), fees0, "Incorrect cumulated fees0");
@@ -180,7 +191,7 @@ contract FeesManagerTest is Test {
 
             vm.prank(beneficiary);
             vm.expectEmit();
-            emit Collect(poolId, beneficiary, expectedFees0, expectedFees1);
+            emit Release(poolId, beneficiary, expectedFees0, expectedFees1);
             feesManager.collectFees(poolId);
             assertEq(token0.balanceOf(beneficiary), expectedFees0, "Wrong collected fees0");
             assertEq(token1.balanceOf(beneficiary), expectedFees1, "Wrong collected fees1");
@@ -188,6 +199,35 @@ contract FeesManagerTest is Test {
             assertEq(feesManager.getLastCumulatedFees1(poolId, beneficiary), fees1);
         }
     }
+
+    function test_collectFees_ReleasesIfBeneficiary() public {
+        address beneficiary0 = address(0xaaa);
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary0, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+
+        uint256 fees0 = 10e18;
+        uint256 fees1 = 20e18;
+
+        uint256 expectedFees0 = fees0 * 95 / 100;
+        uint256 expectedFees1 = fees1 * 95 / 100;
+
+        poolManager.setFees(fees0, fees1);
+        vm.expectEmit();
+        emit Release(poolId, beneficiary0, expectedFees0, expectedFees1);
+        vm.prank(beneficiary0);
+        feesManager.collectFees(poolId);
+
+        assertEq(token0.balanceOf(beneficiary0), expectedFees0, "Wrong collected fees0");
+        assertEq(token1.balanceOf(beneficiary0), expectedFees1, "Wrong collected fees1");
+        assertEq(feesManager.getLastCumulatedFees0(poolId, beneficiary0), fees0);
+        assertEq(feesManager.getLastCumulatedFees1(poolId, beneficiary0), fees1);
+    }
+
+    /* --------------------------------------------------------------------------------- */
+    /*                                updateBeneficiary()                                */
+    /* --------------------------------------------------------------------------------- */
 
     function test_updateBeneficiary() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
