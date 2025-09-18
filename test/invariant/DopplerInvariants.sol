@@ -8,14 +8,14 @@ import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
 import { State, LOWER_SLUG_SALT } from "src/Doppler.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { DopplerTickLibrary } from "test/utils/DopplerTickLibrary.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;
 
     function setUp() public override {
         super.setUp();
-        handler = new DopplerHandler(key, hook, router, swapRouter, isToken0, usingEth);
+        handler = new DopplerHandler(manager, key, hook, router, swapRouter, isToken0, usingEth);
 
         bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = handler.buyExactAmountIn.selector;
@@ -50,8 +50,8 @@ contract DopplerInvariantsTest is BaseTest {
 
     function invariant_TracksTotalTokensSoldAndProceeds() public view {
         (,, uint256 totalTokensSold, uint256 totalProceeds,,) = hook.state();
-        assertEq(totalTokensSold, handler.ghost_totalTokensSold(), "Total tokens sold mismatch");
-        assertApproxEqAbs(totalProceeds, handler.ghost_totalProceeds(), 1); //"Total proceeds mismatch");
+        assertApproxEqAbs(totalTokensSold, handler.ghost_totalTokensSold(), 1, "Total tokens sold mismatch");
+        assertApproxEqAbs(totalProceeds, handler.ghost_totalProceeds(), 1, "Total proceeds mismatch");
     }
 
     function invariant_CantSellMoreThanNumTokensToSell() public view {
@@ -140,10 +140,7 @@ contract DopplerInvariantsTest is BaseTest {
         vm.warp(DEFAULT_STARTING_TIME - 1);
         (,,, int24 tickSpacing,) = hook.poolKey();
 
-        assertEq(
-            DopplerTickLibrary.alignComputedTickWithTickSpacing(hook.isToken0(), hook.getCurrentTick(), tickSpacing),
-            hook.startingTick()
-        );
+        assertEq(alignTick(hook.isToken0(), hook.getCurrentTick(), tickSpacing), hook.startingTick());
     }
 
     function invariant_EpochsAdvanceWithTime() public view {
