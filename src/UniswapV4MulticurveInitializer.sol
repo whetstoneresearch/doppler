@@ -252,19 +252,10 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         state.poolKey.currency1.transfer(msg.sender, balance1);
     }
 
-    /// @inheritdoc FeesManager
-    function _collectFees(
-        PoolId poolId
-    ) internal override returns (BalanceDelta fees) {
-        PoolState memory state = getState[getAsset[poolId]];
-        require(state.status == PoolStatus.Locked, PoolNotLocked());
-        fees = _collect(state.poolKey, state.positions);
-    }
-
     /**
      * @notice Returns the positions currently held in the Uniswap V4 pool for the given `asset`
      * @param asset Address of the asset used for the Uniswap V4 pool
-     * @return positions Array of positions currently held in the Uniswap V4 pool
+     * @return Array of positions currently held in the Uniswap V4 pool
      */
     function getPositions(
         address asset
@@ -275,11 +266,20 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     /**
      * @notice Returns the beneficiaries and their shares for the given `asset`
      * @param asset Address of the asset used for the Uniswap V4 pool
-     * @return beneficiaries Array of beneficiaries with their shares
+     * @return Array of beneficiaries with their shares
      */
     function getBeneficiaries(
         address asset
     ) external view returns (BeneficiaryData[] memory) {
         return getState[asset].beneficiaries;
+    }
+
+    /// @inheritdoc FeesManager
+    function _collectFees(
+        PoolId poolId
+    ) internal override returns (BalanceDelta fees) {
+        PoolState memory state = getState[getAsset[poolId]];
+        require(state.status == PoolStatus.Locked, PoolNotLocked());
+        fees = _collect(state.poolKey, state.positions);
     }
 }
