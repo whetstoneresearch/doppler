@@ -14,13 +14,21 @@ import { storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 error InvalidNewBeneficiary();
 
 /**
- * @notice Emitted a beneficiary collects their fees
+ * @notice Emitted when fees are released to a beneficiary
  * @param poolId Id of the Uniswap V4 pool
  * @param beneficiary Address of the beneficiary receiving the fees
+ * @param fees0 Amount of fees received in token0
+ * @param fees1 Amount of fees received in token1
+ */
+event Release(PoolId indexed poolId, address indexed beneficiary, uint256 fees0, uint256 fees1);
+
+/**
+ * @notice Emitted when fees are collected from a pool
+ * @param poolId Id of the Uniswap V4 pool
  * @param fees0 Amount of fees collected in token0
  * @param fees1 Amount of fees collected in token1
  */
-event Collect(PoolId indexed poolId, address indexed beneficiary, uint256 fees0, uint256 fees1);
+event Collect(PoolId indexed poolId, uint256 fees0, uint256 fees1);
 
 /**
  * @notice Emitted when a beneficiary is updated
@@ -80,6 +88,8 @@ abstract contract FeesManager is ReentrancyGuard {
         getCumulatedFees1[poolId] += fees1;
 
         _releaseFees(poolId, msg.sender);
+
+        emit Collect(poolId, fees0, fees1);
     }
 
     /**
@@ -145,7 +155,7 @@ abstract contract FeesManager is ReentrancyGuard {
             getLastCumulatedFees1[poolId][beneficiary] = getCumulatedFees1[poolId];
             if (amount1 > 0) poolKey.currency1.transfer(beneficiary, amount1);
 
-            emit Collect(poolId, beneficiary, amount0, amount1);
+            emit Release(poolId, beneficiary, amount0, amount1);
         }
     }
 
