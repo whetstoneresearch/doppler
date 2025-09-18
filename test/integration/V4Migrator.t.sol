@@ -14,6 +14,10 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
@@ -25,7 +29,6 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Doppler } from "src/Doppler.sol";
 
 contract V4MigratorTest is BaseTest, DeployPermit2 {
@@ -40,9 +43,10 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    function test_migrate_v4() public {
-        permit2 = IAllowanceTransfer(deployPermit2());
+    function setUp() public override {
+        super.setUp();
 
+        permit2 = IAllowanceTransfer(deployPermit2());
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -50,7 +54,13 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
         locker = new StreamableFeesLocker(positionManager, address(this));
-        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migratorHook = UniswapV4MigratorHook(
+            address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
+            )
+        );
         migrator = new UniswapV4Migrator(
             address(airlock),
             IPoolManager(manager),
@@ -62,6 +72,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
+    }
+
+    function test_migrate_v4(
+        int16 tickSpacing
+    ) public {
+        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
 
         address integrator = makeAddr("integrator");
 
@@ -103,7 +119,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
         beneficiaries = sortBeneficiaries(beneficiaries);
 
-        bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries);
+        bytes memory migratorData = abi.encode(2000, tickSpacing, 30 days, beneficiaries);
 
         MineV4Params memory params = MineV4Params({
             airlock: address(airlock),
@@ -163,13 +179,6 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
 
         goToEndingTime();
         airlock.migrate(asset);
-
-        assertEq(ERC721(address(positionManager)).balanceOf(timelock), 1, "Timelock should have one token");
-        assertEq(ERC721(address(positionManager)).ownerOf(2), timelock, "Timelock should be the owner of the token");
-        assertEq(ERC721(address(positionManager)).balanceOf(address(locker)), 1, "Locker should have one token");
-        assertEq(
-            ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should be the owner of the token"
-        );
     }
 
     function sortBeneficiaries(

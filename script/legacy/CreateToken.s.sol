@@ -2,10 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { IUniswapV2Router02 } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Router02.sol";
 import {
     Airlock,
-    ModuleState,
     CreateParams,
     ITokenFactory,
     IGovernanceFactory,
@@ -14,7 +12,6 @@ import {
 } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
 import { InitData } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 
