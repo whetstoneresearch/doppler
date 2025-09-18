@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
@@ -64,5 +65,57 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
     function test_beforeAddLiquidity_PassesWhenSenderParamInitializer() public {
         vm.prank(poolManager);
         hook.beforeAddLiquidity(initializer, emptyPoolKey, emptyParams, new bytes(0));
+    }
+
+    /// afterAddLiquidity ///
+
+    function test_afterAddLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        hook.afterAddLiquidity(
+            address(0),
+            emptyPoolKey,
+            emptyParams,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
+    function test_afterAddLiquidity_PassesWhenMsgSenderPoolManager() public {
+        vm.prank(poolManager);
+        hook.afterAddLiquidity(
+            address(0),
+            emptyPoolKey,
+            emptyParams,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
+    /// afterRemoveLiquidity ///
+
+    function test_afterRemoveLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        hook.afterRemoveLiquidity(
+            address(0),
+            emptyPoolKey,
+            emptyParams,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
+    function test_afterRemoveLiquidity_PassesWhenMsgSenderPoolManager() public {
+        vm.prank(poolManager);
+        hook.afterRemoveLiquidity(
+            address(0),
+            emptyPoolKey,
+            emptyParams,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
     }
 }
