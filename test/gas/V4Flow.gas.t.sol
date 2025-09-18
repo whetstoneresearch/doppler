@@ -55,7 +55,13 @@ contract V4FlowGas is Deployers, DeployPermit2 {
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
         locker = new StreamableFeesLocker(positionManager, address(this));
-        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migratorHook = UniswapV4MigratorHook(
+            address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
+            )
+        );
         migrator = new UniswapV4Migrator(
             address(airlock),
             IPoolManager(manager),
@@ -91,10 +97,10 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         bytes memory tokenFactoryData =
             abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
         bytes memory poolInitializerData =
-            abi.encode(0.01 ether, 10 ether, startingTime, endingTime, 174_312, 186_840, 200, 800, false, 10, 200, 2);
+            abi.encode(0.01 ether, 5 ether, startingTime, endingTime, 174_312, 186_840, 200, 800, false, 10, 200, 2);
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(airlock), shares: 0.05e18 });
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(this), shares: 0.05e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
         beneficiaries = sortBeneficiaries(beneficiaries);
@@ -197,9 +203,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         do {
             deal(address(this), 0.1 ether);
 
-            swapRouter.swap{ value: 0.0001 ether }(
+            swapRouter.swap{ value: 0.001 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
-                IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+                IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
                 ""
             );
