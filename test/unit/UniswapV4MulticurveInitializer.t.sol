@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { ERC20 } from "@solmate/tokens/ERC20.sol";
+import { console } from "forge-std/console.sol";
 
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IPoolManager, PoolKey } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -12,6 +13,7 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import {
     UniswapV4MulticurveInitializer,
     InitData,
@@ -39,15 +41,16 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
 
+    uint256 internal totalTokensOnBondingCurve = 1e27;
     PoolKey internal poolKey;
     PoolId internal poolId;
+    address internal asset;
+    address internal numeraire;
 
     function setUp() public {
         deployFreshManagerAndRouters();
         (currency0, currency1) = deployAndMint2Currencies();
         airlock = new Airlock(airlockOwner);
-        currency0.transfer(address(airlock), currency0.balanceOfSelf());
-        // currency1.transfer(address(airlock), currency1.balanceOfSelf());
         hook = UniswapV4MulticurveInitializerHook(
             address(
                 uint160(
@@ -57,15 +60,20 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
             )
         );
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, hook);
-
-        vm.startPrank(address(airlock));
-        ERC20(Currency.unwrap(currency0)).approve(address(initializer), type(uint256).max);
-        ERC20(Currency.unwrap(currency1)).approve(address(initializer), type(uint256).max);
-        vm.stopPrank();
-
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(hook));
-        vm.label(Currency.unwrap(currency0), "Currency0");
-        vm.label(Currency.unwrap(currency1), "Currency1");
+    }
+
+    modifier prepareAsset(
+        bool isToken0
+    ) {
+        asset = isToken0 ? Currency.unwrap(currency0) : Currency.unwrap(currency1);
+        numeraire = isToken0 ? Currency.unwrap(currency1) : Currency.unwrap(currency0);
+        vm.label(asset, "Asset");
+        vm.label(numeraire, "Numeraire");
+        (isToken0 ? currency0 : currency1).transfer(address(airlock), currency0.balanceOfSelf());
+        vm.prank(address(airlock));
+        ERC20(asset).approve(address(initializer), type(uint256).max);
+        _;
     }
 
     // constructor() //
@@ -82,64 +90,60 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
         vm.expectRevert(SenderNotAirlock.selector);
         initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), 1e27, bytes32(0), abi.encode(initData)
+            Currency.unwrap(currency0),
+            Currency.unwrap(currency1),
+            totalTokensOnBondingCurve,
+            bytes32(0),
+            abi.encode(initData)
         );
     }
 
-    function test_initialize_RevertsWhenAlreadyInitialized() public {
-        uint256 totalTokensOnBondingCurve = 1e27;
-        InitData memory initData = _prepareInitData();
-
-        vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
+    function test_initialize_RevertsWhenAlreadyInitialized(
+        bool isToken0
+    ) public {
+        InitData memory initData = test_initialize_InitializesPool(isToken0);
         vm.expectRevert(PoolAlreadyInitialized.selector);
         vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), 1e27, bytes32(0), abi.encode(initData)
-        );
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
     }
 
-    function test_initialize_AddsLiquidity() public {
-        uint256 totalTokensOnBondingCurve = 1e27;
-        InitData memory initData = _prepareInitData();
+    function test_initialize_InitializesPool(
+        bool isToken0
+    ) public prepareAsset(isToken0) returns (InitData memory initData) {
+        initData = _prepareInitData();
+
+        vm.expectEmit();
+        emit IPoolInitializer.Create(address(manager), asset, numeraire);
 
         vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
+        address returnedAsset =
+            initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+        assertEq(returnedAsset, asset, "Returned asset address is incorrect");
 
+        (, PoolStatus status,,) = initializer.getState(asset);
+        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
+    }
+
+    function test_initialize_AddsLiquidity(
+        bool isToken0
+    ) public {
+        test_initialize_InitializesPool(isToken0);
+        console.logBytes32(PoolId.unwrap(poolId));
         uint128 liquidity = manager.getLiquidity(poolId);
         assertGt(liquidity, 0, "Liquidity is zero");
     }
 
-    function test_initialize_InitializesPool() public {
-        uint256 totalTokensOnBondingCurve = 1e27;
-        InitData memory initData = _prepareInitData();
-
-        vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
-
-        (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
-        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
-    }
-
-    function test_initialize_LocksPool() public {
-        uint256 totalTokensOnBondingCurve = 1e27;
+    function test_initialize_LocksPool(
+        bool isToken0
+    ) public prepareAsset(isToken0) {
         InitData memory initData = _prepareInitDataLock();
-
         vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
-        (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
+        (, PoolStatus status,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Locked), "Pool status should be locked");
 
-        BeneficiaryData[] memory beneficiaries = initializer.getBeneficiaries(Currency.unwrap(currency0));
+        BeneficiaryData[] memory beneficiaries = initializer.getBeneficiaries(asset);
 
         for (uint256 i; i < initData.beneficiaries.length; i++) {
             assertEq(beneficiaries[i].beneficiary, initData.beneficiaries[i].beneficiary, "Incorrect beneficiary");
@@ -147,46 +151,38 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         }
     }
 
-    function test_initialize_StoresPoolState() public {
-        uint256 totalTokensOnBondingCurve = 1e27;
-        InitData memory initData = _prepareInitData();
+    function test_initialize_StoresPoolState(
+        bool isToken0
+    ) public {
+        InitData memory initData = test_initialize_InitializesPool(isToken0);
 
-        vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
-
-        (address numeraire, PoolStatus status, PoolKey memory key, int24 farTick) =
-            initializer.getState(Currency.unwrap(currency0));
+        (address returnedNumeraire, PoolStatus status, PoolKey memory key, int24 farTick) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be initialized");
 
-        assertEq(numeraire, Currency.unwrap(currency1), "Incorrect numeraire");
+        assertEq(returnedNumeraire, numeraire, "Incorrect numeraire");
         assertEq(Currency.unwrap(key.currency0), Currency.unwrap(currency0), "Incorrect currency0");
         assertEq(Currency.unwrap(key.currency1), Currency.unwrap(currency1), "Incorrect currency1");
         assertEq(key.fee, initData.fee, "Incorrect fee");
         assertEq(key.tickSpacing, initData.tickSpacing, "Incorrect tick spacing");
         assertEq(address(key.hooks), address(hook), "Incorrect hook");
-        assertEq(farTick, 240_000, "Incorrect far tick");
+        assertEq(farTick, isToken0 ? int24(240_000) : int24(-240_000), "Incorrect far tick");
     }
 
     // exitLiquidity() //
 
-    function test_exitLiquidity() public {
-        uint256 totalTokensOnBondingCurve = 1e27;
-        InitData memory initData = _prepareInitData();
+    function test_exitLiquidity(
+        bool isToken0
+    ) public {
+        test_initialize_InitializesPool(isToken0);
 
+        (,,, int24 farTick) = initializer.getState(asset);
+        _buyUntilFarTick(farTick, isToken0);
         vm.prank(address(airlock));
-        initializer.initialize(
-            Currency.unwrap(currency0), Currency.unwrap(currency1), totalTokensOnBondingCurve, 0, abi.encode(initData)
-        );
-        (,,, int24 farTick) = initializer.getState(Currency.unwrap(currency0));
-        _buyUntilFarTick(totalTokensOnBondingCurve, farTick, true);
-        vm.prank(address(airlock));
-        (uint160 sqrtPriceX96,,,,,,) = initializer.exitLiquidity(Currency.unwrap(currency0));
+        (uint160 sqrtPriceX96,,,,,,) = initializer.exitLiquidity(asset);
 
         assertEq(sqrtPriceX96, TickMath.getSqrtPriceAtTick(farTick), "Incorrect returned sqrtPriceX96");
 
-        (, PoolStatus status,,) = initializer.getState(Currency.unwrap(currency0));
+        (, PoolStatus status,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Exited), "Pool status should be Exited");
 
         assertEq(currency0.balanceOf(address(initializer)), 0, "Initializer should have zero balance of token0");
@@ -197,7 +193,7 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
 
         assertEq(manager.getLiquidity(poolId), 0, "Pool liquidity should be zero");
 
-        Position[] memory positions = initializer.getPositions(Currency.unwrap(currency0));
+        Position[] memory positions = initializer.getPositions(asset);
 
         for (uint256 i; i < positions.length; i++) {
             (uint128 liquidity,,) = manager.getPositionInfo(
@@ -207,24 +203,33 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         }
     }
 
-    function test_exitLiquidity_RevertsWhenSenderNotAirlock() public {
-        test_initialize_AddsLiquidity();
+    function test_exitLiquidity_RevertsWhenSenderNotAirlock(
+        bool isToken0
+    ) public {
+        test_initialize_InitializesPool(isToken0);
         vm.expectRevert(SenderNotAirlock.selector);
-        initializer.exitLiquidity(Currency.unwrap(currency0));
+        initializer.exitLiquidity(asset);
     }
 
-    function test_exitLiquidity_RevertsWhenPoolNotInitialized() public {
-        test_exitLiquidity();
+    function test_exitLiquidity_RevertsWhenPoolNotInitialized(
+        bool isToken0
+    ) public {
+        test_exitLiquidity(isToken0);
         vm.expectRevert(PoolAlreadyExited.selector);
         vm.prank(address(airlock));
-        initializer.exitLiquidity(Currency.unwrap(currency0));
+        initializer.exitLiquidity(asset);
     }
 
-    function test_exitLiquidity_RevertsWhenInsufficientTick() public {
-        test_initialize_AddsLiquidity();
+    function test_exitLiquidity_RevertsWhenInsufficientTick(
+        bool isToken0
+    ) public {
+        test_initialize_InitializesPool(isToken0);
+        (,,, int24 farTick) = initializer.getState(asset);
+        (, int24 tick,,) = manager.getSlot0(poolId);
+
         vm.prank(address(airlock));
-        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, 240_000, 160_000));
-        initializer.exitLiquidity(Currency.unwrap(currency0));
+        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, farTick, tick));
+        initializer.exitLiquidity(asset);
     }
 
     // collectFees() //
@@ -232,6 +237,25 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
     function test_collectFees_RevertsWhenPoolNotLocked() public {
         vm.expectRevert(PoolNotLocked.selector);
         initializer.collectFees(PoolId.wrap(0));
+    }
+
+    function test_collectFees(
+        bool isToken0
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitDataLock();
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1e18,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        ERC20(numeraire).approve(address(swapRouter), type(uint256).max);
+        swapRouter.swap(poolKey, params, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        initializer.collectFees(poolId);
     }
 
     // Utils //
@@ -264,19 +288,14 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         return initData;
     }
 
-    function _buyUntilFarTick(uint256 totalTokensOnBondingCurve, int24 farTick, bool isToken0) internal {
+    function _buyUntilFarTick(int24 farTick, bool isToken0) internal {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: int256(totalTokensOnBondingCurve),
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        if (isToken0) {
-            ERC20(Currency.unwrap(currency1)).approve(address(swapRouter), type(uint256).max);
-        } else {
-            ERC20(Currency.unwrap(currency0)).approve(address(swapRouter), type(uint256).max);
-        }
-
+        ERC20(numeraire).approve(address(swapRouter), type(uint256).max);
         swapRouter.swap(poolKey, params, PoolSwapTest.TestSettings(false, false), new bytes(0));
         (, int24 tick,,) = manager.getSlot0(poolId);
         assertTrue(((isToken0 && tick >= farTick) || (!isToken0 && tick <= farTick)), "Did not reach far tick");
