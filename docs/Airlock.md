@@ -19,12 +19,11 @@ _Note: a "module" must be whitelisted before it can be used._
 ---
 title: Protocol Architecture
 ---
-
 flowchart LR
-    MS(Whetstone MultiSig) --> |set modules|A
+    MS{Whetstone<br />MultiSig} --> |set modules|A
     Bundler --> |calls|A
 
-    A{Airlock} --> TFM
+    A[Airlock] --> TFM
     A --> GFM
     A --> LMM
     A --> PIM
@@ -35,33 +34,46 @@ flowchart LR
 
     style TFM fill:#ECD9FA, color:#000
 
-    TF --> |Deploys| DERC20
+    TF --o DERC20
 
     subgraph GFM[GovernanceFactory Modules]
-        GF[GovernanceFactory]
-        NOG[NoOpGovernanceFactory]
+        GovernanceFactory
+        NoOpGovernanceFactory
     end
 
     style GFM fill:#ADF0D4, color:#000
 
-    GF --> |Deploys| Governance
-    GF --> |Calls| TMF[TimelockFactory]
-    TMF --> |Deploys| Timelock
+    GovernanceFactory --o Governance
+    GovernanceFactory -.->TimelockFactory
+    TimelockFactory -.-> Timelock
+
+    style Governance fill:green
 
     subgraph PIM[PoolInitializer Modules]
-        UniV3Init[UniswapV3Initializer]
-        UniV4Init[UniswapV4Initializer]
+        UniswapV3Initializer
+        UniswapV4Initializer
+        UniswapV4MulticurveInitializer
     end
 
     style PIM fill:#B6ECF7, color:#000
 
-    UniV3Init --> |initializes pool| UniswapV3
-    UniV4Init --> |initializes pool| UniswapV4
+    UniswapV3Initializer --> |initializes pool| UniswapV3
+    UniswapV4Initializer --> |initializes pool| UniswapV4
+    UniswapV4MulticurveInitializer --> |initializes pool| UniswapV4
 
     subgraph LMM[LiquidtyMigrator Modules]
         UniswapV2Migrator
         UniswapV4Migrator
+        UniswapV4MulticurveMigrator
     end
 
     style LMM fill:#F6EEB4, color:#000
+
+    UniswapV2Migrator --> |migrates| UniswapV2
+    UniswapV4Migrator --> |migrates| UniswapV4
+    UniswapV4MulticurveMigrator --> |migrates| UniswapV4
+
+    style UniswapV2 fill:#ff37c7
+    style UniswapV3 fill:#ff37c7
+    style UniswapV4 fill:#ff37c7
 ```
