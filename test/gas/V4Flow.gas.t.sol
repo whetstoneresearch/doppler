@@ -203,9 +203,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         do {
             deal(address(this), 0.1 ether);
 
-            swapRouter.swap{ value: 0.001 ether }(
+            swapRouter.swap{ value: 0.01 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
-                IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
+                IPoolManager.SwapParams(true, -int256(0.01 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
                 ""
             );
