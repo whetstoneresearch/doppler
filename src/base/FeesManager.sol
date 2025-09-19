@@ -125,14 +125,14 @@ abstract contract FeesManager is ReentrancyGuard {
      * @param poolKey Key of the Uniswap V4 pool to which the beneficiaries are associated
      */
     function _storeBeneficiaries(
+        PoolKey memory poolKey,
         BeneficiaryData[] memory beneficiaries,
         address protocolOwner,
-        uint96 protocolOwnerShares,
-        PoolKey memory poolKey
+        uint96 protocolOwnerShares
     ) internal {
         PoolId poolId = poolKey.toId();
         getPoolKey[poolId] = poolKey;
-        storeBeneficiaries(beneficiaries, protocolOwner, protocolOwnerShares, poolId, _storeBeneficiary);
+        storeBeneficiaries(poolId, beneficiaries, protocolOwner, protocolOwnerShares, _storeBeneficiary);
     }
 
     /**

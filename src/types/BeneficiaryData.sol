@@ -46,10 +46,10 @@ struct BeneficiaryData {
  * @param storeBeneficiary Function to call to store each beneficiary (if `poolId` is not zero)
  */
 function storeBeneficiaries(
+    PoolId poolId,
     BeneficiaryData[] memory beneficiaries,
     address protocolOwner,
     uint96 protocolOwnerShares,
-    PoolId poolId,
     function(PoolId, BeneficiaryData memory) storeBeneficiary
 ) {
     address prevBeneficiary;
