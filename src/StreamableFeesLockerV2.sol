@@ -123,7 +123,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
             positions: positions
         });
 
-        _storeBeneficiaries(beneficiaries, owner(), MIN_PROTOCOL_OWNER_SHARES, poolKey);
+        _storeBeneficiaries(poolKey, beneficiaries, owner(), MIN_PROTOCOL_OWNER_SHARES);
         _mint(poolKey, positions);
 
         emit Lock(poolId, beneficiaries, recipient != DEAD_ADDRESS ? block.timestamp + lockDuration : 0);

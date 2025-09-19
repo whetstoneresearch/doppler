@@ -99,7 +99,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         // We intentionnaly pass an empty PoolId to avoid storing the shares in this contract
         storeBeneficiaries(
-            beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _storeBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, _storeBeneficiary
         );
 
         PoolKey memory poolKey = PoolKey({

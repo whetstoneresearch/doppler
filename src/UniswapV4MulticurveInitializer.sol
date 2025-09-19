@@ -199,7 +199,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         emit Create(address(poolManager), asset, numeraire);
 
         if (beneficiaries.length != 0) {
-            _storeBeneficiaries(beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, poolKey);
+            _storeBeneficiaries(poolKey, beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
             emit Lock(asset, beneficiaries);
         }
 

@@ -121,7 +121,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
         storeBeneficiaries(
-            beneficiaries, Airlock(airlock).owner(), MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(0), storeBeneficiary
+            PoolId.wrap(0), beneficiaries, Airlock(airlock).owner(), MIN_PROTOCOL_OWNER_SHARES, storeBeneficiary
         );
 
         PoolKey memory poolKey = PoolKey({
