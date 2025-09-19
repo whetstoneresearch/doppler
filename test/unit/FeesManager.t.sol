@@ -50,8 +50,8 @@ contract FeesManagerImplementation is FeesManager {
 }
 
 contract PoolManagerMock {
-    TestERC20 internal token0;
-    TestERC20 internal token1;
+    TestERC20 public token0;
+    TestERC20 public token1;
 
     constructor(TestERC20 token0_, TestERC20 token1_) {
         token0 = token0_;
@@ -166,14 +166,13 @@ contract FeesManagerTest is Test {
     /*                                collectFees()                                */
     /* --------------------------------------------------------------------------- */
 
-    function test_collectFees_CollectPoolFees() public {
+    function test_collectFees_CollectPoolFees(uint256 fees0, uint256 fees1) public {
+        vm.assume(fees0 < type(uint48).max && fees1 < type(uint48).max);
+
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
         feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
-
-        uint256 fees0 = 10e18;
-        uint256 fees1 = 20e18;
 
         poolManager.setFees(fees0, fees1);
 
@@ -200,20 +199,20 @@ contract FeesManagerTest is Test {
         }
     }
 
-    function test_collectFees_ReleasesIfBeneficiary() public {
+    function test_collectFees_ReleasesIfBeneficiary(uint256 fees0, uint256 fees1) public {
+        vm.assume(fees0 < type(uint48).max && fees1 < type(uint48).max);
+
         address beneficiary0 = address(0xaaa);
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary0, shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
         feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
 
-        uint256 fees0 = 10e18;
-        uint256 fees1 = 20e18;
+        poolManager.setFees(fees0, fees1);
 
         uint256 expectedFees0 = fees0 * 95 / 100;
         uint256 expectedFees1 = fees1 * 95 / 100;
 
-        poolManager.setFees(fees0, fees1);
         vm.expectEmit();
         emit Release(poolId, beneficiary0, expectedFees0, expectedFees1);
         vm.prank(beneficiary0);
