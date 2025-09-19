@@ -76,7 +76,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         _;
     }
 
-    // constructor() //
+    /* --------------------------------------------------------------------------- */
+    /*                                constructor()                                */
+    /* --------------------------------------------------------------------------- */
 
     function test_constructor() public view {
         assertEq(address(initializer.airlock()), address(airlock));
@@ -84,7 +86,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         assertEq(address(initializer.hook()), address(hook));
     }
 
-    // initialize() //
+    /* -------------------------------------------------------------------------- */
+    /*                                initialize()                                */
+    /* -------------------------------------------------------------------------- */
 
     function test_initialize_RevertsWhenSenderNotAirlock() public {
         InitData memory initData = _prepareInitData();
@@ -168,7 +172,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         assertEq(farTick, isToken0 ? int24(240_000) : int24(-240_000), "Incorrect far tick");
     }
 
-    // exitLiquidity() //
+    /* ----------------------------------------------------------------------------- */
+    /*                                exitLiquidity()                                */
+    /* ----------------------------------------------------------------------------- */
 
     function test_exitLiquidity(
         bool isToken0
@@ -232,7 +238,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         initializer.exitLiquidity(asset);
     }
 
-    // collectFees() //
+    /* --------------------------------------------------------------------------- */
+    /*                                collectFees()                                */
+    /* --------------------------------------------------------------------------- */
 
     function test_collectFees_RevertsWhenPoolNotLocked() public {
         vm.expectRevert(PoolNotLocked.selector);
@@ -258,7 +266,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         initializer.collectFees(poolId);
     }
 
-    // Utils //
+    /* ----------------------------------------------------------------------- */
+    /*                                Utilities                                */
+    /* ----------------------------------------------------------------------- */
 
     function _prepareInitData() internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
