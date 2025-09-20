@@ -50,6 +50,7 @@ struct InitData {
     int24 tickSpacing;
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
+    uint32 startingTime;
 }
 
 /// @notice Possible status of a pool, note a locked pool cannot be exited
@@ -76,6 +77,7 @@ struct PoolState {
     PoolStatus status;
     PoolKey poolKey;
     int24 farTick;
+    uint32 startingTime;
 }
 
 /**
@@ -159,8 +161,13 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
 
         InitData memory initData = abi.decode(data, (InitData));
 
-        (uint24 fee, int24 tickSpacing, Curve[] memory curves, BeneficiaryData[] memory beneficiaries) =
-            (initData.fee, initData.tickSpacing, initData.curves, initData.beneficiaries);
+        (
+            uint24 fee,
+            int24 tickSpacing,
+            Curve[] memory curves,
+            BeneficiaryData[] memory beneficiaries,
+            uint32 startingTime
+        ) = (initData.fee, initData.tickSpacing, initData.curves, initData.beneficiaries, initData.startingTime);
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -187,7 +194,8 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
             positions: positions,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
-            farTick: isToken0 ? tickUpper : tickLower
+            farTick: isToken0 ? tickUpper : tickLower,
+            startingTime: uint32(startingTime <= block.timestamp ? block.timestamp : startingTime)
         });
 
         getState[asset] = state;
