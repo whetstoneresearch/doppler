@@ -3,20 +3,25 @@ pragma solidity ^0.8.24;
 
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 import { Script, console } from "forge-std/Script.sol";
 import { Airlock } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 
 struct DeployBundlerScriptData {
     address airlock;
-    address quoter;
+    address quoterV2;
+    address quoterV4;
     address router;
 }
 
 contract DeployBundlerScript is Script {
-    function _deployBundler(Airlock airlock, UniversalRouter router, IQuoterV2 quoter) internal returns (Bundler) {
+    function _deployBundler(Airlock airlock, UniversalRouter router, IQuoterV2 quoter, IV4Quoter quoterV4)
+        internal
+        returns (Bundler)
+    {
         vm.startBroadcast();
-        Bundler bundler = new Bundler(airlock, router, quoter);
+        Bundler bundler = new Bundler(airlock, router, quoter, quoterV4);
         vm.stopBroadcast();
         return bundler;
     }
@@ -38,7 +43,8 @@ contract DeployBundlerScript is Script {
         _deployBundler(
             Airlock(payable(scriptData.airlock)),
             UniversalRouter(payable(scriptData.router)),
-            IQuoterV2(scriptData.quoter)
+            IQuoterV2(scriptData.quoterV2),
+            IV4Quoter(scriptData.quoterV4)
         );
 
         /*
