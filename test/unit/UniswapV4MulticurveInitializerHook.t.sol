@@ -41,7 +41,9 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(poolManager, initializer), address(hook));
     }
 
-    /// beforeInitialize ///
+    /* -------------------------------------------------------------------------------- */
+    /*                                beforeInitialize()                                */
+    /* -------------------------------------------------------------------------------- */
 
     function test_beforeInitialize_RevertsWhenSenderParamNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
@@ -59,7 +61,9 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         hook.beforeInitialize(initializer, emptyPoolKey, 0);
     }
 
-    /// beforeAddLiquidity ///
+    /* ---------------------------------------------------------------------------------- */
+    /*                                beforeAddLiquidity()                                */
+    /* ---------------------------------------------------------------------------------- */
 
     function test_beforeAddLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
@@ -77,7 +81,9 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         hook.beforeAddLiquidity(initializer, emptyPoolKey, emptyParams, new bytes(0));
     }
 
-    /// afterAddLiquidity ///
+    /* --------------------------------------------------------------------------------- */
+    /*                                afterAddLiquidity()                                */
+    /* --------------------------------------------------------------------------------- */
 
     function test_afterAddLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
@@ -126,7 +132,9 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         );
     }
 
-    /// afterRemoveLiquidity ///
+    /* ------------------------------------------------------------------------------------ */
+    /*                                afterRemoveLiquidity()                                */
+    /* ------------------------------------------------------------------------------------ */
 
     function test_afterRemoveLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
@@ -175,7 +183,9 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         );
     }
 
-    /// afterSwap ///
+    /* ------------------------------------------------------------------------- */
+    /*                                afterSwap()                                */
+    /* ------------------------------------------------------------------------- */
 
     function test_afterSwap_RevertsWhenMsgSenderNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
