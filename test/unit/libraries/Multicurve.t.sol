@@ -172,6 +172,10 @@ contract MulticurveTest is Test {
         adjustCurves(curves, 0, int24(8), false);
     }
 
+    /* ------------------------------------------------------------------------------- */
+    /*                                calculateLpTail()                                */
+    /* ------------------------------------------------------------------------------- */
+
     function test_calculateLpTail() public pure {
         bytes32 salt = bytes32("salt");
         int24 tickLower = 160_000;
@@ -187,6 +191,10 @@ contract MulticurveTest is Test {
         assertEq(lpTail.tickUpper, TickMath.MAX_TICK, "Incorrect upper tick");
         assertGt(lpTail.liquidity, 0, "Incorrect liquidity");
     }
+
+    /* ---------------------------------------------------------------------------------------------- */
+    /*                                calculateLogNormalDistribution()                                */
+    /* ---------------------------------------------------------------------------------------------- */
 
     function test_calculateLogNormalDistribution() public pure {
         int24 tickLower = 160_000;
@@ -209,6 +217,10 @@ contract MulticurveTest is Test {
             assertGt(positions[i].liquidity, 0, "Liquidity is zero");
         }
     }
+
+    /* ---------------------------------------------------------------------------------- */
+    /*                                calculatePositions()                                */
+    /* ---------------------------------------------------------------------------------- */
 
     function test_calculatePositions() public pure {
         int24 tickSpacing = 8;
@@ -258,18 +270,5 @@ contract MulticurveTest is Test {
         Position memory headPosition = positions[positions.length - 1];
         assertEq(headPosition.tickLower, TickMath.MIN_TICK, "Incorrect head position lower tick");
         assertEq(headPosition.tickUpper, 160_000 - tickSpacing, "Incorrect head position upper tick");
-    }
-
-    function _printPositions(
-        Position[] memory positions
-    ) internal pure {
-        for (uint256 i; i < positions.length; ++i) {
-            console.log("Position #%s", i);
-            console.log("Salt: %s", uint256(positions[i].salt));
-            console.log("Lower tick %s", positions[i].tickLower);
-            console.log("Upper tick %s", positions[i].tickUpper);
-            console.log("Liquidity %s", positions[i].liquidity);
-            console.log("-----");
-        }
     }
 }
