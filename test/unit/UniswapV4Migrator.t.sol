@@ -67,8 +67,8 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         _setUpTokens();
 
         airlock = new MockAirlock(protocolOwner);
-        asset = new TestERC20(1e27);
-        numeraire = new TestERC20(1e27);
+        asset = address(new TestERC20(1e27));
+        numeraire = address(new TestERC20(1e27));
         migratorHook = UniswapV4MigratorHook(
             address(
                 uint160(
