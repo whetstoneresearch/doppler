@@ -126,7 +126,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     using BalanceDeltaLibrary for BalanceDelta;
 
     /// @notice Address of the Uniswap V4 Multicurve hook
-    IHooks public immutable hook;
+    IHooks public immutable HOOK;
 
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
@@ -144,7 +144,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         IPoolManager poolManager_,
         IHooks hook_
     ) ImmutableAirlock(airlock_) MiniV4Manager(poolManager_) {
-        hook = hook_;
+        HOOK = hook_;
     }
 
     /// @inheritdoc IPoolInitializer
@@ -165,7 +165,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: hook,
+            hooks: HOOK,
             fee: fee,
             tickSpacing: tickSpacing
         });
