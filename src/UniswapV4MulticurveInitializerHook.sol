@@ -48,14 +48,14 @@ event Swap(
  */
 contract UniswapV4MulticurveInitializerHook is BaseHook {
     /// @notice Address of the Uniswap V4 Multicurve Initializer contract
-    address public immutable initializer;
+    address public immutable INITIALIZER;
 
     /// @notice Modifier to ensure the caller is the Uniswap V4 Multicurve Initializer
     /// @param sender Address of the caller
     modifier onlyInitializer(
         address sender
     ) {
-        if (sender != initializer) revert OnlyInitializer();
+        if (sender != INITIALIZER) revert OnlyInitializer();
         _;
     }
 
@@ -65,7 +65,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
      * @param initializer_ Address of the Uniswap V4 Multicurve Initializer contract
      */
     constructor(IPoolManager manager, UniswapV4MulticurveInitializer initializer_) BaseHook(manager) {
-        initializer = address(initializer_);
+        INITIALIZER = address(initializer_);
     }
 
     /// @inheritdoc BaseHook
