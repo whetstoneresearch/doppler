@@ -57,11 +57,3 @@ abstract contract DeployV3Script is Script {
         vm.stopBroadcast();
     }
 }
-
-/// @dev forge script DeployDomaTestnetV3Script --private-key $PRIVATE_KEY --verify —-verifier blockscout --verifier-url https://explorer-testnet.doma.xyz/api/ --rpc-url $DOMA_TESTNET_RPC_URL --slow --broadcast
-contract DeployDomaTestnetV3Script is DeployV3Script {
-    function setUp() public override {
-        _scriptData =
-            ScriptData({ chainId: ChainIds.DOMA_TESTNET, uniswapV3Factory: 0x3b541e3e75ea16123b73c4442Dae6B8dF71a83af });
-    }
-}

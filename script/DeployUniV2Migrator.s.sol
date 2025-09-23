@@ -32,15 +32,3 @@ abstract contract DeployUniV2MigratorScript is Script {
         vm.stopBroadcast();
     }
 }
-
-/// @dev forge script DeployUniV2MigratorDomeTestnetScript --private-key $PRIVATE_KEY --rpc-url $DOMA_TESTNET_RPC_URL --slow --broadcast --verifier blockscout --verifier-url https://explorer-testnet.doma.xyz/api/
-contract DeployUniV2MigratorDomeTestnetScript is DeployUniV2MigratorScript {
-    function setUp() public override {
-        _scriptData = ScriptData({
-            chainId: ChainIds.DOMA_TESTNET,
-            airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
-            uniswapV2Factory: 0xC99b485499f78995C6F1640dbB1413c57f8BA684,
-            uniswapV2Router: 0xCe3099B2F07029b086E5e92a1573C5f5A3071783
-        });
-    }
-}
