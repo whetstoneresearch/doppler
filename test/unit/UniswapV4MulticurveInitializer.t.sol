@@ -22,7 +22,8 @@ import {
     PoolAlreadyInitialized,
     PoolStatus,
     PoolNotLocked,
-    PoolAlreadyExited
+    PoolAlreadyExited,
+    Lock
 } from "src/UniswapV4MulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -143,6 +144,9 @@ contract UniswapV4MulticurveInitializerTest is Deployers {
         bool isToken0
     ) public prepareAsset(isToken0) {
         InitData memory initData = _prepareInitDataLock();
+
+        vm.expectEmit();
+        emit Lock(asset, initData.beneficiaries);
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
