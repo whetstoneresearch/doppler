@@ -157,7 +157,8 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             i++;
             deal(address(this), 0.1 ether);
 
-            (Currency currency0, Currency currency1, uint24 fee,, IHooks hooks) = Doppler(payable(hook)).poolKey();
+            (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
+                Doppler(payable(hook)).poolKey();
 
             swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
