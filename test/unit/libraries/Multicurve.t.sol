@@ -235,6 +235,10 @@ contract MulticurveTest is Test {
 
         Position[] memory positions = calculatePositions(curves, tickSpacing, 1e27, 0, true);
         assertEq(positions.length, 50, "Incorrect number of positions");
+
+        for (uint256 i; i < positions.length; ++i) {
+            assertGt(positions[i].liquidity, 0, "Liquidity is zero");
+        }
     }
 
     /// forge-config: default.allow_internal_expect_revert = true
