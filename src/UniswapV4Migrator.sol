@@ -13,9 +13,13 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { BeneficiaryData, storeBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
+import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
+import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { Airlock } from "src/Airlock.sol";
 
 /**
@@ -56,27 +60,6 @@ error TickOutOfRange();
 /// @dev Thrown when the computed liquidity is zero
 error ZeroLiquidity();
 
-/// @dev Thrown when the beneficiaries are not in ascending order
-error UnorderedBeneficiaries();
-
-/// @notice Thrown when shares are invalid
-error InvalidShares();
-
-/// @notice Thrown when protocol owner shares are invalid
-error InvalidProtocolOwnerShares();
-
-/// @notice Thrown when protocol owner beneficiary is not found
-error InvalidProtocolOwnerBeneficiary();
-
-/// @notice Thrown when total shares are not equal to WAD
-error InvalidTotalShares();
-
-/// @notice Thrown when an invalid length is used
-error InvalidLength();
-
-/// @dev WAD constant for precise decimal calculations
-uint256 constant WAD = 1e18;
-
 /**
  * @title Uniswap V4 Migrator
  * @author Whetstone Research
@@ -98,12 +81,6 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
     /// @notice Address of the Uniswap V4 Migrator Hook
     IHooks public immutable migratorHook;
-
-    /// @notice Dead address used for no-op governance
-    address public constant DEAD_ADDRESS = address(0xdead);
-
-    /// @notice Empty address used to indicate no pool exists (bc v4 is a singleton)
-    address public constant EMPTY_ADDRESS = address(0);
 
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
@@ -141,85 +118,24 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         (uint24 fee, int24 tickSpacing, uint32 lockDuration, BeneficiaryData[] memory beneficiaries) =
             abi.decode(liquidityMigratorData, (uint24, int24, uint32, BeneficiaryData[]));
 
-        _validateTickSpacing(tickSpacing);
+        isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
-        _validateBeneficiaries(beneficiaries);
+        storeBeneficiaries(
+            PoolId.wrap(0), beneficiaries, Airlock(airlock).owner(), MIN_PROTOCOL_OWNER_SHARES, storeBeneficiary
+        );
 
-        PoolKey memory poolKey = _createPoolKey(asset, numeraire, fee, tickSpacing);
-
-        getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
-            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
-
-        return EMPTY_ADDRESS; // v4 pools are represented by their PoolKey, so we return an empty address
-    }
-
-    /**
-     * @dev Validates tick spacing parameters
-     * @param tickSpacing The tick spacing to validate
-     */
-    function _validateTickSpacing(
-        int24 tickSpacing
-    ) internal pure {
-        require(tickSpacing <= TickMath.MAX_TICK_SPACING, IPoolManager.TickSpacingTooLarge(tickSpacing));
-        require(tickSpacing >= TickMath.MIN_TICK_SPACING, IPoolManager.TickSpacingTooSmall(tickSpacing));
-    }
-
-    /**
-     * @dev Validates beneficiaries array and ensures protocol owner compliance
-     * @param beneficiaries Array of beneficiaries to validate
-     */
-    function _validateBeneficiaries(
-        BeneficiaryData[] memory beneficiaries
-    ) internal view {
-        require(beneficiaries.length > 0, InvalidLength());
-
-        address protocolOwner = Airlock(airlock).owner();
-        address prevBeneficiary;
-        uint256 totalShares;
-        bool foundProtocolOwner;
-
-        for (uint256 i = 0; i < beneficiaries.length; i++) {
-            BeneficiaryData memory beneficiary = beneficiaries[i];
-
-            // Validate ordering and shares
-            require(prevBeneficiary < beneficiary.beneficiary, UnorderedBeneficiaries());
-            require(beneficiary.shares > 0, InvalidShares());
-
-            // Check for protocol owner and validate minimum share requirement
-            if (beneficiary.beneficiary == protocolOwner) {
-                require(beneficiary.shares >= WAD / 20, InvalidProtocolOwnerShares());
-                foundProtocolOwner = true;
-            }
-
-            prevBeneficiary = beneficiary.beneficiary;
-            totalShares += beneficiary.shares;
-        }
-
-        require(totalShares == WAD, InvalidTotalShares());
-        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
-    }
-
-    /**
-     * @dev Creates a PoolKey struct with proper currency ordering
-     * @param asset Asset token address
-     * @param numeraire Numeraire token address
-     * @param fee Pool fee
-     * @param tickSpacing Tick spacing
-     * @return poolKey Constructed PoolKey
-     */
-    function _createPoolKey(
-        address asset,
-        address numeraire,
-        uint24 fee,
-        int24 tickSpacing
-    ) internal view returns (PoolKey memory poolKey) {
-        poolKey = PoolKey({
+        PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: migratorHook,
             fee: fee,
             tickSpacing: tickSpacing
         });
+
+        getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
+            AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
+
+        return EMPTY_ADDRESS; // v4 pools are represented by their PoolKey, so we return an empty address
     }
 
     /// @inheritdoc ILiquidityMigrator
@@ -391,9 +307,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             );
         }
 
-        // Transfer any remaining dust,
-        // For no-op governance, send dust to the protocol locker instead of dead address
-        address dustRecipient = isNoOpGovernance ? address(locker) : recipient;
+        // Transfer any remaining dust, either to the governance or the Airlock owner
+        address dustRecipient = isNoOpGovernance ? airlock.owner() : recipient;
         if (poolKey.currency0.balanceOfSelf() > 0) {
             poolKey.currency0.transfer(dustRecipient, poolKey.currency0.balanceOfSelf());
         }
@@ -403,4 +318,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         emit Migrate(poolKey.toId(), sqrtPriceX96, lowerTick, upperTick, liquidity, balance0, balance1);
     }
+
+    /// @dev NoOp function to pass to `storeBeneficiaries()`, since we don't need to store the beneficiaries
+    function storeBeneficiary(PoolId, BeneficiaryData memory) private pure { }
 }

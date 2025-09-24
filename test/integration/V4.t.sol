@@ -3,35 +3,22 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { UniswapV4Initializer, DopplerDeployer, IPoolInitializer } from "src/UniswapV4Initializer.sol";
 import { Airlock } from "src/Airlock.sol";
-import { DERC20 } from "src/DERC20.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
+import { UniswapV2Migrator, ILiquidityMigrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
 import {
-    UniswapV2Migrator,
-    ILiquidityMigrator,
-    IUniswapV2Router02,
-    IUniswapV2Factory,
-    IUniswapV2Pair
-} from "src/UniswapV2Migrator.sol";
-import {
-    WETH_MAINNET,
     UNISWAP_V4_POOL_MANAGER_MAINNET,
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET
 } from "test/shared/Addresses.sol";
 import {
-    DEFAULT_NUM_TOKENS_TO_SELL,
     DEFAULT_MINIMUM_PROCEEDS,
     DEFAULT_MAXIMUM_PROCEEDS,
-    DEFAULT_STARTING_TIME,
-    DEFAULT_ENDING_TIME,
     DEFAULT_GAMMA,
-    DEFAULT_EPOCH_LENGTH,
-    SQRT_RATIO_2_1
+    DEFAULT_EPOCH_LENGTH
 } from "test/shared/DopplerFixtures.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 

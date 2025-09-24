@@ -1,32 +1,29 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console } from "forge-std/Test.sol";
 import { ERC721 } from "@solmate/tokens/ERC721.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import {
-    UniswapV4Migrator,
     UnorderedBeneficiaries,
     InvalidShares,
     InvalidTotalShares,
-    InvalidLength,
     InvalidProtocolOwnerShares,
-    InvalidProtocolOwnerBeneficiary
-} from "src/UniswapV4Migrator.sol";
-import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+    InvalidProtocolOwnerBeneficiary,
+    MIN_PROTOCOL_OWNER_SHARES,
+    BeneficiaryData
+} from "src/types/BeneficiaryData.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 // We don't use the `PositionDescriptor` contract explictly here but importing it ensures it gets compiled
 import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
 import { PosmTestSetup } from "@v4-periphery-test/shared/PosmTestSetup.sol";
-import { Constants } from "@v4-core-test/utils/Constants.sol";
-import { Actions } from "@v4-periphery/libraries/Actions.sol";
 
 contract MockAirlock {
     address public owner;
@@ -64,11 +61,8 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     function setUp() public {
         deployFreshManagerAndRouters();
         deployPosm(manager);
-        _setUpTokens();
 
         airlock = new MockAirlock(protocolOwner);
-        asset = new TestERC20(1e27);
-        numeraire = new TestERC20(1e27);
         migratorHook = UniswapV4MigratorHook(
             address(
                 uint160(
@@ -174,14 +168,6 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         );
     }
 
-    function test_initialize_RevertNoBeneficiaries() public {
-        vm.prank(address(airlock));
-        vm.expectRevert(abi.encodeWithSelector(InvalidLength.selector));
-        migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, new BeneficiaryData[](0))
-        );
-    }
-
     function test_initialize_RevertZeroShares() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
         beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0 });
@@ -228,7 +214,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.049e18 }); // 4.9%
 
         vm.prank(address(airlock));
-        vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerShares.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(InvalidProtocolOwnerShares.selector, MIN_PROTOCOL_OWNER_SHARES, 0.049e18)
+        );
         migrator.initialize(
             address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
         );

@@ -4,13 +4,13 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import { StreamableFeesLocker, BeneficiaryData, PositionData } from "src/StreamableFeesLocker.sol";
-import { console2 } from "forge-std/console2.sol";
+import { ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
+import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+
+import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
 error NonPositionManager();
 error NotApprovedMigrator();
@@ -18,6 +18,7 @@ error PositionNotFound();
 error PositionAlreadyUnlocked();
 error InvalidBeneficiary();
 
+/// forge-lint: disable-next-item(erc20-unchecked-transfer)
 contract StreamableFeesLockerTest is Test {
     StreamableFeesLocker public locker;
     IPositionManager public positionManager;
@@ -747,8 +748,6 @@ contract StreamableFeesLockerTest is Test {
             shares: 0.4e18 // 40%
          });
 
-        // Use DEAD_ADDRESS as recipient for no-op governance
-        address DEAD_ADDRESS = address(0xdead);
         bytes memory positionData = abi.encode(DEAD_ADDRESS, LOCK_DURATION, beneficiaries);
 
         // Lock the position

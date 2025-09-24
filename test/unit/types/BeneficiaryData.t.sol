@@ -23,7 +23,7 @@ contract BeneficiaryDataTest is Test {
         BeneficiaryData[] memory beneficiaries = _getValidBeneficiaries();
 
         storeBeneficiaries(
-            beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _doNotStoreBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _doNotStoreBeneficiary
         );
 
         for (uint256 i; i < beneficiaries.length; i++) {
@@ -35,7 +35,7 @@ contract BeneficiaryDataTest is Test {
         BeneficiaryData[] memory beneficiaries = _getValidBeneficiaries();
         PoolId poolId = PoolId.wrap(bytes32(uint256(1)));
 
-        storeBeneficiaries(beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, poolId, _storeBeneficiary);
+        storeBeneficiaries(poolId, beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _storeBeneficiary);
 
         for (uint256 i; i < beneficiaries.length; i++) {
             assertEq(shares[poolId][beneficiaries[i].beneficiary], beneficiaries[i].shares, "Shares should be stored");
@@ -50,7 +50,7 @@ contract BeneficiaryDataTest is Test {
 
         vm.expectRevert(UnorderedBeneficiaries.selector);
         storeBeneficiaries(
-            beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _doNotStoreBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _doNotStoreBeneficiary
         );
     }
 
@@ -61,7 +61,7 @@ contract BeneficiaryDataTest is Test {
 
         vm.expectRevert(InvalidShares.selector);
         storeBeneficiaries(
-            beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _doNotStoreBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _doNotStoreBeneficiary
         );
     }
 
@@ -76,7 +76,7 @@ contract BeneficiaryDataTest is Test {
             )
         );
         storeBeneficiaries(
-            beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _doNotStoreBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _doNotStoreBeneficiary
         );
     }
 
@@ -88,7 +88,7 @@ contract BeneficiaryDataTest is Test {
 
         vm.expectRevert(InvalidTotalShares.selector);
         storeBeneficiaries(
-            beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _doNotStoreBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _doNotStoreBeneficiary
         );
     }
 
@@ -99,7 +99,7 @@ contract BeneficiaryDataTest is Test {
 
         vm.expectRevert(InvalidProtocolOwnerBeneficiary.selector);
         storeBeneficiaries(
-            beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _doNotStoreBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES, _doNotStoreBeneficiary
         );
     }
 

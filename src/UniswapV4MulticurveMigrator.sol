@@ -99,7 +99,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         // We intentionnaly pass an empty PoolId to avoid storing the shares in this contract
         storeBeneficiaries(
-            beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(bytes32(0)), _storeBeneficiary
+            PoolId.wrap(bytes32(0)), beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES, _storeBeneficiary
         );
 
         PoolKey memory poolKey = PoolKey({
@@ -145,7 +145,7 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         }
 
         int24 offset = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        (Curve[] memory adjustedCurves,,) = adjustCurves(data.curves, offset, tickSpacing, isToken0);
+        (Curve[] memory adjustedCurves,,) = adjustCurves(data.curves, offset, tickSpacing, !isToken0);
         Position[] memory positions = calculatePositions(
             adjustedCurves, tickSpacing, isToken0 ? balance1 : balance0, isToken0 ? balance0 : balance1, !isToken0
         );

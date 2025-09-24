@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 
 import { Position, concat } from "src/types/Position.sol";
 import { isTickAligned, alignTick, TickRangeMisordered, isRangeOrdered } from "src/libraries/TickLibrary.sol";
@@ -98,11 +97,14 @@ function adjustCurves(
 }
 
 /**
- * @dev From an array of curves, calculates the positions to be created along with the final LP tail position
+ * @dev Calculates the positions from a given array of curves, an extra tail position might be added if there's
+ * any supply of the other currency to bond
  * @param curves Array of curves to process
  * @param tickSpacing Tick spacing of the Uniswap V4 pool
  * @param numTokensToSell Total amount of asset tokens to provide
+ * @param otherCurrencySupply Total amount of the other currency to provide
  * @param isToken0 True if the asset we're selling is token0, false otherwise
+ * @return positions Array of Position structs to mint in the Uniswap V4 pool
  */
 function calculatePositions(
     Curve[] memory curves,
@@ -177,7 +179,6 @@ function calculateLogNormalDistribution(
 
     uint160 farSqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
     uint256 amountPerPosition = curveSupply / numPositions;
-    uint256 totalAssetSupplied;
     Position[] memory positions = new Position[](numPositions);
 
     for (uint256 i; i < numPositions; i++) {
@@ -199,12 +200,6 @@ function calculateLogNormalDistribution(
                 liquidity = isToken0
                     ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
                     : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
-
-                totalAssetSupplied += (
-                    isToken0
-                        ? SqrtPriceMath.getAmount0Delta(startingSqrtPriceX96, farSqrtPriceX96, liquidity, true)
-                        : SqrtPriceMath.getAmount1Delta(farSqrtPriceX96, startingSqrtPriceX96, liquidity, true)
-                );
             }
 
             positions[i] = Position({
