@@ -23,8 +23,6 @@ import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4Multicurv
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { UniswapV4MulticurveMigrator } from "src/UniswapV4MulticurveMigrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
 
@@ -43,8 +41,6 @@ contract V4MulticurveInitializer is Deployers {
     Airlock public airlock;
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
-    UniswapV4MigratorHook public migratorHook;
-    UniswapV4MulticurveMigrator public migrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
@@ -71,37 +67,25 @@ contract V4MulticurveInitializer is Deployers {
             )
         );
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
-        migratorHook = UniswapV4MigratorHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-                ) ^ (0x4444 << 144)
-            )
-        );
         locker = new StreamableFeesLockerV2(manager, airlockOwner);
-        migrator = new UniswapV4MulticurveMigrator(address(airlock), manager, migratorHook, locker);
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(multicurveHook));
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
 
-        address[] memory modules = new address[](5);
+        address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(governanceFactory);
         modules[2] = address(initializer);
-        modules[3] = address(migrator);
-        modules[4] = address(mockLiquidityMigrator);
+        modules[3] = address(mockLiquidityMigrator);
 
-        ModuleState[] memory states = new ModuleState[](5);
+        ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.GovernanceFactory;
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
-        states[4] = ModuleState.LiquidityMigrator;
 
         vm.startPrank(airlockOwner);
         airlock.setModuleState(modules, states);
-        locker.approveMigrator(address(migrator));
         vm.stopPrank();
     }
 
