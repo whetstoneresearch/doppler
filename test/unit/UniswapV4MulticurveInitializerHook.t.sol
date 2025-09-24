@@ -41,6 +41,15 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(poolManager, initializer), address(hook));
     }
 
+    /* --------------------------------------------------------------------------- */
+    /*                                constructor()                                */
+    /* --------------------------------------------------------------------------- */
+
+    function test_constructor() public view {
+        assertEq(address(hook.poolManager()), poolManager);
+        assertEq(address(hook.INITIALIZER()), initializer);
+    }
+
     /* -------------------------------------------------------------------------------- */
     /*                                beforeInitialize()                                */
     /* -------------------------------------------------------------------------------- */
