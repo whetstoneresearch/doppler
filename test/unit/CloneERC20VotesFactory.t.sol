@@ -79,6 +79,12 @@ contract CloneERC20VotesFactoryTest is Test {
         assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint cap");
         assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
         assertEq(token.vestingDuration(), vestingDuration, "Wrong vesting duration");
+
+        for (uint256 i; i < recipients.length; i++) {
+            (uint256 totalAmount, uint256 releasedAmount) = token.getVestingDataOf(recipients[i]);
+            assertEq(totalAmount, amounts[i], "Wrong vesting total amount for recipient");
+            assertEq(releasedAmount, 0, "Wrong released amount for recipient");
+        }
     }
 
     function testFuzz_create_RevertsIfSenderNotAirlock() public {
