@@ -58,6 +58,10 @@ function generateRecipients(
 contract CloneERC20VotesTest is Test {
     CloneERC20Votes public token;
 
+    /* -------------------------------------------------------------------------- */
+    /*                                initialize()                                */
+    /* -------------------------------------------------------------------------- */
+
     function testFuzz_initialize(
         string memory name,
         string memory symbol,
@@ -105,6 +109,12 @@ contract CloneERC20VotesTest is Test {
         assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint rate");
         assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
         assertEq(token.vestingDuration(), vestingDuration, "Wrong vesting duration");
+
+        for (uint256 i; i < recipients.length; i++) {
+            (uint256 totalAmount, uint256 releasedAmount) = token.getVestingDataOf(recipients[i]);
+            assertEq(totalAmount, amounts[i], "Wrong vesting total amount for recipient");
+            assertEq(releasedAmount, 0, "Wrong released amount for recipient");
+        }
     }
 
     function testFuzz_initialize_RevertsIfInvalidInitialization(
@@ -139,8 +149,7 @@ contract CloneERC20VotesTest is Test {
         );
     }
 
-    /*
-    function test_constructor_RevertsWhenArrayLengthsMismatch() public {
+    function test_initialize_RevertsWhenArrayLengthsMismatch() public {
         address[] memory recipients = new address[](2);
         recipients[0] = address(0xa);
         recipients[1] = address(0xb);
@@ -148,12 +157,12 @@ contract CloneERC20VotesTest is Test {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1e23;
 
+        token = new CloneERC20Votes();
         vm.expectRevert(ArrayLengthsMismatch.selector);
-        token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_RATE, VESTING_DURATION, recipients, amounts, ""
-        );
+        token.initialize("", "", 0, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
+    /*
     function test_constructor_RevertsWhenMaxPreMintPerAddressExceeded() public {
         address[] memory recipients = new address[](1);
         recipients[0] = address(0xa);
