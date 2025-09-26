@@ -28,7 +28,7 @@ contract CloneERC20VotesFactory is ImmutableAirlock, ITokenFactory {
         (
             string memory name,
             string memory symbol,
-            uint256 yearlyMintCap,
+            uint256 yearlyMintRate,
             uint256 vestingDuration,
             address[] memory recipients,
             uint256[] memory amounts,
@@ -37,7 +37,16 @@ contract CloneERC20VotesFactory is ImmutableAirlock, ITokenFactory {
 
         asset = LibClone.deployDeterministicERC1967(IMPLEMENTATION, tokenData, salt);
         CloneERC20Votes(asset).initialize(
-            name, symbol, initialSupply, recipient, owner, yearlyMintCap, vestingDuration, recipients, amounts, tokenURI
+            name,
+            symbol,
+            initialSupply,
+            recipient,
+            owner,
+            yearlyMintRate,
+            vestingDuration,
+            recipients,
+            amounts,
+            tokenURI
         );
     }
 }
