@@ -250,44 +250,30 @@ contract CloneERC20VotesTest is Test {
         token.lockPool(pool);
     }
 
-    /*
-    function test_unlockPool_RevertsWhenInvalidOwner() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
-        );
-        vm.prank(address(0xbeef));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
-        token.unlockPool();
-    }
+    /* -------------------------------------------------------------------------- */
+    /*                                unlockPool()                                */
+    /* -------------------------------------------------------------------------- */
 
-    function test_unlockPool() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
-        );
+    function testFuzz_unlockPool(
+        address pool
+    ) public {
+        testFuzz_lockPool(pool);
         token.unlockPool();
         assertEq(token.isPoolUnlocked(), true, "Pool should be unlocked");
         assertEq(token.lastMintTimestamp(), block.timestamp, "Inflation should have started");
         assertEq(token.currentYearStart(), block.timestamp, "Current year start should be the current timestamp");
     }
 
+    function testFuzz_unlockPool_RevertsWhenInvalidOwner(
+        address pool
+    ) public {
+        testFuzz_lockPool(pool);
+        vm.prank(address(0xbeef));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
+        token.unlockPool();
+    }
+
+    /*
     function test_transfer_RevertsWhenPoolLocked() public {
         address pool = address(0xdeadbeef);
         token = new DERC20(
