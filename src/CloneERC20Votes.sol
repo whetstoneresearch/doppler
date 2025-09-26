@@ -142,13 +142,11 @@ contract CloneERC20Votes is ERC20Votes, Initializable, Ownable {
             vestedTokens += amount;
         }
 
-        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
-        require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
-        require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
-
-        vestedTotalAmount = vestedTokens;
-
         if (vestedTokens > 0) {
+            uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+            require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
+            require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
+            vestedTotalAmount = vestedTokens;
             _mint(address(this), vestedTokens);
         }
 
