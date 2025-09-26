@@ -29,6 +29,8 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
+    receive() external payable { }
+
     function initialize(address, address, bytes memory) external pure override returns (address) {
         return address(0xdeadbeef);
     }
@@ -43,21 +45,16 @@ contract V4MulticurveInitializer is Deployers {
     Airlock public airlock;
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
-    UniswapV4MigratorHook public migratorHook;
-    UniswapV4MulticurveMigrator public migrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
-    StreamableFeesLockerV2 public locker;
-    LiquidityMigratorMock public mockLiquidityMigrator;
-    TestERC20 public numeraire;
+    LiquidityMigratorMock public migrator;
+    address public numeraire;
 
     PoolKey public poolKey;
     PoolId public poolId;
 
     function setUp() public {
         deployFreshManagerAndRouters();
-        numeraire = new TestERC20(1e48);
-        vm.label(address(numeraire), "Numeraire");
 
         airlock = new Airlock(airlockOwner);
         tokenFactory = new TokenFactory(address(airlock));
@@ -71,96 +68,35 @@ contract V4MulticurveInitializer is Deployers {
             )
         );
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
-        migratorHook = UniswapV4MigratorHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-                ) ^ (0x4444 << 144)
-            )
-        );
-        locker = new StreamableFeesLockerV2(manager, airlockOwner);
-        migrator = new UniswapV4MulticurveMigrator(address(airlock), manager, migratorHook, locker);
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(multicurveHook));
 
-        mockLiquidityMigrator = new LiquidityMigratorMock();
+        migrator = new LiquidityMigratorMock();
 
-        address[] memory modules = new address[](5);
+        address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(governanceFactory);
         modules[2] = address(initializer);
         modules[3] = address(migrator);
-        modules[4] = address(mockLiquidityMigrator);
 
-        ModuleState[] memory states = new ModuleState[](5);
+        ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.GovernanceFactory;
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
-        states[4] = ModuleState.LiquidityMigrator;
 
         vm.startPrank(airlockOwner);
         airlock.setModuleState(modules, states);
-        locker.approveMigrator(address(migrator));
         vm.stopPrank();
     }
 
-    function test_create_MulticurveInitializerV4(
-        bytes32 salt
-    ) public {
+    uint256 initialSupply = 1e27;
+
+    function testFuzz_create_MulticurveInitializerV4(bytes32 salt, bool isUsingEth) public returns (address asset) {
         string memory name = "Test Token";
         string memory symbol = "TEST";
-        uint256 initialSupply = 1e27;
 
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        ""
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
-
-        InitData memory initData = _prepareInitData(tokenAddress);
-
-        CreateParams memory params = CreateParams({
-            initialSupply: initialSupply,
-            numTokensToSell: initialSupply,
-            numeraire: address(numeraire),
-            tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
-            governanceFactory: IGovernanceFactory(governanceFactory),
-            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
-            poolInitializer: IPoolInitializer(initializer),
-            poolInitializerData: abi.encode(initData),
-            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
-            liquidityMigratorData: new bytes(0),
-            integrator: address(0),
-            salt: salt
-        });
-
-        airlock.create(params);
-    }
-
-    function test_migrate_MulticurveInitializerV4(
-        bytes32 salt
-    ) public {
-        string memory name = "Test Token";
-        string memory symbol = "TEST";
-        uint256 initialSupply = 1e27;
+        numeraire = isUsingEth ? address(0) : address(new TestERC20(type(uint128).max));
+        vm.label(address(numeraire), "Numeraire");
 
         address tokenAddress = vm.computeCreate2Address(
             salt,
@@ -191,21 +127,24 @@ contract V4MulticurveInitializer is Deployers {
             numTokensToSell: initialSupply,
             numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            tokenFactoryData: abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
             poolInitializerData: abi.encode(initData),
-            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigrator: ILiquidityMigrator(migrator),
             liquidityMigratorData: new bytes(0),
             integrator: address(0),
             salt: salt
         });
 
-        (address asset,,,,) = airlock.create(params);
-        require(asset == tokenAddress, "Asset address mismatch");
+        (asset,,,,) = airlock.create(params);
+        require(asset == tokenAddress, "Unexpected token address");
+    }
 
-        vm.label(asset, "Asset");
+    function testFuzz_migrate_MulticurveInitializerV4(bytes32 salt, bool isUsingEth) public {
+        address asset = testFuzz_create_MulticurveInitializerV4(salt, isUsingEth);
+
         bool isToken0 = asset < address(numeraire);
 
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
@@ -214,7 +153,12 @@ contract V4MulticurveInitializer is Deployers {
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        numeraire.approve(address(swapRouter), type(uint256).max);
+        if (isUsingEth) {
+            vm.deal(address(swapRouter), type(uint128).max);
+        } else {
+            TestERC20(numeraire).approve(address(swapRouter), type(uint128).max);
+        }
+
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
         vm.prank(airlockOwner);
         airlock.migrate(asset);
