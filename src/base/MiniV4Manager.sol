@@ -63,6 +63,9 @@ abstract contract MiniV4Manager is IUnlockCallback {
         poolManager = poolManager_;
     }
 
+    /// @notice Ensures this contract can receive ETH
+    receive() external payable { }
+
     /// @inheritdoc IUnlockCallback
     function unlockCallback(
         bytes calldata data
