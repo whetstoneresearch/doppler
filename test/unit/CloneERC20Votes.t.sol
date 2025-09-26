@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { console } from "forge-std/console.sol";
 import { Test } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { Initializable } from "solady/utils/Initializable.sol";
@@ -21,6 +22,45 @@ import {
 contract CloneERC20VotesTest is Test {
     CloneERC20Votes public token;
 
+    function _generateRecipients(
+        uint256 seed,
+        uint256 initialSupply
+    ) internal pure returns (address[] memory recipients, uint256[] memory amounts) {
+        vm.assume(seed > 0);
+        vm.assume(initialSupply > 1e18);
+        vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
+
+        uint256 length = seed % 500;
+
+        address[] memory _recipients = new address[](length);
+        uint256[] memory _amounts = new uint256[](length);
+
+        uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
+        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+
+        uint256 actualLength;
+
+        for (uint256 i; i < length; ++i) {
+            uint256 amount = uint256(keccak256(abi.encode(seed, i))) % maxPreMintPerAddress;
+            if (amount > maxTotalPreMint) amount = maxTotalPreMint;
+
+            _recipients[i] = address(uint160(address(0xbeef)) + uint160(i));
+            _amounts[i] = amount;
+            maxTotalPreMint -= amount;
+            actualLength++;
+
+            if (maxTotalPreMint == 0) break;
+        }
+
+        recipients = new address[](actualLength);
+        amounts = new uint256[](actualLength);
+
+        for (uint256 i; i < actualLength; ++i) {
+            recipients[i] = _recipients[i];
+            amounts[i] = _amounts[i];
+        }
+    }
+
     function testFuzz_initialize(
         string memory name,
         string memory symbol,
@@ -29,14 +69,14 @@ contract CloneERC20VotesTest is Test {
         address owner,
         uint256 yearlyMintRate,
         uint256 vestingDuration,
-        string memory tokenURI
+        string memory tokenURI,
+        uint256 seed
     ) public {
         vm.assume(initialSupply > 0);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
         vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
 
-        address[] memory recipients = new address[](0);
-        uint256[] memory amounts = new uint256[](0);
+        (address[] memory recipients, uint256[] memory amounts) = _generateRecipients(seed, initialSupply);
 
         token = new CloneERC20Votes();
         vm.expectEmit();
@@ -77,9 +117,12 @@ contract CloneERC20VotesTest is Test {
         address owner,
         uint256 yearlyMintRate,
         uint256 vestingDuration,
-        string memory tokenURI
+        string memory tokenURI,
+        uint256 seed
     ) public {
-        testFuzz_initialize(name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI);
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
+        );
 
         address[] memory recipients = new address[](0);
         uint256[] memory amounts = new uint256[](0);
