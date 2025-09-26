@@ -25,7 +25,7 @@ contract CloneERC20VotesTest is Test {
     function _generateRecipients(
         uint256 seed,
         uint256 initialSupply
-    ) internal pure returns (address[] memory recipients, uint256[] memory amounts) {
+    ) internal pure returns (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) {
         vm.assume(seed > 0);
         vm.assume(initialSupply > 1e18);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
@@ -43,6 +43,7 @@ contract CloneERC20VotesTest is Test {
         for (uint256 i; i < length; ++i) {
             uint256 amount = uint256(keccak256(abi.encode(seed, i))) % maxPreMintPerAddress;
             if (amount > maxTotalPreMint) amount = maxTotalPreMint;
+            totalPreMint += amount;
 
             _recipients[i] = address(uint160(address(0xbeef)) + uint160(i));
             _amounts[i] = amount;
@@ -76,7 +77,8 @@ contract CloneERC20VotesTest is Test {
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
         vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
 
-        (address[] memory recipients, uint256[] memory amounts) = _generateRecipients(seed, initialSupply);
+        (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) =
+            _generateRecipients(seed, initialSupply);
 
         token = new CloneERC20Votes();
         vm.expectEmit();
@@ -100,8 +102,8 @@ contract CloneERC20VotesTest is Test {
         assertEq(token.symbol(), symbol, "Wrong symbol");
         assertEq(token.tokenURI(), tokenURI, "Wrong token URI");
         assertEq(token.totalSupply(), initialSupply, "Wrong total supply");
-        // assertEq(token.balanceOf(recipient), initialSupply - amounts[0] - amounts[1], "Wrong balance of recipient");
-        // assertEq(token.balanceOf(address(token)), amounts[0] + amounts[1], "Wrong balance of vested tokens");
+        assertEq(token.balanceOf(recipient), initialSupply - totalPreMint, "Wrong balance of recipient");
+        assertEq(token.balanceOf(address(token)), totalPreMint, "Wrong balance of vested tokens");
         assertEq(token.lastMintTimestamp(), 0, "Wrong mint timestamp");
         assertEq(token.owner(), owner, "Wrong owner");
         assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint cap");
