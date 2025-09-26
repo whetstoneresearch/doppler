@@ -58,6 +58,10 @@ function generateRecipients(
 contract CloneERC20VotesTest is Test {
     CloneERC20Votes public token;
 
+    function setUp() public {
+        token = new CloneERC20Votes();
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                initialize()                                */
     /* -------------------------------------------------------------------------- */
@@ -80,7 +84,6 @@ contract CloneERC20VotesTest is Test {
         (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) =
             generateRecipients(seed, initialSupply);
 
-        token = new CloneERC20Votes();
         vm.expectEmit();
         emit Ownable.OwnershipTransferred(address(0), owner);
         vm.expectEmit();
@@ -157,29 +160,31 @@ contract CloneERC20VotesTest is Test {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1e23;
 
-        token = new CloneERC20Votes();
         vm.expectRevert(ArrayLengthsMismatch.selector);
         token.initialize("", "", 0, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    /*
-    function test_constructor_RevertsWhenMaxPreMintPerAddressExceeded() public {
+    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceeded(
+        uint256 initialSupply
+    ) public {
+        vm.assume(initialSupply > 0);
+        vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
+
         address[] memory recipients = new address[](1);
         recipients[0] = address(0xa);
 
         uint256[] memory amounts = new uint256[](1);
-        amounts[0] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18 + 1;
+        amounts[0] = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18 + 1;
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                MaxPreMintPerAddressExceeded.selector, amounts[0], INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18
+                MaxPreMintPerAddressExceeded.selector, amounts[0], initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18
             )
         );
-        token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_RATE, VESTING_DURATION, recipients, amounts, ""
-        );
+        token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
+    /*
     function test_constructor_RevertsWhenMaxPreMintPerAddressExceededReusingAddress() public {
         address[] memory recipients = new address[](2);
         recipients[0] = address(0xa);
