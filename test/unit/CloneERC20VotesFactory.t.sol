@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
@@ -67,6 +68,9 @@ contract CloneERC20VotesFactoryTest is Test {
         vm.prank(AIRLOCK);
         CloneERC20Votes token =
             CloneERC20Votes(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
+
+        address asset = LibClone.predictDeterministicAddress(factory.IMPLEMENTATION(), bytes32(seed), address(factory));
+        require(address(token) == asset, "Asset address mismatch");
 
         assertEq(token.name(), name, "Wrong name");
         assertEq(token.symbol(), symbol, "Wrong symbol");
