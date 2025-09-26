@@ -35,7 +35,7 @@ contract CloneERC20VotesFactory is ImmutableAirlock, ITokenFactory {
             string memory tokenURI
         ) = abi.decode(tokenData, (string, string, uint256, uint256, address[], uint256[], string));
 
-        asset = LibClone.deployDeterministicERC1967(IMPLEMENTATION, tokenData, salt);
+        asset = LibClone.cloneDeterministic(IMPLEMENTATION, salt);
         CloneERC20Votes(asset).initialize(
             name,
             symbol,
