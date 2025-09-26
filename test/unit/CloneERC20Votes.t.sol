@@ -184,22 +184,25 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    /*
-    function test_constructor_RevertsWhenMaxPreMintPerAddressExceededReusingAddress() public {
+    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceededReusingAddress(
+        uint256 initialSupply
+    ) public {
+        vm.assume(initialSupply > 1e18);
+        vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
+
         address[] memory recipients = new address[](2);
         recipients[0] = address(0xa);
         recipients[1] = address(0xa);
 
         uint256[] memory amounts = new uint256[](2);
-        amounts[0] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
-        amounts[1] = INITIAL_SUPPLY * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
+        amounts[0] = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
+        amounts[1] = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1e18;
 
         vm.expectRevert(abi.encodeWithSelector(MaxPreMintPerAddressExceeded.selector, amounts[0] * 2, amounts[0]));
-        token = new DERC20(
-            NAME, SYMBOL, INITIAL_SUPPLY, RECIPIENT, OWNER, YEARLY_MINT_RATE, VESTING_DURATION, recipients, amounts, ""
-        );
+        token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
+    /*
     function test_constructor_RevertsWhenMaxTotalPreMintExceeded() public {
         address[] memory recipients = new address[](2);
         uint256[] memory amounts = new uint256[](2);
