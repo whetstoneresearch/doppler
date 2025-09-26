@@ -227,45 +227,30 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    /*
-    function test_lockPool() public {
-        address pool = address(0xdeadbeef);
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
-        );
+    /* ------------------------------------------------------------------------ */
+    /*                                lockPool()                                */
+    /* ------------------------------------------------------------------------ */
+
+    function testFuzz_lockPool(
+        address pool
+    ) public {
+        token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.lockPool(pool);
         assertEq(token.pool(), pool, "Wrong pool");
         assertEq(token.isPoolUnlocked(), false, "Pool should be locked");
     }
 
-    function test_lockPool_RevertsWhenInvalidOwner() public {
-        address pool = address(0xdeadbeef);
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
-        );
+    function testFuzz_lockPool_RevertsWhenInvalidOwner(
+        address pool
+    ) public {
+        token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
+
         vm.prank(address(0xbeef));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
         token.lockPool(pool);
     }
 
+    /*
     function test_unlockPool_RevertsWhenInvalidOwner() public {
         token = new DERC20(
             NAME,
