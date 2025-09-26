@@ -50,6 +50,8 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | UniswapV4Initializer | [0xed34...9094](https://basescan.org/address/0xed344444633b965cd148f8ffce3765938a179094) | [0x153c...cae4](https://basescan.org/tx/0x153c5d581b83c3d2c2fe7a3a9325db7048d3376d33448a2b12aa5457f3abcae4) | [4ffc0e3](https://github.com/whetstoneresearch/doppler/commit/4ffc0e3) | 
 | UniswapV4Migrator | [0x1661...fef0](https://basescan.org/address/0x166109c4ee7fe69164631caa937daa5f5cebfef0) | [0x0ea1...d573](https://basescan.org/tx/0x0ea16f707797fc64b6e4f00a09e811a8ad48480cb80ac95dae78e7ddaa75d573) | [e4aaf9b](https://github.com/whetstoneresearch/doppler/commit/e4aaf9b) | 
 | UniswapV4MigratorHook | [0x4517...2000](https://basescan.org/address/0x45178a8d6d368d612b7552b217802b7f97262000) | [0x0508...6bc9](https://basescan.org/tx/0x0508633783972b9974e8d4478f5325dc88916bf1f67dd74acf616d2d23176bc9) | [e4aaf9b](https://github.com/whetstoneresearch/doppler/commit/e4aaf9b) | 
+| UniswapV4MulticurveInitializer | [0x4b0e...675b](https://basescan.org/address/0x4b0ec16eb40318ca5a4346f20f04a2285c19675b) | [0xc677...99c3](https://basescan.org/tx/0xc677010976090a969549f2e701d04b2581daa61fa81c7c5f6ba64de9469499c3) | [cf5af24](https://github.com/whetstoneresearch/doppler/commit/cf5af24) | 
+| UniswapV4MulticurveInitializerHook | [0x372b...6d40](https://basescan.org/address/0x372bca585a2223a2e91a316cc32e81a05f006d40) | [0x3339...e8b7](https://basescan.org/tx/0x3339cf6f62e89a1d67ab82d02eb8d99b33a145beb993717e72f131246761e8b7) | [cf5af24](https://github.com/whetstoneresearch/doppler/commit/cf5af24) | 
 ### Ink (57073)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
