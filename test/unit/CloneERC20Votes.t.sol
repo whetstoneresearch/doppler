@@ -79,7 +79,7 @@ contract CloneERC20VotesTest is Test {
         string memory tokenURI,
         uint256 seed
     ) public {
-        vm.assume(initialSupply > 0);
+        vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
         vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
 
@@ -169,7 +169,7 @@ contract CloneERC20VotesTest is Test {
     function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceeded(
         uint256 initialSupply
     ) public {
-        vm.assume(initialSupply > 0);
+        vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
         address[] memory recipients = new address[](1);
