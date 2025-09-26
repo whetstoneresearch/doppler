@@ -132,7 +132,7 @@ contract CloneERC20Votes is ERC20Votes, Initializable, Ownable {
 
         uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
 
-        for (uint256 i; i < length; ++i) {
+        for (uint256 i; i != length; ++i) {
             uint256 amount = amounts_[i];
             getVestingDataOf[recipients_[i]].totalAmount += amount;
             require(
