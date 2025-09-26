@@ -19,48 +19,44 @@ import {
     MaxYearlyMintRateExceeded
 } from "src/CloneERC20Votes.sol";
 
+function generateRecipients(
+    uint256 seed,
+    uint256 initialSupply
+) pure returns (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) {
+    uint256 length = seed % 500;
+
+    address[] memory _recipients = new address[](length);
+    uint256[] memory _amounts = new uint256[](length);
+
+    uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
+    uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+
+    uint256 actualLength;
+
+    for (uint256 i; i < length; ++i) {
+        uint256 amount = uint256(keccak256(abi.encode(seed, i))) % maxPreMintPerAddress;
+        if (amount > maxTotalPreMint) amount = maxTotalPreMint;
+        totalPreMint += amount;
+
+        _recipients[i] = address(uint160(address(0xbeef)) + uint160(i));
+        _amounts[i] = amount;
+        maxTotalPreMint -= amount;
+        actualLength++;
+
+        if (maxTotalPreMint == 0) break;
+    }
+
+    recipients = new address[](actualLength);
+    amounts = new uint256[](actualLength);
+
+    for (uint256 i; i < actualLength; ++i) {
+        recipients[i] = _recipients[i];
+        amounts[i] = _amounts[i];
+    }
+}
+
 contract CloneERC20VotesTest is Test {
     CloneERC20Votes public token;
-
-    function _generateRecipients(
-        uint256 seed,
-        uint256 initialSupply
-    ) internal pure returns (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) {
-        vm.assume(seed > 0);
-        vm.assume(initialSupply > 1e18);
-        vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
-
-        uint256 length = seed % 500;
-
-        address[] memory _recipients = new address[](length);
-        uint256[] memory _amounts = new uint256[](length);
-
-        uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
-        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
-
-        uint256 actualLength;
-
-        for (uint256 i; i < length; ++i) {
-            uint256 amount = uint256(keccak256(abi.encode(seed, i))) % maxPreMintPerAddress;
-            if (amount > maxTotalPreMint) amount = maxTotalPreMint;
-            totalPreMint += amount;
-
-            _recipients[i] = address(uint160(address(0xbeef)) + uint160(i));
-            _amounts[i] = amount;
-            maxTotalPreMint -= amount;
-            actualLength++;
-
-            if (maxTotalPreMint == 0) break;
-        }
-
-        recipients = new address[](actualLength);
-        amounts = new uint256[](actualLength);
-
-        for (uint256 i; i < actualLength; ++i) {
-            recipients[i] = _recipients[i];
-            amounts[i] = _amounts[i];
-        }
-    }
 
     function testFuzz_initialize(
         string memory name,
@@ -78,7 +74,7 @@ contract CloneERC20VotesTest is Test {
         vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
 
         (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) =
-            _generateRecipients(seed, initialSupply);
+            generateRecipients(seed, initialSupply);
 
         token = new CloneERC20Votes();
         vm.expectEmit();
@@ -106,7 +102,7 @@ contract CloneERC20VotesTest is Test {
         assertEq(token.balanceOf(address(token)), totalPreMint, "Wrong balance of vested tokens");
         assertEq(token.lastMintTimestamp(), 0, "Wrong mint timestamp");
         assertEq(token.owner(), owner, "Wrong owner");
-        assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint cap");
+        assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint rate");
         assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
         assertEq(token.vestingDuration(), vestingDuration, "Wrong vesting duration");
     }
