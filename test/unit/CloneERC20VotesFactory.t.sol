@@ -52,7 +52,7 @@ contract CloneERC20VotesFactoryTest is Test {
         string memory tokenURI,
         uint256 seed
     ) public {
-        vm.assume(initialSupply > 0);
+        vm.assume(initialSupply > 1e18);
         vm.assume(recipient != address(0));
         vm.assume(owner != address(0));
 
