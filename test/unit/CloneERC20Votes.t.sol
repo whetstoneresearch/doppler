@@ -273,47 +273,57 @@ contract CloneERC20VotesTest is Test {
         token.unlockPool();
     }
 
-    /*
-    function test_transfer_RevertsWhenPoolLocked() public {
-        address pool = address(0xdeadbeef);
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    /* ------------------------------------------------------------------------ */
+    /*                                transfer()                                */
+    /* ------------------------------------------------------------------------ */
+
+    function test_transfer_RevertsWhenPoolLocked(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
+
+        address pool = address(0xdeadbeef);
         token.lockPool(pool);
         vm.expectRevert(PoolLocked.selector);
         token.transfer(pool, 1);
     }
 
-    function test_transferFrom_RevertsWhenPoolLocked() public {
-        address pool = address(0xdeadbeef);
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    /* ---------------------------------------------------------------------------- */
+    /*                                transferFrom()                                */
+    /* ---------------------------------------------------------------------------- */
+
+    function test_transferFrom_RevertsWhenPoolLocked(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
+
+        address pool = address(0xdeadbeef);
         token.lockPool(pool);
-        token.approve(address(0xbeef), 1);
-        vm.prank(address(0xbeef));
         vm.expectRevert(PoolLocked.selector);
         token.transferFrom(address(this), pool, 1);
     }
 
+    /*
     function test_mintInflation_RevertsWhenMintingNotStartedYet() public {
         token = new DERC20(
             NAME,
