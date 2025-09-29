@@ -161,7 +161,6 @@ contract CloneERC20Votes is ERC20Votes, Initializable, Ownable {
         address pool_
     ) external onlyOwner {
         pool = pool_;
-        isPoolUnlocked = false;
     }
 
     /// @notice Unlocks the pool, allowing it to receive tokens
