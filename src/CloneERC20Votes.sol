@@ -20,9 +20,6 @@ error PoolLocked();
 /// @dev Thrown when two arrays have different lengths
 error ArrayLengthsMismatch();
 
-/// @dev Thrown when trying to release tokens before the end of the vesting period
-error ReleaseAmountInvalid();
-
 /// @dev Thrown when trying to premint more than the maximum allowed per address
 error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
 
@@ -60,8 +57,18 @@ struct VestingData {
     uint256 releasedAmount;
 }
 
+/**
+ * @title CloneERC20Votes
+ * @author Whetstone Research
+ * @notice ERC20 token with permit, voting, inflationary minting, and vesting features
+ * @dev This contract is designed to be cloned using the ERC1167 minimal proxy pattern
+ * @custom:security-contact security@whetstone.cc
+ */
 contract CloneERC20Votes is ERC20Votes, Initializable, Ownable {
+    /// @dev Name of the token
     string private _name;
+
+    /// @dev Symbol of the token
     string private _symbol;
 
     /// @notice Uniform Resource Identifier (URI)
@@ -94,11 +101,25 @@ contract CloneERC20Votes is ERC20Votes, Initializable, Ownable {
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
 
+    /// @dev Ensures that the vesting period has started
     modifier hasVestingStarted() {
         require(vestingStart > 0, VestingNotStartedYet());
         _;
     }
 
+    /**
+     * @notice Initializes the token with the given parameters
+     * @param name_ Name of the token
+     * @param symbol_ Symbol of the token
+     * @param initialSupply Initial supply of the token
+     * @param recipient Address receiving the initial supply minus the vested tokens
+     * @param owner_ Address receiving ownership of the contract
+     * @param yearlyMintRate_ Rate of tokens that can be minted in a year (expressed in WAD)
+     * @param vestingDuration_ Duration of the vesting period (in seconds)
+     * @param recipients_ Addresses receiving vested tokens
+     * @param amounts_ Amounts of vested tokens for each address in `recipients_`
+     * @param tokenURI_ Uniform Resource Identifier (URI) of the token
+     */
     function initialize(
         string memory name_,
         string memory symbol_,
@@ -273,17 +294,20 @@ contract CloneERC20Votes is ERC20Votes, Initializable, Ownable {
         return vestedAmount - getVestingDataOf[account].releasedAmount;
     }
 
-    /*
-    function allowance(address owner, address spender) public view override returns (uint256) {
-        if (spender == PERMIT_2) return type(uint256).max;
-        return super.allowance(owner, spender);
-    } */
-
+    /// @notice Returns the name of the token
     function name() public view override returns (string memory) {
         return _name;
     }
 
+    /// @notice Returns the symbol of the token
     function symbol() public view override returns (string memory) {
         return _symbol;
     }
+
+    /*
+    function allowance(address owner, address spender) public view override returns (uint256) {
+        if (spender == PERMIT_2) return type(uint256).max;
+        return super.allowance(owner, spender);
+    }
+    */
 }
