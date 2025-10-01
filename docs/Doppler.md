@@ -18,7 +18,7 @@ The Doppler Protocol make use of 4 Uniswap v4 hook functions in its contract:
 
 ## Curve Accumulation
 
-The Doppler Protocol rebalance its bonding curve according to token sales along a pre-defined schedule based on the number of tokens to sell, `numTokensToSell`, over the duration, `endingTime - startingTime`. This rebalance occurs immediately preceeding the first swap in every epoch, in the `beforeSwap` hook. If the hook doesn't have any swaps in a given epoch then the rebalance applies retroactively to all missed epochs.
+The Doppler Protocol rebalance its bonding curve according to token sales along a pre-defined schedule based on the number of tokens to sell, `numTokensToSell`, over the duration, `endingTime - startingTime`. This rebalance occurs immediately preceding the first swap in every epoch, in the `beforeSwap` hook. If the hook doesn't have any swaps in a given epoch then the rebalance applies retroactively to all missed epochs.
 
 ### Max Dutch Auction
 
@@ -52,7 +52,7 @@ Within the bonding curve, the Protocol places 3 different types of liquidity pos
 
 The lower slug is generally placed ranging from the global tickLower to the current tick. The Protocol places the total amount of proceeds from asset sales, `totalProceeds`, into the slug, allowing the users to sell their tokens back into the curve. The lower slug must have enough liquidity to support all tokens being sold back into the curve.
 
-Ocassionally, the Protocol may not have sufficient `totalProceeds` to support all tokens being sold back into the curve with the usual slug placement. In this case, it computes the average clearing price of the tokens, computed as `totalProceeds / totalTokensSold` and place the slug at the tick corresponding to that price with a minimally sized range, i.e. range size of `tickSpacing`.
+Occasionally, the Protocol may not have sufficient `totalProceeds` to support all tokens being sold back into the curve with the usual slug placement. In this case, it computes the average clearing price of the tokens, computed as `totalProceeds / totalTokensSold` and place the slug at the tick corresponding to that price with a minimally sized range, i.e. range size of `tickSpacing`.
 
 ### Upper Slug
 
@@ -60,4 +60,4 @@ The upper slug is generally placed between the current tick and a delta, compute
 
 ### Price Discovery Slugs
 
-The price discovery slugs are generally placed between the upper slug upper tick and the top the bonding curve, `tickUpper`. The hook creator determines at the time of deployment how many price discovery slugs should be placed. The Protocol places the slugs equidistant between the upper slug's upper tick and the `tickUpper`, contiguously. the Protocol supplies tokens in each slug according to the percentage time difference between epochs multiplied by the `numTokensToSell`. Since the Protocol is supplying amounts according to remaining epochs, if it runs out of future epochs to supply for, it stops placing slugs. In the last epoch there will be no price disovery slugs.
+The price discovery slugs are generally placed between the upper slug upper tick and the top the bonding curve, `tickUpper`. The hook creator determines at the time of deployment how many price discovery slugs should be placed. The Protocol places the slugs equidistant between the upper slug's upper tick and the `tickUpper`, contiguously. the Protocol supplies tokens in each slug according to the percentage time difference between epochs multiplied by the `numTokensToSell`. Since the Protocol is supplying amounts according to remaining epochs, if it runs out of future epochs to supply for, it stops placing slugs. In the last epoch there will be no price discovery slugs.
