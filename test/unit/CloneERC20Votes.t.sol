@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { console } from "forge-std/console.sol";
 import { Test } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { Initializable } from "solady/utils/Initializable.sol";
@@ -78,13 +77,13 @@ contract CloneERC20VotesTest is Test {
         uint256 vestingDuration,
         string memory tokenURI,
         uint256 seed
-    ) public {
+    ) public returns (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
+        vm.assume(initialSupply < type(uint128).max);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
         vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
 
-        (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) =
-            generateRecipients(seed, initialSupply);
+        (totalPreMint, recipients, amounts) = generateRecipients(seed, initialSupply);
 
         vm.expectEmit();
         emit Ownable.OwnershipTransferred(address(0), owner);
@@ -353,299 +352,299 @@ contract CloneERC20VotesTest is Test {
         token.mintInflation();
     }
 
-    /*
-    function test_mintInflation_MintsCapEveryYear() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_mintInflation_MintsCapEveryYear(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        vm.assume(yearlyMintRate > 0);
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
+        vm.prank(owner);
         token.unlockPool();
 
         vm.warp(token.lastMintTimestamp() + 365 days);
         uint256 initialBalance = token.balanceOf(token.owner());
-        uint256 totalMinted = INITIAL_SUPPLY * YEARLY_MINT_RATE / 1 ether;
+        uint256 totalMinted = initialSupply * yearlyMintRate / 1 ether;
         token.mintInflation();
         assertEq(token.balanceOf(token.owner()), initialBalance + totalMinted, "Wrong balance");
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + totalMinted, "Wrong total supply");
+        assertEq(token.totalSupply(), initialSupply + totalMinted, "Wrong total supply");
 
         vm.warp(token.lastMintTimestamp() + 365 days);
-        totalMinted += token.totalSupply() * YEARLY_MINT_RATE / 1 ether;
+        totalMinted += token.totalSupply() * yearlyMintRate / 1 ether;
         token.mintInflation();
         assertEq(token.balanceOf(token.owner()), initialBalance + totalMinted, "Wrong balance");
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + totalMinted, "Wrong total supply");
+        assertEq(token.totalSupply(), initialSupply + totalMinted, "Wrong total supply");
     }
 
-    function test_mintInflation_MintsPartialYear() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_mintInflation_MintsPartialYear(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        vm.assume(yearlyMintRate > 0);
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
+        vm.prank(owner);
         token.unlockPool();
 
         vm.warp(token.lastMintTimestamp() + 180 days);
         uint256 initialBalance = token.balanceOf(token.owner());
         uint256 expectedPartialYearMint =
-            (INITIAL_SUPPLY * YEARLY_MINT_RATE * (block.timestamp - token.lastMintTimestamp())) / (1 ether * 365 days);
+            (initialSupply * yearlyMintRate * (block.timestamp - token.lastMintTimestamp())) / (1 ether * 365 days);
         token.mintInflation();
         assertEq(token.balanceOf(token.owner()), initialBalance + expectedPartialYearMint, "Wrong balance");
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedPartialYearMint, "Wrong total supply");
+        assertEq(token.totalSupply(), initialSupply + expectedPartialYearMint, "Wrong total supply");
     }
 
-    function test_mintInflation_MintsMultipleYearsAndPartialYear() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_mintInflation_MintsMultipleYearsAndPartialYear(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        vm.assume(yearlyMintRate > 0);
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
+        vm.prank(owner);
         token.unlockPool();
 
         vm.warp(token.lastMintTimestamp() + (365 days * 4) + 180 days);
         uint256 initialBalance = token.balanceOf(token.owner());
         uint256 expectedYearMints;
-        uint256 supply = INITIAL_SUPPLY;
+        uint256 supply = initialSupply;
         for (uint256 i = 0; i < 4; ++i) {
-            uint256 yearMint = supply * YEARLY_MINT_RATE / 1 ether;
+            uint256 yearMint = supply * yearlyMintRate / 1 ether;
             expectedYearMints += yearMint;
             supply += yearMint;
         }
-        uint256 expectedNextYearMint = (supply * YEARLY_MINT_RATE * 180 days) / (1 ether * 365 days);
+        uint256 expectedNextYearMint = (supply * yearlyMintRate * 180 days) / (1 ether * 365 days);
         token.mintInflation();
         assertEq(
             token.balanceOf(token.owner()), initialBalance + expectedYearMints + expectedNextYearMint, "Wrong balance"
         );
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedYearMints + expectedNextYearMint, "Wrong total supply");
+        assertEq(token.totalSupply(), initialSupply + expectedYearMints + expectedNextYearMint, "Wrong total supply");
     }
 
-    function test_mintInflation_RevertsWhenNoMintableAmount() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_mintInflation_RevertsWhenNoMintableAmount(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
+        vm.prank(owner);
         token.unlockPool();
         vm.expectRevert(NoMintableAmount.selector);
         token.mintInflation();
     }
 
-    function test_mintInflation_MintsAfterDelayedPoolUnlock() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
-        );
+    /* -------------------------------------------------------------------- */
+    /*                                burn()                                */
+    /* -------------------------------------------------------------------- */
 
-        vm.warp(block.timestamp + 365 days);
-        vm.expectRevert(MintingNotStartedYet.selector);
-        token.mintInflation();
-
-        vm.warp(block.timestamp + 2 * 365 days);
-        token.unlockPool();
-
-        vm.warp(token.lastMintTimestamp() + 365 days);
-        token.mintInflation();
-        uint256 expectedMint = INITIAL_SUPPLY * YEARLY_MINT_RATE / 1 ether;
-        assertEq(token.balanceOf(token.owner()), expectedMint, "Wrong balance");
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedMint, "Wrong total supply");
-    }
-
-    function test_burn_RevertsWhenInvalidOwner() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_burn_RevertsWhenInvalidOwner(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        address owner,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
         vm.prank(address(0xbeef));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
         token.burn(0);
     }
 
-    function test_burn_RevertsWhenBurnAmountExceedsBalance() public {
-        address pool = address(0xdeadbeef);
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    error InsufficientBalance();
+
+    function test_burn_RevertsWhenBurnAmountExceedsBalance(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, address(this), yearlyMintRate, vestingDuration, tokenURI, seed
         );
-        token.lockPool(pool);
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(this), 0, 1));
+        vm.expectRevert(InsufficientBalance.selector);
         token.burn(1);
     }
 
-    function test_burn_BurnsTokens() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_burn_BurnsTokens(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, address(this), address(this), yearlyMintRate, vestingDuration, tokenURI, seed
         );
-        token.unlockPool();
-        vm.warp(token.lastMintTimestamp() + 365 days);
-        token.mintInflation();
-
-        uint256 expectedYearMint = INITIAL_SUPPLY * YEARLY_MINT_RATE / 1 ether;
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedYearMint, "Wrong total supply");
-        assertEq(token.balanceOf(token.owner()), expectedYearMint, "Wrong balance");
-        token.burn(expectedYearMint);
-        assertEq(token.totalSupply(), INITIAL_SUPPLY, "Wrong total supply");
-        assertEq(token.balanceOf(token.owner()), 0, "Wrong balance");
-
-        vm.warp(token.lastMintTimestamp() + 1 days);
-        token.mintInflation();
-        assertGt(token.totalSupply(), INITIAL_SUPPLY, "Total supply should be greater than initial supply");
-        assertGt(token.balanceOf(token.owner()), 0, "Owner balance should be greater than 0");
+        uint256 balanceBefore = token.balanceOf(address(this));
+        token.burn(1);
+        assertEq(token.balanceOf(address(this)), balanceBefore - 1, "Wrong balance after burn");
     }
 
-    function test_updateTokenURI_UpdatesToNewTokenURI() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    /* ------------------------------------------------------------------------------ */
+    /*                                updateTokenURI()                                */
+    /* ------------------------------------------------------------------------------ */
+
+    function test_updateTokenURI_UpdatesToNewTokenURI(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, address(this), yearlyMintRate, vestingDuration, tokenURI, seed
         );
 
-        assertEq(token.tokenURI(), "", "Token URI should be empty");
         token.updateTokenURI("newTokenURI");
         assertEq(token.tokenURI(), "newTokenURI", "Token URI should be updated");
     }
 
-    function test_updateTokenURI_RevertsWhenNotOwner() public {
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(0xbeef),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            new address[](0),
-            new uint256[](0),
-            ""
+    function test_updateTokenURI_RevertsWhenNotOwner(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address owner,
+        address recipient,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        vm.assume(owner != address(this));
+        testFuzz_initialize(
+            name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
-
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(Ownable.Unauthorized.selector);
         token.updateTokenURI("newTokenURI");
     }
 
-    function test_release_ReleasesAllTokensAfterVesting() public {
-        address[] memory recipients = new address[](1);
-        recipients[0] = address(0xa);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1e23;
+    /* ----------------------------------------------------------------------- */
+    /*                                release()                                */
+    /* ----------------------------------------------------------------------- */
 
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            recipients,
-            amounts,
-            ""
+    function test_release_ReleasesAllTokensAfterVesting(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        vm.assume(vestingDuration > 100 && vestingDuration < type(uint32).max);
+        (, address[] memory recipients, uint256[] memory amounts) = testFuzz_initialize(
+            name, symbol, initialSupply, recipient, address(this), yearlyMintRate, vestingDuration, tokenURI, seed
         );
 
         token.unlockPool();
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
+        vm.warp(token.vestingStart() + vestingDuration);
 
-        vm.warp(token.vestingStart() + VESTING_DURATION);
-        vm.prank(address(0xa));
-        token.release();
-        assertEq(token.balanceOf(address(0xa)), amounts[0], "Wrong balance");
+        for (uint256 i; i != recipients.length; ++i) {
+            uint256 availableAmount = token.computeAvailableVestedAmount(recipients[i]);
+            assertEq(availableAmount, amounts[i], "Wrong available amount");
+            vm.prank(recipients[i]);
+            token.release();
+            assertEq(token.balanceOf(recipients[i]), amounts[i], "Wrong balance");
+        }
     }
 
-    function test_release_ReleasesTokensLinearly() public {
-        address[] memory recipients = new address[](1);
-        recipients[0] = address(0xa);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1e23;
-
-        token = new DERC20(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            address(this),
-            YEARLY_MINT_RATE,
-            VESTING_DURATION,
-            recipients,
-            amounts,
-            ""
+    function test_release_ReleasesTokensLinearly(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address recipient,
+        uint256 yearlyMintRate,
+        uint256 vestingDuration,
+        string memory tokenURI,
+        uint256 seed
+    ) public {
+        vm.assume(vestingDuration > 100 && vestingDuration < type(uint32).max);
+        (, address[] memory recipients, uint256[] memory amounts) = testFuzz_initialize(
+            name, symbol, initialSupply, recipient, address(this), yearlyMintRate, vestingDuration, tokenURI, seed
         );
 
         token.unlockPool();
-        assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
+        vm.warp(token.vestingStart() + vestingDuration / 4);
 
-        vm.startPrank(address(0xa));
-        vm.warp(token.vestingStart() + VESTING_DURATION / 4);
-        token.release();
-        assertEq(token.balanceOf(address(0xa)), amounts[0] / 4, "Wrong balance");
+        for (uint256 i; i != recipients.length; ++i) {
+            uint256 balanceBefore = token.balanceOf(recipients[i]);
+            uint256 availableAmount = token.computeAvailableVestedAmount(recipients[i]);
+            vm.prank(recipients[i]);
+            token.release();
+            uint256 balanceAfter = token.balanceOf(recipients[i]);
+            assertEq(balanceAfter - balanceBefore, availableAmount, "Wrong released amount");
+        }
 
-        vm.warp(token.vestingStart() + VESTING_DURATION / 2);
-        token.release();
+        vm.warp(token.vestingStart() + vestingDuration / 2);
+
+        for (uint256 i; i != recipients.length; ++i) {
+            uint256 balanceBefore = token.balanceOf(recipients[i]);
+            uint256 availableAmount = token.computeAvailableVestedAmount(recipients[i]);
+            vm.prank(recipients[i]);
+            token.release();
+            uint256 balanceAfter = token.balanceOf(recipients[i]);
+            assertEq(balanceAfter - balanceBefore, availableAmount, "Wrong released amount");
+        }
+
+        vm.warp(token.vestingStart() + vestingDuration);
+
+        for (uint256 i; i != recipients.length; ++i) {
+            uint256 balanceBefore = token.balanceOf(recipients[i]);
+            uint256 availableAmount = token.computeAvailableVestedAmount(recipients[i]);
+            vm.prank(recipients[i]);
+            token.release();
+            uint256 balanceAfter = token.balanceOf(recipients[i]);
+            assertEq(balanceAfter - balanceBefore, availableAmount, "Wrong released amount");
+            assertEq(token.balanceOf(recipients[i]), amounts[i], "Wrong balance #3 release");
+        }
     }
-    */
 }
