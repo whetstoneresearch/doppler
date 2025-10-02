@@ -138,8 +138,14 @@ contract V4MulticurveInitializer is Deployers {
             salt: salt
         });
 
+        vm.startSnapshotGas("V4MulticurveInitializer", "Multicurve+TokenFactory");
         (asset,,,,) = airlock.create(params);
+        vm.stopSnapshotGas("V4MulticurveInitializer", "Multicurve+TokenFactory");
         require(asset == tokenAddress, "Unexpected token address");
+    }
+
+    function test_gas_MulticurveInitializerV4() public {
+        testFuzz_create_MulticurveInitializerV4(bytes32(type(uint256).max), true);
     }
 
     function testFuzz_migrate_MulticurveInitializerV4(bytes32 salt, bool isUsingEth) public {
