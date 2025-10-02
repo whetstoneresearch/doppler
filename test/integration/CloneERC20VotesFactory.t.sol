@@ -97,10 +97,8 @@ contract CloneERC20VotesFactoryIntegrationTest is Deployers {
 
         bytes memory tokenData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
 
-        console.log("beep");
         address predictedAsset =
             LibClone.predictDeterministicAddress(tokenFactory.IMPLEMENTATION(), salt, address(tokenFactory));
-        console.log("Predicted asset:", predictedAsset);
 
         InitData memory initData = _prepareInitData(predictedAsset);
 
