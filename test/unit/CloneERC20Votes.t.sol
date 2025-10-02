@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { Initializable } from "solady/utils/Initializable.sol";
+import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 import {
-    CloneERC20Votes,
     ArrayLengthsMismatch,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
@@ -16,7 +16,7 @@ import {
     MAX_YEARLY_MINT_RATE_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
     MaxYearlyMintRateExceeded
-} from "src/CloneERC20Votes.sol";
+} from "src/CloneERC20.sol";
 
 function generateRecipients(
     uint256 seed,

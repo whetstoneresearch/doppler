@@ -5,8 +5,8 @@ import { Test } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 import {
-    CloneERC20Votes,
     ArrayLengthsMismatch,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
@@ -17,7 +17,7 @@ import {
     MAX_YEARLY_MINT_RATE_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
     MaxYearlyMintRateExceeded
-} from "src/CloneERC20Votes.sol";
+} from "src/CloneERC20.sol";
 import { generateRecipients } from "test/unit/CloneERC20Votes.t.sol";
 
 contract CloneERC20VotesFactoryTest is Test {

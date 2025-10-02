@@ -25,8 +25,8 @@ import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4Multicurv
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
-import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
+import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
+import { CloneERC20 } from "src/CloneERC20.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
     receive() external payable { }
@@ -40,12 +40,12 @@ contract LiquidityMigratorMock is ILiquidityMigrator {
     }
 }
 
-contract CloneERC20VotesFactoryIntegrationTest is Deployers {
+contract CloneERC20FactoryIntegrationTest is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
-    CloneERC20VotesFactory public tokenFactory;
+    CloneERC20Factory public tokenFactory;
     GovernanceFactory public governanceFactory;
     LiquidityMigratorMock public mockLiquidityMigrator;
 
@@ -56,7 +56,7 @@ contract CloneERC20VotesFactoryIntegrationTest is Deployers {
         deployFreshManagerAndRouters();
 
         airlock = new Airlock(airlockOwner);
-        tokenFactory = new CloneERC20VotesFactory(address(airlock));
+        tokenFactory = new CloneERC20Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         multicurveHook = UniswapV4MulticurveInitializerHook(
             address(
@@ -118,9 +118,9 @@ contract CloneERC20VotesFactoryIntegrationTest is Deployers {
             salt: salt
         });
 
-        vm.startSnapshotGas("CloneERC20VotesFactoryIntegrationTest", "Multicurve+CloneERC20VotesFactory");
+        vm.startSnapshotGas("CloneERC20FactoryIntegrationTest", "Multicurve+CloneERC20Factory");
         (asset,,,,) = airlock.create(params);
-        vm.stopSnapshotGas("CloneERC20VotesFactoryIntegrationTest", "Multicurve+CloneERC20VotesFactory");
+        vm.stopSnapshotGas("CloneERC20FactoryIntegrationTest", "Multicurve+CloneERC20Factory");
         require(asset == predictedAsset, "Asset address mismatch");
     }
 
