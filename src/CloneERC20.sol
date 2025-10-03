@@ -44,9 +44,6 @@ uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.2 ether;
 /// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
 uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
 
-/// @dev Address of the canonical Permit2 contract
-address constant PERMIT_2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-
 /**
  * @notice Vesting data for a specific address
  * @param totalAmount Total amount of vested tokens
