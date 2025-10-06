@@ -8,7 +8,7 @@
 [foundry]: https://getfoundry.sh/
 [foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
 
-This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts. You can learn more about the technical aspects in the [documentation](https://docs.doppler.lol).
+This repository contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts. You can learn more about the technical aspects in the [documentation](https://docs.doppler.lol).
 
 ## Deployments
 
