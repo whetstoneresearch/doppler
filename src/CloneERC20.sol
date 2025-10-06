@@ -302,7 +302,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     }
 
     /// @inheritdoc ERC20
-    function _givePermit2InfiniteAllowance() internal pure override returns (bool) {
+    function _givePermit2InfiniteAllowance() internal pure virtual override returns (bool) {
         return true;
     }
 }
