@@ -20,59 +20,47 @@ import {
     InvalidProtocolOwnerBeneficiary,
     MIN_PROTOCOL_OWNER_SHARES
 } from "src/types/BeneficiaryData.sol";
-import { FeesManager, Collect, UpdateBeneficiary } from "src/base/FeesManager.sol";
+import { FeesManager, Collect, UpdateBeneficiary, Release } from "src/base/FeesManager.sol";
 
 contract FeesManagerImplementation is FeesManager {
+    address internal immutable PROTOCOL_OWNER;
     PoolManagerMock internal poolManager;
-    TestERC20 internal token0;
-    TestERC20 internal token1;
 
-    constructor(PoolManagerMock poolManager_, TestERC20 token0_, TestERC20 token1_) {
+    constructor(address PROTOCOL_OWNER_, PoolManagerMock poolManager_) {
+        PROTOCOL_OWNER = PROTOCOL_OWNER_;
         poolManager = poolManager_;
-        token0 = token0_;
-        token1 = token1_;
+    }
+
+    function storeBeneficiaries(PoolKey memory poolKey, BeneficiaryData[] memory beneficiaries) external {
+        _storeBeneficiaries(poolKey, beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES);
     }
 
     function _collectFees(
-        PoolId
+        PoolId poolId
     ) internal override returns (BalanceDelta fees) {
-        (uint256 fees0, uint256 fees1) = poolManager.collect();
+        (uint256 fees0, uint256 fees1) = poolManager.collect(getPoolKey[poolId]);
         fees = toBalanceDelta(int128(uint128(fees0)), int128(uint128(fees1)));
-    }
-
-    function storeBeneficiaries(
-        BeneficiaryData[] memory beneficiaries,
-        address protocolOwner,
-        PoolKey memory poolKey
-    ) external {
-        _storeBeneficiaries(beneficiaries, protocolOwner, MIN_PROTOCOL_OWNER_SHARES, poolKey);
     }
 }
 
 contract PoolManagerMock {
-    TestERC20 internal token0;
-    TestERC20 internal token1;
-
-    constructor(TestERC20 token0_, TestERC20 token1_) {
-        token0 = token0_;
-        token1 = token1_;
+    function setFees(PoolKey memory poolKey, uint256 amount0, uint256 amount1) external {
+        TestERC20(Currency.unwrap(poolKey.currency0)).mint(address(this), amount0);
+        TestERC20(Currency.unwrap(poolKey.currency1)).mint(address(this), amount1);
     }
 
-    function setFees(uint256 amount0, uint256 amount1) external {
-        token0.mint(address(this), amount0);
-        token1.mint(address(this), amount1);
-    }
-
-    function collect() external returns (uint256 amount0, uint256 amount1) {
-        amount0 = token0.balanceOf(address(this));
-        token0.transfer(msg.sender, amount0);
-        amount1 = token1.balanceOf(address(this));
-        token1.transfer(msg.sender, amount1);
+    function collect(
+        PoolKey memory poolKey
+    ) external returns (uint256 amount0, uint256 amount1) {
+        amount0 = poolKey.currency0.balanceOf(address(this));
+        poolKey.currency0.transfer(msg.sender, amount0);
+        amount1 = poolKey.currency1.balanceOf(address(this));
+        poolKey.currency1.transfer(msg.sender, amount1);
     }
 }
 
 contract FeesManagerTest is Test {
-    address internal protocolOwner = address(0xB055);
+    address internal constant PROTOCOL_OWNER = address(0xB055);
 
     TestERC20 internal token0;
     TestERC20 internal token1;
@@ -90,8 +78,8 @@ contract FeesManagerTest is Test {
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
 
-        poolManager = new PoolManagerMock(token0, token1);
-        feesManager = new FeesManagerImplementation(poolManager, token0, token1);
+        poolManager = new PoolManagerMock();
+        feesManager = new FeesManagerImplementation(PROTOCOL_OWNER, poolManager);
 
         poolKey = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -103,42 +91,46 @@ contract FeesManagerTest is Test {
         poolId = poolKey.toId();
     }
 
+    /* ---------------------------------------------------------------------------------- */
+    /*                                storeBeneficiaries()                                */
+    /* ---------------------------------------------------------------------------------- */
+
     function test_storeBeneficiaries_StoresBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
 
         assertEq(feesManager.getShares(poolId, address(0xaaa)), 0.95e18);
-        assertEq(feesManager.getShares(poolId, protocolOwner), 0.05e18);
+        assertEq(feesManager.getShares(poolId, PROTOCOL_OWNER), 0.05e18);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidShares() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
 
         vm.expectRevert(InvalidShares.selector);
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
     }
 
     function test_storeBeneficiaries_RevertsWhenUnorderedBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xbbb), shares: 0.45e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.505e18 });
-        beneficiaries[2] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
 
         vm.expectRevert(UnorderedBeneficiaries.selector);
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidProtocolOwnerShares() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.96e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.04e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.04e18 });
 
         vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerShares.selector, MIN_PROTOCOL_OWNER_SHARES, 0.04e18));
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidProtocolOwnerBeneficiary() public {
@@ -147,27 +139,33 @@ contract FeesManagerTest is Test {
         beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbbb), shares: 0.5e18 });
 
         vm.expectRevert(InvalidProtocolOwnerBeneficiary.selector);
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidTotalShares() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.96e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
         vm.expectRevert(InvalidTotalShares.selector);
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
     }
 
-    function test_collectFees() public {
+    /* --------------------------------------------------------------------------- */
+    /*                                collectFees()                                */
+    /* --------------------------------------------------------------------------- */
+
+    function test_collectFees_CollectPoolFees(uint256 fees0, uint256 fees1) public {
+        vm.assume(fees0 < type(uint48).max && fees1 < type(uint48).max);
+
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
 
-        uint256 fees0 = 10e18;
-        uint256 fees1 = 20e18;
+        poolManager.setFees(poolKey, fees0, fees1);
 
-        poolManager.setFees(fees0, fees1);
+        vm.expectEmit();
+        emit Collect(poolId, fees0, fees1);
         feesManager.collectFees(poolId);
 
         assertEq(feesManager.getCumulatedFees0(poolId), fees0, "Incorrect cumulated fees0");
@@ -180,7 +178,7 @@ contract FeesManagerTest is Test {
 
             vm.prank(beneficiary);
             vm.expectEmit();
-            emit Collect(poolId, beneficiary, expectedFees0, expectedFees1);
+            emit Release(poolId, beneficiary, expectedFees0, expectedFees1);
             feesManager.collectFees(poolId);
             assertEq(token0.balanceOf(beneficiary), expectedFees0, "Wrong collected fees0");
             assertEq(token1.balanceOf(beneficiary), expectedFees1, "Wrong collected fees1");
@@ -189,11 +187,40 @@ contract FeesManagerTest is Test {
         }
     }
 
+    function test_collectFees_ReleasesIfBeneficiary(uint256 fees0, uint256 fees1) public {
+        vm.assume(fees0 < type(uint48).max && fees1 < type(uint48).max);
+
+        address beneficiary0 = address(0xaaa);
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary0, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
+
+        poolManager.setFees(poolKey, fees0, fees1);
+
+        uint256 expectedFees0 = fees0 * 95 / 100;
+        uint256 expectedFees1 = fees1 * 95 / 100;
+
+        vm.expectEmit();
+        emit Release(poolId, beneficiary0, expectedFees0, expectedFees1);
+        vm.prank(beneficiary0);
+        feesManager.collectFees(poolId);
+
+        assertEq(token0.balanceOf(beneficiary0), expectedFees0, "Wrong collected fees0");
+        assertEq(token1.balanceOf(beneficiary0), expectedFees1, "Wrong collected fees1");
+        assertEq(feesManager.getLastCumulatedFees0(poolId, beneficiary0), fees0);
+        assertEq(feesManager.getLastCumulatedFees1(poolId, beneficiary0), fees1);
+    }
+
+    /* --------------------------------------------------------------------------------- */
+    /*                                updateBeneficiary()                                */
+    /* --------------------------------------------------------------------------------- */
+
     function test_updateBeneficiary() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: protocolOwner, shares: 0.05e18 });
-        feesManager.storeBeneficiaries(beneficiaries, protocolOwner, poolKey);
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
 
         vm.expectEmit();
         emit UpdateBeneficiary(poolId, address(0xaaa), address(0xbbb));

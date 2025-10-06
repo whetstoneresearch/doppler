@@ -97,11 +97,14 @@ function adjustCurves(
 }
 
 /**
- * @dev From an array of curves, calculates the positions to be created along with the final LP tail position
+ * @dev Calculates the positions from a given array of curves, an extra tail position might be added if there's
+ * any supply of the other currency to bond
  * @param curves Array of curves to process
  * @param tickSpacing Tick spacing of the Uniswap V4 pool
  * @param numTokensToSell Total amount of asset tokens to provide
+ * @param otherCurrencySupply Total amount of the other currency to provide
  * @param isToken0 True if the asset we're selling is token0, false otherwise
+ * @return positions Array of Position structs to mint in the Uniswap V4 pool
  */
 function calculatePositions(
     Curve[] memory curves,

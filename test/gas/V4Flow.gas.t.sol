@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { console } from "forge-std/console.sol";
+
+import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -11,12 +15,10 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { DopplerDeployer, UniswapV4Initializer, IPoolInitializer } from "src/UniswapV4Initializer.sol";
@@ -27,7 +29,10 @@ import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
 
-contract V4MigratorTest is BaseTest, DeployPermit2 {
+/**
+ * @dev This is not a test but a gas benchmark for the V4 flow
+ */
+contract V4FlowGas is Deployers, DeployPermit2 {
     IAllowanceTransfer public permit2;
     UniswapV4Migrator public migrator;
     UniswapV4MigratorHook public migratorHook;
@@ -39,8 +44,10 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    function setUp() public override {
-        super.setUp();
+    address integrator = makeAddr("integrator");
+
+    function setUp() public {
+        deployFreshManagerAndRouters();
 
         permit2 = IAllowanceTransfer(deployPermit2());
         airlock = new Airlock(address(this));
@@ -68,14 +75,6 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-    }
-
-    function test_migrate_v4(
-        int16 tickSpacing
-    ) public {
-        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
-
-        address integrator = makeAddr("integrator");
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
@@ -89,33 +88,26 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
         airlock.setModuleState(modules, states);
+    }
+
+    function test_v4_flow_gas() public {
+        uint256 startingTime = 100;
+        uint256 endingTime = 300;
 
         uint256 initialSupply = 1e23;
 
         bytes memory tokenFactoryData =
             abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
-        bytes memory poolInitializerData = abi.encode(
-            0.01 ether,
-            10 ether,
-            block.timestamp,
-            block.timestamp + 1 days,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            200,
-            800,
-            false,
-            10,
-            200,
-            2
-        );
+        bytes memory poolInitializerData =
+            abi.encode(1e15, 1 ether, startingTime, endingTime, 174_312, 186_840, 1, 800, false, 10, 200, 2);
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(this), shares: 0.05e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
         beneficiaries = sortBeneficiaries(beneficiaries);
 
-        bytes memory migratorData = abi.encode(2000, tickSpacing, 30 days, beneficiaries);
+        bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries);
 
         MineV4Params memory params = MineV4Params({
             airlock: address(airlock),
@@ -147,33 +139,88 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             salt: salt
         });
 
-        airlock.create(createParams);
+        vm.startSnapshotGas("V4 Flow", "AirlockCreateCall");
+        (, address pool, address governance, address timelock, address migrationPool) = airlock.create(createParams);
+        vm.stopSnapshotGas("V4 Flow", "AirlockCreateCall");
 
-        bool canMigrated;
+        (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
+            Doppler(payable(hook)).poolKey();
 
-        uint256 i;
+        vm.warp(startingTime);
 
-        do {
-            i++;
-            deal(address(this), 0.1 ether);
+        vm.startSnapshotGas("V4 Flow", "First buy");
+        swapRouter.swap{ value: 0.001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "First buy");
 
-            (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
-                Doppler(payable(hook)).poolKey();
+        (,, uint256 totalTokensSold, uint256 totalProceeds,,) = Doppler(payable(hook)).state();
+        console.log("Total tokens sold after first buy: %e", totalTokensSold);
+        console.log("Total proceeds after first buy: %e", totalProceeds);
 
-            swapRouter.swap{ value: 0.0001 ether }(
-                PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
-                IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
-                PoolSwapTest.TestSettings(false, false),
-                ""
-            );
+        uint256 epochLength = Doppler(payable(hook)).epochLength();
 
-            (,,, uint256 totalProceeds,,) = Doppler(payable(hook)).state();
-            canMigrated = totalProceeds > Doppler(payable(hook)).minimumProceeds();
+        vm.warp(101);
+        vm.startSnapshotGas("V4 Flow", "Second buy (new epoch)");
+        swapRouter.swap{ value: 0.001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Second buy (new epoch)");
 
-            vm.warp(block.timestamp + 200);
-        } while (!canMigrated);
+        (,, totalTokensSold, totalProceeds,,) = Doppler(payable(hook)).state();
+        console.log("Total tokens sold after first buy: %e", totalTokensSold);
+        console.log("Total proceeds after first buy: %e", totalProceeds);
 
-        goToEndingTime();
+        vm.startSnapshotGas("V4 Flow", "Third buy (same epoch)");
+        swapRouter.swap{ value: 0.001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Third buy (same epoch)");
+
+        (,, totalTokensSold, totalProceeds,,) = Doppler(payable(hook)).state();
+        console.log("Total tokens sold after first buy: %e", totalTokensSold);
+        console.log("Total proceeds after first buy: %e", totalProceeds);
+
+        uint256 totalEpochs = (endingTime - startingTime) / epochLength;
+
+        vm.warp(110);
+        vm.startSnapshotGas("V4 Flow", "Fourth buy (epoch #10)");
+        swapRouter.swap{ value: 0.001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Fourth buy (epoch #10)");
+
+        (,, totalTokensSold, totalProceeds,,) = Doppler(payable(hook)).state();
+        console.log("Total tokens sold after first buy: %e", totalTokensSold);
+        console.log("Total proceeds after first buy: %e", totalProceeds);
+
+        vm.warp(299);
+        vm.startSnapshotGas("V4 Flow", "Last buy (final epoch)");
+        swapRouter.swap{ value: 0.001 ether }(
+            PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        );
+        vm.stopSnapshotGas("V4 Flow", "Last buy (final epoch)");
+
+        (,, totalTokensSold, totalProceeds,,) = Doppler(payable(hook)).state();
+        console.log("Total tokens sold after first buy: %e", totalTokensSold);
+        console.log("Total proceeds after first buy: %e", totalProceeds);
+
+        vm.warp(endingTime);
         airlock.migrate(asset);
     }
 

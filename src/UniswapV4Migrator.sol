@@ -121,7 +121,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
         storeBeneficiaries(
-            beneficiaries, Airlock(airlock).owner(), MIN_PROTOCOL_OWNER_SHARES, PoolId.wrap(0), storeBeneficiary
+            PoolId.wrap(0), beneficiaries, Airlock(airlock).owner(), MIN_PROTOCOL_OWNER_SHARES, storeBeneficiary
         );
 
         PoolKey memory poolKey = PoolKey({
@@ -307,9 +307,8 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
             );
         }
 
-        // Transfer any remaining dust,
-        // For no-op governance, send dust to the protocol locker instead of dead address
-        address dustRecipient = isNoOpGovernance ? address(locker) : recipient;
+        // Transfer any remaining dust, either to the governance or the Airlock owner
+        address dustRecipient = isNoOpGovernance ? airlock.owner() : recipient;
         if (poolKey.currency0.balanceOfSelf() > 0) {
             poolKey.currency0.transfer(dustRecipient, poolKey.currency0.balanceOfSelf());
         }

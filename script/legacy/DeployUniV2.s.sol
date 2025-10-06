@@ -45,10 +45,3 @@ abstract contract DeployUniV2Script is Script {
         require(deployedTo != address(0), "Deploy failed");
     }
 }
-
-/// @dev forge script DeployUniV2DomaTestnetScript --rpc-url $DOMA_TESTNET_RPC_URL --broadcast --slow --private-key $PRIVATE_KEY
-contract DeployUniV2DomaTestnetScript is DeployUniV2Script {
-    function setUp() public override {
-        _scriptData = ScriptData({ weth: 0x4200000000000000000000000000000000000006, chainId: ChainIds.DOMA_TESTNET });
-    }
-}

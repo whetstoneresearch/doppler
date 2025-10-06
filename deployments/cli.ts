@@ -58,11 +58,6 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://sepolia.arbiscan.io/',
     isTestnet: true,
   },
-  97476: {
-    name: 'Doma Testnet',
-    explorerUrl: 'https://explorer-testnet.doma.xyz/',
-    isTestnet: true,
-  },
 };
 
 type Transaction = {
