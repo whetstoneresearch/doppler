@@ -9,14 +9,14 @@ import { CloneERC20 } from "src/CloneERC20.sol";
 /**
  * @title CloneERC20Factory
  * @author Whetstone Research
- * @notice Deploys new ERC20 tokens using the minimal proxy pattern (EIP-1167)
+ * @notice Deploys new CloneERC20 tokens using the minimal proxy pattern (EIP-1167)
  * @custom:security-contact security@whetstone.cc
  */
 contract CloneERC20Factory is ImmutableAirlock, ITokenFactory {
     /// @notice Address of the implementation contract which will be cloned
     address public immutable IMPLEMENTATION;
 
-    /// @notice airlock_ Address of the Airlock contract
+    /// @param airlock_ Address of the Airlock contract
     constructor(
         address airlock_
     ) ImmutableAirlock(airlock_) {
