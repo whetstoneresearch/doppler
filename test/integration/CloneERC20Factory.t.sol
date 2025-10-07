@@ -15,6 +15,7 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -26,18 +27,6 @@ import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import { CloneERC20 } from "src/CloneERC20.sol";
 
-contract LiquidityMigratorMock is ILiquidityMigrator {
-    receive() external payable { }
-
-    function initialize(address, address, bytes memory) external pure override returns (address) {
-        return address(0xdeadbeef);
-    }
-
-    function migrate(uint160, address, address, address) external payable override returns (uint256) {
-        return 0;
-    }
-}
-
 contract CloneERC20FactoryIntegrationTest is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
@@ -45,7 +34,7 @@ contract CloneERC20FactoryIntegrationTest is Deployers {
     UniswapV4MulticurveInitializerHook public multicurveHook;
     CloneERC20Factory public tokenFactory;
     GovernanceFactory public governanceFactory;
-    LiquidityMigratorMock public mockLiquidityMigrator;
+    NoOpMigrator public migrator;
 
     PoolKey public poolKey;
     PoolId public poolId;
@@ -67,13 +56,13 @@ contract CloneERC20FactoryIntegrationTest is Deployers {
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
         deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(multicurveHook));
 
-        mockLiquidityMigrator = new LiquidityMigratorMock();
+        migrator = new NoOpMigrator(address(airlock));
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
         modules[1] = address(governanceFactory);
         modules[2] = address(initializer);
-        modules[3] = address(mockLiquidityMigrator);
+        modules[3] = address(migrator);
 
         ModuleState[] memory states = new ModuleState[](4);
         states[0] = ModuleState.TokenFactory;
@@ -110,7 +99,7 @@ contract CloneERC20FactoryIntegrationTest is Deployers {
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
             poolInitializerData: abi.encode(initData),
-            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigrator: ILiquidityMigrator(migrator),
             liquidityMigratorData: new bytes(0),
             integrator: address(0),
             salt: salt
