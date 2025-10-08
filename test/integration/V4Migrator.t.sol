@@ -147,7 +147,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             salt: salt
         });
 
-        (, address pool, address governance, address timelock, address migrationPool) = airlock.create(createParams);
+        airlock.create(createParams);
 
         bool canMigrated;
 
@@ -160,7 +160,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(hook)).poolKey();
 
-            BalanceDelta delta = swapRouter.swap{ value: 0.0001 ether }(
+            swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
                 IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
