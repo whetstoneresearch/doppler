@@ -154,7 +154,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         uint256 totalTokensOnBondingCurve,
         bytes32,
         bytes calldata data
-    ) external onlyAirlock returns (address) {
+    ) external virtual onlyAirlock returns (address) {
         require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
 
         InitData memory initData = abi.decode(data, (InitData));
