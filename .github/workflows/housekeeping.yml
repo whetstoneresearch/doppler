@@ -1,9 +1,13 @@
-name: Copy deployments to docs
+name: Generate deployments, copy to docs
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+concurrency:
+  group: housekeeping-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   copy-file:
@@ -21,6 +25,26 @@ jobs:
           repository: whetstoneresearch/doppler-docs
           token: ${{ secrets.PAT_DOCS }}
           path: docs
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Generate deployment docs
+        working-directory: ./contracts
+        run: bun deployments/cli.ts --output=history
+
+      - name: Commit and push generated files to contracts repository
+        run: |
+          cd contracts
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add Deployments.md Deployments.json deployments/*.md
+          if [[ -n $(git status -s) ]]; then
+            git commit -m "Update deployment docs - ${{ github.sha }}"
+            git push
+          else
+            echo "No changes to commit to contracts repo"
+          fi
 
       - name: Copy deployments file from contracts to docs
         run: |

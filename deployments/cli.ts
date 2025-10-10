@@ -227,6 +227,24 @@ async function generateHistoryLogs(): Promise<void> {
   }
 
   await Bun.write(`./Deployments.md`, generateDeploymentsFile(mainnetLabels, mainnetDeployments, testnetLabels, testnetDeployments));
+  
+  // Generate JSON file for SDK consumption
+  const addressesJson: {[chainId: string]: {[contractName: string]: string}} = {};
+  
+  for (const chainId in deployments) {
+    if (deployments[chainId].length === 0) {
+      continue;
+    }
+    
+    const latestDeployments = getLatestDeployments(deployments[chainId]);
+    addressesJson[chainId] = {};
+    
+    latestDeployments.forEach((deployment) => {
+      addressesJson[chainId][deployment.contractName] = deployment.contractAddress;
+    });
+  }
+  
+  await Bun.write(`./Deployments.json`, JSON.stringify(addressesJson, null, 2));
 }
 
 function generateDeploymentsFile(mainnetLabels: string[], mainnets: string, testnetLabels: string[], testnets): string {
