@@ -50,6 +50,7 @@
     "DopplerDeployer": "0x49f3fbb2dff7f3d03b622e3b2a6d3f2e6fdb2a5a",
     "DopplerLensQuoter": "0x43d0d97ec9241a8f05a264f94b82a1d2e600f2b3",
     "GovernanceFactory": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b",
+    "LaunchpadGovernanceFactory": "0x40bcb4dda3bcf7dba30c5d10c31ee2791ed9ddca",
     "LockableUniswapV3Initializer": "0xe0dc4012ac9c868f09c6e4b20d66ed46d6f258d0",
     "NoOpGovernanceFactory": "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299",
     "NoOpMigrator": "0x6ddfed58d238ca3195e49d8ac3d4cea6386e5c33",
@@ -61,14 +62,29 @@
     "UniswapV4Migrator": "0x166109c4ee7fe69164631caa937daa5f5cebfef0",
     "UniswapV4MigratorHook": "0x45178a8d6d368d612b7552b217802b7f97262000",
     "UniswapV4MulticurveInitializer": "0x65de470da664a5be139a5d812be5fda0d76cc951",
-    "UniswapV4MulticurveInitializerHook": "0x892d3c2b4abeaaf67d52a7b29783e2161b7cad40"
+    "UniswapV4MulticurveInitializerHook": "0x892d3c2b4abeaaf67d52a7b29783e2161b7cad40",
+    "UniswapV4ScheduledMulticurveInitializer": "0xa36715da46ddf4a769f3290f49af58bf8132ed8e",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0x3e342a06f9592459d75721d6956b570f02ef2dc0"
   },
   "10143": {
-    "Airlock": "0x5f3ba43d44375286296cb85f1ea2ebfa25dde731",
-    "GovernanceFactory": "0x136191b46478cab023cbc01a36160c4aad81677a",
-    "TokenFactory": "0x5fbe931dc4b923a7abe4c47ad68d5bf9eda5b76d",
-    "UniswapV2Migrator": "0x8b4c7db9121fc885689c0a50d5a1429f15aec2a0",
-    "UniswapV3Initializer": "0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a",
+    "Airlock": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b",
+    "AirlockMultisig": "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299",
+    "Bundler": "0xf6023127f6e937091d5b605680056a6d27524bad",
+    "DopplerDeployer": "0x166109c4ee7fe69164631caa937daa5f5cebfef0",
+    "DopplerLensQuoter": "0x2f2bacd46d3f5c9ee052ab392b73711db89129db",
+    "GovernanceFactory": "0x014e1c0bd34f3b10546e554cb33b3293fecdd056",
+    "LockableUniswapV3Initializer": "0x99c94b9df930e1e21a4e4a2c105dbff21bf5c5ae",
+    "NoOpGovernanceFactory": "0x094d926a969b3024ca46d2186bf13fd5cdba9ce2",
+    "NoOpMigrator": "0x5cadb034267751a364ddd4d321c99e07a307f915",
+    "StreamableFeesLocker": "0x0d2f38d807bfad5c18e430516e10ab560d300caf",
+    "TokenFactory": "0x8af018e28c273826e6b2d5a99e81c8fb63729b07",
+    "UniswapV2Migrator": "0x43d0d97ec9241a8f05a264f94b82a1d2e600f2b3",
+    "UniswapV3Initializer": "0x9f4e56be80f08ba1a2445645efa6d231e27b43ec",
+    "UniswapV4Initializer": "0x06fefd02f0b6d9f57f52cfacfc113665dfa20f0f",
+    "UniswapV4Migrator": "0x4b0ec16eb40318ca5a4346f20f04a2285c19675b",
+    "UniswapV4MigratorHook": "0x76e1f507592d9856b48482c599732d129ed6a500",
+    "UniswapV4MulticurveInitializer": "0xa3c847eab58eaa9cbc215c785c9cfbc19cdabd5f",
+    "UniswapV4MulticurveInitializerHook": "0xfaf16d11737e6552156dd328cd26c530e1da2d40",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
   },
   "57073": {
@@ -94,6 +110,7 @@
     "NoOpGovernanceFactory": "0x7bd798fafc99a3b17e261f8308a8c11b56935ea1",
     "NoOpMigrator": "0xf11066abbd329ac4bba39455340539322c222eb0",
     "StreamableFeesLocker": "0x3345e557c5c0b474be1eb4693264008b8562aa9c",
+    "TeamGovernanceFactory": "0x8af3001ed75f86f4dd910577eca9c5db7cea765c",
     "TokenFactory": "0x9d8fd79b2a59c5d91ccbd79c3aeb4de56451bb02",
     "UniswapV2Migrator": "0x04a898f3722c38f9def707bd17dc78920efa977c",
     "UniswapV3Initializer": "0x4c3062b9ccfdbcb10353f57c1b59a29d4c5cfa47",
@@ -102,6 +119,8 @@
     "UniswapV4MigratorHook": "0x9d0c38a80647e53d5a8a319b39de2b66b8586500",
     "UniswapV4MulticurveInitializer": "0x8099ef6a2100a5ac02af275eed606babd38a1689",
     "UniswapV4MulticurveInitializerHook": "0xf1a484724e2451d2c0290c946ec0034f057d6d40",
+    "UniswapV4ScheduledMulticurveInitializer": "0x5c10d3e14aae2ef95619b25e907e013260e832e4",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0x5d663f9c993deff2d17ce4232d75f347df7dadc0",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
   }
 }
