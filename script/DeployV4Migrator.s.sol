@@ -124,3 +124,14 @@ contract DeployV4MigratorUnichainSepoliaScript is DeployV4MigratorScript {
         });
     }
 }
+
+contract DeployV4MigratorMonadTestnetScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B,
+            poolManager: 0xe93882f395B0b24180855c68Ab19B2d78573ceBc,
+            positionManager: 0xFBe792E485A7da8D7eE1CFB4986Fe99421aE825C,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}

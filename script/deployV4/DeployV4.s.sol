@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import { Script } from "forge-std/Script.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { UniswapV4Initializer, DopplerDeployer, IPoolManager } from "src/UniswapV4Initializer.sol";
+import { IStateView } from "@v4-periphery/lens/StateView.sol";
+import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 import { ChainIds } from "script/ChainIds.sol";
 
 struct V4ScriptData {
@@ -28,7 +30,8 @@ abstract contract DeployV4Script is Script {
         DopplerDeployer dopplerDeployer = new DopplerDeployer(IPoolManager(_scriptData.poolManager));
         UniswapV4Initializer uniswapV4Initializer =
             new UniswapV4Initializer(_scriptData.airlock, IPoolManager(_scriptData.poolManager), dopplerDeployer);
-        // DopplerLensQuoter quoter = new DopplerLensQuoter(IPoolManager(_scriptData.poolManager), IStateView(_scriptData.stateView));
+        DopplerLensQuoter quoter =
+            new DopplerLensQuoter(IPoolManager(_scriptData.poolManager), IStateView(_scriptData.stateView));
         vm.stopBroadcast();
     }
 }
@@ -88,6 +91,17 @@ contract DeployV4UnichainSepoliaScript is DeployV4Script {
             airlock: 0x0d2f38d807bfAd5C18e430516e10ab560D300caF,
             poolManager: 0x00B036B58a818B1BC34d502D3fE730Db729e62AC,
             stateView: 0xc199F1072a74D4e905ABa1A84d9a45E2546B6222
+        });
+    }
+}
+
+contract DeployV4MonadTestnetScript is DeployV4Script {
+    function setUp() public override {
+        _scriptData = V4ScriptData({
+            chainId: ChainIds.MONAD_TESTNET,
+            airlock: 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B,
+            poolManager: 0xe93882f395B0b24180855c68Ab19B2d78573ceBc,
+            stateView: 0x6F8099858d501b8B64077091CFe0C75A0148abcc
         });
     }
 }

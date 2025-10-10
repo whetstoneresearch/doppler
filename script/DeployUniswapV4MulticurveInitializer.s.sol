@@ -97,3 +97,13 @@ contract DeployUniswapV4MulticurveInitializerUnichainSepoliaScript is DeployUnis
         });
     }
 }
+
+contract DeployUniswapV4MulticurveInitializerMonadTestnetScript is DeployUniswapV4MulticurveInitializerScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e,
+            poolManager: 0xe93882f395B0b24180855c68Ab19B2d78573ceBc,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
