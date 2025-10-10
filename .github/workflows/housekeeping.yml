@@ -9,6 +9,9 @@ concurrency:
   group: housekeeping-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   copy-file:
     runs-on: ubuntu-latest
@@ -17,6 +20,7 @@ jobs:
       - name: Checkout Contracts repository
         uses: actions/checkout@v4
         with:
+          ref: main
           path: contracts
 
       - name: Checkout Docs repository
