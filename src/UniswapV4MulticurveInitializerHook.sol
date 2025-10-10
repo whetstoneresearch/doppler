@@ -67,7 +67,10 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
      * @param manager Address of the Uniswap V4 Pool Manager
      * @param initializer Address of the Uniswap V4 Multicurve Initializer contract
      */
-    constructor(IPoolManager manager, UniswapV4MulticurveInitializer initializer) BaseHook(manager) {
+    constructor(
+        IPoolManager manager,
+        UniswapV4MulticurveInitializer initializer
+    ) BaseHook(manager) {
         INITIALIZER = address(initializer);
     }
 
@@ -86,7 +89,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) internal view override onlyInitializer(sender) returns (bytes4) {
+    ) internal view virtual override onlyInitializer(sender) returns (bytes4) {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
@@ -129,7 +132,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
     }
 
     /// @inheritdoc BaseHook
-    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+    function getHookPermissions() public pure virtual override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
             afterInitialize: false,
