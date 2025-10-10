@@ -1,8 +1,14 @@
 # Doppler
 
 [![Test](https://github.com/whetstoneresearch/doppler/actions/workflows/test.yml/badge.svg)](https://github.com/whetstoneresearch/doppler/actions/workflows/test.yml)
+[![GitBook - Documentation](https://img.shields.io/badge/GitBook-Documentation-pink?logo=gitbook&logoColor=white)](https://docs.doppler.lol)
+[![Foundry][foundry-badge]][foundry]
+[![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL%201.1-blue.svg)](https://github.com/whetstoneresearch/doppler/blob/main/LICENSE)
 
-This reposity contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts You can learn more about the technical aspects in the [documentation](https://docs.doppler.lol).
+[foundry]: https://getfoundry.sh/
+[foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
+
+This repository contains the [Doppler](docs/Doppler.md) Protocol along with the [Airlock](/docs/Airlock.md) contracts. You can learn more about the technical aspects in the [documentation](https://docs.doppler.lol).
 
 ## Deployments
 

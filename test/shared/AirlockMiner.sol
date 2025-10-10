@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { PoolManager } from "@v4-core/PoolManager.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler } from "src/Doppler.sol";
-import { Airlock } from "src/Airlock.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -18,12 +16,13 @@ uint160 constant FLAG_MASK = 0x3FFF;
 // Maximum number of iterations to find a salt, avoid infinite loops
 uint256 constant MAX_LOOP = 100_000;
 
-uint160 constant flagsDopplerHook = uint160(
+uint160 constant DOPPLER_HOOK_FLAGS = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
 );
 
-uint160 constant flagsMigratorHook = uint160(Hooks.BEFORE_INITIALIZE_FLAG);
+uint160 constant MIGRATOR_HOOK_FLAGS =
+    uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
 
 struct MineV4Params {
     address airlock;
@@ -52,7 +51,35 @@ function mineV4MigratorHook(
 
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), migratorHookInitHash, address(params.hookDeployer));
-        if (uint160(hook) & FLAG_MASK == flagsMigratorHook && hook.code.length == 0) {
+        if (uint160(hook) & FLAG_MASK == MIGRATOR_HOOK_FLAGS && hook.code.length == 0) {
+            return (bytes32(salt), hook);
+        }
+    }
+    revert("AirlockMiner: could not find salt");
+}
+
+function mineV4MulticurveHook(
+    MineV4MigratorHookParams memory params
+) view returns (bytes32, address) {
+    bytes32 multicurveHookInitHash = keccak256(
+        abi.encodePacked(
+            type(UniswapV4MulticurveInitializerHook).creationCode,
+            abi.encode(
+                params.poolManager,
+                params.migrator // In that case it's the initializer address
+            )
+        )
+    );
+
+    for (uint256 salt; salt < 200_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
+        if (
+            uint160(hook) & FLAG_MASK
+                == uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                ) && hook.code.length == 0
+        ) {
             return (bytes32(salt), hook);
         }
     }
@@ -137,7 +164,7 @@ function mineV4(
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
 
         if (
-            uint160(hook) & FLAG_MASK == flagsDopplerHook && hook.code.length == 0
+            uint160(hook) & FLAG_MASK == DOPPLER_HOOK_FLAGS && hook.code.length == 0
                 && ((isToken0 && asset < params.numeraire) || (!isToken0 && asset > params.numeraire))
         ) {
             return (bytes32(salt), hook, asset);

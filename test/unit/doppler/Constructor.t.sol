@@ -7,13 +7,11 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookConfig, HookConfigs } from "test/shared/HookConfigs.sol";
 import {
     Doppler,
-    MAX_TICK_SPACING,
     MAX_PRICE_DISCOVERY_SLUGS,
     InvalidTickRange,
     InvalidGamma,
     InvalidEpochLength,
     InvalidTimeRange,
-    InvalidTickSpacing,
     InvalidNumPDSlugs,
     InvalidProceedLimits,
     InvalidStartTime

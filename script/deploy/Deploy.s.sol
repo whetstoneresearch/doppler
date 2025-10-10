@@ -8,15 +8,7 @@ import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
-import {
-    Airlock,
-    ModuleState,
-    CreateParams,
-    ITokenFactory,
-    IGovernanceFactory,
-    IPoolInitializer,
-    ILiquidityMigrator
-} from "src/Airlock.sol";
+import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
@@ -27,11 +19,13 @@ import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initialize
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
+import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "src/NoOpMigrator.sol";
+import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 struct ScriptData {
-    bool deployBundler;
-    bool deployLens;
-    string explorerUrl;
+    uint256 chainId;
     address poolManager;
     address protocolOwner;
     address quoterV2;
@@ -71,56 +65,9 @@ abstract contract DeployScript is Script {
             UniswapV4MigratorHook migratorHook
         ) = _deployDoppler(_scriptData);
 
-        console.log(unicode"✨ Contracts were successfully deployed!");
+        Bundler bundler = _deployBundler(_scriptData, airlock);
 
-        string memory log = string.concat(
-            "#  ",
-            vm.toString(block.chainid),
-            "\n",
-            "| Contract | Address |\n",
-            "|---|---|\n",
-            "| Airlock | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(airlock)),
-            " |\n",
-            "| TokenFactory | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(tokenFactory)),
-            " |\n",
-            "| UniswapV3Initializer | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV3Initializer)),
-            " |\n",
-            "| UniswapV4Initializer | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV4Initializer)),
-            " |\n",
-            "| DopplerDeployer | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(dopplerDeployer)),
-            " |\n",
-            "| GovernanceFactory | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(governanceFactory)),
-            " |\n",
-            "| UniswapV2LiquidityMigrator | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV2Migrator)),
-            " |\n",
-            "| StreamableFeesLocker | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(streamableFeesLocker)),
-            " |\n",
-            "| UniswapV4MigratorHook | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(migratorHook)),
-            " |\n",
-            "| UniswapV4Migrator | ",
-            _toMarkdownLink(_scriptData.explorerUrl, address(uniswapV4Migrator))
-        );
-
-        if (_scriptData.deployBundler) {
-            Bundler bundler = _deployBundler(_scriptData, airlock);
-            log = string.concat(log, "| Bundler | ", _toMarkdownLink(_scriptData.explorerUrl, address(bundler)), " |\n");
-        }
-
-        if (_scriptData.deployLens) {
-            DopplerLensQuoter lens = _deployLens(_scriptData);
-            log = string.concat(log, "| Lens | ", _toMarkdownLink(_scriptData.explorerUrl, address(lens)), " |\n");
-        }
-
-        vm.writeFile(string.concat("./deployments/", vm.toString(block.chainid), ".md"), log);
+        DopplerLensQuoter lens = _deployLens(_scriptData);
 
         vm.stopBroadcast();
     }
@@ -142,34 +89,28 @@ abstract contract DeployScript is Script {
             UniswapV4MigratorHook migratorHook
         )
     {
-        // Let's check that a valid protocol owner is set
-        require(scriptData.protocolOwner != address(0), "Protocol owner not set!");
-        console.log(unicode"👑 Protocol owner set as %s", scriptData.protocolOwner);
-
         require(scriptData.uniswapV2Factory != address(0), "Cannot find UniswapV2Factory address!");
         require(scriptData.uniswapV2Router02 != address(0), "Cannot find UniswapV2Router02 address!");
         require(scriptData.uniswapV3Factory != address(0), "Cannot find UniswapV3Factory address!");
 
+        // Airlock
+
+        // Let's check that a valid protocol owner is set
+        require(scriptData.protocolOwner != address(0), "Protocol owner not set!");
+        console.log(unicode"👑 Protocol owner set as %s", scriptData.protocolOwner);
+
         // Owner of the protocol is first set as the deployer to allow the whitelisting of modules,
         // ownership is then transferred to the address defined as the "protocol_owner"
         airlock = new Airlock(msg.sender);
-        tokenFactory = new TokenFactory(address(airlock));
-        uniswapV3Initializer =
-            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(scriptData.uniswapV3Factory));
-        governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(scriptData.uniswapV2Factory),
-            IUniswapV2Router02(scriptData.uniswapV2Router02),
-            scriptData.protocolOwner
-        );
-
-        dopplerDeployer = new DopplerDeployer(IPoolManager(scriptData.poolManager));
-        uniswapV4Initializer =
-            new UniswapV4Initializer(address(airlock), IPoolManager(scriptData.poolManager), dopplerDeployer);
 
         streamableFeesLocker =
             new StreamableFeesLocker(IPositionManager(_scriptData.positionManager), _scriptData.protocolOwner);
+
+        // Pool Initializer Modules
+        uniswapV3Initializer =
+            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(_scriptData.uniswapV3Factory));
+        LockableUniswapV3Initializer lockableUniswapV3Initializer =
+            new LockableUniswapV3Initializer(address(airlock), IUniswapV3Factory(_scriptData.uniswapV3Factory));
 
         // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
         address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
@@ -194,6 +135,26 @@ abstract contract DeployScript is Script {
 
         // Deploy hook with deployed migrator address
         migratorHook = new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+        dopplerDeployer = new DopplerDeployer(IPoolManager(_scriptData.poolManager));
+        uniswapV4Initializer =
+            new UniswapV4Initializer(address(airlock), IPoolManager(_scriptData.poolManager), dopplerDeployer);
+
+        // Liquidty Migrator Modules
+        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+            address(airlock),
+            IUniswapV2Factory(_scriptData.uniswapV2Factory),
+            IUniswapV2Router02(_scriptData.uniswapV2Router02),
+            _scriptData.protocolOwner
+        );
+
+        NoOpMigrator noOpMigrator = new NoOpMigrator(address(airlock));
+
+        // Token Factory modules
+        tokenFactory = new TokenFactory(address(airlock));
+
+        // Governance Factory modules
+        governanceFactory = new GovernanceFactory(address(airlock));
+        NoOpGovernanceFactory noOpGovernanceFactory = new NoOpGovernanceFactory();
 
         /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
         require(
@@ -202,26 +163,38 @@ abstract contract DeployScript is Script {
         );
 
         // Whitelisting the initial modules
-        address[] memory modules = new address[](6);
+        address[] memory modules = new address[](7);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
         modules[2] = address(governanceFactory);
         modules[3] = address(uniswapV2LiquidityMigrator);
         modules[4] = address(uniswapV4Initializer);
         modules[5] = address(uniswapV4Migrator);
+        modules[6] = address(lockableUniswapV3Initializer);
+        modules[7] = address(noOpGovernanceFactory);
+        modules[8] = address(noOpMigrator);
 
-        ModuleState[] memory states = new ModuleState[](6);
+        ModuleState[] memory states = new ModuleState[](7);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.PoolInitializer;
         states[2] = ModuleState.GovernanceFactory;
         states[3] = ModuleState.LiquidityMigrator;
         states[4] = ModuleState.PoolInitializer;
         states[5] = ModuleState.LiquidityMigrator;
+        states[6] = ModuleState.PoolInitializer;
+        states[7] = ModuleState.GovernanceFactory;
+        states[8] = ModuleState.LiquidityMigrator;
 
         airlock.setModuleState(modules, states);
 
+        // Deploy the Airlock Multisig and transfer ownership to it
+        address[] memory signers = new address[](1);
+        signers[0] = msg.sender;
+
+        AirlockMultisig airlockMultisig = new AirlockMultisig(airlock, signers);
+
         // Transfer ownership to the actual protocol owner
-        airlock.transferOwnership(scriptData.protocolOwner);
+        airlock.transferOwnership(address(airlockMultisig));
     }
 
     function _deployBundler(ScriptData memory scriptData, Airlock airlock) internal returns (Bundler bundler) {
@@ -237,12 +210,5 @@ abstract contract DeployScript is Script {
         require(scriptData.poolManager != address(0), "Cannot find PoolManager address!");
         require(scriptData.stateView != address(0), "Cannot find StateView address!");
         lens = new DopplerLensQuoter(IPoolManager(scriptData.poolManager), IStateView(scriptData.stateView));
-    }
-
-    function _toMarkdownLink(
-        string memory explorerUrl,
-        address contractAddress
-    ) internal pure returns (string memory) {
-        return string.concat("[", vm.toString(contractAddress), "](", explorerUrl, vm.toString(contractAddress), ")");
     }
 }

@@ -19,7 +19,7 @@ import { Bundler } from "src/Bundler.sol";
 address payable constant airlock = payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254);
 address payable constant ur = payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3);
 address constant quoterV2 = 0x385A5cf5F83e99f7BB2852b6A19C3538b9FA7658;
-address constant weth = 0x4200000000000000000000000000000000000006;
+address constant WETH = 0x4200000000000000000000000000000000000006;
 
 contract BundlerTest is Test {
     Bundler bundler;
@@ -49,7 +49,7 @@ contract BundlerTest is Test {
         CreateParams memory createParams = CreateParams({
             initialSupply: initialSupply,
             numTokensToSell: initialSupply,
-            numeraire: weth,
+            numeraire: WETH,
             tokenFactory: ITokenFactory(tokenFactory),
             tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), ""),
             governanceFactory: IGovernanceFactory(0x99C94B9Df930E1E21a4E4a2c105dBff21bF5c5aE),

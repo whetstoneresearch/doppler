@@ -41,10 +41,10 @@ error VestingNotStartedYet();
 error MaxYearlyMintRateExceeded(uint256 amount, uint256 limit);
 
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
-uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.1 ether;
+uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.2 ether;
 
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
-uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.1 ether;
+uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.2 ether;
 
 /// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
 uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
@@ -104,7 +104,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param symbol_ Symbol of the token
      * @param initialSupply Initial supply of the token
      * @param recipient Address receiving the initial supply
-     * @param owner_ Address receivin the ownership of the token
+     * @param owner_ Address receiving the ownership of the token
      * @param yearlyMintRate_ Maximum inflation rate of token in a year
      * @param vestingDuration_ Duration of the vesting period (in seconds)
      * @param recipients_ Array of addresses receiving vested tokens

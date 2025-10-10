@@ -2,8 +2,6 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { console } from "forge-std/console.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
@@ -59,7 +57,7 @@ contract BaseTest is Test, Deployers {
     uint256 constant DEFAULT_EPOCH_LENGTH = 200 seconds;
 
     // default to feeless case for now
-    uint24 constant DEFAULT_FEE = 20_000;
+    uint24 constant DEFAULT_FEE = 0;
     int24 constant DEFAULT_TICK_SPACING = 2;
     uint256 constant DEFAULT_NUM_PD_SLUGS = 10;
 
@@ -201,6 +199,11 @@ contract BaseTest is Test, Deployers {
         startTick = DEFAULT_START_TICK;
         endTick = DEFAULT_END_TICK;
 
+        if (vm.envOr("IS_TOKEN_0", false)) {
+            startTick = -startTick;
+            endTick = -endTick;
+        }
+
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
             currency1: Currency.wrap(address(token1)),
@@ -225,7 +228,7 @@ contract BaseTest is Test, Deployers {
                 isToken0,
                 config.numPDSlugs,
                 address(0xbeef),
-                config.fee,
+                vm.envOr("V4_FEE", config.fee),
                 hook
             ),
             address(hook)
@@ -328,8 +331,8 @@ contract BaseTest is Test, Deployers {
 
     function sellExactOut(
         uint256 amount
-    ) public {
-        sell(int256(amount));
+    ) public returns (uint256, uint256) {
+        return sell(int256(amount));
     }
 
     /// @dev Buys a given amount of asset tokens.
@@ -472,6 +475,17 @@ contract BaseTest is Test, Deployers {
 
     function goToNextEpoch() internal {
         vm.warp(block.timestamp + hook.epochLength());
+    }
+
+    function skipEpochs(
+        uint256 epochs
+    ) internal {
+        vm.warp(block.timestamp + hook.epochLength() * epochs);
+    }
+
+    function goToLastEpoch() internal {
+        vm.warp(hook.startingTime() + hook.epochLength() * (hook.getTotalEpochs() - 1));
+        assertEq(hook.getCurrentEpoch(), hook.getTotalEpochs());
     }
 
     function goToStartingTime() internal {

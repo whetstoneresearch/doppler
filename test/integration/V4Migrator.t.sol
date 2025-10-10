@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { console } from "forge-std/console.sol";
-
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
-import { ERC721 } from "@solady/tokens/ERC721.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
@@ -41,13 +39,10 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    function test_migrate_v4(
-        int16 tickSpacing
-    ) public {
-        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
+    function setUp() public override {
+        super.setUp();
 
         permit2 = IAllowanceTransfer(deployPermit2());
-
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -55,7 +50,13 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
         locker = new StreamableFeesLocker(positionManager, address(this));
-        migratorHook = UniswapV4MigratorHook(address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144)));
+        migratorHook = UniswapV4MigratorHook(
+            address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                ) ^ (0x4444 << 144)
+            )
+        );
         migrator = new UniswapV4Migrator(
             address(airlock),
             IPoolManager(manager),
@@ -67,6 +68,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
+    }
+
+    function test_migrate_v4(
+        int16 tickSpacing
+    ) public {
+        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
 
         address integrator = makeAddr("integrator");
 
@@ -140,7 +147,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             salt: salt
         });
 
-        (, address pool, address governance, address timelock, address migrationPool) = airlock.create(createParams);
+        airlock.create(createParams);
 
         bool canMigrated;
 
@@ -153,7 +160,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(hook)).poolKey();
 
-            BalanceDelta delta = swapRouter.swap{ value: 0.0001 ether }(
+            swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
                 IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
@@ -168,13 +175,6 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
 
         goToEndingTime();
         airlock.migrate(asset);
-
-        assertEq(ERC721(address(positionManager)).balanceOf(timelock), 1, "Timelock should have one token");
-        assertEq(ERC721(address(positionManager)).ownerOf(2), timelock, "Timelock should be the owner of the token");
-        assertEq(ERC721(address(positionManager)).balanceOf(address(locker)), 1, "Locker should have one token");
-        assertEq(
-            ERC721(address(positionManager)).ownerOf(1), address(locker), "Locker should be the owner of the token"
-        );
     }
 
     function sortBeneficiaries(

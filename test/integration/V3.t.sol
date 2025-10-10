@@ -7,15 +7,7 @@ import { WETH } from "solmate/src/tokens/WETH.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import {
-    UniswapV3Initializer,
-    PoolAlreadyInitialized,
-    PoolAlreadyExited,
-    OnlyPool,
-    CallbackData,
-    InitData,
-    CannotMigrateInsufficientTick
-} from "src/UniswapV3Initializer.sol";
+import { UniswapV3Initializer, InitData, CannotMigrateInsufficientTick } from "src/UniswapV3Initializer.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
 import { DERC20 } from "src/DERC20.sol";

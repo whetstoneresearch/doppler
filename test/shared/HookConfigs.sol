@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
-import { MAX_TICK_SPACING, MAX_SWAP_FEE, MAX_PRICE_DISCOVERY_SLUGS } from "src/Doppler.sol";
+import { MAX_TICK_SPACING, MAX_PRICE_DISCOVERY_SLUGS } from "src/Doppler.sol";
 
 struct HookConfig {
     uint256 numTokensToSell;
