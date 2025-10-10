@@ -47,6 +47,16 @@ contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveIniti
     }
 
     /// @inheritdoc BaseHook
+    function _beforeAddLiquidity(
+        address,
+        PoolKey calldata,
+        IPoolManager.ModifyLiquidityParams calldata,
+        bytes calldata
+    ) internal pure override returns (bytes4) {
+        return BaseHook.beforeAddLiquidity.selector;
+    }
+
+    /// @inheritdoc BaseHook
     function _beforeSwap(
         address,
         PoolKey calldata key,
