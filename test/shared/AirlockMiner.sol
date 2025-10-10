@@ -75,10 +75,38 @@ function mineV4MulticurveHook(
         address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
         if (
             uint160(hook) & FLAG_MASK
-                == uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-                ) && hook.code.length == 0
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
+        ) {
+            return (bytes32(salt), hook);
+        }
+    }
+    revert("AirlockMiner: could not find salt");
+}
+
+function mineV4ScheduledMulticurveHook(
+    MineV4MigratorHookParams memory params
+) view returns (bytes32, address) {
+    bytes32 multicurveHookInitHash = keccak256(
+        abi.encodePacked(
+            type(UniswapV4MulticurveInitializerHook).creationCode,
+            abi.encode(
+                params.poolManager,
+                params.migrator // In that case it's the initializer address
+            )
+        )
+    );
+
+    for (uint256 salt; salt < 200_000; ++salt) {
+        address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
+        if (
+            uint160(hook) & FLAG_MASK
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
         ) {
             return (bytes32(salt), hook);
         }
@@ -174,7 +202,11 @@ function mineV4(
     revert("AirlockMiner: could not find salt");
 }
 
-function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) pure returns (address) {
+function computeCreate2Address(
+    bytes32 salt,
+    bytes32 initCodeHash,
+    address deployer
+) pure returns (address) {
     return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
 }
 
