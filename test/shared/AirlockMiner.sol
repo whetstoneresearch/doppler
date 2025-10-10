@@ -9,6 +9,7 @@ import { Doppler } from "src/Doppler.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -91,7 +92,7 @@ function mineV4ScheduledMulticurveHook(
 ) view returns (bytes32, address) {
     bytes32 multicurveHookInitHash = keccak256(
         abi.encodePacked(
-            type(UniswapV4MulticurveInitializerHook).creationCode,
+            type(UniswapV4ScheduledMulticurveInitializerHook).creationCode,
             abi.encode(
                 params.poolManager,
                 params.migrator // In that case it's the initializer address
