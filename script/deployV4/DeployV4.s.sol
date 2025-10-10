@@ -95,6 +95,7 @@ contract DeployV4UnichainSepoliaScript is DeployV4Script {
     }
 }
 
+/// @dev forge script DeployV4MonadTestnetScript --private-key $PRIVATE_KEY --rpc-url $MONAD_TESTNET_RPC_URL --slow --broadcast
 contract DeployV4MonadTestnetScript is DeployV4Script {
     function setUp() public override {
         _scriptData = V4ScriptData({

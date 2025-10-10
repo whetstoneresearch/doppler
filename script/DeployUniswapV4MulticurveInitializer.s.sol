@@ -98,6 +98,7 @@ contract DeployUniswapV4MulticurveInitializerUnichainSepoliaScript is DeployUnis
     }
 }
 
+/// @dev forge script DeployUniswapV4MulticurveInitializerMonadTestnetScript --private-key $PRIVATE_KEY --slow --broadcast --rpc-url $MONAD_TESTNET_RPC_URL
 contract DeployUniswapV4MulticurveInitializerMonadTestnetScript is DeployUniswapV4MulticurveInitializerScript {
     function setUp() public override {
         _scriptData = ScriptData({

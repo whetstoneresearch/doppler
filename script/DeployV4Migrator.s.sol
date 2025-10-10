@@ -125,6 +125,7 @@ contract DeployV4MigratorUnichainSepoliaScript is DeployV4MigratorScript {
     }
 }
 
+/// @dev forge script DeployV4MigratorMonadTestnetScript --private-key $PRIVATE_KEY --slow --broadcast --rpc-url $MONAD_TESTNET_RPC_URL
 contract DeployV4MigratorMonadTestnetScript is DeployV4MigratorScript {
     function setUp() public override {
         _scriptData = ScriptData({
