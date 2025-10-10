@@ -50,7 +50,7 @@ const chains: {[chainId: number]: ChainDetails } = {
   },
   10143: {
     name: 'Monad Testnet',
-    explorerUrl: 'https://testnet.monadexplorer.com',
+    explorerUrl: 'https://testnet.monadscan.com',
     isTestnet: true,
   },
   421614: {
