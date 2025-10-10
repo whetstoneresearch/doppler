@@ -23,4 +23,6 @@ lib/universal-router/:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/
 @uniswap/v3-core/=lib/v3-core/
 @universal-router=lib/universal-router/contracts/
 
+
 @uniswap/v2-core/contracts/interfaces/=src/interfaces/
+@quoter/=lib/view-quoter-v4/src/
