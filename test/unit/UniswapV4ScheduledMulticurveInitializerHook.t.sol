@@ -76,15 +76,11 @@ contract UniswapV4ScheduledMulticurveInitializerHookTest is Test {
         hook.beforeAddLiquidity(address(0), emptyPoolKey, emptyParams, new bytes(0));
     }
 
-    function test_beforeAddLiquidity_RevertsWhenSenderParamNotInitializer() public {
+    function test_beforeAddLiquidity_PassesWhenMsgSenderIsPoolManager(
+        address sender
+    ) public {
         vm.prank(poolManager);
-        vm.expectRevert(OnlyInitializer.selector);
-        hook.beforeAddLiquidity(address(0), emptyPoolKey, emptyParams, new bytes(0));
-    }
-
-    function test_beforeAddLiquidity_PassesWhenSenderParamInitializer() public {
-        vm.prank(poolManager);
-        hook.beforeAddLiquidity(initializer, emptyPoolKey, emptyParams, new bytes(0));
+        hook.beforeAddLiquidity(sender, emptyPoolKey, emptyParams, new bytes(0));
     }
 
     /* --------------------------------------------------------------------------------- */
