@@ -9,11 +9,16 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary, toBeforeSwapDelta } from "@v4-core/types/BeforeSwapDelta.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { Position } from "src/types/Position.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { Quoter } from "@quoter/Quoter.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { MigrationMath } from "src/libraries/MigrationMath.sol";
 
 // goals
 // - create an empty full range LP position given tickSpacing
@@ -55,9 +60,11 @@ event Swap(
 struct Fees {
     uint128 fees0;
     uint128 fees1;
+    uint24 customFee;
 }
 
 uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
+uint256 constant MAX_REBALANCE_ITERATIONS = 15;
 
 // TODO: factor in decimals haha 1e6 maybe for 18 decimals? idk haha
 uint128 constant EPSILON = 1e6;
@@ -72,9 +79,23 @@ uint128 constant EPSILON = 1e6;
 contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
     using StateLibrary for IPoolManager;
     using ProtocolFeeLibrary for *;
+    using CurrencyLibrary for Currency;
 
     /// @notice Address of the Uniswap V4 Multicurve Initializer contract
     address public immutable INITIALIZER;
+    Quoter public immutable quoter;
+
+    struct SwapSimulation {
+        bool success;
+        uint256 amountIn;
+        uint256 amountOut;
+        uint256 fees0;
+        uint256 fees1;
+        uint160 sqrtPriceX96;
+        uint256 excess0;
+        uint256 excess1;
+    }
+
     mapping(PoolId poolId => Position position) public getPosition;
     mapping(PoolId poolId => Fees fees) public getFees;
 
@@ -97,6 +118,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
      */
     constructor(IPoolManager manager, UniswapV4MulticurveInitializer initializer) BaseHook(manager) {
         INITIALIZER = address(initializer);
+        quoter = new Quoter(manager);
     }
 
     /// @inheritdoc BaseHook
@@ -114,19 +136,47 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) internal view override onlyInitializer(sender) returns (bytes4) {
+    ) internal view override returns (bytes4) {
+        if (sender != address(this) || sender != INITIALIZER) {
+            revert OnlyInitializer();
+        }
         return BaseHook.beforeAddLiquidity.selector;
     }
 
     /// @inheritdoc BaseHook
     function _afterAddLiquidity(
-        address,
+        address sender,
         PoolKey calldata key,
         IPoolManager.ModifyLiquidityParams calldata params,
         BalanceDelta,
         BalanceDelta,
         bytes calldata
     ) internal override returns (bytes4, BalanceDelta) {
+        PoolId poolId = key.toId();
+        Position storage storedPosition = getPosition[poolId];
+        int256 liquidityDelta = params.liquidityDelta;
+
+        if (liquidityDelta != 0) {
+            if (storedPosition.salt == bytes32(0)) {
+                int24 minTick = TickMath.minUsableTick(key.tickSpacing);
+                int24 maxTick = TickMath.maxUsableTick(key.tickSpacing);
+                if (params.tickLower == minTick || params.tickUpper == maxTick) {
+                    storedPosition.tickLower = params.tickLower;
+                    storedPosition.tickUpper = params.tickUpper;
+                    storedPosition.salt = params.salt;
+                    if (liquidityDelta > 0) {
+                        storedPosition.liquidity = uint128(uint256(liquidityDelta));
+                    }
+                }
+            } else if (storedPosition.salt == params.salt) {
+                if (liquidityDelta > 0) {
+                    storedPosition.liquidity += uint128(uint256(liquidityDelta));
+                } else {
+                    storedPosition.liquidity -= uint128(uint256(-liquidityDelta));
+                }
+            }
+        }
+
         emit ModifyLiquidity(key, params);
         return (BaseHook.afterAddLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
     }
@@ -145,6 +195,46 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
     }
 
     /// @inheritdoc BaseHook
+    function _beforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        if (sender == address(this)) {
+            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
+        uint24 fee = getFees[key.toId()].customFee;
+
+        uint256 swapAmount =
+            params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
+
+        if (fee == 0 || swapAmount == 0) {
+            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
+        uint256 feeAmount = FullMath.mulDiv(swapAmount, fee, MAX_SWAP_FEE);
+        if (feeAmount == 0) {
+            return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+        }
+
+        Currency feeCurrency = (params.amountSpecified < 0) == params.zeroForOne ? key.currency0 : key.currency1;
+
+        poolManager.take(feeCurrency, address(this), feeAmount);
+
+        if (feeCurrency == key.currency0) {
+            getFees[key.toId()].fees0 += uint128(feeAmount);
+        } else {
+            getFees[key.toId()].fees1 += uint128(feeAmount);
+        }
+
+        BeforeSwapDelta returnDelta = toBeforeSwapDelta(int128(int256(feeAmount)), 0);
+
+        return (BaseHook.beforeSwap.selector, returnDelta, 0);
+    }
+
+    /// @inheritdoc BaseHook
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -153,46 +243,337 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         BalanceDelta delta,
         bytes calldata hookData
     ) internal override returns (bytes4, int128) {
-        //
-        PoolId poolId = key.toId();
-
-        Position memory position = getPosition[poolId];
-        if (position.liquidity == 0) {
-            // create the empty full range position
-            (int24 minTick, int24 maxTick) = _getMinMaxTick(key);
-            position = Position({ tickLower: minTick, tickUpper: maxTick, liquidity: 0, salt: bytes32(0) });
-            getPosition[poolId] = position;
-        }
-
-        (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee) = poolManager.getSlot0(poolId);
-        uint24 swapFee = (params.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
-            .calculateSwapFee(lpFee);
-
-        int128 amount0 = delta.amount0();
-        int128 amount1 = delta.amount1();
-
-        // TODO: we're assuming that protocol fee is 0 here haha make sure we fix this later haha
-        if (amount0 <= 0) {
-            uint128 fees0 = uint128(FullMath.mulDiv(uint128(-amount0), swapFee, swapFee));
-            getFees[poolId].fees0 += fees0;
-        } else if (amount1 <= 0) {
-            uint128 fees1 = uint128(FullMath.mulDiv(uint128(-amount1), swapFee, swapFee));
-            getFees[poolId].fees1 += fees1;
-        }
-
-        if (getFees[poolId].fees0 >= EPSILON || getFees[poolId].fees1 >= EPSILON) {
-            // binary search for the swap amount that will give us 50/50
+        if (sender != address(this)) {
+            poolManager.unlock(abi.encode(key));
         }
         emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
         return (BaseHook.afterSwap.selector, 0);
     }
 
-    /// @notice Gets the min and max ticks for a given pool key
-    function _getMinMaxTick(
-        PoolKey memory key
-    ) internal pure returns (int24 minTick, int24 maxTick) {
-        maxTick = TickMath.MAX_TICK / key.tickSpacing * key.tickSpacing;
-        minTick = (TickMath.MIN_TICK + key.tickSpacing - 1) / key.tickSpacing * key.tickSpacing;
+    function unlockCallback(
+        bytes calldata data
+    ) external onlyPoolManager returns (bytes memory) {
+        PoolKey memory key = abi.decode(data, (PoolKey));
+        PoolId poolId = key.toId();
+
+        Fees storage feeState = getFees[poolId];
+        uint256 fees0 = feeState.fees0;
+        uint256 fees1 = feeState.fees1;
+
+        if (fees0 <= EPSILON && fees1 <= EPSILON) {
+            return abi.encode(key);
+        }
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+
+        Position storage position = getPosition[poolId];
+        if (position.salt == bytes32(0)) {
+            position.tickLower = TickMath.minUsableTick(key.tickSpacing);
+            position.tickUpper = TickMath.maxUsableTick(key.tickSpacing);
+            position.salt = _fullRangeSalt(poolId);
+        }
+
+        bool shouldSwap;
+        bool zeroForOne;
+        uint256 swapAmount;
+        uint160 postSwapSqrtPrice;
+
+        (shouldSwap, zeroForOne, swapAmount, fees0, fees1, postSwapSqrtPrice) =
+            _rebalanceFees(key, fees0, fees1, sqrtPriceX96);
+
+        if (shouldSwap && swapAmount > 0) {
+            (fees0, fees1, postSwapSqrtPrice) = _executeSwap(key, zeroForOne, swapAmount, fees0, fees1);
+        }
+
+        (fees0, fees1) = _addFullRangeLiquidity(key, position, fees0, fees1, postSwapSqrtPrice);
+
+        feeState.fees0 = fees0;
+        feeState.fees1 = fees1;
+
+        return abi.encode(key);
+    }
+
+    function _rebalanceFees(
+        PoolKey memory key,
+        uint256 fees0,
+        uint256 fees1,
+        uint160 sqrtPriceX96
+    )
+        private
+        view
+        returns (
+            bool shouldSwap,
+            bool zeroForOne,
+            uint256 amountIn,
+            uint256 newFees0,
+            uint256 newFees1,
+            uint160 newSqrtPriceX96
+        )
+    {
+        (uint256 excess0, uint256 excess1) = _calculateExcess(fees0, fees1, sqrtPriceX96);
+
+        if (excess0 <= EPSILON && excess1 <= EPSILON) {
+            return (false, false, 0, fees0, fees1, sqrtPriceX96);
+        }
+
+        zeroForOne = excess0 >= excess1;
+        uint256 high = zeroForOne ? excess0 : excess1;
+        uint256 low;
+        SwapSimulation memory best;
+
+        for (uint256 i; i < MAX_REBALANCE_ITERATIONS && high > 0; ++i) {
+            uint256 guess = (low + high) / 2;
+            if (guess == 0) guess = 1;
+
+            SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, fees0, fees1);
+            if (!sim.success) {
+                if (high == 0 || high == 1) {
+                    break;
+                }
+                high = guess > 0 ? guess - 1 : 0;
+                continue;
+            }
+
+            if (!best.success || _score(sim.excess0, sim.excess1) < _score(best.excess0, best.excess1)) {
+                best = sim;
+            }
+
+            if (sim.excess0 <= EPSILON && sim.excess1 <= EPSILON) {
+                return (true, zeroForOne, sim.amountIn, sim.fees0, sim.fees1, sim.sqrtPriceX96);
+            }
+
+            if (zeroForOne) {
+                if (sim.excess1 > EPSILON) {
+                    if (guess <= 1) break;
+                    high = guess - 1;
+                } else {
+                    if (low == guess) {
+                        if (high <= guess + 1) break;
+                        low = guess;
+                    } else {
+                        low = guess;
+                    }
+                }
+            } else {
+                if (sim.excess0 > EPSILON) {
+                    if (guess <= 1) break;
+                    high = guess - 1;
+                } else {
+                    if (low == guess) {
+                        if (high <= guess + 1) break;
+                        low = guess;
+                    } else {
+                        low = guess;
+                    }
+                }
+            }
+        }
+
+        if (best.success) {
+            return (true, zeroForOne, best.amountIn, best.fees0, best.fees1, best.sqrtPriceX96);
+        }
+
+        return (false, zeroForOne, 0, fees0, fees1, sqrtPriceX96);
+    }
+
+    function _executeSwap(
+        PoolKey memory key,
+        bool zeroForOne,
+        uint256 amountIn,
+        uint256 fees0,
+        uint256 fees1
+    ) private returns (uint256 newFees0, uint256 newFees1, uint160 sqrtPriceX96) {
+        if (amountIn == 0) {
+            (uint160 currentSqrtPrice,,,) = poolManager.getSlot0(key.toId());
+            return (fees0, fees1, currentSqrtPrice);
+        }
+
+        BalanceDelta delta = poolManager.swap(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(amountIn),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            new bytes(0)
+        );
+
+        _settleDelta(key, delta);
+
+        uint256 spent0 = delta.amount0() < 0 ? uint256(uint128(-delta.amount0())) : 0;
+        uint256 spent1 = delta.amount1() < 0 ? uint256(uint128(-delta.amount1())) : 0;
+        uint256 received0 = delta.amount0() > 0 ? uint256(uint128(delta.amount0())) : 0;
+        uint256 received1 = delta.amount1() > 0 ? uint256(uint128(delta.amount1())) : 0;
+
+        newFees0 = fees0;
+        newFees1 = fees1;
+
+        if (spent0 > 0) {
+            newFees0 = newFees0 >= spent0 ? newFees0 - spent0 : 0;
+        }
+        if (spent1 > 0) {
+            newFees1 = newFees1 >= spent1 ? newFees1 - spent1 : 0;
+        }
+
+        if (received0 > 0) newFees0 += received0;
+        if (received1 > 0) newFees1 += received1;
+
+        (sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
+        return (newFees0, newFees1, sqrtPriceX96);
+    }
+
+    function _addFullRangeLiquidity(
+        PoolKey memory key,
+        Position storage position,
+        uint256 fees0,
+        uint256 fees1,
+        uint160 sqrtPriceX96
+    ) private returns (uint256 remaining0, uint256 remaining1) {
+        if ((fees0 <= EPSILON && fees1 <= EPSILON) || position.tickLower == position.tickUpper) {
+            return (fees0, fees1);
+        }
+
+        uint128 liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(position.tickLower),
+            TickMath.getSqrtPriceAtTick(position.tickUpper),
+            fees0,
+            fees1
+        );
+
+        if (liquidityDelta == 0) {
+            return (fees0, fees1);
+        }
+
+        (BalanceDelta balanceDelta,) = poolManager.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: position.tickLower,
+                tickUpper: position.tickUpper,
+                liquidityDelta: int256(uint256(liquidityDelta)),
+                salt: position.salt
+            }),
+            new bytes(0)
+        );
+
+        _settleDelta(key, balanceDelta);
+
+        position.liquidity += liquidityDelta;
+
+        uint256 used0 = balanceDelta.amount0() < 0 ? uint256(uint128(-balanceDelta.amount0())) : 0;
+        uint256 used1 = balanceDelta.amount1() < 0 ? uint256(uint128(-balanceDelta.amount1())) : 0;
+        uint256 received0 = balanceDelta.amount0() > 0 ? uint256(uint128(balanceDelta.amount0())) : 0;
+        uint256 received1 = balanceDelta.amount1() > 0 ? uint256(uint128(balanceDelta.amount1())) : 0;
+
+        remaining0 = fees0 + received0;
+        remaining0 = used0 > remaining0 ? 0 : remaining0 - used0;
+
+        remaining1 = fees1 + received1;
+        remaining1 = used1 > remaining1 ? 0 : remaining1 - used1;
+    }
+
+    function _settleDelta(PoolKey memory key, BalanceDelta delta) private {
+        if (delta.amount0() > 0) {
+            poolManager.take(key.currency0, address(this), uint128(delta.amount0()));
+        }
+        if (delta.amount1() > 0) {
+            poolManager.take(key.currency1, address(this), uint128(delta.amount1()));
+        }
+        if (delta.amount0() < 0) {
+            _pay(key.currency0, uint256(uint128(-delta.amount0())));
+        }
+        if (delta.amount1() < 0) {
+            _pay(key.currency1, uint256(uint128(-delta.amount1())));
+        }
+    }
+
+    function _pay(Currency currency, uint256 amount) private {
+        if (amount == 0) return;
+        poolManager.sync(currency);
+        if (currency.isAddressZero()) {
+            poolManager.settle{ value: amount }();
+        } else {
+            currency.transfer(address(poolManager), amount);
+            poolManager.settle();
+        }
+    }
+
+    function _simulateSwap(
+        PoolKey memory key,
+        bool zeroForOne,
+        uint256 guess,
+        uint256 fees0,
+        uint256 fees1
+    ) private view returns (SwapSimulation memory simulation) {
+        if (guess == 0) return simulation;
+        if (zeroForOne && guess > fees0) return simulation;
+        if (!zeroForOne && guess > fees1) return simulation;
+
+        try quoter.quoteSingle(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(guess),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            })
+        ) returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96) {
+            if (zeroForOne) {
+                if (amount0 >= 0 || amount1 <= 0) return simulation;
+                uint256 amountIn = uint256(-amount0);
+                if (amountIn > fees0) return simulation;
+                uint256 amountOut = uint256(amount1);
+                simulation.success = true;
+                simulation.amountIn = amountIn;
+                simulation.amountOut = amountOut;
+                simulation.fees0 = fees0 - amountIn;
+                simulation.fees1 = fees1 + amountOut;
+            } else {
+                if (amount1 >= 0 || amount0 <= 0) return simulation;
+                uint256 amountIn = uint256(-amount1);
+                if (amountIn > fees1) return simulation;
+                uint256 amountOut = uint256(amount0);
+                simulation.success = true;
+                simulation.amountIn = amountIn;
+                simulation.amountOut = amountOut;
+                simulation.fees0 = fees0 + amountOut;
+                simulation.fees1 = fees1 - amountIn;
+            }
+
+            simulation.sqrtPriceX96 = sqrtPriceAfterX96;
+            (simulation.excess0, simulation.excess1) =
+                _calculateExcess(simulation.fees0, simulation.fees1, sqrtPriceAfterX96);
+        } catch {
+            return simulation;
+        }
+    }
+
+    function _calculateExcess(
+        uint256 fees0,
+        uint256 fees1,
+        uint160 sqrtPriceX96
+    ) private pure returns (uint256 excess0, uint256 excess1) {
+        (uint256 depositAmount0, uint256 depositAmount1) =
+            MigrationMath.computeDepositAmounts(fees0, fees1, sqrtPriceX96);
+
+        if (depositAmount0 > fees0) {
+            (, depositAmount1) = MigrationMath.computeDepositAmounts(fees0, depositAmount1, sqrtPriceX96);
+            excess0 = 0;
+            excess1 = fees1 > depositAmount1 ? fees1 - depositAmount1 : 0;
+        } else {
+            (depositAmount0,) = MigrationMath.computeDepositAmounts(depositAmount0, fees1, sqrtPriceX96);
+            excess0 = fees0 > depositAmount0 ? fees0 - depositAmount0 : 0;
+            excess1 = 0;
+        }
+    }
+
+    function _fullRangeSalt(
+        PoolId poolId
+    ) private view returns (bytes32) {
+        return keccak256(abi.encodePacked(address(this), PoolId.unwrap(poolId)));
+    }
+
+    function _score(uint256 excess0, uint256 excess1) private pure returns (uint256) {
+        return excess0 > excess1 ? excess0 : excess1;
     }
 
     /// @inheritdoc BaseHook
@@ -204,11 +585,11 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             beforeRemoveLiquidity: false,
             afterAddLiquidity: true,
             afterRemoveLiquidity: true,
-            beforeSwap: false,
+            beforeSwap: true,
             afterSwap: true,
             beforeDonate: false,
             afterDonate: false,
-            beforeSwapReturnDelta: false,
+            beforeSwapReturnDelta: true,
             afterSwapReturnDelta: false,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
