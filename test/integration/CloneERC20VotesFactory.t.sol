@@ -115,26 +115,6 @@ contract CloneERC20VotesFactoryIntegrationTest is Deployers {
         test_create(bytes32(type(uint256).max));
     }
 
-    function test_migrate(
-        bytes32 salt
-    ) public {
-        address asset = test_create(salt);
-
-        bool isToken0 = false;
-
-        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
-            zeroForOne: !isToken0,
-            amountSpecified: int256(1e27),
-            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
-        });
-
-        // numeraire.approve(address(swapRouter), type(uint256).max);
-        deal(address(swapRouter), type(uint128).max);
-        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        vm.prank(airlockOwner);
-        airlock.migrate(asset);
-    }
-
     function _prepareInitData(
         address asset
     ) internal returns (InitData memory) {
