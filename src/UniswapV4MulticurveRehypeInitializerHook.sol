@@ -287,8 +287,8 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
         (fees0, fees1) = _addFullRangeLiquidity(key, position, fees0, fees1, postSwapSqrtPrice);
 
-        feeState.fees0 = fees0;
-        feeState.fees1 = fees1;
+        feeState.fees0 = uint128(fees0);
+        feeState.fees1 = uint128(fees1);
 
         return abi.encode(key);
     }
@@ -516,7 +516,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
                 amountSpecified: -int256(guess),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             })
-        ) returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96) {
+        ) returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32) {
             if (zeroForOne) {
                 if (amount0 >= 0 || amount1 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount0);
