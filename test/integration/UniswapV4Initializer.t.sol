@@ -50,7 +50,7 @@ function deployUniswapV4Initializer(
     airlock.setModuleState(modules, states);
 }
 
-contract V4Test is Test {
+contract UniswapV4InitializerIntegrationTest is Test {
     Airlock public airlock;
     DopplerDeployer public deployer;
     UniswapV4Initializer public initializer;
