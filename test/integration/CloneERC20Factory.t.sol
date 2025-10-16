@@ -29,7 +29,7 @@ import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import { CloneERC20 } from "src/CloneERC20.sol";
 
 import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
-import { deployUniswapV4Initializer } from "test/integration/V4.t.sol";
+import { deployUniswapV4Initializer } from "test/integration/UniswapV4Initializer.t.sol";
 
 function deployCloneERC20Factory(
     Vm vm,
