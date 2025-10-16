@@ -2,9 +2,8 @@
 pragma solidity ^0.8.13;
 
 import { Vm } from "forge-std/Vm.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
@@ -26,9 +25,10 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { deployUniswapV4Initializer } from "test/integration/UniswapV4Initializer.t.sol";
 import { Doppler } from "src/Doppler.sol";
 
-import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
+import { BaseIntegrationTest, deployTokenFactory, deployGovernanceFactory } from "test/shared/BaseIntegrationTest.sol";
 
 function deployUniswapV4Migrator(
     Vm vm,
@@ -64,64 +64,34 @@ function deployUniswapV4Migrator(
     vm.stopPrank();
 }
 
-contract V4MigratorTest is BaseTest, DeployPermit2 {
-    IAllowanceTransfer public permit2;
+int24 constant DEFAULT_START_TICK = 174_312;
+int24 constant DEFAULT_END_TICK = 186_840;
+
+contract UniswapV4MigratorIntegrationTest is BaseIntegrationTest {
     UniswapV4Migrator public migrator;
     UniswapV4MigratorHook public migratorHook;
-    IPositionManager public positionManager;
-    Airlock public airlock;
     DopplerDeployer public deployer;
     UniswapV4Initializer public initializer;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
-    // Solidity doesn't like it when you pass an overloaded function as an argument so we wrap it
-    function _deployCodeTo(
-        string memory what,
-        bytes memory args,
-        address where
-    ) internal {
-        deployCodeTo(what, args, where);
-    }
-
     function setUp() public override {
         super.setUp();
 
-        permit2 = IAllowanceTransfer(deployPermit2());
-        airlock = new Airlock(address(this));
-        deployer = new DopplerDeployer(manager);
-        initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
-        positionManager = Deploy.positionManager(
-            address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
-        );
         (locker, migratorHook, migrator) = deployUniswapV4Migrator(
-            vm, _deployCodeTo, airlock, address(this), address(manager), address(positionManager)
+            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
         );
-        tokenFactory = new TokenFactory(address(airlock));
-        governanceFactory = new GovernanceFactory(address(airlock));
+        (deployer, initializer) = deployUniswapV4Initializer(vm, airlock, AIRLOCK_OWNER, address(manager));
+        (locker, migratorHook, migrator) = deployUniswapV4Migrator(
+            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        );
+        tokenFactory = deployTokenFactory(vm, airlock, AIRLOCK_OWNER);
+        governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
     }
 
-    function test_migrate_v4(
-        int16 tickSpacing
-    ) public {
-        vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING && tickSpacing <= TickMath.MAX_TICK_SPACING);
-
-        address integrator = makeAddr("integrator");
-
-        address[] memory modules = new address[](4);
-        modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(migrator);
-
-        ModuleState[] memory states = new ModuleState[](4);
-        states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.LiquidityMigrator;
-        airlock.setModuleState(modules, states);
-
+    function test_TokenFactory_GovernanceFactory_UniswapV4Initializer_UniswapV4Migrator() public {
+        int24 tickSpacing = 1;
         uint256 initialSupply = 1e23;
 
         bytes memory tokenFactoryData =
@@ -143,7 +113,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
         beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: integrator, shares: 0.05e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbeef), shares: 0.05e18 });
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
         beneficiaries = sortBeneficiaries(beneficiaries);
 
@@ -175,11 +145,13 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             poolInitializerData: poolInitializerData,
             liquidityMigrator: ILiquidityMigrator(migrator),
             liquidityMigratorData: migratorData,
-            integrator: integrator,
+            integrator: address(0xbeef),
             salt: salt
         });
 
+        vm.startSnapshotGas("Create", "TokenFactory;GovernanceFactory;UniswapV4Initializer;UniswapV4Migrator");
         airlock.create(createParams);
+        vm.stopSnapshotGas("Create", "TokenFactory;GovernanceFactory;UniswapV4Initializer;UniswapV4Migrator");
 
         bool canMigrated;
 
@@ -209,7 +181,7 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             vm.warp(block.timestamp + 200);
         } while (!canMigrated);
 
-        goToEndingTime();
+        vm.warp(block.timestamp + 1 days);
         airlock.migrate(asset);
     }
 
