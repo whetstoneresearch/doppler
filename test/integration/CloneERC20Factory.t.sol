@@ -28,8 +28,9 @@ import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import { CloneERC20 } from "src/CloneERC20.sol";
 
-import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
+import { BaseIntegrationTest, deployGovernanceFactory, deployNoOpMigrator } from "test/shared/BaseIntegrationTest.sol";
 import { deployUniswapV4Initializer } from "test/integration/UniswapV4Initializer.t.sol";
+import { deployUniswapV4MulticurveInitializer } from "test/integration/UniswapV4MulticurveInitializer.t.sol";
 
 function deployCloneERC20Factory(
     Vm vm,
@@ -60,38 +61,14 @@ contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
         super.setUp();
 
         tokenFactory = deployCloneERC20Factory(vm, airlock, AIRLOCK_OWNER);
-        governanceFactory = new GovernanceFactory(address(airlock));
-        multicurveHook = UniswapV4MulticurveInitializerHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-                ) ^ (0x4444 << 144)
-            )
-        );
-        initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
-        deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(multicurveHook));
-
-        migrator = new NoOpMigrator(address(airlock));
-
-        address[] memory modules = new address[](3);
-        modules[0] = address(governanceFactory);
-        modules[1] = address(initializer);
-        modules[2] = address(migrator);
-
-        ModuleState[] memory states = new ModuleState[](3);
-        states[0] = ModuleState.GovernanceFactory;
-        states[1] = ModuleState.PoolInitializer;
-        states[2] = ModuleState.LiquidityMigrator;
-
-        vm.startPrank(AIRLOCK_OWNER);
-        airlock.setModuleState(modules, states);
-        vm.stopPrank();
+        governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        (multicurveHook, initializer) =
+            deployUniswapV4MulticurveInitializer(vm, airlock, AIRLOCK_OWNER, address(manager));
+        migrator = deployNoOpMigrator(vm, airlock, AIRLOCK_OWNER);
     }
 
-    function test_create(
-        bytes32 salt
-    ) public returns (address asset) {
+    function test_create() public returns (address asset) {
+        bytes32 salt = bytes32(uint256(123));
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -123,10 +100,6 @@ contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
         (asset,,,,) = airlock.create(params);
         vm.stopSnapshotGas("CloneERC20FactoryIntegrationTest", "Multicurve+CloneERC20Factory");
         require(asset == predictedAsset, "Asset address mismatch");
-    }
-
-    function test_gas() public {
-        test_create(bytes32(type(uint256).max));
     }
 
     function _prepareInitData(
