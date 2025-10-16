@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Vm } from "forge-std/Vm.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -27,6 +28,42 @@ import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
 
+import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
+
+function deployUniswapV4Migrator(
+    Vm vm,
+    function(string memory, bytes memory, address) deployCodeTo,
+    Airlock airlock,
+    address airlockOwner,
+    address poolManager,
+    address positionManager
+) returns (StreamableFeesLocker locker, UniswapV4MigratorHook migratorHook, UniswapV4Migrator migrator) {
+    locker = new StreamableFeesLocker(IPositionManager(positionManager), airlockOwner);
+    migratorHook = UniswapV4MigratorHook(
+        address(
+            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG)
+                ^ (0x4444 << 144)
+        )
+    );
+    migrator = new UniswapV4Migrator(
+        address(airlock),
+        IPoolManager(poolManager),
+        PositionManager(payable(positionManager)),
+        locker,
+        IHooks(migratorHook)
+    );
+    deployCodeTo("UniswapV4MigratorHook", abi.encode(address(poolManager), address(migrator)), address(migratorHook));
+
+    address[] memory modules = new address[](1);
+    modules[0] = address(migrator);
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.LiquidityMigrator;
+    vm.startPrank(airlockOwner);
+    airlock.setModuleState(modules, states);
+    locker.approveMigrator(address(migrator));
+    vm.stopPrank();
+}
+
 contract V4MigratorTest is BaseTest, DeployPermit2 {
     IAllowanceTransfer public permit2;
     UniswapV4Migrator public migrator;
@@ -39,6 +76,15 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
 
+    // Solidity doesn't like it when you pass an overloaded function as an argument so we wrap it
+    function _deployCodeTo(
+        string memory what,
+        bytes memory args,
+        address where
+    ) internal {
+        deployCodeTo(what, args, where);
+    }
+
     function setUp() public override {
         super.setUp();
 
@@ -49,23 +95,9 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
         positionManager = Deploy.positionManager(
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
-        locker = new StreamableFeesLocker(positionManager, address(this));
-        migratorHook = UniswapV4MigratorHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-                ) ^ (0x4444 << 144)
-            )
+        (locker, migratorHook, migrator) = deployUniswapV4Migrator(
+            vm, _deployCodeTo, airlock, address(this), address(manager), address(positionManager)
         );
-        migrator = new UniswapV4Migrator(
-            address(airlock),
-            IPoolManager(manager),
-            PositionManager(payable(address(positionManager))),
-            locker,
-            IHooks(migratorHook)
-        );
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(address(manager), address(migrator)), address(migratorHook));
-        locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
     }
@@ -160,8 +192,12 @@ contract V4MigratorTest is BaseTest, DeployPermit2 {
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(hook)).poolKey();
 
-            swapRouter.swap{ value: 0.0001 ether }(
-                PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
+            swapRouter.swap{
+                value: 0.0001 ether
+            }(
+                PoolKey({
+                    currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
+                }),
                 IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
                 PoolSwapTest.TestSettings(false, false),
                 ""
