@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Vm } from "forge-std/Vm.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency, CurrencyLibrary, greaterThan } from "@v4-core/types/Currency.sol";
@@ -27,9 +28,24 @@ import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
 import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 
-contract CloneERC20VotesFactoryIntegrationTest is Deployers {
-    address public airlockOwner = makeAddr("AirlockOwner");
-    Airlock public airlock;
+import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
+
+function deployCloneERC20VotesFactory(
+    Vm vm,
+    Airlock airlock,
+    address airlockOwner
+) returns (CloneERC20VotesFactory tokenFactory) {
+    tokenFactory = new CloneERC20VotesFactory(address(airlock));
+    vm.prank(airlockOwner);
+    address[] memory modules = new address[](1);
+    modules[0] = address(tokenFactory);
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.TokenFactory;
+    airlock.setModuleState(modules, states);
+    return tokenFactory;
+}
+
+contract CloneERC20VotesFactoryIntegrationTest is BaseIntegrationTest {
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
     CloneERC20VotesFactory public tokenFactory;
@@ -39,11 +55,10 @@ contract CloneERC20VotesFactoryIntegrationTest is Deployers {
     PoolKey public poolKey;
     PoolId public poolId;
 
-    function setUp() public {
-        deployFreshManagerAndRouters();
+    function setUp() public override {
+        super.setUp();
 
-        airlock = new Airlock(airlockOwner);
-        tokenFactory = new CloneERC20VotesFactory(address(airlock));
+        tokenFactory = deployCloneERC20VotesFactory(vm, airlock, AIRLOCK_OWNER);
         governanceFactory = new GovernanceFactory(address(airlock));
         multicurveHook = UniswapV4MulticurveInitializerHook(
             address(
@@ -58,19 +73,17 @@ contract CloneERC20VotesFactoryIntegrationTest is Deployers {
 
         migrator = new NoOpMigrator(address(airlock));
 
-        address[] memory modules = new address[](4);
-        modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(migrator);
+        address[] memory modules = new address[](3);
+        modules[0] = address(governanceFactory);
+        modules[1] = address(initializer);
+        modules[2] = address(migrator);
 
-        ModuleState[] memory states = new ModuleState[](4);
-        states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.LiquidityMigrator;
+        ModuleState[] memory states = new ModuleState[](3);
+        states[0] = ModuleState.GovernanceFactory;
+        states[1] = ModuleState.PoolInitializer;
+        states[2] = ModuleState.LiquidityMigrator;
 
-        vm.startPrank(airlockOwner);
+        vm.startPrank(AIRLOCK_OWNER);
         airlock.setModuleState(modules, states);
         vm.stopPrank();
     }
