@@ -36,6 +36,15 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
         );
         airlock = new Airlock(AIRLOCK_OWNER);
     }
+
+    // Solidity doesn't like it when you pass an overloaded function as an argument so we wrap it
+    function _deployCodeTo(
+        string memory what,
+        bytes memory args,
+        address where
+    ) internal {
+        deployCodeTo(what, args, where);
+    }
 }
 
 // TODO: Move these functions into dedicated integration test files
