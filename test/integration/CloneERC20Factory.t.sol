@@ -35,11 +35,11 @@ function deployCloneERC20Factory(
     Vm vm,
     Airlock airlock,
     address airlockOwner
-) returns (address) {
-    address tokenFactory = address(new CloneERC20Factory(address(airlock)));
+) returns (CloneERC20Factory tokenFactory) {
+    tokenFactory = new CloneERC20Factory(address(airlock));
     vm.prank(airlockOwner);
     address[] memory modules = new address[](1);
-    modules[0] = tokenFactory;
+    modules[0] = address(tokenFactory);
     ModuleState[] memory states = new ModuleState[](1);
     states[0] = ModuleState.TokenFactory;
     airlock.setModuleState(modules, states);
@@ -59,7 +59,7 @@ contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
     function setUp() public override {
         super.setUp();
 
-        tokenFactory = new CloneERC20Factory(address(airlock));
+        tokenFactory = deployCloneERC20Factory(vm, airlock, AIRLOCK_OWNER);
         governanceFactory = new GovernanceFactory(address(airlock));
         multicurveHook = UniswapV4MulticurveInitializerHook(
             address(
@@ -74,17 +74,15 @@ contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
 
         migrator = new NoOpMigrator(address(airlock));
 
-        address[] memory modules = new address[](4);
-        modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(migrator);
+        address[] memory modules = new address[](3);
+        modules[0] = address(governanceFactory);
+        modules[1] = address(initializer);
+        modules[2] = address(migrator);
 
-        ModuleState[] memory states = new ModuleState[](4);
-        states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.LiquidityMigrator;
+        ModuleState[] memory states = new ModuleState[](3);
+        states[0] = ModuleState.GovernanceFactory;
+        states[1] = ModuleState.PoolInitializer;
+        states[2] = ModuleState.LiquidityMigrator;
 
         vm.startPrank(AIRLOCK_OWNER);
         airlock.setModuleState(modules, states);
