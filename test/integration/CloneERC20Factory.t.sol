@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Vm } from "forge-std/Vm.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency, CurrencyLibrary, greaterThan } from "@v4-core/types/Currency.sol";
@@ -27,9 +28,25 @@ import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import { CloneERC20 } from "src/CloneERC20.sol";
 
-contract CloneERC20FactoryIntegrationTest is Deployers {
-    address public airlockOwner = makeAddr("AirlockOwner");
-    Airlock public airlock;
+import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
+import { deployUniswapV4Initializer } from "test/integration/V4.t.sol";
+
+function deployCloneERC20Factory(
+    Vm vm,
+    Airlock airlock,
+    address airlockOwner
+) returns (address) {
+    address tokenFactory = address(new CloneERC20Factory(address(airlock)));
+    vm.prank(airlockOwner);
+    address[] memory modules = new address[](1);
+    modules[0] = tokenFactory;
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.TokenFactory;
+    airlock.setModuleState(modules, states);
+    return tokenFactory;
+}
+
+contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
     CloneERC20Factory public tokenFactory;
@@ -39,10 +56,9 @@ contract CloneERC20FactoryIntegrationTest is Deployers {
     PoolKey public poolKey;
     PoolId public poolId;
 
-    function setUp() public {
-        deployFreshManagerAndRouters();
+    function setUp() public override {
+        super.setUp();
 
-        airlock = new Airlock(airlockOwner);
         tokenFactory = new CloneERC20Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         multicurveHook = UniswapV4MulticurveInitializerHook(
@@ -70,7 +86,7 @@ contract CloneERC20FactoryIntegrationTest is Deployers {
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.LiquidityMigrator;
 
-        vm.startPrank(airlockOwner);
+        vm.startPrank(AIRLOCK_OWNER);
         airlock.setModuleState(modules, states);
         vm.stopPrank();
     }
