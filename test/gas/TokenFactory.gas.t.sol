@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { AirlockBaseTest } from "test/shared/AirlockBaseTest.sol";
+import { BaseIntegrationTest } from "test/shared/BaseIntegrationTest.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 
-contract TokenFactoryGasTest is AirlockBaseTest {
+contract TokenFactoryGasTest is BaseIntegrationTest {
     function test_gas_TokenFactory_NoRecipients() public {
         TokenFactory factory = new TokenFactory(address(this));
 
