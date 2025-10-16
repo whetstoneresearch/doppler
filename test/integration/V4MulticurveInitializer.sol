@@ -34,8 +34,8 @@ function deployUniswapV4MulticurveInitializer(
     Airlock airlock,
     address airlockOwner,
     address poolManager
-) returns (address) {
-    UniswapV4MulticurveInitializerHook multicurveHook = UniswapV4MulticurveInitializerHook(
+) returns (UniswapV4MulticurveInitializerHook multicurveHook, UniswapV4MulticurveInitializer initializer) {
+    multicurveHook = UniswapV4MulticurveInitializerHook(
         address(
             uint160(
                 Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
@@ -43,15 +43,13 @@ function deployUniswapV4MulticurveInitializer(
             ) ^ (0x4444 << 144)
         )
     );
-    UniswapV4MulticurveInitializer initializer =
-        new UniswapV4MulticurveInitializer(address(airlock), IPoolManager(poolManager), multicurveHook);
-    vm.prank(airlockOwner);
+    initializer = new UniswapV4MulticurveInitializer(address(airlock), IPoolManager(poolManager), multicurveHook);
     address[] memory modules = new address[](1);
     modules[0] = address(initializer);
     ModuleState[] memory states = new ModuleState[](1);
     states[0] = ModuleState.PoolInitializer;
+    vm.prank(airlockOwner);
     airlock.setModuleState(modules, states);
-    return address(initializer);
 }
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
