@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Vm } from "forge-std/Vm.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
@@ -28,14 +29,48 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
 
+function deployUniswapV4MulticurveInitializer(
+    Vm vm,
+    Airlock airlock,
+    address airlockOwner,
+    address poolManager
+) returns (address) {
+    UniswapV4MulticurveInitializerHook multicurveHook = UniswapV4MulticurveInitializerHook(
+        address(
+            uint160(
+                Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                    | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+            ) ^ (0x4444 << 144)
+        )
+    );
+    UniswapV4MulticurveInitializer initializer =
+        new UniswapV4MulticurveInitializer(address(airlock), IPoolManager(poolManager), multicurveHook);
+    vm.prank(airlockOwner);
+    address[] memory modules = new address[](1);
+    modules[0] = address(initializer);
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.PoolInitializer;
+    airlock.setModuleState(modules, states);
+    return address(initializer);
+}
+
 contract LiquidityMigratorMock is ILiquidityMigrator {
     receive() external payable { }
 
-    function initialize(address, address, bytes memory) external pure override returns (address) {
+    function initialize(
+        address,
+        address,
+        bytes memory
+    ) external pure override returns (address) {
         return address(0xdeadbeef);
     }
 
-    function migrate(uint160, address, address, address) external payable override returns (uint256) {
+    function migrate(
+        uint160,
+        address,
+        address,
+        address
+    ) external payable override returns (uint256) {
         return 0;
     }
 }
@@ -91,7 +126,10 @@ contract V4MulticurveInitializer is Deployers {
 
     uint256 initialSupply = 1e27;
 
-    function testFuzz_create_MulticurveInitializerV4(bytes32 salt, bool isUsingEth) public returns (address asset) {
+    function testFuzz_create_MulticurveInitializerV4(
+        bytes32 salt,
+        bool isUsingEth
+    ) public returns (address asset) {
         string memory name = "Test Token";
         string memory symbol = "TEST";
 
@@ -148,7 +186,10 @@ contract V4MulticurveInitializer is Deployers {
         testFuzz_create_MulticurveInitializerV4(bytes32(type(uint256).max), true);
     }
 
-    function testFuzz_migrate_MulticurveInitializerV4(bytes32 salt, bool isUsingEth) public {
+    function testFuzz_migrate_MulticurveInitializerV4(
+        bytes32 salt,
+        bool isUsingEth
+    ) public {
         address asset = testFuzz_create_MulticurveInitializerV4(salt, isUsingEth);
 
         bool isToken0 = asset < address(numeraire);
@@ -189,11 +230,7 @@ contract V4MulticurveInitializer is Deployers {
         (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
 
         poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            tickSpacing: tickSpacing,
-            fee: 0,
-            hooks: multicurveHook
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: multicurveHook
         });
         poolId = poolKey.toId();
 
