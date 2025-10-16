@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Vm } from "forge-std/Vm.sol";
 import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { UniswapV4Initializer, DopplerDeployer, IPoolInitializer } from "src/UniswapV4Initializer.sol";
@@ -8,7 +9,12 @@ import { Airlock } from "src/Airlock.sol";
 import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { UniswapV2Migrator, ILiquidityMigrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
+import {
+    UniswapV2Migrator,
+    ILiquidityMigrator,
+    IUniswapV2Router02,
+    IUniswapV2Factory
+} from "src/UniswapV2Migrator.sol";
 import {
     UNISWAP_V4_POOL_MANAGER_MAINNET,
     UNISWAP_V2_FACTORY_MAINNET,
@@ -28,6 +34,22 @@ int24 constant DEFAULT_END_TICK = 60_000;
 uint24 constant DEFAULT_FEE = 0;
 int24 constant DEFAULT_TICK_SPACING = 8;
 
+function deployUniswapV4Initializer(
+    Vm vm,
+    Airlock airlock,
+    address airlockOwner,
+    address poolManager
+) returns (DopplerDeployer deployer, UniswapV4Initializer initializer) {
+    deployer = new DopplerDeployer(IPoolManager(poolManager));
+    initializer = new UniswapV4Initializer(address(airlock), IPoolManager(poolManager), deployer);
+    address[] memory modules = new address[](1);
+    modules[0] = address(initializer);
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.PoolInitializer;
+    vm.prank(airlockOwner);
+    airlock.setModuleState(modules, states);
+}
+
 contract V4Test is Test {
     Airlock public airlock;
     DopplerDeployer public deployer;
@@ -40,9 +62,8 @@ contract V4Test is Test {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_688_329);
 
         airlock = new Airlock(address(this));
-        deployer = new DopplerDeployer(IPoolManager(UNISWAP_V4_POOL_MANAGER_MAINNET));
-        initializer =
-            new UniswapV4Initializer(address(airlock), IPoolManager(UNISWAP_V4_POOL_MANAGER_MAINNET), deployer);
+        (deployer, initializer) =
+            deployUniswapV4Initializer(vm, airlock, address(this), UNISWAP_V4_POOL_MANAGER_MAINNET);
 
         migrator = new UniswapV2Migrator(
             address(airlock),
