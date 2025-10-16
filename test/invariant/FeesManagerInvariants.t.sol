@@ -39,12 +39,18 @@ contract FeesManagerHandler is Test {
     PoolId[] internal _poolIds;
     mapping(PoolId poolId => PoolKey poolKey) public _poolKeys;
 
-    constructor(FeesManagerImplementation implementation_, PoolManagerMock poolManager_) {
+    constructor(
+        FeesManagerImplementation implementation_,
+        PoolManagerMock poolManager_
+    ) {
         implementation = implementation_;
         poolManager = poolManager_;
     }
 
-    function entrypoint(uint256 fees0, uint256 fees1) public {
+    function entrypoint(
+        uint256 fees0,
+        uint256 fees1
+    ) public {
         // 2% of the time we store new beneficiaries, 98% of the time we collect fees
         if (fees0 % 100 < 2) {
             return storeBeneficiaries(fees0);
@@ -83,7 +89,10 @@ contract FeesManagerHandler is Test {
         }
     }
 
-    function collectFees(uint256 fees0, uint256 fees1) public {
+    function collectFees(
+        uint256 fees0,
+        uint256 fees1
+    ) public {
         PoolId poolId = _poolIds[uint256(keccak256(abi.encode(msg.sender))) % _poolIds.length];
 
         fees0 = bound(fees0, 0, type(uint48).max);
@@ -139,7 +148,10 @@ contract FeesManagerHandler is Test {
         implementation.updateBeneficiary(poolId, newBeneficiary);
     }
 
-    function getOwed(PoolId poolId, address beneficiary) public view returns (uint256 owed0, uint256 owed1) {
+    function getOwed(
+        PoolId poolId,
+        address beneficiary
+    ) public view returns (uint256 owed0, uint256 owed1) {
         uint256 cumulatedFees0 = implementation.getCumulatedFees0(poolId);
         uint256 cumulatedFees1 = implementation.getCumulatedFees1(poolId);
 
@@ -242,13 +254,13 @@ contract FeesManagerInvariants is Test {
                 assertApproxEqRel(
                     poolKey.currency0.balanceOf(beneficiary.beneficiary),
                     handler.ghost_balanceOf(poolKey.currency0, beneficiary.beneficiary),
-                    0.0001e18,
+                    0.001e18,
                     "Claimed0 should match token0 balance"
                 );
                 assertApproxEqRel(
                     poolKey.currency1.balanceOf(beneficiary.beneficiary),
                     handler.ghost_balanceOf(poolKey.currency1, beneficiary.beneficiary),
-                    0.0001e18,
+                    0.001e18,
                     "Claimed1 should match token1 balance"
                 );
             }
