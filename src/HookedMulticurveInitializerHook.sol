@@ -8,7 +8,7 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSw
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { HookedMulticurveInitializer } from "src/HookedMulticurve.sol";
 import { ITokenHook } from "src/interfaces/ITokenHook.sol";
 
 /// @notice Thrown when a swap is attempted before the starting time
@@ -44,6 +44,14 @@ contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveIniti
      */
     function setStartingTime(PoolKey memory poolKey, uint256 startingTime) external onlyInitializer(msg.sender) {
         startingTimeOf[poolKey.toId()] = startingTime <= block.timestamp ? block.timestamp : startingTime;
+    }
+
+    function pushTokenHook(
+        address asset
+    ) external {
+        (,,, address migrationHook,,, PoolKey memory poolKey) = HookedMulticurveInitializer(initializer).getState(asset);
+
+        getTokenHook[poolKey.toId()] = migrationHook;
     }
 
     /// @inheritdoc BaseHook

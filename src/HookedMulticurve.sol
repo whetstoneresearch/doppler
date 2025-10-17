@@ -150,7 +150,7 @@ struct PoolState {
  * this will allow the collection of fees by the designed beneficiaries. If no beneficiaries are passed, the pool
  * can be migrated later if the conditions are met.
  */
-contract MulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
+contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -337,7 +337,7 @@ contract MulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirloc
         );
 
         getState[asset].migrationHook = newHook;
-        ITokenHook(newHook).onHookInitialization(newHookCalldata);
+        ITokenHook(newHook).onHookInitialization(asset, newHookCalldata);
     }
 
     /**
@@ -358,8 +358,8 @@ contract MulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirloc
             CannotMigratePoolNoProvidedHook();
         }
 
-        ITokenHook(migrationHook).onMigration(state.migrationHookCalldata);
         getState[asset].status = PoolStatus.Migrated;
+        ITokenHook(migrationHook).onMigration(asset, state.migrationHookCalldata);
     }
 
     function _checkMigrationValid(address asset, PoolState memory state) internal returns (int24 farTick) {
