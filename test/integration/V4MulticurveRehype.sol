@@ -20,18 +20,27 @@ import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { UniswapV4MulticurveRehypeInitializerHook } from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
-    function initialize(address, address, bytes memory) external pure override returns (address) {
+    function initialize(
+        address,
+        address,
+        bytes memory
+    ) external pure override returns (address) {
         return address(0xdeadbeef);
     }
 
-    function migrate(uint160, address, address, address) external payable override returns (uint256) {
+    function migrate(
+        uint160,
+        address,
+        address,
+        address
+    ) external payable override returns (uint256) {
         return 0;
     }
 }
@@ -40,7 +49,7 @@ contract V4MulticurveInitializer is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
     UniswapV4MulticurveInitializer public initializer;
-    UniswapV4MulticurveInitializerHook public multicurveHook;
+    UniswapV4MulticurveRehypeInitializerHook public multicurveHook;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
@@ -58,18 +67,21 @@ contract V4MulticurveInitializer is Deployers {
         airlock = new Airlock(airlockOwner);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-        multicurveHook = UniswapV4MulticurveInitializerHook(
+        multicurveHook = UniswapV4MulticurveRehypeInitializerHook(
             address(
                 uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_FLAG
-                        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                        | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                        | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
                 ) ^ (0x4444 << 144)
             )
         );
         initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
         locker = new StreamableFeesLockerV2(manager, airlockOwner);
-        deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(multicurveHook));
+        vm.label(address(multicurveHook), "Rehype Hook");
+        deployCodeTo(
+            "UniswapV4MulticurveRehypeInitializerHook", abi.encode(manager, initializer), address(multicurveHook)
+        );
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
 
@@ -140,7 +152,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function test_migrate_MulticurveInitializerRehypeV4(
+    function test_rehype_MulticurveInitializerRehypeV4(
         bytes32 salt
     ) public {
         string memory name = "Test Token";
@@ -195,14 +207,13 @@ contract V4MulticurveInitializer is Deployers {
 
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
-            amountSpecified: int256(initialSupply),
+            amountSpecified: int256(initialSupply / 10),
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        vm.prank(airlockOwner);
-        airlock.migrate(asset);
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
     }
 
     function _prepareInitData(
@@ -224,11 +235,7 @@ contract V4MulticurveInitializer is Deployers {
         (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
 
         poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            tickSpacing: tickSpacing,
-            fee: 0,
-            hooks: multicurveHook
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: multicurveHook
         });
         poolId = poolKey.toId();
 
