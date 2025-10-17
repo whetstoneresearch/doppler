@@ -9,6 +9,7 @@ import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { WETH } from "@solady/tokens/WETH.sol";
+import { DERC20 } from "src/DERC20.sol";
 import {
     UniswapV2Migrator,
     ILiquidityMigrator,
@@ -120,6 +121,31 @@ function deployTokenFactory(
     return tokenFactory;
 }
 
+function prepareTokenFactoryData(
+    Vm vm,
+    address airlock,
+    address tokenFactory,
+    bytes32 salt
+) pure returns (address asset, bytes memory data) {
+    string memory name = "Test Token";
+    string memory symbol = "TEST";
+    string memory uri = "TOKEN_URI";
+    uint256 initialSupply = 1e23;
+
+    asset = vm.computeCreate2Address(
+        salt,
+        keccak256(
+            abi.encodePacked(
+                type(DERC20).creationCode,
+                abi.encode(name, symbol, initialSupply, airlock, airlock, 0, 0, new address[](0), new uint256[](0), uri)
+            )
+        ),
+        address(tokenFactory)
+    );
+
+    data = abi.encode(name, symbol, initialSupply, airlock, airlock, 0, 0, new address[](0), new uint256[](0), uri);
+}
+
 function deployGovernanceFactory(
     Vm vm,
     Airlock airlock,
@@ -133,6 +159,10 @@ function deployGovernanceFactory(
     vm.prank(airlockOwner);
     airlock.setModuleState(modules, states);
     return governanceFactory;
+}
+
+function prepareGovernanceFactoryData() pure returns (bytes memory) {
+    return abi.encode("Test Token", 7200, 50_400, 0);
 }
 
 function deployUniswapV2Migrator(
