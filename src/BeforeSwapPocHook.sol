@@ -294,16 +294,14 @@ contract BeforeSwapPocHook is BaseHook {
             (fees0, fees1, postSwapSqrtPrice) = _executeSwap(key, zeroForOne, swapAmount, fees0, fees1);
         }
 
-        /*
         console.log("delta0", delta.amount0());
         console.log("delta1", delta.amount1());
         (fees0, fees1) = _addFullRangeLiquidity(key, position, fees0, fees1, postSwapSqrtPrice);
-
+        _handleSettle(key, delta);
         feeState.fees0 = uint128(fees0);
         feeState.fees1 = uint128(fees1);
 
         emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
-        */
         return (BaseHook.afterSwap.selector, 0);
     }
 
@@ -447,12 +445,6 @@ contract BeforeSwapPocHook is BaseHook {
             return (fees0, fees1, currentSqrtPrice);
         }
 
-        uint256 balance0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        console.log("balance0 before swap", balance0);
-
-        uint256 balance1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
-        console.log("balance1 before swap", balance1);
-
         BalanceDelta delta = poolManager.swap(
             key,
             IPoolManager.SwapParams({
@@ -462,14 +454,6 @@ contract BeforeSwapPocHook is BaseHook {
             }),
             new bytes(0)
         );
-
-        _handleSettle(key, delta);
-
-        balance0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        console.log("balance0 after swap", balance0);
-
-        balance1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
-        console.log("balance1 after swap", balance1);
 
         console.log("delta0", delta.amount0());
         console.log("delta1", delta.amount1());
