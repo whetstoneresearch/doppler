@@ -50,6 +50,46 @@ function deployUniswapV4Initializer(
     airlock.setModuleState(modules, states);
 }
 
+function preparePoolInitializerData(
+    address airlock,
+    address poolManager,
+    address tokenFactory,
+    bytes memory tokenFactoryData,
+    address poolInitializer
+) view returns (bytes32 salt, bytes memory poolInitializerData) {
+    poolInitializerData = abi.encode(
+        DEFAULT_MINIMUM_PROCEEDS,
+        DEFAULT_MAXIMUM_PROCEEDS,
+        block.timestamp,
+        block.timestamp + 3 days,
+        DEFAULT_START_TICK,
+        DEFAULT_END_TICK,
+        DEFAULT_EPOCH_LENGTH,
+        DEFAULT_GAMMA,
+        false,
+        8,
+        DEFAULT_FEE,
+        DEFAULT_TICK_SPACING
+    );
+
+    uint256 initialSupply = 1e23;
+    uint256 numTokensToSell = 1e23;
+
+    MineV4Params memory params = MineV4Params({
+        airlock: airlock,
+        poolManager: poolManager,
+        initialSupply: initialSupply,
+        numTokensToSell: numTokensToSell,
+        numeraire: address(0),
+        tokenFactory: ITokenFactory(address(tokenFactory)),
+        tokenFactoryData: tokenFactoryData,
+        poolInitializer: UniswapV4Initializer(poolInitializer),
+        poolInitializerData: poolInitializerData
+    });
+
+    (salt,,) = mineV4(params);
+}
+
 contract UniswapV4InitializerIntegrationTest is BaseIntegrationTest {
     DopplerDeployer public deployer;
     UniswapV4Initializer public initializer;

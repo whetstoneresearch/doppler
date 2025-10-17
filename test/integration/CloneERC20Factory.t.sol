@@ -24,11 +24,15 @@ import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4MulticurveInitializer.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import { CloneERC20 } from "src/CloneERC20.sol";
 
-import { BaseIntegrationTest, deployGovernanceFactory, deployNoOpMigrator } from "test/shared/BaseIntegrationTest.sol";
+import {
+    BaseIntegrationTest,
+    deployNoOpGovernanceFactory,
+    deployNoOpMigrator
+} from "test/shared/BaseIntegrationTest.sol";
 import { deployUniswapV4Initializer } from "test/integration/UniswapV4Initializer.t.sol";
 import { deployUniswapV4MulticurveInitializer } from "test/integration/UniswapV4MulticurveInitializer.t.sol";
 
@@ -51,7 +55,7 @@ contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
     CloneERC20Factory public tokenFactory;
-    GovernanceFactory public governanceFactory;
+    NoOpGovernanceFactory public governanceFactory;
     NoOpMigrator public migrator;
 
     PoolKey public poolKey;
@@ -61,9 +65,9 @@ contract CloneERC20FactoryIntegrationTest is BaseIntegrationTest {
         super.setUp();
 
         tokenFactory = deployCloneERC20Factory(vm, airlock, AIRLOCK_OWNER);
-        governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         (multicurveHook, initializer) =
-            deployUniswapV4MulticurveInitializer(vm, airlock, AIRLOCK_OWNER, address(manager));
+            deployUniswapV4MulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
         migrator = deployNoOpMigrator(vm, airlock, AIRLOCK_OWNER);
     }
 
