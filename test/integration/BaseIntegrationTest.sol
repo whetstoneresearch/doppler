@@ -22,6 +22,11 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 
+/**
+ * @dev Integration tests can inherit from this base contract and override the `setUp` function to update the `CreateParams`,
+ * then the `test_create` and `test_migrate` functions will be run automatically to try out the integration of the modules
+ * and measure gas usage.
+ */
 abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
     address internal AIRLOCK_OWNER = makeAddr("AIRLOCK_OWNER");
 
