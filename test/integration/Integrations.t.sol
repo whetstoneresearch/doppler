@@ -21,9 +21,12 @@ import {
     prepareUniswapV4MulticurveInitializerData
 } from "test/integration/UniswapV4MulticurveInitializer.t.sol";
 import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
-import { deployCloneERC20Factory } from "test/integration/CloneERC20Factory.t.sol";
+import { deployCloneERC20Factory, prepareCloneERC20FactoryData } from "test/integration/CloneERC20Factory.t.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
-import { deployCloneERC20VotesFactory } from "test/integration/CloneERC20VotesFactory.t.sol";
+import {
+    deployCloneERC20VotesFactory,
+    prepareCloneERC20VotesFactoryData
+} from "test/integration/CloneERC20VotesFactory.t.sol";
 import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
 
 contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is BaseIntegrationTest {
@@ -106,8 +109,7 @@ contract CloneERC20FactoryUniswapV4MulticurveInitializerNoOpGovernanceFactoryNoO
 
         CloneERC20Factory tokenFactory = deployCloneERC20Factory(vm, airlock, AIRLOCK_OWNER);
         createParams.tokenFactory = tokenFactory;
-        (, createParams.tokenFactoryData) =
-            prepareTokenFactoryData(vm, address(airlock), address(tokenFactory), bytes32(0));
+        createParams.tokenFactoryData = prepareCloneERC20FactoryData();
 
         (, UniswapV4MulticurveInitializer initializer) =
             deployUniswapV4MulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
@@ -137,8 +139,7 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryNo
 
         CloneERC20VotesFactory tokenFactory = deployCloneERC20VotesFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.tokenFactory = tokenFactory;
-        (, createParams.tokenFactoryData) =
-            prepareTokenFactoryData(vm, address(airlock), address(tokenFactory), bytes32(0));
+        createParams.tokenFactoryData = prepareCloneERC20VotesFactoryData();
 
         (, UniswapV4MulticurveInitializer initializer) =
             deployUniswapV4MulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
