@@ -1,0 +1,5 @@
+{
+  "CloneERC20Factory;GovernanceFactory;UniswapV4Initializer;UniswapV2Migrator": "13279835",
+  "TokenFactory;GovernanceFactory;UniswapV4Initializer;UniswapV2Migrator": "15328157",
+  "TokenFactory;GovernanceFactory;UniswapV4Initializer;UniswapV4Migrator": "13195773"
+}
