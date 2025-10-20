@@ -34,11 +34,17 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
     Airlock public airlock;
     IPositionManager public positionManager;
 
-    CreateParams internal createParams;
+    /// @dev Name of the integration test, used for gas snapshots
     string internal name;
-    bool internal shouldSkipMigrate;
+
+    /// @dev Parameters used to create the asset in the Airlock, must be filled by the inheriting contract
+    CreateParams internal createParams;
 
     address internal asset;
+    address internal pool;
+    address internal governance;
+    address internal timelock;
+    address internal migrationPool;
 
     function setUp() public virtual {
         deployFreshManagerAndRouters();
@@ -49,21 +55,21 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
         airlock = new Airlock(AIRLOCK_OWNER);
     }
 
-    function prepareCreateData() internal view virtual returns (CreateParams memory) {
-        // revert("CreateParams is not set");
-    }
-
     function test_create() public {
         require(bytes(name).length > 0, "Name is not set");
         vm.startSnapshotGas(name, "create");
-        (asset,,,,) = airlock.create(createParams);
+        (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
         vm.stopSnapshotGas(name, "create");
     }
 
-    function prepareMigrate() internal view virtual { }
+    function _prepareMigrate() internal virtual {
+        vm.skip(true);
+    }
 
     function test_migrate() public {
-        vm.skip(shouldSkipMigrate);
+        require(bytes(name).length > 0, "Name is not set");
+        (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
+        _prepareMigrate();
         vm.startSnapshotGas(name, "migrate");
         airlock.migrate(asset);
         vm.stopSnapshotGas(name, "migrate");
