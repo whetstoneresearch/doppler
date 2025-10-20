@@ -46,6 +46,10 @@ function deployCloneERC20VotesFactory(
     return tokenFactory;
 }
 
+function prepareCloneERC20VotesFactoryData() pure returns (bytes memory) {
+    return abi.encode("name", "symbol", 0, 0, new address[](0), new uint256[](0), "");
+}
+
 contract CloneERC20VotesFactoryIntegrationTest is BaseIntegrationTest {
     UniswapV4MulticurveInitializer public initializer;
     UniswapV4MulticurveInitializerHook public multicurveHook;
@@ -69,12 +73,7 @@ contract CloneERC20VotesFactoryIntegrationTest is BaseIntegrationTest {
     function test_create(
         bytes32 salt
     ) public returns (address asset) {
-        string memory name = "Test Token";
-        string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
-
-        bytes memory tokenData = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "");
-
         address predictedAsset =
             LibClone.predictDeterministicAddress(tokenFactory.IMPLEMENTATION(), salt, address(tokenFactory));
 
@@ -85,7 +84,7 @@ contract CloneERC20VotesFactoryIntegrationTest is BaseIntegrationTest {
             numTokensToSell: initialSupply,
             numeraire: address(0),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: tokenData,
+            tokenFactoryData: prepareCloneERC20VotesFactoryData(),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
