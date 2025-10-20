@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Currency } from "@v4-core/types/Currency.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import {
     BaseIntegrationTest,
     deployTokenFactory,
@@ -10,6 +16,7 @@ import {
     deployGovernanceFactory,
     prepareGovernanceFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
+import { Doppler } from "src/Doppler.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -28,6 +35,11 @@ import {
     prepareCloneERC20VotesFactoryData
 } from "test/integration/CloneERC20VotesFactory.t.sol";
 import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
+import {
+    deployUniswapV4Migrator,
+    prepareUniswapV4MigratorData
+} from "test/integration/UniswapV4MigratorIntegration.t.sol";
+import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 
 contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is BaseIntegrationTest {
     function setUp() public override {
@@ -59,8 +71,6 @@ contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegr
 
         NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
-
-        shouldSkipMigrate = true;
     }
 }
 
@@ -94,8 +104,6 @@ contract CloneERC20FactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorI
 
         NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
-
-        shouldSkipMigrate = true;
     }
 }
 
@@ -124,8 +132,6 @@ contract CloneERC20FactoryUniswapV4MulticurveInitializerNoOpGovernanceFactoryNoO
 
         NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
-
-        shouldSkipMigrate = true;
     }
 }
 
@@ -155,7 +161,75 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryNo
         GovernanceFactory governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
         createParams.governanceFactoryData = prepareGovernanceFactoryData();
+    }
+}
 
-        shouldSkipMigrate = true;
+contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4MigratorIntegrationTest is
+    BaseIntegrationTest
+{
+    function setUp() public override {
+        super.setUp();
+
+        name = "CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Migrator";
+
+        CloneERC20VotesFactory tokenFactory = deployCloneERC20VotesFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.tokenFactory = tokenFactory;
+        createParams.tokenFactoryData = prepareCloneERC20VotesFactoryData();
+
+        (, UniswapV4Initializer initializer) = deployUniswapV4Initializer(vm, airlock, AIRLOCK_OWNER, address(manager));
+        createParams.poolInitializer = initializer;
+        (bytes32 salt, bytes memory poolInitializerData) = preparePoolInitializerData(
+            address(airlock),
+            address(manager),
+            address(tokenFactory),
+            createParams.tokenFactoryData,
+            address(initializer)
+        );
+        createParams.poolInitializerData = poolInitializerData;
+        createParams.salt = salt;
+        createParams.numTokensToSell = 1e23;
+        createParams.initialSupply = 1e23;
+
+        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
+            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        );
+        createParams.liquidityMigrator = migrator;
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+
+        GovernanceFactory governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.governanceFactory = governanceFactory;
+        createParams.governanceFactoryData = prepareGovernanceFactoryData();
+    }
+
+    function _prepareMigrate() internal override {
+        bool canMigrated;
+
+        uint256 i;
+
+        do {
+            i++;
+            deal(address(this), 0.1 ether);
+
+            (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
+                Doppler(payable(pool)).poolKey();
+
+            swapRouter.swap{
+                value: 0.0001 ether
+            }(
+                PoolKey({
+                    currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
+                }),
+                IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+                PoolSwapTest.TestSettings(false, false),
+                ""
+            );
+
+            (,,, uint256 totalProceeds,,) = Doppler(payable(pool)).state();
+            canMigrated = totalProceeds > Doppler(payable(pool)).minimumProceeds();
+
+            vm.warp(block.timestamp + 200);
+        } while (!canMigrated);
+
+        vm.warp(block.timestamp + 1 days);
     }
 }
