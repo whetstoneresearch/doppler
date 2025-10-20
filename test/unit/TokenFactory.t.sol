@@ -28,6 +28,7 @@ contract TokenFactoryTest is Test {
         address[] memory recipients = new address[](0);
         uint256[] memory amounts = new uint256[](0);
 
+        vm.startSnapshotGas("TokenFactory", "TokenFactory/NoRecipients");
         factory.create(
             initialSupply,
             recipient,
@@ -35,6 +36,7 @@ contract TokenFactoryTest is Test {
             salt,
             abi.encode(name, symbol, yearlyMintRate, vestingDuration, recipients, amounts, "")
         );
+        vm.stopSnapshotGas("TokenFactory", "TokenFactory/NoRecipients");
     }
 
     function test_create_RevertsWhenSenderNotAirlock() public {
