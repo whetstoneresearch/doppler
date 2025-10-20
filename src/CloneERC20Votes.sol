@@ -14,12 +14,16 @@ import { CloneERC20 } from "src/CloneERC20.sol";
  */
 contract CloneERC20Votes is ERC20Votes, CloneERC20 {
     /// @inheritdoc ERC20Votes
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal override(ERC20Votes, ERC20) {
+    function _afterTokenTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal override(ERC20Votes, ERC20) {
         super._afterTokenTransfer(from, to, amount);
     }
 
     /// @inheritdoc ERC20
     function _givePermit2InfiniteAllowance() internal pure override(CloneERC20, ERC20) returns (bool) {
-        return true;
+        return false;
     }
 }
