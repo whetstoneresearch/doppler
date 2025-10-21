@@ -7,6 +7,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import {
     BaseIntegrationTest,
     deployTokenFactory,
@@ -40,6 +42,18 @@ import {
     prepareUniswapV4MigratorData
 } from "test/integration/UniswapV4MigratorIntegration.t.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import {
+    deployUniswapV3Initializer,
+    prepareUniswapV3InitializerData
+} from "test/integration/UniswapV3Initializer.t.sol";
+import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import {
+    WETH_MAINNET,
+    UNISWAP_V3_FACTORY_MAINNET,
+    UNISWAP_V3_ROUTER_MAINNET,
+    UNISWAP_V2_FACTORY_MAINNET,
+    UNISWAP_V2_ROUTER_MAINNET
+} from "test/shared/Addresses.sol";
 
 contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is BaseIntegrationTest {
     function setUp() public override {
@@ -231,5 +245,95 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
         } while (!canMigrated);
 
         vm.warp(block.timestamp + 1 days);
+    }
+}
+
+contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUniswapV4MigratorIntegrationTest is
+    BaseIntegrationTest
+{
+    function setUp() public override {
+        super.setUp();
+
+        name = "CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUniswapV4Migrator";
+
+        CloneERC20VotesFactory tokenFactory = deployCloneERC20VotesFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.tokenFactory = tokenFactory;
+        createParams.tokenFactoryData = prepareCloneERC20VotesFactoryData();
+
+        (, UniswapV4MulticurveInitializer initializer) =
+            deployUniswapV4MulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
+        createParams.poolInitializer = initializer;
+        (bytes memory poolInitializerData) = prepareUniswapV4MulticurveInitializerData(address(0), address(0));
+        createParams.poolInitializerData = poolInitializerData;
+        createParams.numTokensToSell = 1e23;
+        createParams.initialSupply = 1e23;
+
+        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
+            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        );
+        createParams.liquidityMigrator = migrator;
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+
+        GovernanceFactory governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.governanceFactory = governanceFactory;
+        createParams.governanceFactoryData = prepareGovernanceFactoryData();
+    }
+
+    function _prepareMigrate() internal override {
+        bool isToken0 = false;
+        bool isUsingEth = true;
+        // bool isToken0 = asset < address(numeraire);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: int256(1e23),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        if (isUsingEth) {
+            vm.deal(address(swapRouter), type(uint128).max);
+        } else {
+            // TestERC20(numeraire).approve(address(swapRouter), type(uint128).max);
+        }
+        (,, PoolKey memory poolKey,) =
+            UniswapV4MulticurveInitializer(payable(address(createParams.poolInitializer))).getState(asset);
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+    }
+}
+
+contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorIntegrationTest is BaseIntegrationTest {
+    function setUp() public override {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        super.setUp();
+
+        name = "TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4Migrator";
+
+        TestERC20 numeraire = new TestERC20(0);
+
+        TokenFactory tokenFactory = deployTokenFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.tokenFactory = tokenFactory;
+        bytes32 salt = bytes32(uint256(123));
+        address asset;
+        (asset, createParams.tokenFactoryData) =
+            prepareTokenFactoryData(vm, address(airlock), address(tokenFactory), salt);
+
+        UniswapV3Initializer initializer = deployUniswapV3Initializer(vm, airlock, UNISWAP_V3_FACTORY_MAINNET);
+        createParams.poolInitializer = initializer;
+        createParams.poolInitializerData = prepareUniswapV3InitializerData(
+            IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET), address(asset) < address(numeraire)
+        );
+        createParams.salt = bytes32(uint256(123));
+        createParams.numTokensToSell = 1e23;
+        createParams.initialSupply = 1e23;
+        createParams.numeraire = address(numeraire);
+
+        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
+            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        );
+        createParams.liquidityMigrator = migrator;
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+
+        NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.governanceFactory = governanceFactory;
     }
 }
