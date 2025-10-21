@@ -154,7 +154,7 @@ function prepareTokenFactoryData(
         address(tokenFactory)
     );
 
-    data = abi.encode(name, symbol, initialSupply, airlock, airlock, 0, 0, new address[](0), new uint256[](0), uri);
+    data = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), uri);
 }
 
 function deployGovernanceFactory(
