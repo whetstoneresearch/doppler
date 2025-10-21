@@ -215,7 +215,7 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
         createParams.governanceFactoryData = prepareGovernanceFactoryData();
     }
 
-    function _prepareMigrate() internal override {
+    function _beforeMigrate() internal override {
         bool canMigrated;
 
         uint256 i;
@@ -279,7 +279,7 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUn
         createParams.governanceFactoryData = prepareGovernanceFactoryData();
     }
 
-    function _prepareMigrate() internal override {
+    function _beforeMigrate() internal override {
         bool isToken0 = false;
         bool isUsingEth = true;
         // bool isToken0 = asset < address(numeraire);

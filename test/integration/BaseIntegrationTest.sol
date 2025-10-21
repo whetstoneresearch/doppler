@@ -62,14 +62,14 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
         vm.stopSnapshotGas(name, "create");
     }
 
-    function _prepareMigrate() internal virtual {
+    function _beforeMigrate() internal virtual {
         vm.skip(true);
     }
 
     function test_migrate() public {
         require(bytes(name).length > 0, "Name is not set");
         (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
-        _prepareMigrate();
+        _beforeMigrate();
         vm.startSnapshotGas(name, "migrate");
         airlock.migrate(asset);
         vm.stopSnapshotGas(name, "migrate");
