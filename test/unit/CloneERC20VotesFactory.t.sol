@@ -69,7 +69,7 @@ contract CloneERC20VotesFactoryTest is Test {
         vm.startSnapshotGas("TokenFactory", "CloneERC20VotesFactory/Recipients");
         CloneERC20Votes token =
             CloneERC20Votes(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
-        vm.startSnapshotGas("TokenFactory", "CloneERC20VotesFactory/Recipients");
+        vm.stopSnapshotGas("TokenFactory", "CloneERC20VotesFactory/Recipients");
 
         address asset = LibClone.predictDeterministicAddress(factory.IMPLEMENTATION(), bytes32(seed), address(factory));
         require(address(token) == asset, "Asset address mismatch");
