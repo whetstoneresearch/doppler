@@ -149,7 +149,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             position.salt = _fullRangeSalt(poolId);
         }
 
-        getFees[poolId] = Fees({ fees0: 0, fees1: 0, customFee: 3000 });
+        getFees[poolId] = Fees({ fees0: 0, fees1: 0, customFee: 500 });
 
         return BaseHook.afterInitialize.selector;
     }
@@ -247,15 +247,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
         poolManager.take(feeCurrency, address(this), feeAmount);
 
-        uint256 balance = IERC20(Currency.unwrap(feeCurrency)).balanceOf(address(this));
-        console.log("balance beforeSwap", balance);
-
-        if (feeCurrency == key.currency0) {
-            getFees[key.toId()].fees0 += uint128(feeAmount);
-        } else {
-            getFees[key.toId()].fees1 += uint128(feeAmount);
-        }
-
         BeforeSwapDelta returnDelta = toBeforeSwapDelta(int128(int256(feeAmount)), 0);
 
         return (BaseHook.beforeSwap.selector, returnDelta, 0);
@@ -266,7 +257,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
-        /// @param delta The amount owed to the caller (positive) or owed to the pool (negative)
         BalanceDelta delta,
         bytes calldata hookData
     ) internal override returns (bytes4, int128) {
@@ -276,11 +266,10 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
         PoolId poolId = key.toId();
 
-        Fees storage feeState = getFees[poolId];
-        uint256 fees0 = feeState.fees0;
-        uint256 fees1 = feeState.fees1;
+        uint256 balance0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
+        uint256 balance1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
 
-        if (fees0 <= EPSILON && fees1 <= EPSILON) {
+        if (balance0 <= EPSILON && balance1 <= EPSILON) {
             return (BaseHook.afterSwap.selector, delta.amount0());
         }
 
@@ -295,28 +284,29 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
         bool shouldSwap;
         bool zeroForOne;
-        uint256 swapAmount;
+        uint256 swapAmountIn;
+        uint256 swapAmountOut;
         uint160 postSwapSqrtPrice;
 
-        (shouldSwap, zeroForOne, swapAmount, fees0, fees1, postSwapSqrtPrice) =
-            _rebalanceFees(key, fees0, fees1, sqrtPriceX96);
+        (shouldSwap, zeroForOne, swapAmountIn, swapAmountOut, postSwapSqrtPrice) =
+            _rebalanceFees(key, balance0, balance1, sqrtPriceX96);
 
-        console.log("swapAmount", swapAmount);
-        uint256 balance = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
-        console.log("balance", balance);
-
-        if (shouldSwap && swapAmount > 0) {
-            (fees0, fees1, postSwapSqrtPrice) = _executeSwap(key, zeroForOne, swapAmount, fees0, fees1);
+        if (shouldSwap && swapAmountIn > 0) {
+            Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+            if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > swapAmountOut) {
+                postSwapSqrtPrice = _executeSwap(key, zeroForOne, swapAmountIn);
+                balance0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
+                balance1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+                _addFullRangeLiquidity(key, position, balance0, balance1, postSwapSqrtPrice);
+                (uint128 liquidity,,) = poolManager.getPositionInfo(
+                    key.toId(), address(this), position.tickLower, position.tickUpper, position.salt
+                );
+                console.log("liquidity", liquidity);
+            }
         }
 
-        console.log("delta0", delta.amount0());
-        console.log("delta1", delta.amount1());
-        (fees0, fees1) = _addFullRangeLiquidity(key, position, fees0, fees1, postSwapSqrtPrice);
-
-        feeState.fees0 = uint128(fees0);
-        feeState.fees1 = uint128(fees1);
-
         emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
+
         return (BaseHook.afterSwap.selector, 0);
     }
 
@@ -328,19 +318,12 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
     )
         internal
         view
-        returns (
-            bool shouldSwap,
-            bool zeroForOne,
-            uint256 amountIn,
-            uint256 newFees0,
-            uint256 newFees1,
-            uint160 newSqrtPriceX96
-        )
+        returns (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96)
     {
         (uint256 excess0, uint256 excess1) = _calculateExcess(fees0, fees1, sqrtPriceX96);
 
         if (excess0 <= EPSILON && excess1 <= EPSILON) {
-            return (false, false, 0, fees0, fees1, sqrtPriceX96);
+            return (false, false, 0, 0, sqrtPriceX96);
         }
 
         zeroForOne = excess0 >= excess1;
@@ -366,7 +349,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             }
 
             if (sim.excess0 <= EPSILON && sim.excess1 <= EPSILON) {
-                return (true, zeroForOne, sim.amountIn, sim.fees0, sim.fees1, sim.sqrtPriceX96);
+                return (true, zeroForOne, sim.amountIn, sim.amountOut, sim.sqrtPriceX96);
             }
 
             if (zeroForOne) {
@@ -397,29 +380,21 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         }
 
         if (best.success) {
-            return (true, zeroForOne, best.amountIn, best.fees0, best.fees1, best.sqrtPriceX96);
+            return (true, zeroForOne, best.amountIn, best.amountOut, best.sqrtPriceX96);
         }
 
-        return (false, zeroForOne, 0, fees0, fees1, sqrtPriceX96);
+        return (false, zeroForOne, 0, 0, sqrtPriceX96);
     }
 
     function _executeSwap(
         PoolKey memory key,
         bool zeroForOne,
-        uint256 amountIn,
-        uint256 fees0,
-        uint256 fees1
-    ) internal returns (uint256 newFees0, uint256 newFees1, uint160 sqrtPriceX96) {
+        uint256 amountIn
+    ) internal returns (uint160 sqrtPriceX96) {
         if (amountIn == 0) {
             (uint160 currentSqrtPrice,,,) = poolManager.getSlot0(key.toId());
-            return (fees0, fees1, currentSqrtPrice);
+            return currentSqrtPrice;
         }
-
-        uint256 balance0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        console.log("balance0 before swap", balance0);
-
-        uint256 balance1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
-        console.log("balance1 before swap", balance1);
 
         BalanceDelta delta = poolManager.swap(
             key,
@@ -431,37 +406,12 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             new bytes(0)
         );
 
-        balance0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        console.log("balance0 after swap", balance0);
-
-        balance1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
-        console.log("balance1 after swap", balance1);
-
-        console.log("delta0", delta.amount0());
-        console.log("delta1", delta.amount1());
-
-        // _settleDelta(key, delta);
-
-        uint256 spent0 = delta.amount0() < 0 ? uint256(uint128(-delta.amount0())) : 0;
-        uint256 spent1 = delta.amount1() < 0 ? uint256(uint128(-delta.amount1())) : 0;
-        uint256 received0 = delta.amount0() > 0 ? uint256(uint128(delta.amount0())) : 0;
-        uint256 received1 = delta.amount1() > 0 ? uint256(uint128(delta.amount1())) : 0;
-
-        newFees0 = fees0;
-        newFees1 = fees1;
-
-        if (spent0 > 0) {
-            newFees0 = newFees0 >= spent0 ? newFees0 - spent0 : 0;
-        }
-        if (spent1 > 0) {
-            newFees1 = newFees1 >= spent1 ? newFees1 - spent1 : 0;
-        }
-
-        if (received0 > 0) newFees0 += received0;
-        if (received1 > 0) newFees1 += received1;
+        _settleDelta(key, delta);
+        poolManager.settle();
+        _collectDelta(key, delta);
 
         (sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
-        return (newFees0, newFees1, sqrtPriceX96);
+        return sqrtPriceX96;
     }
 
     function _addFullRangeLiquidity(
@@ -471,9 +421,8 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint256 fees1,
         uint160 sqrtPriceX96
     ) internal returns (uint256 remaining0, uint256 remaining1) {
-        if ((fees0 <= EPSILON && fees1 <= EPSILON) || position.tickLower == position.tickUpper) {
-            return (fees0, fees1);
-        }
+        console.log("fees0", fees0);
+        console.log("fees1", fees1);
 
         uint128 liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
@@ -482,10 +431,16 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             fees0,
             fees1
         );
+        console.log("liquidityDelta", liquidityDelta);
 
         if (liquidityDelta == 0) {
             return (fees0, fees1);
         }
+
+        uint256 balanceBeforeModify0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
+        uint256 balanceBeforeModify1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        console.log("balanceBeforeModify0", balanceBeforeModify0);
+        console.log("balanceBeforeModify1", balanceBeforeModify1);
 
         (BalanceDelta balanceDelta,) = poolManager.modifyLiquidity(
             key,
@@ -498,7 +453,20 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             new bytes(0)
         );
 
-        // _settleDelta(key, balanceDelta);
+        console.log("balanceDelta.amount0()", balanceDelta.amount0());
+        console.log("balanceDelta.amount1()", balanceDelta.amount1());
+
+        _settleDelta(key, balanceDelta);
+        poolManager.settle();
+        _collectDelta(key, balanceDelta);
+        // function getPositionInfo(PoolId poolId, address owner, int24 tickLower, int24 tickUpper, bytes32 salt)
+        (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = poolManager.getPositionInfo(
+            key.toId(), address(this), position.tickLower, position.tickUpper, position.salt
+        );
+        console.log("position.liquidity", position.liquidity);
+        console.log("liquidity", liquidity);
+        console.log("feeGrowthInside0LastX128", feeGrowthInside0LastX128);
+        console.log("feeGrowthInside1LastX128", feeGrowthInside1LastX128);
 
         position.liquidity += liquidityDelta;
 
@@ -518,21 +486,19 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         PoolKey memory key,
         BalanceDelta delta
     ) internal {
+        if (delta.amount0() < 0) _pay(key.currency0, uint256(uint128(-delta.amount0())));
+        if (delta.amount1() < 0) _pay(key.currency1, uint256(uint128(-delta.amount1())));
+    }
+
+    function _collectDelta(
+        PoolKey memory key,
+        BalanceDelta delta
+    ) internal {
         if (delta.amount0() > 0) {
-            console.log("taking 0");
             poolManager.take(key.currency0, address(this), uint128(delta.amount0()));
         }
         if (delta.amount1() > 0) {
-            console.log("taking 1");
             poolManager.take(key.currency1, address(this), uint128(delta.amount1()));
-        }
-        if (delta.amount0() < 0) {
-            console.log("paying 0");
-            _pay(key.currency0, uint256(uint128(-delta.amount0())));
-        }
-        if (delta.amount1() < 0) {
-            console.log("paying 1");
-            _pay(key.currency1, uint256(uint128(-delta.amount1())));
         }
     }
 
