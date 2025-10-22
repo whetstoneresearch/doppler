@@ -25,6 +25,7 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
+import { console } from "forge-std/console.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
     function initialize(
@@ -207,13 +208,26 @@ contract V4MulticurveInitializer is Deployers {
 
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
-            amountSpecified: int256(initialSupply / 10),
+            amountSpecified: 1 ether,
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        console.log("swap0 done");
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        console.log("swap1 done");
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        console.log("swap2 done");
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        console.log("swap3 done");
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        console.log("swap4 done");
+
+        uint256 balance0 = numeraire.balanceOf(address(multicurveHook));
+        uint256 balance1 = TestERC20(tokenAddress).balanceOf(address(multicurveHook));
+        console.log("balance0", balance0);
+        console.log("balance1", balance1);
     }
 
     function _prepareInitData(
