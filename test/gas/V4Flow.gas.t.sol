@@ -29,9 +29,8 @@ import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol
 import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { Doppler } from "src/Doppler.sol";
 
-/**
- * @dev This is not a test but a gas benchmark for the V4 flow
- */
+// TODO: Since now we're taking gas snapshots in the unit tests we can also remove that file, but before doing so
+// we need to make sure we cover all the different flows in the different Doppler tests
 contract V4FlowGas is Deployers, DeployPermit2 {
     IAllowanceTransfer public permit2;
     UniswapV4Migrator public migrator;
@@ -149,7 +148,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         vm.warp(startingTime);
 
         vm.startSnapshotGas("V4 Flow", "First buy");
-        swapRouter.swap{ value: 0.001 ether }(
+        swapRouter.swap{
+            value: 0.001 ether
+        }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -165,7 +166,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
 
         vm.warp(101);
         vm.startSnapshotGas("V4 Flow", "Second buy (new epoch)");
-        swapRouter.swap{ value: 0.001 ether }(
+        swapRouter.swap{
+            value: 0.001 ether
+        }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -178,7 +181,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         console.log("Total proceeds after first buy: %e", totalProceeds);
 
         vm.startSnapshotGas("V4 Flow", "Third buy (same epoch)");
-        swapRouter.swap{ value: 0.001 ether }(
+        swapRouter.swap{
+            value: 0.001 ether
+        }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -194,7 +199,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
 
         vm.warp(110);
         vm.startSnapshotGas("V4 Flow", "Fourth buy (epoch #10)");
-        swapRouter.swap{ value: 0.001 ether }(
+        swapRouter.swap{
+            value: 0.001 ether
+        }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -208,7 +215,9 @@ contract V4FlowGas is Deployers, DeployPermit2 {
 
         vm.warp(299);
         vm.startSnapshotGas("V4 Flow", "Last buy (final epoch)");
-        swapRouter.swap{ value: 0.001 ether }(
+        swapRouter.swap{
+            value: 0.001 ether
+        }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),

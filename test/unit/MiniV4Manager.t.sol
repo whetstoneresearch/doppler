@@ -122,7 +122,7 @@ contract MiniV4ManagerTest is Deployers {
     }
 
     function test_collectWithEth() public {
-        Position[] memory positions = test_mint();
+        Position[] memory positions = test_mintWithETH();
 
         int128 swapAmount = -0.1e18;
 
@@ -152,7 +152,7 @@ contract MiniV4ManagerTest is Deployers {
     }
 
     function test_burnWithEth() public {
-        Position[] memory positions = test_mint();
+        Position[] memory positions = test_mintWithETH();
 
         int128 swapAmount = -0.1e18;
         _swap(swapAmount, true, true);

@@ -97,3 +97,14 @@ contract DeployUniswapV4MulticurveInitializerUnichainSepoliaScript is DeployUnis
         });
     }
 }
+
+/// @dev forge script DeployUniswapV4MulticurveInitializerMonadTestnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $MONAD_TESTNET_RPC_URL
+contract DeployUniswapV4MulticurveInitializerMonadTestnetScript is DeployUniswapV4MulticurveInitializerScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B,
+            poolManager: 0xe93882f395B0b24180855c68Ab19B2d78573ceBc,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
