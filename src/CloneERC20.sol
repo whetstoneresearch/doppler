@@ -8,9 +8,6 @@ import { Ownable } from "solady/auth/Ownable.sol";
 /// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
 
-/// @dev Thrown when trying to mint more than the yearly cap
-error ExceedsYearlyMintCap();
-
 /// @dev Thrown when there is no amount to mint
 error NoMintableAmount();
 
