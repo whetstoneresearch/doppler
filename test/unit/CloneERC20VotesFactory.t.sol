@@ -11,7 +11,6 @@ import {
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
-    PoolLocked,
     MintingNotStartedYet,
     NoMintableAmount,
     MAX_YEARLY_MINT_RATE_WAD,
