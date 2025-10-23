@@ -30,6 +30,12 @@ $ make install
 
 ### Testing
 
+Tests are separated into 3 different folders:
+
+- `unit`: unit and fuzz tests for individual contracts and libraries, deployed using a minimal local setup (for example only the contract being tested, dependencies are usually mocked)
+- `inveriant`: invariant tests for specific contracts or flows, deployed using a more complete local setup (including real dependencies)
+- `integration`: specific end-to-end tests including our different modules and their dependencies with the goal of validating the `create` and `migrate` flows
+
 ```shell
 # Copy the example a .env file and fill the RPC endpoints
 $ cp .env.example .env
