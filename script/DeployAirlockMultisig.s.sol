@@ -33,9 +33,7 @@ contract DeployAirlockMultisigBaseSepoliaScript is DeployAirlockMultisigScript {
         signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
 
         _scriptData = ScriptData({
-            chainId: ChainIds.BASE_SEPOLIA,
-            airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e,
-            signers: signers
+            chainId: ChainIds.BASE_SEPOLIA, airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e, signers: signers
         });
     }
 }
@@ -48,5 +46,18 @@ contract DeployAirlockMultisigUnichainSepoliaScript is DeployAirlockMultisigScri
         signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
 
         _scriptData = ScriptData({ chainId: ChainIds.UNICHAIN_SEPOLIA, airlock: address(0), signers: signers });
+    }
+}
+
+/// @dev forge script DeployAirlockMultisigMonadTestnetScript --private-key $PRIVATE_KEY --verify --rpc-url $MONAD_TESTNET_RPC_URL --slow --broadcast
+contract DeployAirlockMultisigMonadTestnetScript is DeployAirlockMultisigScript {
+    function setUp() public override {
+        address[] memory signers = new address[](2);
+        signers[0] = msg.sender;
+        signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
+
+        _scriptData = ScriptData({
+            chainId: ChainIds.MONAD_TESTNET, airlock: 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B, signers: signers
+        });
     }
 }

@@ -50,8 +50,11 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
     /// @notice Address of the Uniswap V4 Multicurve Initializer contract
     address public immutable INITIALIZER;
 
-    /// @notice Modifier to ensure the caller is the Uniswap V4 Multicurve Initializer
-    /// @param sender Address of the caller
+    /**
+     *
+     * @dev Modifier to ensure the caller is the Uniswap V4 Multicurve Initializer
+     * @param sender Address of the caller
+     */
     modifier onlyInitializer(
         address sender
     ) {
@@ -62,10 +65,13 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
     /**
      * @notice Constructor for the Uniswap V4 Migrator Hook
      * @param manager Address of the Uniswap V4 Pool Manager
-     * @param initializer_ Address of the Uniswap V4 Multicurve Initializer contract
+     * @param initializer Address of the Uniswap V4 Multicurve Initializer contract
      */
-    constructor(IPoolManager manager, UniswapV4MulticurveInitializer initializer_) BaseHook(manager) {
-        INITIALIZER = address(initializer_);
+    constructor(
+        IPoolManager manager,
+        UniswapV4MulticurveInitializer initializer
+    ) BaseHook(manager) {
+        INITIALIZER = address(initializer);
     }
 
     /// @inheritdoc BaseHook
@@ -83,7 +89,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) internal view override onlyInitializer(sender) returns (bytes4) {
+    ) internal view virtual override onlyInitializer(sender) returns (bytes4) {
         return BaseHook.beforeAddLiquidity.selector;
     }
 
@@ -122,12 +128,11 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
         bytes calldata hookData
     ) internal override returns (bytes4, int128) {
         emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
-
         return (BaseHook.afterSwap.selector, 0);
     }
 
     /// @inheritdoc BaseHook
-    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+    function getHookPermissions() public pure virtual override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
             afterInitialize: false,
