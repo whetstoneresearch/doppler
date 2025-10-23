@@ -75,9 +75,6 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
     /// @notice Mapping of approved migrators
     mapping(address migrator => bool approved) public approvedMigrators;
 
-    /// @notice Anyone can send ETH to this contract
-    receive() external payable { }
-
     /**
      * @param poolManager_ Address of the Uniswap V4 PoolManager contract
      * @param owner_ Address of the owner of the contract
