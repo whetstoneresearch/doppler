@@ -11,9 +11,6 @@ error MintingNotStartedYet();
 /// @dev Thrown when there is no amount to mint
 error NoMintableAmount();
 
-/// @dev Thrown when trying to transfer tokens into the pool while it is locked
-error PoolLocked();
-
 /// @dev Thrown when two arrays have different lengths
 error ArrayLengthsMismatch();
 
