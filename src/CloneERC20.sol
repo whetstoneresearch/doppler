@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ERC20 } from "solady/tokens/ERC20.sol";
-import { Initializable } from "solady/utils/Initializable.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
+import { ERC20 } from "@solady/tokens/ERC20.sol";
+import { Initializable } from "@solady/utils/Initializable.sol";
+import { Ownable } from "@solady/auth/Ownable.sol";
 
 /// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
