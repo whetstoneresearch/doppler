@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
 import { Position, concat } from "src/types/Position.sol";
@@ -182,36 +183,64 @@ function calculateLogNormalDistribution(
     Position[] memory positions = new Position[](numPositions);
 
     for (uint256 i; i < numPositions; i++) {
-        // Calculate the ticks position * 1/n to optimize the division
-        int24 startingTick = isToken0
-            ? closeTick + int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), numPositions)))
-            : closeTick - int24(uint24(FullMath.mulDiv(i, uint256(uint24(spread)), numPositions)));
-
-        // Round the tick to the nearest bin
-        startingTick = alignTick(isToken0, startingTick, tickSpacing);
-
-        if (startingTick != farTick) {
-            uint160 startingSqrtPriceX96 = TickMath.getSqrtPriceAtTick(startingTick);
-
-            uint128 liquidity;
-
-            // If curveSupply is 0, we skip the liquidity calculation as we are burning max liquidity in each position
-            if (curveSupply != 0) {
-                liquidity = isToken0
-                    ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
-                    : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
-            }
-
-            positions[i] = Position({
-                tickLower: farSqrtPriceX96 < startingSqrtPriceX96 ? farTick : startingTick,
-                tickUpper: farSqrtPriceX96 < startingSqrtPriceX96 ? startingTick : farTick,
-                liquidity: liquidity,
-                salt: bytes32(index * numPositions + i)
-            });
-        }
+        positions[i] = computePosition(
+            index,
+            isToken0,
+            i,
+            tickSpacing,
+            closeTick,
+            spread,
+            numPositions,
+            farSqrtPriceX96,
+            amountPerPosition,
+            farTick,
+            curveSupply
+        );
     }
 
     return positions;
+}
+
+function computePosition(
+    uint256 index,
+    bool isToken0,
+    uint256 i,
+    int24 tickSpacing,
+    int24 closeTick,
+    int24 spread,
+    uint16 numPositions,
+    uint160 farSqrtPriceX96,
+    uint256 amountPerPosition,
+    int24 farTick,
+    uint256 curveSupply
+) pure returns (Position memory) {
+    // Calculate the ticks position * 1/n to optimize the division
+    int24 startingTick = isToken0
+        ? closeTick + int24(uint24(FixedPointMathLib.mulDiv(i, uint256(uint24(spread)), numPositions)))
+        : closeTick - int24(uint24(FixedPointMathLib.mulDiv(i, uint256(uint24(spread)), numPositions)));
+
+    // Round the tick to the nearest bin
+    startingTick = alignTick(isToken0, startingTick, tickSpacing);
+
+    if (startingTick != farTick) {
+        uint160 startingSqrtPriceX96 = TickMath.getSqrtPriceAtTick(startingTick);
+
+        uint128 liquidity;
+
+        // If curveSupply is 0, we skip the liquidity calculation as we are burning max liquidity in each position
+        if (curveSupply != 0) {
+            liquidity = isToken0
+                ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
+                : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
+        }
+
+        return Position({
+            tickLower: farSqrtPriceX96 < startingSqrtPriceX96 ? farTick : startingTick,
+            tickUpper: farSqrtPriceX96 < startingSqrtPriceX96 ? startingTick : farTick,
+            liquidity: liquidity,
+            salt: bytes32(index * numPositions + i)
+        });
+    }
 }
 
 /**

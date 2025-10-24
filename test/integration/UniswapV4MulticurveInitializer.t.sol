@@ -12,6 +12,7 @@ import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerV2 } from "src/UniswapV4MulticurveInitializerV2.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 
 function deployUniswapV4MulticurveInitializer(
@@ -30,6 +31,35 @@ function deployUniswapV4MulticurveInitializer(
         )
     );
     initializer = new UniswapV4MulticurveInitializer(address(airlock), IPoolManager(poolManager), multicurveHook);
+    deployCodeTo(
+        "UniswapV4MulticurveInitializerHook",
+        abi.encode(address(poolManager), address(initializer)),
+        address(multicurveHook)
+    );
+    address[] memory modules = new address[](1);
+    modules[0] = address(initializer);
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.PoolInitializer;
+    vm.prank(airlockOwner);
+    airlock.setModuleState(modules, states);
+}
+
+function deployUniswapV4MulticurveInitializerV2(
+    Vm vm,
+    function(string memory, bytes memory, address) deployCodeTo,
+    Airlock airlock,
+    address airlockOwner,
+    address poolManager
+) returns (UniswapV4MulticurveInitializerHook multicurveHook, UniswapV4MulticurveInitializerV2 initializer) {
+    multicurveHook = UniswapV4MulticurveInitializerHook(
+        address(
+            uint160(
+                Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                    | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+            ) ^ (0x4444 << 144)
+        )
+    );
+    initializer = new UniswapV4MulticurveInitializerV2(address(airlock), IPoolManager(poolManager), multicurveHook);
     deployCodeTo(
         "UniswapV4MulticurveInitializerHook",
         abi.encode(address(poolManager), address(initializer)),

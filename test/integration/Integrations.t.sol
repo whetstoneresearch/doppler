@@ -28,9 +28,11 @@ import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.
 import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
 import {
     deployUniswapV4MulticurveInitializer,
+    deployUniswapV4MulticurveInitializerV2,
     prepareUniswapV4MulticurveInitializerData
 } from "test/integration/UniswapV4MulticurveInitializer.t.sol";
 import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerV2 } from "src/UniswapV4MulticurveInitializerV2.sol";
 import { deployCloneERC20Factory, prepareCloneERC20FactoryData } from "test/integration/CloneERC20Factory.t.sol";
 import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import {
@@ -150,6 +152,34 @@ contract CloneERC20FactoryUniswapV4MulticurveInitializerNoOpGovernanceFactoryNoO
     }
 }
 
+contract CloneERC20FactoryUniswapV4MulticurveInitializerV2NoOpGovernanceFactoryNoOpMigratorIntegrationTest is
+    BaseIntegrationTest
+{
+    function setUp() public override {
+        super.setUp();
+
+        name = "CloneERC20FactoryUniswapV4MulticurveInitializerV2NoOpGovernanceFactoryNoOpMigrator";
+
+        CloneERC20Factory tokenFactory = deployCloneERC20Factory(vm, airlock, AIRLOCK_OWNER);
+        createParams.tokenFactory = tokenFactory;
+        createParams.tokenFactoryData = prepareCloneERC20FactoryData();
+
+        (, UniswapV4MulticurveInitializerV2 initializer) =
+            deployUniswapV4MulticurveInitializerV2(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
+        createParams.poolInitializer = initializer;
+        (bytes memory poolInitializerData) = prepareUniswapV4MulticurveInitializerData(address(0), address(0));
+        createParams.poolInitializerData = poolInitializerData;
+        createParams.numTokensToSell = 1e23;
+        createParams.initialSupply = 1e23;
+
+        NoOpMigrator migrator = deployNoOpMigrator(vm, airlock, AIRLOCK_OWNER);
+        createParams.liquidityMigrator = migrator;
+
+        NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.governanceFactory = governanceFactory;
+    }
+}
+
 contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryNoOpMigratorIntegrationTest is
     BaseIntegrationTest
 {
@@ -228,9 +258,7 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(pool)).poolKey();
 
-            swapRouter.swap{
-                value: 0.0001 ether
-            }(
+            swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({
                     currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
                 }),
