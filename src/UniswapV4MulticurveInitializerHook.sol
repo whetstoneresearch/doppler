@@ -69,9 +69,9 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
      */
     constructor(
         IPoolManager manager,
-        UniswapV4MulticurveInitializer initializer
+        address initializer
     ) BaseHook(manager) {
-        INITIALIZER = address(initializer);
+        INITIALIZER = initializer;
     }
 
     /// @inheritdoc BaseHook

@@ -18,7 +18,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/MulticurveLibV2.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { UniswapV4HookedMulticurveInitializerHook } from "src/HookedMulticurveInitializerHook.sol";
 import { ITokenHook } from "src/interfaces/ITokenHook.sol";
 
 /**
@@ -54,7 +54,7 @@ error CannotMigratePoolNoProvidedHook();
 error HookModuleNotAuthorized(address owner, address caller);
 
 /// @notice Thrown when a non-authorized owner tries to enable new hook modules
-error HookMigrationNotAuthorized(address owner, address delegate, address caller);
+error HookMigrationNotAuthorized(address delegate, address caller);
 
 /// @notice Thrown when the hook state is not the expected one
 error WrongHookState(address module, bool expected, bool actual);
@@ -169,7 +169,7 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
     mapping(address module => bool state) public getHookState;
 
     /// @notice Delegated authority
-    mapping(address user => bool delegation) public getAuthority;
+    mapping(address user => address delegation) public getAuthority;
 
     /**
      * @param airlock_ Address of the Airlock contract
@@ -232,7 +232,7 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
         int24 startTick = isToken0 ? tickLower : tickUpper;
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
-        HookedMulticurveInitializerHook(address(HOOK)).setStartingTime(poolKey, startingTime);
+        UniswapV4HookedMulticurveInitializerHook(address(HOOK)).setStartingTime(poolKey, startingTime);
 
         Position[] memory positions =
             calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
@@ -321,7 +321,11 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @notice Triggers a pre-specified migration hook if conditions are met
      * @param asset Address to migrate
      */
-    function pushNewHook(address asset, address newHook, bytes calldata newHookCalldata) external {
+    function pushNewHook(
+        address asset,
+        address newHook,
+        bytes calldata newHookCalldata
+    ) external {
         PoolState memory state = getState[asset];
 
         // Cannot push if can internal or external migrate
@@ -330,11 +334,9 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
 
         _validateModuleState(newHook, true);
 
-        address delegated = getAuthority[timelock];
+        address delegate = getAuthority[timelock];
 
-        require(
-            (msg.sender == delegated) || (msg.sender == timelock), HookMigrationNotAuthorized(owner, delegate, caller)
-        );
+        require((msg.sender == delegate) || (msg.sender == timelock), HookMigrationNotAuthorized(delegate, msg.sender));
 
         getState[asset].migrationHook = newHook;
         ITokenHook(newHook).onHookInitialization(asset, newHookCalldata);
@@ -362,7 +364,10 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
         ITokenHook(migrationHook).onMigration(asset, state.migrationHookCalldata);
     }
 
-    function _checkMigrationValid(address asset, PoolState memory state) internal returns (int24 farTick) {
+    function _checkMigrationValid(
+        address asset,
+        PoolState memory state
+    ) internal returns (int24 farTick) {
         address token0 = Currency.unwrap(state.poolKey.currency0);
         address token1 = Currency.unwrap(state.poolKey.currency1);
 
@@ -407,7 +412,10 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @param migrationHooks Array of module addresses
      * @param states Array of module states
      */
-    function setHookState(address[] calldata migrationHooks, bool[] calldata states) external {
+    function setHookState(
+        address[] calldata migrationHooks,
+        bool[] calldata states
+    ) external {
         require(msg.sender == airlock.owner(), HookModuleNotAuthorized(airlock.owner(), msg.sender));
 
         uint256 length = migrationHooks.length;
@@ -427,7 +435,10 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @param hook Address of the hook
      * @param state Expected state of the hook
      */
-    function _validateModuleState(address hook, bool state) internal view {
+    function _validateModuleState(
+        address hook,
+        bool state
+    ) internal view {
         if (hook != address(0)) {
             require(getHookState[address(hook)] == state, WrongHookState(hook, state, getHookState[hook]));
         }

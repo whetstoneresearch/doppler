@@ -7,7 +7,7 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
-import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { HookedMulticurveInitializer } from "src/HookedMulticurve.sol";
 import { ITokenHook } from "src/interfaces/ITokenHook.sol";
 
@@ -21,7 +21,7 @@ error CannotSwapBeforeStartingTime();
  * addition in a Uniswap V4 pool and prevent swaps before a given starting time
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveInitializerHook, ITokenHook {
+contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitializerHook, ITokenHook {
     /// @notice Starting time of each pool, stored as a unix timestamp
     mapping(PoolId poolId => uint256 startingTime) public startingTimeOf;
 
@@ -34,7 +34,7 @@ contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveIniti
      */
     constructor(
         IPoolManager manager,
-        UniswapV4ScheduledMulticurveInitializer initializer
+        address initializer
     ) UniswapV4MulticurveInitializerHook(manager, initializer) { }
 
     /**
@@ -42,14 +42,17 @@ contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveIniti
      * @param poolKey Key of the pool
      * @param startingTime Timestamp at which trading can start, past times are set to current block timestamp
      */
-    function setStartingTime(PoolKey memory poolKey, uint256 startingTime) external onlyInitializer(msg.sender) {
+    function setStartingTime(
+        PoolKey memory poolKey,
+        uint256 startingTime
+    ) external onlyInitializer(msg.sender) {
         startingTimeOf[poolKey.toId()] = startingTime <= block.timestamp ? block.timestamp : startingTime;
     }
 
     function pushTokenHook(
         address asset
     ) external {
-        (,,, address migrationHook,,, PoolKey memory poolKey) = HookedMulticurveInitializer(initializer).getState(asset);
+        (, address migrationHook,,, PoolKey memory poolKey,) = HookedMulticurveInitializer(INITIALIZER).getState(asset);
 
         getTokenHook[poolKey.toId()] = migrationHook;
     }
