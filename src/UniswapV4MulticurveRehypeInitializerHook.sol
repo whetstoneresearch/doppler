@@ -19,7 +19,6 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { Quoter } from "@quoter/Quoter.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
-import { console } from "forge-std/console.sol";
 import { IERC20 } from "lib/universal-router/lib/v4-periphery/lib/v4-core/lib/forge-std/src/interfaces/IERC20.sol";
 
 // goals
@@ -252,10 +251,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         } else {
             getFees[key.toId()].fees1 += uint128(feeAmount);
         }
-
-        console.log("feeAmount", feeAmount);
-        console.log("getFees[key.toId()].fees0", getFees[key.toId()].fees0);
-        console.log("getFees[key.toId()].fees1", getFees[key.toId()].fees1);
 
         BeforeSwapDelta returnDelta = toBeforeSwapDelta(int128(int256(feeAmount)), 0);
 
