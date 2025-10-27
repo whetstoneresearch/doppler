@@ -16,8 +16,7 @@ error CannotSwapBeforeStartingTime();
 /**
  * @title Uniswap V4 Scheduled Multicurve Hook
  * @author Whetstone Research
- * @notice Hook used by the Uniswap V4 Scheduled Multicurve Initializer to restrict liquidity
- * addition in a Uniswap V4 pool and prevent swaps before a given starting time
+ * @notice Hook used by the Uniswap V4 Scheduled Multicurve Initializer to prevent swaps before a given time
  * @custom:security-contact security@whetstone.cc
  */
 contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
