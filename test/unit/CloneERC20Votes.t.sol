@@ -2,8 +2,9 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
-import { Initializable } from "solady/utils/Initializable.sol";
+import { Ownable } from "@solady/auth/Ownable.sol";
+import { ERC20Votes } from "@solady/tokens/ERC20Votes.sol";
+import { Initializable } from "@solady/utils/Initializable.sol";
 import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 import {
     ArrayLengthsMismatch,
@@ -271,7 +272,7 @@ contract CloneERC20VotesTest is Test {
     /*                                transfer()                                */
     /* ------------------------------------------------------------------------ */
 
-    function test_transfer_RevertsWhenPoolLocked(
+    function test_transfer_ChangesDelegateVotes(
         string memory name,
         string memory symbol,
         uint256 initialSupply,
@@ -282,17 +283,18 @@ contract CloneERC20VotesTest is Test {
         string memory tokenURI,
         uint256 seed
     ) public {
-        vm.skip(true);
         testFuzz_initialize(
             name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
 
-        address pool = address(0xdeadbeef);
-        vm.prank(owner);
-        token.lockPool(pool);
-        vm.prank(recipient);
-        // vm.expectRevert(PoolLocked.selector);
-        token.transfer(pool, 1);
+        vm.startPrank(recipient);
+        token.delegate(address(0xcafe));
+
+        uint256 votesTotalSupply = token.getVotesTotalSupply();
+        vm.expectEmit(true, true, true, true);
+        emit ERC20Votes.DelegateVotesChanged(recipient, votesTotalSupply, votesTotalSupply - votesTotalSupply / 10);
+        token.transfer(address(0xbeef), initialSupply / 10);
+        vm.stopPrank();
     }
 
     /* ---------------------------------------------------------------------------- */
