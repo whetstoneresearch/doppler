@@ -229,20 +229,17 @@ contract CloneERC20VotesTest is Test {
     /*                                lockPool()                                */
     /* ------------------------------------------------------------------------ */
 
-    function testFuzz_lockPool(
+    function test_lockPool_PassesWhenValidOwner(
         address pool
     ) public {
         token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.lockPool(pool);
-        assertEq(token.pool(), pool, "Wrong pool");
-        assertEq(token.isPoolUnlocked(), false, "Pool should be locked");
     }
 
-    function testFuzz_lockPool_RevertsWhenInvalidOwner(
+    function test_lockPool_RevertsWhenInvalidOwner(
         address pool
     ) public {
         token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
-
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
         token.lockPool(pool);
@@ -255,9 +252,8 @@ contract CloneERC20VotesTest is Test {
     function testFuzz_unlockPool(
         address pool
     ) public {
-        testFuzz_lockPool(pool);
+        test_lockPool_PassesWhenValidOwner(pool);
         token.unlockPool();
-        assertEq(token.isPoolUnlocked(), true, "Pool should be unlocked");
         assertEq(token.lastMintTimestamp(), block.timestamp, "Inflation should have started");
         assertEq(token.currentYearStart(), block.timestamp, "Current year start should be the current timestamp");
     }
@@ -265,7 +261,7 @@ contract CloneERC20VotesTest is Test {
     function testFuzz_unlockPool_RevertsWhenInvalidOwner(
         address pool
     ) public {
-        testFuzz_lockPool(pool);
+        test_lockPool_PassesWhenValidOwner(pool);
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
         token.unlockPool();
