@@ -19,7 +19,7 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/MulticurveLibV2.sol";
 import { UniswapV4HookedMulticurveInitializerHook } from "src/HookedMulticurveInitializerHook.sol";
-import { ITokenHook } from "src/interfaces/ITokenHook.sol";
+import { IDook } from "src/interfaces/IDook.sol";
 
 /**
  * @notice Emitted when a new pool is locked
@@ -74,9 +74,8 @@ struct InitData {
     int24 tickSpacing;
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
-    address migrationHook;
-    bytes migrationHookCalldata;
-    uint32 startingTime;
+    address dook;
+    bytes graduationDookCalldata;
 }
 
 /// @notice Possible status of a pool, note a locked pool cannot be exited
@@ -84,7 +83,7 @@ enum PoolStatus {
     Uninitialized,
     Initialized,
     Locked,
-    Migrated,
+    Graduated,
     Exited
 }
 
@@ -93,7 +92,7 @@ enum PoolStatus {
  * @param numeraire Address of the numeraire currency
  * @param beneficiaries Array of beneficiaries with their shares
  * @param positions Array of positions held in the pool
- * @param migrationHook Address of the migration hook
+ * @param dook Address of the Doppler hook
  * @param status Current status of the pool
  * @param poolKey Key of the Uniswap V4 pool
  * @param farTick The farthest tick that must be reached to allow exiting liquidity
@@ -102,8 +101,8 @@ struct PoolState {
     address numeraire;
     BeneficiaryData[] beneficiaries;
     Position[] positions;
-    address migrationHook;
-    bytes migrationHookCalldata;
+    address dook;
+    bytes graduationDookCalldata;
     PoolStatus status;
     PoolKey poolKey;
     int24 farTick;
@@ -166,7 +165,7 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
     mapping(PoolId poolId => address asset) internal getAsset;
 
     /// @notice Returns the state of a given hook module
-    mapping(address module => bool state) public getHookState;
+    mapping(address module => bool state) public isDookEnabled;
 
     /// @notice Delegated authority
     mapping(address user => address delegation) public getAuthority;
@@ -201,20 +200,18 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
             int24 tickSpacing,
             Curve[] memory curves,
             BeneficiaryData[] memory beneficiaries,
-            address migrationHook,
-            bytes memory migrationHookCalldata,
-            uint32 startingTime
+            address dook,
+            bytes memory graduationDookCalldata
         ) = (
             initData.fee,
             initData.tickSpacing,
             initData.curves,
             initData.beneficiaries,
-            initData.migrationHook,
-            initData.migrationHookCalldata,
-            initData.startingTime
+            initData.dook,
+            initData.graduationDookCalldata
         );
 
-        _validateModuleState(migrationHook, true);
+        _validateModuleState(dook, true);
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -225,14 +222,12 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
-        // farTick = the tick to enable the migration hook at
-        (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper, int24 farTick) =
+        (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper,) =
             adjustCurves(curves, 0, tickSpacing, isToken0);
 
         int24 startTick = isToken0 ? tickLower : tickUpper;
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
-        UniswapV4HookedMulticurveInitializerHook(address(HOOK)).setStartingTime(poolKey, startingTime);
 
         Position[] memory positions =
             calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
@@ -241,8 +236,8 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
             numeraire: numeraire,
             beneficiaries: beneficiaries,
             positions: positions,
-            migrationHook: migrationHook,
-            migrationHookCalldata: initData.migrationHookCalldata,
+            dook: dook,
+            graduationDookCalldata: graduationDookCalldata,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
             farTick: isToken0 ? tickUpper : tickLower
@@ -273,9 +268,7 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
     }
 
     /// @inheritdoc IPoolInitializer
-    function exitLiquidity(
-        address asset
-    )
+    function exitLiquidity(address asset)
         external
         onlyAirlock
         returns (
@@ -292,8 +285,11 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
         require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
         getState[asset].status = PoolStatus.Exited;
 
-        int24 farTick = _checkMigrationValid(asset, state);
-        sqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
+        token0 = Currency.unwrap(state.poolKey.currency0);
+        token1 = Currency.unwrap(state.poolKey.currency1);
+
+        _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
+        sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, state.positions);
         balance0 = uint128(balanceDelta.amount0());
@@ -309,71 +305,58 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @notice Delegates hook migration approval authority to another address
      * @param delegatedAuthority Address to delgate to
      */
-    function delegateAuthority(
-        address delegatedAuthority
-    ) external {
-        // TODO: do we have to check msg.sender != address(0) ?
-        // we should allow delegation to 0 address as a way to revoke delegation
+    function delegateAuthority(address delegatedAuthority) external {
         getAuthority[msg.sender] = delegatedAuthority;
     }
 
     /**
-     * @notice Triggers a pre-specified migration hook if conditions are met
+     * @notice Sets the Doppler hook for a given asset's pool if not already set
      * @param asset Address to migrate
      */
-    function pushNewHook(
-        address asset,
-        address newHook,
-        bytes calldata newHookCalldata
-    ) external {
+    function setDook(address asset, address dook, bytes calldata data) external {
         PoolState memory state = getState[asset];
 
         // Cannot push if can internal or external migrate
         require(state.status == PoolStatus.Locked, PoolAlreadyExited());
         (, address timelock,,,,,,,,) = airlock.getAssetData(asset);
 
-        _validateModuleState(newHook, true);
+        _validateModuleState(dook, true);
+        require(state.dook == address(0), "DookAlreadySet");
 
         address delegate = getAuthority[timelock];
 
         require((msg.sender == delegate) || (msg.sender == timelock), HookMigrationNotAuthorized(delegate, msg.sender));
 
-        getState[asset].migrationHook = newHook;
-        ITokenHook(newHook).onHookInitialization(asset, newHookCalldata);
+        getState[asset].dook = dook;
+        IDook(dook).onInitialization(asset, data);
     }
 
     /**
-     * @notice Triggers a pre-specified migration hook if conditions are met
+     * @notice Triggers a pre-specified graduation hook if conditions are met
      * @notice This is one way and cannot be done again
      * @param asset Address to migrate
      */
-    function migrate(
-        address asset
-    ) external {
+    function graduate(address asset) external {
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
 
-        _checkMigrationValid(asset, state);
+        _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
 
-        address migrationHook = state.migrationHook;
-        if (address(migrationHook) == address(0)) {
-            CannotMigratePoolNoProvidedHook();
+        address dook = state.dook;
+        if (address(dook) == address(0)) {
+            revert CannotMigratePoolNoProvidedHook();
         }
 
-        getState[asset].status = PoolStatus.Migrated;
-        ITokenHook(migrationHook).onMigration(asset, state.migrationHookCalldata);
+        getState[asset].status = PoolStatus.Graduated;
+        IDook(dook).onGraduation(asset, state.graduationDookCalldata);
     }
 
-    function _checkMigrationValid(
-        address asset,
-        PoolState memory state
-    ) internal returns (int24 farTick) {
-        address token0 = Currency.unwrap(state.poolKey.currency0);
-        address token1 = Currency.unwrap(state.poolKey.currency1);
-
-        (, int24 tick,,) = poolManager.getSlot0(state.poolKey.toId());
-        farTick = state.farTick;
-        require(asset == token0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
+    function _canGraduateOrMigrate(PoolId poolId, bool isToken0, int24 farTick) internal view {
+        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
+        require(
+            isToken0 ? currentTick >= farTick : currentTick <= farTick,
+            CannotMigrateInsufficientTick(farTick, currentTick)
+        );
     }
 
     /**
@@ -381,9 +364,7 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of positions currently held in the Uniswap V4 pool
      */
-    function getPositions(
-        address asset
-    ) external view returns (Position[] memory) {
+    function getPositions(address asset) external view returns (Position[] memory) {
         return getState[asset].positions;
     }
 
@@ -392,41 +373,35 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of beneficiaries with their shares
      */
-    function getBeneficiaries(
-        address asset
-    ) external view returns (BeneficiaryData[] memory) {
+    function getBeneficiaries(address asset) external view returns (BeneficiaryData[] memory) {
         return getState[asset].beneficiaries;
     }
 
     /// @inheritdoc FeesManager
-    function _collectFees(
-        PoolId poolId
-    ) internal override returns (BalanceDelta fees) {
+    function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         PoolState memory state = getState[getAsset[poolId]];
         require(state.status == PoolStatus.Locked, PoolNotLocked());
         fees = _collect(state.poolKey, state.positions);
     }
 
     /**
-     * @notice Sets the state of the givens hooks
-     * @param migrationHooks Array of module addresses
+     * @notice Sets the state of the given Doppler hooks
+     * @param dooks Array of Doppler hook addresses
      * @param states Array of module states
      */
-    function setHookState(
-        address[] calldata migrationHooks,
-        bool[] calldata states
-    ) external {
-        require(msg.sender == airlock.owner(), HookModuleNotAuthorized(airlock.owner(), msg.sender));
+    function setHookState(address[] calldata dooks, bool[] calldata states) external {
+        address owner = airlock.owner();
+        require(msg.sender == owner, HookModuleNotAuthorized(owner, msg.sender));
 
-        uint256 length = migrationHooks.length;
+        uint256 length = dooks.length;
 
         if (length != states.length) {
             revert ArrayLengthsMismatch();
         }
 
-        for (uint256 i; i < length; ++i) {
-            getHookState[migrationHooks[i]] = states[i];
-            emit SetHookState(migrationHooks[i], states[i]);
+        for (uint256 i; i != length; ++i) {
+            isDookEnabled[dooks[i]] = states[i];
+            emit SetHookState(dooks[i], states[i]);
         }
     }
 
@@ -435,12 +410,9 @@ contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, Immutable
      * @param hook Address of the hook
      * @param state Expected state of the hook
      */
-    function _validateModuleState(
-        address hook,
-        bool state
-    ) internal view {
+    function _validateModuleState(address hook, bool state) internal view {
         if (hook != address(0)) {
-            require(getHookState[address(hook)] == state, WrongHookState(hook, state, getHookState[hook]));
+            require(isDookEnabled[address(hook)] == state, WrongHookState(hook, state, isDookEnabled[hook]));
         }
     }
 }

@@ -8,53 +8,33 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSw
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { HookedMulticurveInitializer } from "src/HookedMulticurve.sol";
-import { ITokenHook } from "src/interfaces/ITokenHook.sol";
-
-/// @notice Thrown when a swap is attempted before the starting time
-error CannotSwapBeforeStartingTime();
+import { HookedMulticurveInitializer } from "src/HookedMulticurveInitializer.sol";
+import { IDook } from "src/interfaces/IDook.sol";
 
 /**
- * @title Uniswap V4 Scheduled Multicurve Hook
+ * @title Uniswap V4 Hooked Multicurve Initializer Hook
  * @author Whetstone Research
- * @notice Hook used by the Uniswap V4 Scheduled Multicurve Initializer to restrict liquidity
- * addition in a Uniswap V4 pool and prevent swaps before a given starting time
+ * @notice Hook used by the Uniswap V4 Hooked Multicurve Initializer
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitializerHook, ITokenHook {
-    /// @notice Starting time of each pool, stored as a unix timestamp
-    mapping(PoolId poolId => uint256 startingTime) public startingTimeOf;
-
-    mapping(PoolId poolId => address tokenHook) public getTokenHook;
+contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
+    /// @notice Maps a poolId to its associated Doppler Hook
+    mapping(PoolId poolId => address dook) public getDook;
 
     /**
-     * @notice Constructor for the Uniswap V4 Migrator Hook
      * @param manager Address of the Uniswap V4 Pool Manager
-     * @param initializer Address of the Uniswap V4 Multicurve Initializer contract
+     * @param initializer Address of the Uniswap V4 Hooked Multicurve Initializer contract
      */
-    constructor(
-        IPoolManager manager,
-        address initializer
-    ) UniswapV4MulticurveInitializerHook(manager, initializer) { }
+    constructor(IPoolManager manager, address initializer) UniswapV4MulticurveInitializerHook(manager, initializer) { }
 
     /**
-     * @notice Sets the starting time for a given pool
-     * @param poolKey Key of the pool
-     * @param startingTime Timestamp at which trading can start, past times are set to current block timestamp
+     * @notice Fetches and saves the Doppler Hook for a given asset's pool
+     * @dev No need for access control since we're fetching data from the initializer
      */
-    function setStartingTime(
-        PoolKey memory poolKey,
-        uint256 startingTime
-    ) external onlyInitializer(msg.sender) {
-        startingTimeOf[poolKey.toId()] = startingTime <= block.timestamp ? block.timestamp : startingTime;
-    }
-
-    function pushTokenHook(
-        address asset
-    ) external {
-        (, address migrationHook,,, PoolKey memory poolKey,) = HookedMulticurveInitializer(INITIALIZER).getState(asset);
-
-        getTokenHook[poolKey.toId()] = migrationHook;
+    function saveDook(address asset) external {
+        (, address migrationHook,,, PoolKey memory poolKey,) =
+            HookedMulticurveInitializer(payable(INITIALIZER)).getState(asset);
+        getDook[poolKey.toId()] = migrationHook;
     }
 
     /// @inheritdoc BaseHook
@@ -69,19 +49,17 @@ contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitiali
 
     /// @inheritdoc BaseHook
     function _beforeSwap(
-        address,
+        address sender,
         PoolKey calldata key,
-        IPoolManager.SwapParams calldata,
-        bytes calldata
-    ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
-        require(block.timestamp >= startingTimeOf[key.toId()], CannotSwapBeforeStartingTime());
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        address tokenHook = getDook[key.toId()];
 
-        address tokenHook = getTokenHook[key.toId()];
-
-        // exec keeper actions
         if (tokenHook != address(0)) {
-            ITokenHook(tokenHook).onSwap(abi.encode(key, msg.sender));
+            IDook(tokenHook).onSwap(sender, key, params, data);
         }
+
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
