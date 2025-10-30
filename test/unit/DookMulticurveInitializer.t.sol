@@ -258,6 +258,16 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.collectFees(poolId);
     }
 
+    /* --------------------------------------------------------------------------------- */
+    /*                                delegateAuthority()                                */
+    /* --------------------------------------------------------------------------------- */
+
+    function test_delegateAuthority(address user, address delegation) public {
+        vm.prank(user);
+        initializer.delegateAuthority(delegation);
+        assertEq(initializer.getAuthority(user), delegation, "Incorrect delegated authority");
+    }
+
     /* ----------------------------------------------------------------------- */
     /*                                Utilities                                */
     /* ----------------------------------------------------------------------- */
