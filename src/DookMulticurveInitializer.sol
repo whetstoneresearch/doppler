@@ -4,13 +4,12 @@ pragma solidity ^0.8.26;
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
-
 import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
@@ -29,20 +28,17 @@ import { IDook } from "src/interfaces/IDook.sol";
 event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 
 /**
- * @notice Emitted when the state of a hook is set
- * @param hook Address of the hook
- * @param state State of the module
+ * @notice Emitted when the state of a Doppler Hook is set
+ * @param dook Address of the Doppler Hook
+ * @param state State of the Doppler Hook (true = enabled, false = disabled)
  */
-event SetHookState(address indexed hook, bool indexed state);
+event SetDookState(address indexed dook, bool indexed state);
 
-/// @notice Thrown when the pool is already initialized
-error PoolAlreadyInitialized();
+event SetDook(address indexed asset, address indexed dook);
 
-/// @notice Thrown when the pool is already exited
-error PoolAlreadyExited();
+event Graduate(address indexed asset);
 
-/// @notice Thrown when the pool is not locked but collect is called
-error PoolNotLocked();
+error WrongPoolStatus(PoolStatus expected, PoolStatus actual);
 
 /// @notice Thrown when the current tick is not sufficient to migrate
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
@@ -50,14 +46,16 @@ error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 /// @notice Thrown when the hook is not provided but migration is attempted
 error CannotMigratePoolNoProvidedHook();
 
-/// @notice Thrown when a non-authorized owner tries to enable new hook modules
-error HookModuleNotAuthorized(address owner, address caller);
+/// @notice Thrown when an unauthorized sender calls `setDookState()`
+error SenderNotAirlockOwner(address owner, address caller);
 
-/// @notice Thrown when a non-authorized owner tries to enable new hook modules
-error HookMigrationNotAuthorized(address delegate, address caller);
+/// @notice Thrown when an unauthorized sender tries to associate a Doppler Hook to a pool
+error SenderNotAuthorized(address authority, address caller);
 
-/// @notice Thrown when the hook state is not the expected one
-error WrongHookState(address module, bool expected, bool actual);
+/// @notice Thrown when the given Doppler Hook is not enabled
+error DookNotEnabled();
+
+error DookAlreadySet();
 
 /// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
@@ -155,7 +153,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
 
-    /// @notice Address of the Uniswap V4 Multicurve hook
+    /// @notice Address of the DookMulticurveHook contract
     IHooks public immutable HOOK;
 
     /// @notice Returns the state of a pool
@@ -168,12 +166,12 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     mapping(address dook => bool state) public isDookEnabled;
 
     /// @notice Returns the delegated authority for a user
-    mapping(address user => address delegation) public getAuthority;
+    mapping(address user => address authority) public getAuthority;
 
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
-     * @param hook_ Address of the UniswapV4MulticurveInitializerHook
+     * @param hook_ Address of the DookMulticurveHook contract
      */
     constructor(
         address airlock_,
@@ -191,7 +189,10 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         bytes32,
         bytes calldata data
     ) external override onlyAirlock returns (address) {
-        require(getState[asset].status == PoolStatus.Uninitialized, PoolAlreadyInitialized());
+        require(
+            getState[asset].status == PoolStatus.Uninitialized,
+            WrongPoolStatus(PoolStatus.Uninitialized, getState[asset].status)
+        );
 
         InitData memory initData = abi.decode(data, (InitData));
 
@@ -210,8 +211,6 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             initData.dook,
             initData.graduationDookCalldata
         );
-
-        _validateModuleState(dook, true);
 
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
@@ -243,9 +242,15 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             poolKey: poolKey,
             farTick: isToken0 ? tickUpper : tickLower
         });
-
         getState[asset] = state;
-        getAsset[poolKey.toId()] = asset;
+
+        PoolId poolId = poolKey.toId();
+        getAsset[poolId] = asset;
+
+        if (dook != address(0)) {
+            require(isDookEnabled[dook], DookNotEnabled());
+            DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
+        }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
         _mint(poolKey, positions);
@@ -283,7 +288,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         )
     {
         PoolState memory state = getState[asset];
-        require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
+        require(state.status == PoolStatus.Initialized, WrongPoolStatus(PoolStatus.Initialized, state.status));
         getState[asset].status = PoolStatus.Exited;
 
         token0 = Currency.unwrap(state.poolKey.currency0);
@@ -306,7 +311,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     }
 
     /**
-     * @notice Delegates hook migration approval authority to another address
+     * @notice Delegates `msg.sender`'s pool authority to another address
      * @param delegatedAuthority Address to delgate to
      */
     function delegateAuthority(address delegatedAuthority) external {
@@ -319,30 +324,28 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      */
     function setDook(address asset, address dook, bytes calldata data) external {
         PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
-        // Cannot push if can internal or external migrate
-        require(state.status == PoolStatus.Locked, PoolAlreadyExited());
         (, address timelock,,,,,,,,) = airlock.getAssetData(asset);
+        address authority = getAuthority[timelock];
+        require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized(authority, msg.sender));
 
-        _validateModuleState(dook, true);
-        require(state.dook == address(0), "DookAlreadySet");
-
-        address delegate = getAuthority[timelock];
-
-        require((msg.sender == delegate) || (msg.sender == timelock), HookMigrationNotAuthorized(delegate, msg.sender));
+        if (dook != address(0)) require(isDookEnabled[dook], DookNotEnabled());
+        require(state.dook == address(0), DookAlreadySet());
 
         getState[asset].dook = dook;
+        emit SetDook(asset, dook);
+
         IDook(dook).onInitialization(asset, data);
     }
 
     /**
-     * @notice Triggers a pre-specified graduation hook if conditions are met
-     * @notice This is one way and cannot be done again
-     * @param asset Address to migrate
+     * @notice Graduates a pool if the conditions are met, this is a one-way operation
+     * @param asset Address of the asset to graduate
      */
     function graduate(address asset) external {
         PoolState memory state = getState[asset];
-        require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
         _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
 
@@ -352,15 +355,29 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         }
 
         getState[asset].status = PoolStatus.Graduated;
+        emit Graduate(asset);
         IDook(dook).onGraduation(asset, state.graduationDookCalldata);
     }
 
-    function _canGraduateOrMigrate(PoolId poolId, bool isToken0, int24 farTick) internal view {
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
-        require(
-            isToken0 ? currentTick >= farTick : currentTick <= farTick,
-            CannotMigrateInsufficientTick(farTick, currentTick)
-        );
+    /**
+     * @notice Sets the state of a given Doppler hooks array
+     * @param dooks Array of Doppler hook addresses
+     * @param states Array of states to set (true = enabled, false = disabled)
+     */
+    function setDookState(address[] calldata dooks, bool[] calldata states) external {
+        address owner = airlock.owner();
+        require(msg.sender == owner, SenderNotAirlockOwner(owner, msg.sender));
+
+        uint256 length = dooks.length;
+
+        if (length != states.length) {
+            revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i; i != length; ++i) {
+            isDookEnabled[dooks[i]] = states[i];
+            emit SetDookState(dooks[i], states[i]);
+        }
     }
 
     /**
@@ -370,8 +387,6 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      */
     function getPositions(address asset) public view returns (Position[] memory) {
         PoolState memory state = getState[asset];
-        require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
-        getState[asset].status = PoolStatus.Exited;
         address token0 = Currency.unwrap(state.poolKey.currency0);
         Position[] memory positions = calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
@@ -392,39 +407,18 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         address asset = getAsset[poolId];
         PoolState memory state = getState[asset];
-        require(state.status == PoolStatus.Locked, PoolNotLocked());
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
         fees = _collect(state.poolKey, getPositions(asset));
     }
 
     /**
-     * @notice Sets the state of the given Doppler hooks
-     * @param dooks Array of Doppler hook addresses
-     * @param states Array of module states
+     * @notice Returns true if a pool can be graduated or migrated
+     * @param poolId PoolId of the Uniswap V4 pool
+     * @param isToken0 True if the asset is token0 in the pool
+     * @param farTick The farthest tick that must be reached to allow exiting liquidity
      */
-    function setHookState(address[] calldata dooks, bool[] calldata states) external {
-        address owner = airlock.owner();
-        require(msg.sender == owner, HookModuleNotAuthorized(owner, msg.sender));
-
-        uint256 length = dooks.length;
-
-        if (length != states.length) {
-            revert ArrayLengthsMismatch();
-        }
-
-        for (uint256 i; i != length; ++i) {
-            isDookEnabled[dooks[i]] = states[i];
-            emit SetHookState(dooks[i], states[i]);
-        }
-    }
-
-    /**
-     * @dev Validates the state of a hook
-     * @param hook Address of the hook
-     * @param state Expected state of the hook
-     */
-    function _validateModuleState(address hook, bool state) internal view {
-        if (hook != address(0)) {
-            require(isDookEnabled[address(hook)] == state, WrongHookState(hook, state, isDookEnabled[hook]));
-        }
+    function _canGraduateOrMigrate(PoolId poolId, bool isToken0, int24 farTick) internal view {
+        (, int24 tick,,) = poolManager.getSlot0(poolId);
+        require(isToken0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
     }
 }
