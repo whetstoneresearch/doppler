@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.26;
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -18,7 +18,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/MulticurveLibV2.sol";
-import { UniswapV4HookedMulticurveInitializerHook } from "src/HookedMulticurveInitializerHook.sol";
+import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 
 /**
@@ -149,7 +149,7 @@ struct PoolState {
  * this will allow the collection of fees by the designed beneficiaries. If no beneficiaries are passed, the pool
  * can be migrated later if the conditions are met.
  */
-contract HookedMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
+contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;

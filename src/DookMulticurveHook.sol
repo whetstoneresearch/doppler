@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -8,7 +8,7 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSw
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { HookedMulticurveInitializer } from "src/HookedMulticurveInitializer.sol";
+import { DookMulticurveInitializer } from "src/DookMulticurveInitializer.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 
 /**
@@ -17,7 +17,7 @@ import { IDook } from "src/interfaces/IDook.sol";
  * @notice Hook used by the Uniswap V4 Hooked Multicurve Initializer
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
+contract DookMulticurveHook is UniswapV4MulticurveInitializerHook {
     /// @notice Maps a poolId to its associated Doppler Hook
     mapping(PoolId poolId => address dook) public getDook;
 
@@ -32,9 +32,8 @@ contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitiali
      * @dev No need for access control since we're fetching data from the initializer
      */
     function saveDook(address asset) external {
-        (, address migrationHook,,, PoolKey memory poolKey,) =
-            HookedMulticurveInitializer(payable(INITIALIZER)).getState(asset);
-        getDook[poolKey.toId()] = migrationHook;
+        (, address dook,,, PoolKey memory poolKey,) = DookMulticurveInitializer(payable(INITIALIZER)).getState(asset);
+        getDook[poolKey.toId()] = dook;
     }
 
     /// @inheritdoc BaseHook
@@ -54,10 +53,10 @@ contract UniswapV4HookedMulticurveInitializerHook is UniswapV4MulticurveInitiali
         IPoolManager.SwapParams calldata params,
         bytes calldata data
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
-        address tokenHook = getDook[key.toId()];
+        address dook = getDook[key.toId()];
 
-        if (tokenHook != address(0)) {
-            IDook(tokenHook).onSwap(sender, key, params, data);
+        if (dook != address(0)) {
+            IDook(dook).onSwap(sender, key, params, data);
         }
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
