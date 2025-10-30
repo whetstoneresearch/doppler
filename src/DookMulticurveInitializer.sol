@@ -100,7 +100,8 @@ enum PoolStatus {
 struct PoolState {
     address numeraire;
     BeneficiaryData[] beneficiaries;
-    Position[] positions;
+    Curve[] adjustedCurves;
+    uint256 totalTokensOnBondingCurve;
     address dook;
     bytes graduationDookCalldata;
     PoolStatus status;
@@ -109,7 +110,7 @@ struct PoolState {
 }
 
 /**
- * @title Doppler Uniswap V4 Multicurve Initializer
+ * @title Doppler Hook (Dook) Uniswap V4 Multicurve Initializer
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice Initializes a fresh Uniswap V4 pool and distributes liquidity across multiple positions, as
@@ -151,7 +152,6 @@ struct PoolState {
  */
 contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
     using StateLibrary for IPoolManager;
-    using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -164,10 +164,10 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     /// @notice Maps a Uniswap V4 poolId to its associated asset
     mapping(PoolId poolId => address asset) internal getAsset;
 
-    /// @notice Returns the state of a given hook module
-    mapping(address module => bool state) public isDookEnabled;
+    /// @notice Returns true if a Doppler hook is enabled
+    mapping(address dook => bool state) public isDookEnabled;
 
-    /// @notice Delegated authority
+    /// @notice Returns the delegated authority for a user
     mapping(address user => address delegation) public getAuthority;
 
     /**
@@ -235,7 +235,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         PoolState memory state = PoolState({
             numeraire: numeraire,
             beneficiaries: beneficiaries,
-            positions: positions,
+            adjustedCurves: adjustedCurves,
+            totalTokensOnBondingCurve: totalTokensOnBondingCurve,
             dook: dook,
             graduationDookCalldata: graduationDookCalldata,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
@@ -291,7 +292,10 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
         sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
-        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, state.positions);
+        Position[] memory positions = calculatePositions(
+            state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
+        );
+        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, positions);
         balance0 = uint128(balanceDelta.amount0());
         balance1 = uint128(balanceDelta.amount1());
         fees0 = uint128(feesAccrued.amount0());
@@ -364,8 +368,15 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of positions currently held in the Uniswap V4 pool
      */
-    function getPositions(address asset) external view returns (Position[] memory) {
-        return getState[asset].positions;
+    function getPositions(address asset) public view returns (Position[] memory) {
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Initialized, PoolAlreadyExited());
+        getState[asset].status = PoolStatus.Exited;
+        address token0 = Currency.unwrap(state.poolKey.currency0);
+        Position[] memory positions = calculatePositions(
+            state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
+        );
+        return positions;
     }
 
     /**
@@ -379,9 +390,10 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
 
     /// @inheritdoc FeesManager
     function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
-        PoolState memory state = getState[getAsset[poolId]];
+        address asset = getAsset[poolId];
+        PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, PoolNotLocked());
-        fees = _collect(state.poolKey, state.positions);
+        fees = _collect(state.poolKey, getPositions(asset));
     }
 
     /**
