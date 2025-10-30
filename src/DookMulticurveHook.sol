@@ -28,12 +28,10 @@ contract DookMulticurveHook is UniswapV4MulticurveInitializerHook {
     constructor(IPoolManager manager, address initializer) UniswapV4MulticurveInitializerHook(manager, initializer) { }
 
     /**
-     * @notice Fetches and saves the Doppler Hook for a given asset's pool
-     * @dev No need for access control since we're fetching data from the initializer
+     * @notice Fetches and saves the Doppler Hook for a given poolId
      */
-    function saveDook(address asset) external {
-        (, address dook,,, PoolKey memory poolKey,) = DookMulticurveInitializer(payable(INITIALIZER)).getState(asset);
-        getDook[poolKey.toId()] = dook;
+    function setDook(PoolId poolId, address dook) external onlyInitializer(msg.sender) {
+        getDook[poolId] = dook;
     }
 
     /// @inheritdoc BaseHook
@@ -54,11 +52,7 @@ contract DookMulticurveHook is UniswapV4MulticurveInitializerHook {
         bytes calldata data
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         address dook = getDook[key.toId()];
-
-        if (dook != address(0)) {
-            IDook(dook).onSwap(sender, key, params, data);
-        }
-
+        if (dook != address(0)) IDook(dook).onSwap(sender, key, params, data);
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
