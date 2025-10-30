@@ -199,19 +199,19 @@ contract DookMulticurveHookTest is Test {
 
     function test_beforeSwap_CallsOnSwapWhenDookSet(
         address asset,
+        address dook,
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata data
     ) public {
-        address dook = makeAddr("Dook");
-
         vm.mockCall(
             initializer,
             abi.encodeWithSelector(this.getState.selector, asset),
             abi.encode(address(0), dook, new bytes(0), PoolStatus.Locked, key, int24(0))
         );
-        hook.saveDook(asset);
+        vm.prank(initializer);
+        hook.setDook(key.toId(), dook);
 
         vm.mockCall(dook, abi.encodeWithSelector(IDook.onSwap.selector, sender, key, params, data), new bytes(0));
         vm.expectCall(dook, abi.encodeWithSelector(IDook.onSwap.selector, sender, key, params, data));
