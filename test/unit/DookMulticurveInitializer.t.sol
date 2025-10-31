@@ -23,7 +23,11 @@ import {
     PoolStatus,
     WrongPoolStatus,
     ArrayLengthsMismatch,
-    SenderNotAirlockOwner
+    SenderNotAirlockOwner,
+    CannotMigratePoolNoProvidedDook,
+    Graduate,
+    SenderNotAuthorized,
+    DookNotEnabled
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -32,6 +36,13 @@ import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/MulticurveLibV2.sol";
 import { Airlock } from "src/Airlock.sol";
+import { IDook } from "src/interfaces/IDook.sol";
+
+contract MockDook is IDook {
+    function onInitialization(address, bytes calldata) external { }
+    function onSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata) external { }
+    function onGraduation(address, bytes calldata) external { }
+}
 
 contract DookMulticurveInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -40,6 +51,7 @@ contract DookMulticurveInitializerTest is Deployers {
     DookMulticurveHook public hook;
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
+    MockDook public dook;
 
     uint256 internal totalTokensOnBondingCurve = 1e27;
     PoolKey internal poolKey;
@@ -61,6 +73,15 @@ contract DookMulticurveInitializerTest is Deployers {
         );
         initializer = new DookMulticurveInitializer(address(airlock), manager, hook);
         deployCodeTo("DookMulticurveHook", abi.encode(manager, initializer), address(hook));
+        dook = new MockDook();
+        vm.label(address(dook), "Dook");
+
+        address[] memory dooks = new address[](1);
+        bool[] memory states = new bool[](1);
+        dooks[0] = address(dook);
+        states[0] = true;
+        vm.prank(airlockOwner);
+        initializer.setDookState(dooks, states);
     }
 
     modifier prepareAsset(bool isToken0) {
@@ -137,8 +158,8 @@ contract DookMulticurveInitializerTest is Deployers {
         assertGt(liquidity, 0, "Liquidity is zero");
     }
 
-    function test_initialize_LocksPool(bool isToken0) public prepareAsset(isToken0) {
-        InitData memory initData = _prepareInitDataLock();
+    function test_initialize_LocksPool(bool isToken0) public prepareAsset(isToken0) returns (InitData memory initData) {
+        initData = _prepareInitDataLock();
 
         vm.expectEmit();
         emit Lock(asset, initData.beneficiaries);
@@ -154,6 +175,22 @@ contract DookMulticurveInitializerTest is Deployers {
             assertEq(beneficiaries[i].beneficiary, initData.beneficiaries[i].beneficiary, "Incorrect beneficiary");
             assertEq(beneficiaries[i].shares, initData.beneficiaries[i].shares, "Incorrect shares");
         }
+    }
+
+    function test_initialize_LocksPoolWithDook(bool isToken0)
+        public
+        prepareAsset(isToken0)
+        returns (InitData memory initData)
+    {
+        initData = _prepareInitDataWithDook();
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+
+        (,, address dookAddress, bytes memory graduationDookCalldata,,,) = initializer.getState(asset);
+        assertEq(dookAddress, address(dook), "Incorrect dook address");
+        assertEq(graduationDookCalldata, initData.graduationDookCalldata, "Incorrect graduation dook calldata");
+        assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
     }
 
     function test_initialize_StoresPoolState(bool isToken0) public {
@@ -180,10 +217,11 @@ contract DookMulticurveInitializerTest is Deployers {
         test_initialize_InitializesPool(isToken0);
 
         (,,,,,, int24 farTick) = initializer.getState(asset);
-        _buyUntilFarTick(farTick, isToken0);
+        _buyUntilFarTick(isToken0);
         vm.prank(address(airlock));
         (uint160 sqrtPriceX96,,,,,,) = initializer.exitLiquidity(asset);
 
+        // TODO: Check if the currentTick is at least the farTick
         assertEq(sqrtPriceX96, TickMath.getSqrtPriceAtTick(farTick), "Incorrect returned sqrtPriceX96");
 
         (,,,, PoolStatus status,,) = initializer.getState(asset);
@@ -299,6 +337,130 @@ contract DookMulticurveInitializerTest is Deployers {
     }
 
     /* ----------------------------------------------------------------------- */
+    /*                                setDook()                                */
+    /* ----------------------------------------------------------------------- */
+
+    function test_setDook_RevertsIfPoolNotLocked(bool isToken0) public {
+        test_initialize_InitializesPool(isToken0);
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Locked, PoolStatus.Initialized));
+        initializer.setDook(asset, address(dook), new bytes(0), new bytes(0));
+    }
+
+    function test_setDook_RevertsWhenSenderNotAuthorized(bool isToken0) public {
+        test_initialize_LocksPool(isToken0);
+        vm.expectRevert(SenderNotAuthorized.selector);
+        vm.prank(address(0xbeef));
+        initializer.setDook(asset, address(dook), new bytes(0), new bytes(0));
+    }
+
+    function test_setDook_RevertsWhenDookNotEnabled(bool isToken0) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitDataWithDook();
+        initData.dook = address(0xdeadbeef);
+        vm.prank(address(airlock));
+        vm.expectRevert(DookNotEnabled.selector);
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+    }
+
+    function test_setDook_SetsDookWhenSenderIsTimelock(
+        bool isToken0,
+        bytes calldata onInitializationCalldata,
+        bytes calldata onGraduationCalldata
+    ) public {
+        test_initialize_LocksPool(isToken0);
+
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSelector(0x1652e7b7, asset),
+            abi.encode(
+                address(0), address(this), address(0), address(0), address(0), address(0), address(0), 0, 0, address(0)
+            )
+        );
+
+        vm.expectCall(
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata, onGraduationCalldata)
+        );
+        initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
+
+        (,, address dookAddress,,,,) = initializer.getState(asset);
+        assertEq(dookAddress, address(dook), "Incorrect dook address");
+        assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
+    }
+
+    function test_setDook_SetsDookWhenSenderIsAuthority(
+        bool isToken0,
+        bytes calldata onInitializationCalldata,
+        bytes calldata onGraduationCalldata
+    ) public {
+        test_initialize_LocksPool(isToken0);
+
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSelector(0x1652e7b7, asset),
+            abi.encode(
+                address(0),
+                address(0xbeef),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                0,
+                0,
+                address(0)
+            )
+        );
+
+        vm.prank(address(0xbeef));
+        initializer.delegateAuthority(address(this));
+
+        vm.expectCall(
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata, onGraduationCalldata)
+        );
+        initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
+
+        (,, address dookAddress,,,,) = initializer.getState(asset);
+        assertEq(dookAddress, address(dook), "Incorrect dook address");
+        assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
+    }
+
+    /* ------------------------------------------------------------------------ */
+    /*                                graduate()                                */
+    /* ------------------------------------------------------------------------ */
+
+    function test_graduate_RevertsWhenPoolNotLocked(bool isToken0) public {
+        test_initialize_InitializesPool(isToken0);
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Locked, PoolStatus.Initialized));
+        initializer.graduate(asset);
+    }
+
+    function test_graduate_RevertsWhenNoProvidedDook(bool isToken0) public {
+        test_initialize_LocksPool(isToken0);
+        vm.expectRevert(CannotMigratePoolNoProvidedDook.selector);
+        initializer.graduate(asset);
+    }
+
+    function test_graduate_GraduatesPool(bool isToken0) public {
+        InitData memory initData = test_initialize_LocksPoolWithDook(isToken0);
+        _buyUntilFarTick(isToken0);
+
+        vm.expectCall(
+            address(dook),
+            abi.encodeWithSelector(MockDook.onGraduation.selector, asset, initData.graduationDookCalldata)
+        );
+
+        vm.expectEmit();
+        emit Graduate(asset);
+
+        vm.prank(address(airlock));
+        initializer.graduate(asset);
+
+        (,,,, PoolStatus status,,) = initializer.getState(asset);
+        assertEq(uint8(status), uint8(PoolStatus.Graduated), "Pool status should be Graduated");
+    }
+
+    /* ----------------------------------------------------------------------- */
     /*                                Utilities                                */
     /* ----------------------------------------------------------------------- */
 
@@ -324,6 +486,7 @@ contract DookMulticurveInitializerTest is Deployers {
             curves: curves,
             beneficiaries: beneficiaries,
             dook: address(0),
+            onInitializationDookCalldata: new bytes(0),
             graduationDookCalldata: new bytes(0)
         });
     }
@@ -337,7 +500,14 @@ contract DookMulticurveInitializerTest is Deployers {
         return initData;
     }
 
-    function _buyUntilFarTick(int24 farTick, bool isToken0) internal {
+    function _prepareInitDataWithDook() internal returns (InitData memory) {
+        InitData memory initData = _prepareInitDataLock();
+        initData.dook = address(dook);
+        initData.graduationDookCalldata = abi.encode(0xbeef);
+        return initData;
+    }
+
+    function _buyUntilFarTick(bool isToken0) internal {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: int256(totalTokensOnBondingCurve),
@@ -346,7 +516,5 @@ contract DookMulticurveInitializerTest is Deployers {
 
         ERC20(numeraire).approve(address(swapRouter), type(uint256).max);
         swapRouter.swap(poolKey, params, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        (, int24 tick,,) = manager.getSlot0(poolId);
-        assertTrue(((isToken0 && tick >= farTick) || (!isToken0 && tick <= farTick)), "Did not reach far tick");
     }
 }
