@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
@@ -219,7 +220,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: HOOK,
-            fee: fee,
+            fee: initData.dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
             tickSpacing: tickSpacing
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
@@ -254,6 +255,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             require(isDookEnabled[dook], DookNotEnabled());
             DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
             IDook(dook).onInitialization(asset, onInitializationDookCalldata);
+            poolManager.updateDynamicLPFee(poolKey, fee);
         }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
