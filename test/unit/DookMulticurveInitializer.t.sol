@@ -376,10 +376,7 @@ contract DookMulticurveInitializerTest is Deployers {
             )
         );
 
-        vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata, onGraduationCalldata)
-        );
+        vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata));
         initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
 
         (,, address dookAddress,,,,) = initializer.getState(asset);
@@ -414,10 +411,7 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.prank(address(0xbeef));
         initializer.delegateAuthority(address(this));
 
-        vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata, onGraduationCalldata)
-        );
+        vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata));
         initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
 
         (,, address dookAddress,,,,) = initializer.getState(asset);
