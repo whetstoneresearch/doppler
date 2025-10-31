@@ -47,7 +47,7 @@ error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 error CannotMigratePoolNoProvidedHook();
 
 /// @notice Thrown when an unauthorized sender calls `setDookState()`
-error SenderNotAirlockOwner(address owner, address caller);
+error SenderNotAirlockOwner();
 
 /// @notice Thrown when an unauthorized sender tries to associate a Doppler Hook to a pool
 error SenderNotAuthorized(address authority, address caller);
@@ -366,7 +366,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      */
     function setDookState(address[] calldata dooks, bool[] calldata states) external {
         address owner = airlock.owner();
-        require(msg.sender == owner, SenderNotAirlockOwner(owner, msg.sender));
+        require(msg.sender == owner, SenderNotAirlockOwner());
 
         uint256 length = dooks.length;
 
