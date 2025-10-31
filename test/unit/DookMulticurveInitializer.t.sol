@@ -21,7 +21,9 @@ import {
     CannotMigrateInsufficientTick,
     Lock,
     PoolStatus,
-    WrongPoolStatus
+    WrongPoolStatus,
+    ArrayLengthsMismatch,
+    SenderNotAirlockOwner
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -266,6 +268,34 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.prank(user);
         initializer.delegateAuthority(delegation);
         assertEq(initializer.getAuthority(user), delegation, "Incorrect delegated authority");
+    }
+
+    /* ---------------------------------------------------------------------------- */
+    /*                                setDookState()                                */
+    /* ---------------------------------------------------------------------------- */
+
+    function test_setDookState_RevertsWhenSenderNotAirlockOwner(
+        address[] calldata dooks,
+        bool[] calldata states
+    ) public {
+        vm.expectRevert(SenderNotAirlockOwner.selector);
+        initializer.setDookState(dooks, states);
+    }
+
+    function test_setDookState_RevertsWhenArrayLengthsMismatch(
+        address[] calldata dooks,
+        bool[] calldata states
+    ) public {
+        vm.assume(dooks.length != states.length);
+        vm.prank(airlockOwner);
+        vm.expectRevert(ArrayLengthsMismatch.selector);
+        initializer.setDookState(dooks, states);
+    }
+
+    function test_setDookState_SetsStates(address[] calldata dooks, bool[] calldata states) public {
+        vm.assume(dooks.length == states.length);
+        vm.prank(airlockOwner);
+        initializer.setDookState(dooks, states);
     }
 
     /* ----------------------------------------------------------------------- */
