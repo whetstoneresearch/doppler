@@ -44,13 +44,13 @@ error WrongPoolStatus(PoolStatus expected, PoolStatus actual);
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 
 /// @notice Thrown when the hook is not provided but migration is attempted
-error CannotMigratePoolNoProvidedHook();
+error CannotMigratePoolNoProvidedDook();
 
 /// @notice Thrown when an unauthorized sender calls `setDookState()`
 error SenderNotAirlockOwner();
 
 /// @notice Thrown when an unauthorized sender tries to associate a Doppler Hook to a pool
-error SenderNotAuthorized(address authority, address caller);
+error SenderNotAuthorized();
 
 /// @notice Thrown when the given Doppler Hook is not enabled
 error DookNotEnabled();
@@ -73,6 +73,7 @@ struct InitData {
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
     address dook;
+    bytes onInitializationDookCalldata;
     bytes graduationDookCalldata;
 }
 
@@ -202,6 +203,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             Curve[] memory curves,
             BeneficiaryData[] memory beneficiaries,
             address dook,
+            bytes memory onInitializationDookCalldata,
             bytes memory graduationDookCalldata
         ) = (
             initData.fee,
@@ -209,6 +211,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             initData.curves,
             initData.beneficiaries,
             initData.dook,
+            initData.onInitializationDookCalldata,
             initData.graduationDookCalldata
         );
 
@@ -250,6 +253,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         if (dook != address(0)) {
             require(isDookEnabled[dook], DookNotEnabled());
             DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
+            IDook(dook).onInitialization(asset, onInitializationDookCalldata);
         }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
@@ -322,21 +326,28 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      * @notice Sets the Doppler hook for a given asset's pool if not already set
      * @param asset Address to migrate
      */
-    function setDook(address asset, address dook, bytes calldata data) external {
+    function setDook(
+        address asset,
+        address dook,
+        bytes calldata onInitializationCalldata,
+        bytes calldata onGraduationCalldata
+    ) external {
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
         (, address timelock,,,,,,,,) = airlock.getAssetData(asset);
         address authority = getAuthority[timelock];
-        require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized(authority, msg.sender));
+        require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized());
 
         if (dook != address(0)) require(isDookEnabled[dook], DookNotEnabled());
         require(state.dook == address(0), DookAlreadySet());
 
         getState[asset].dook = dook;
+        getState[asset].graduationDookCalldata = onGraduationCalldata;
         emit SetDook(asset, dook);
 
-        IDook(dook).onInitialization(asset, data);
+        DookMulticurveHook(address(HOOK)).setDook(state.poolKey.toId(), dook);
+        IDook(dook).onInitialization(asset, onInitializationCalldata);
     }
 
     /**
@@ -347,16 +358,21 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
-        _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
-
         address dook = state.dook;
-        if (address(dook) == address(0)) {
-            revert CannotMigratePoolNoProvidedHook();
-        }
+        if (address(dook) == address(0)) revert CannotMigratePoolNoProvidedDook();
+
+        _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
 
         getState[asset].status = PoolStatus.Graduated;
         emit Graduate(asset);
         IDook(dook).onGraduation(asset, state.graduationDookCalldata);
+    }
+
+    // TODO: I'm really not sure about this pattern as it's a bit risky
+    function updateDynamicFee(address asset, uint24 lpFee) external {
+        PoolState memory state = getState[asset];
+        require(msg.sender == state.dook, SenderNotAuthorized());
+        poolManager.updateDynamicLPFee(getState[asset].poolKey, lpFee);
     }
 
     /**
