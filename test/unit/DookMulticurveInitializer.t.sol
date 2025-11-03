@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { console } from "forge-std/console.sol";
 
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IPoolManager, PoolKey } from "@v4-core/interfaces/IPoolManager.sol";
@@ -187,7 +188,9 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
-        (,, address dookAddress, bytes memory graduationDookCalldata,,,) = initializer.getState(asset);
+        (,, address dookAddress, bytes memory graduationDookCalldata,, PoolKey memory key,) =
+            initializer.getState(asset);
+        assertEq32(PoolId.unwrap(key.toId()), PoolId.unwrap(poolId), "Pool Ids not matching");
         assertEq(dookAddress, address(dook), "Incorrect dook address");
         assertEq(graduationDookCalldata, initData.graduationDookCalldata, "Incorrect graduation dook calldata");
         assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
@@ -198,8 +201,8 @@ contract DookMulticurveInitializerTest is Deployers {
 
         (address returnedNumeraire,,,, PoolStatus status, PoolKey memory key, int24 farTick) =
             initializer.getState(asset);
-        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be initialized");
 
+        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be initialized");
         assertEq(returnedNumeraire, numeraire, "Incorrect numeraire");
         assertEq(Currency.unwrap(key.currency0), Currency.unwrap(currency0), "Incorrect currency0");
         assertEq(Currency.unwrap(key.currency1), Currency.unwrap(currency1), "Incorrect currency1");
@@ -376,7 +379,9 @@ contract DookMulticurveInitializerTest is Deployers {
             )
         );
 
-        vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata));
+        vm.expectCall(
+            address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, asset, onInitializationCalldata)
+        );
         initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
 
         (,, address dookAddress,,,,) = initializer.getState(asset);
@@ -411,7 +416,9 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.prank(address(0xbeef));
         initializer.delegateAuthority(address(this));
 
-        vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, onInitializationCalldata));
+        vm.expectCall(
+            address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, asset, onInitializationCalldata)
+        );
         initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
 
         (,, address dookAddress,,,,) = initializer.getState(asset);
@@ -459,14 +466,14 @@ contract DookMulticurveInitializerTest is Deployers {
     /* ----------------------------------------------------------------------- */
 
     function _prepareInitData() internal returns (InitData memory) {
-        Curve[] memory curves = new Curve[](10);
+        Curve[] memory curves = new Curve[](1);
         int24 tickSpacing = 8;
 
-        for (uint256 i; i < 10; ++i) {
+        for (uint256 i; i < curves.length; ++i) {
             curves[i].tickLower = int24(uint24(160_000 + i * 8));
             curves[i].tickUpper = 240_000;
-            curves[i].numPositions = 10;
-            curves[i].shares = WAD / 10;
+            curves[i].numPositions = 1;
+            curves[i].shares = WAD / curves.length;
         }
 
         poolKey = PoolKey({ currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: hook });
@@ -498,6 +505,8 @@ contract DookMulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitDataLock();
         initData.dook = address(dook);
         initData.graduationDookCalldata = abi.encode(0xbeef);
+        poolKey.fee = LPFeeLibrary.DYNAMIC_FEE_FLAG;
+        poolId = poolKey.toId();
         return initData;
     }
 
