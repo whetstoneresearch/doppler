@@ -65,7 +65,8 @@ function prepareDookMulticurveInitializerData(
             beneficiaries: new BeneficiaryData[](0),
             dook: address(0),
             onInitializationDookCalldata: new bytes(0),
-            graduationDookCalldata: new bytes(0)
+            graduationDookCalldata: new bytes(0),
+            farTick: 200_000
         })
     );
 }

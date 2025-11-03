@@ -20,6 +20,7 @@ import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/Beneficiar
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/MulticurveLibV2.sol";
 import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { IDook } from "src/interfaces/IDook.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";
 
 /**
  * @notice Emitted when a new pool is locked
@@ -31,9 +32,9 @@ event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 /**
  * @notice Emitted when the state of a Doppler Hook is set
  * @param dook Address of the Doppler Hook
- * @param state State of the Doppler Hook (true = enabled, false = disabled)
+ * @param flag Flag of the Doppler Hook (see flags in BaseDook.sol)
  */
-event SetDookState(address indexed dook, bool indexed state);
+event SetDookState(address indexed dook, uint256 indexed flag);
 
 event SetDook(address indexed asset, address indexed dook);
 
@@ -71,6 +72,7 @@ error ArrayLengthsMismatch();
 struct InitData {
     uint24 fee;
     int24 tickSpacing;
+    int24 farTick;
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
     address dook;
@@ -164,8 +166,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     /// @notice Maps a Uniswap V4 poolId to its associated asset
     mapping(PoolId poolId => address asset) internal getAsset;
 
-    /// @notice Returns true if a Doppler hook is enabled
-    mapping(address dook => bool state) public isDookEnabled;
+    /// @notice Returns a non-zero value if a Doppler hook is enabled
+    mapping(address dook => uint256 flags) public isDookEnabled;
 
     /// @notice Returns the delegated authority for a user
     mapping(address user => address authority) public getAuthority;
@@ -205,7 +207,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             BeneficiaryData[] memory beneficiaries,
             address dook,
             bytes memory onInitializationDookCalldata,
-            bytes memory graduationDookCalldata
+            bytes memory graduationDookCalldata,
+            int24 farTick
         ) = (
             initData.fee,
             initData.tickSpacing,
@@ -213,7 +216,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             initData.beneficiaries,
             initData.dook,
             initData.onInitializationDookCalldata,
-            initData.graduationDookCalldata
+            initData.graduationDookCalldata,
+            initData.farTick
         );
 
         PoolKey memory poolKey = PoolKey({
@@ -225,7 +229,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
-        (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper,) =
+        (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper) =
             adjustCurves(curves, 0, tickSpacing, isToken0);
 
         int24 startTick = isToken0 ? tickLower : tickUpper;
@@ -244,17 +248,22 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
             graduationDookCalldata: graduationDookCalldata,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
-            farTick: isToken0 ? tickUpper : tickLower
+            farTick: isToken0 ? farTick : -farTick
         });
         getState[asset] = state;
 
         PoolId poolId = poolKey.toId();
         getAsset[poolId] = asset;
 
+        uint256 dookFlag = isDookEnabled[dook];
+
         if (dook != address(0)) {
-            require(isDookEnabled[dook], DookNotEnabled());
+            require(dookFlag > 0, DookNotEnabled());
             DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
             DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, fee);
+        }
+
+        if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
             IDook(dook).onInitialization(asset, onInitializationDookCalldata);
         }
 
@@ -341,7 +350,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         address authority = getAuthority[timelock];
         require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized());
 
-        if (dook != address(0)) require(isDookEnabled[dook], DookNotEnabled());
+        if (dook != address(0)) require(isDookEnabled[dook] > 0, DookNotEnabled());
         require(state.dook == address(0), DookAlreadySet());
 
         getState[asset].dook = dook;
@@ -361,7 +370,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
         address dook = state.dook;
-        if (address(dook) == address(0)) revert CannotMigratePoolNoProvidedDook();
+        uint256 flags = isDookEnabled[dook];
+        if (dook == address(0) || flags & ON_GRADUATION_FLAG == 0) revert CannotMigratePoolNoProvidedDook();
 
         _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
 
@@ -380,21 +390,21 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     /**
      * @notice Sets the state of a given Doppler hooks array
      * @param dooks Array of Doppler hook addresses
-     * @param states Array of states to set (true = enabled, false = disabled)
+     * @param flags Array of flags to set (see flags in BaseDook.sol)
      */
-    function setDookState(address[] calldata dooks, bool[] calldata states) external {
+    function setDookState(address[] calldata dooks, uint256[] calldata flags) external {
         address owner = airlock.owner();
         require(msg.sender == owner, SenderNotAirlockOwner());
 
         uint256 length = dooks.length;
 
-        if (length != states.length) {
+        if (length != flags.length) {
             revert ArrayLengthsMismatch();
         }
 
         for (uint256 i; i != length; ++i) {
-            isDookEnabled[dooks[i]] = states[i];
-            emit SetDookState(dooks[i], states[i]);
+            isDookEnabled[dooks[i]] = flags[i];
+            emit SetDookState(dooks[i], flags[i]);
         }
     }
 

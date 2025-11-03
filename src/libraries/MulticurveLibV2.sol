@@ -48,7 +48,7 @@ function adjustCurves(
     int24 offset,
     int24 tickSpacing,
     bool isToken0
-) pure returns (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary, int24 farTick) {
+) pure returns (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary) {
     uint256 length = curves.length;
     adjustedCurves = new Curve[](length);
 
@@ -87,9 +87,6 @@ function adjustCurves(
         // Calculate the boundaries for initialization
         if (lowerTickBoundary > adjustedCurve.tickLower) lowerTickBoundary = adjustedCurve.tickLower;
         if (upperTickBoundary < adjustedCurve.tickUpper) upperTickBoundary = adjustedCurve.tickUpper;
-
-        // The far tick is the end of the first curve
-        if (i == 0) farTick = isToken0 ? adjustedCurve.tickUpper : adjustedCurve.tickLower;
 
         // Accumulate the shares
         totalShares += adjustedCurve.shares;
@@ -202,8 +199,12 @@ function calculateLogNormalDistribution(
             // If curveSupply is 0, we skip the liquidity calculation as we are burning max liquidity in each position
             if (curveSupply != 0) {
                 liquidity = isToken0
-                    ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
-                    : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
+                    ? LiquidityAmounts.getLiquidityForAmount0(
+                        startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1
+                    )
+                    : LiquidityAmounts.getLiquidityForAmount1(
+                        farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1
+                    );
             }
 
             positions[i] = Position({

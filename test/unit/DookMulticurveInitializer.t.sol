@@ -38,6 +38,7 @@ import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/MulticurveLibV2.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IDook } from "src/interfaces/IDook.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";
 
 contract MockDook is IDook {
     function onInitialization(address, bytes calldata) external { }
@@ -78,11 +79,11 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.label(address(dook), "Dook");
 
         address[] memory dooks = new address[](1);
-        bool[] memory states = new bool[](1);
+        uint256[] memory flags = new uint256[](1);
         dooks[0] = address(dook);
-        states[0] = true;
+        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
         vm.prank(airlockOwner);
-        initializer.setDookState(dooks, states);
+        initializer.setDookState(dooks, flags);
     }
 
     modifier prepareAsset(bool isToken0) {
@@ -209,7 +210,7 @@ contract DookMulticurveInitializerTest is Deployers {
         assertEq(key.fee, initData.fee, "Incorrect fee");
         assertEq(key.tickSpacing, initData.tickSpacing, "Incorrect tick spacing");
         assertEq(address(key.hooks), address(hook), "Incorrect hook");
-        assertEq(farTick, isToken0 ? int24(240_000) : int24(-240_000), "Incorrect far tick");
+        assertEq(farTick, isToken0 ? initData.farTick : -initData.farTick, "Incorrect far tick");
     }
 
     /* ----------------------------------------------------------------------------- */
@@ -317,26 +318,26 @@ contract DookMulticurveInitializerTest is Deployers {
 
     function test_setDookState_RevertsWhenSenderNotAirlockOwner(
         address[] calldata dooks,
-        bool[] calldata states
+        uint256[] calldata flags
     ) public {
         vm.expectRevert(SenderNotAirlockOwner.selector);
-        initializer.setDookState(dooks, states);
+        initializer.setDookState(dooks, flags);
     }
 
     function test_setDookState_RevertsWhenArrayLengthsMismatch(
         address[] calldata dooks,
-        bool[] calldata states
+        uint256[] calldata flags
     ) public {
-        vm.assume(dooks.length != states.length);
+        vm.assume(dooks.length != flags.length);
         vm.prank(airlockOwner);
         vm.expectRevert(ArrayLengthsMismatch.selector);
-        initializer.setDookState(dooks, states);
+        initializer.setDookState(dooks, flags);
     }
 
-    function test_setDookState_SetsStates(address[] calldata dooks, bool[] calldata states) public {
-        vm.assume(dooks.length == states.length);
+    function test_setDookState_SetsStates(address[] calldata dooks, uint256[] calldata flags) public {
+        vm.assume(dooks.length == flags.length);
         vm.prank(airlockOwner);
-        initializer.setDookState(dooks, states);
+        initializer.setDookState(dooks, flags);
     }
 
     /* ----------------------------------------------------------------------- */
@@ -488,7 +489,8 @@ contract DookMulticurveInitializerTest is Deployers {
             beneficiaries: beneficiaries,
             dook: address(0),
             onInitializationDookCalldata: new bytes(0),
-            graduationDookCalldata: new bytes(0)
+            graduationDookCalldata: new bytes(0),
+            farTick: 200_000
         });
     }
 
