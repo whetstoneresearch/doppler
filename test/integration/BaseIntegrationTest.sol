@@ -19,6 +19,7 @@ import {
 import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
+import { TokenFactoryBuyLimit } from "src/TokenFactoryBuyLimit.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
 
@@ -155,6 +156,21 @@ function prepareTokenFactoryData(
     );
 
     data = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), uri);
+}
+
+function deployTokenFactoryBuyLimit(
+    Vm vm,
+    Airlock airlock,
+    address airlockOwner
+) returns (TokenFactoryBuyLimit tokenFactory) {
+    tokenFactory = new TokenFactoryBuyLimit(address(airlock));
+    address[] memory modules = new address[](1);
+    modules[0] = address(tokenFactory);
+    ModuleState[] memory states = new ModuleState[](1);
+    states[0] = ModuleState.TokenFactory;
+    vm.prank(airlockOwner);
+    airlock.setModuleState(modules, states);
+    return tokenFactory;
 }
 
 function deployGovernanceFactory(

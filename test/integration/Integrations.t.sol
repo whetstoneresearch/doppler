@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Currency } from "@v4-core/types/Currency.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import {
     BaseIntegrationTest,
     deployTokenFactory,
+    deployTokenFactoryBuyLimit,
     deployNoOpMigrator,
     deployNoOpGovernanceFactory,
     prepareTokenFactoryData,
@@ -20,7 +23,9 @@ import {
     prepareGovernanceFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
 import { Doppler } from "src/Doppler.sol";
+import { BuyLimitExceeded } from "src/DERC20BuyLimit.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
+import { TokenFactoryBuyLimit } from "src/TokenFactoryBuyLimit.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { NoOpMigrator } from "src/NoOpMigrator.sol";
@@ -228,9 +233,7 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(pool)).poolKey();
 
-            swapRouter.swap{
-                value: 0.0001 ether
-            }(
+            swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({
                     currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
                 }),
@@ -358,5 +361,104 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
                     sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
                 })
             );
+    }
+}
+
+contract TokenFactoryBuyLimitUniswapV4InitializerNoOpGovernanceFactoryUniswapV4MigratorIntegrationTest is
+    BaseIntegrationTest
+{
+    function setUp() public override {
+        super.setUp();
+
+        name = "TokenFactoryBuyLimitUniswapV4InitializerNoOpGovernanceFactoryUniswapV4Migrator";
+
+        TokenFactoryBuyLimit tokenFactory = deployTokenFactoryBuyLimit(vm, airlock, AIRLOCK_OWNER);
+        createParams.tokenFactory = tokenFactory;
+        createParams.tokenFactoryData = abi.encode(
+            "Test Token",
+            "TEST",
+            0,
+            0,
+            new address[](0),
+            new uint256[](0),
+            "TOKEN_URI",
+            address(manager),
+            block.timestamp + 1 days,
+            0.0001 ether
+        );
+
+        (, UniswapV4Initializer initializer) = deployUniswapV4Initializer(vm, airlock, AIRLOCK_OWNER, address(manager));
+        createParams.poolInitializer = initializer;
+        (bytes32 salt, bytes memory poolInitializerData) = preparePoolInitializerData(
+            address(airlock),
+            address(manager),
+            address(tokenFactory),
+            createParams.tokenFactoryData,
+            address(initializer)
+        );
+        createParams.poolInitializerData = poolInitializerData;
+        createParams.salt = salt;
+        createParams.numTokensToSell = 1e23;
+        createParams.initialSupply = 1e23;
+
+        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
+            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        );
+        createParams.liquidityMigrator = migrator;
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+
+        NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
+        createParams.governanceFactory = governanceFactory;
+    }
+
+    function _beforeMigrate() internal override {
+        bool canMigrated;
+
+        uint256 i;
+
+        do {
+            i++;
+            address buyer = address(uint160(address(0xbeef)) + uint160(i));
+            deal(buyer, 0.1 ether);
+
+            (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
+                Doppler(payable(pool)).poolKey();
+
+            vm.prank(buyer);
+            swapRouter.swap{ value: 0.0001 ether }(
+                PoolKey({
+                    currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
+                }),
+                IPoolManager.SwapParams(true, -int256(0.0001 ether), TickMath.MIN_SQRT_PRICE + 1),
+                PoolSwapTest.TestSettings(false, false),
+                ""
+            );
+
+            vm.prank(buyer);
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    CustomRevert.WrappedError.selector,
+                    asset,
+                    IERC20.transfer.selector,
+                    abi.encodeWithSelector(BuyLimitExceeded.selector),
+                    abi.encodeWithSelector(CurrencyLibrary.ERC20TransferFailed.selector)
+                )
+            );
+            swapRouter.swap{ value: 0.000_01 ether }(
+                PoolKey({
+                    currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
+                }),
+                IPoolManager.SwapParams(true, -int256(0.000_01 ether), TickMath.MIN_SQRT_PRICE + 1),
+                PoolSwapTest.TestSettings(false, false),
+                ""
+            );
+
+            (,,, uint256 totalProceeds,,) = Doppler(payable(pool)).state();
+            canMigrated = totalProceeds > Doppler(payable(pool)).minimumProceeds();
+
+            vm.warp(block.timestamp + 200);
+        } while (!canMigrated);
+
+        vm.warp(block.timestamp + 1 days);
     }
 }

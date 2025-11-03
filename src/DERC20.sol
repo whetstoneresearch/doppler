@@ -297,7 +297,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /// @inheritdoc ERC20
-    function _update(address from, address to, uint256 value) internal override(ERC20, ERC20Votes) {
+    function _update(address from, address to, uint256 value) internal virtual override(ERC20, ERC20Votes) {
         if (to == pool && isPoolUnlocked == false) revert PoolLocked();
 
         super._update(from, to, value);
