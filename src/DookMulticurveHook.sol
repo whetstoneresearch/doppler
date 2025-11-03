@@ -8,7 +8,6 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSw
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { DookMulticurveInitializer } from "src/DookMulticurveInitializer.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 
 /**
@@ -18,7 +17,7 @@ import { IDook } from "src/interfaces/IDook.sol";
  * @custom:security-contact security@whetstone.cc
  */
 contract DookMulticurveHook is UniswapV4MulticurveInitializerHook {
-    /// @notice Maps a poolId to its associated Doppler Hook
+    /// @notice Maps a poolId to its associated Doppler Hook, returns address zero if no dook is associated
     mapping(PoolId poolId => address dook) public getDook;
 
     /**
@@ -28,12 +27,19 @@ contract DookMulticurveHook is UniswapV4MulticurveInitializerHook {
     constructor(IPoolManager manager, address initializer) UniswapV4MulticurveInitializerHook(manager, initializer) { }
 
     /**
-     * @notice Fetches and saves the Doppler Hook for a given poolId
+     * @notice Associates a Doppler Hook with a given poolId
+     * @param poolId Id of the target Uniswap V4 pool
+     * @param dook Address of the Doppler Hook to associate with the pool
      */
     function setDook(PoolId poolId, address dook) external onlyInitializer(msg.sender) {
         getDook[poolId] = dook;
     }
 
+    /**
+     * @notice Updates the dynamic LP fee for a given pool
+     * @param key Key of the target Uniswap V4 pool
+     * @param lpFee New dynamic LP fee to set
+     */
     function updateDynamicLPFee(PoolKey memory key, uint24 lpFee) external onlyInitializer(msg.sender) {
         poolManager.updateDynamicLPFee(key, lpFee);
     }
