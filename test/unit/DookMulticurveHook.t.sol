@@ -5,8 +5,10 @@ import { Test } from "forge-std/Test.sol";
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -46,11 +48,35 @@ contract DookMulticurveHookTest is Test {
         assertEq(address(hook.INITIALIZER()), initializer);
     }
 
+    /* ----------------------------------------------------------------------- */
+    /*                                setDook()                                */
+    /* ----------------------------------------------------------------------- */
+
+    function test_setDook_RevertsWhenMsgSenderNotInitializer(PoolId poolId, address dook) public {
+        vm.expectRevert(OnlyInitializer.selector);
+        hook.setDook(poolId, dook);
+    }
+
+    function test_setDook_AssociatesPoolIdAndDook(PoolId poolId, address dook) public {
+        vm.prank(initializer);
+        hook.setDook(poolId, dook);
+        assertEq(hook.getDook(poolId), dook);
+    }
+
+    /* ---------------------------------------------------------------------------------- */
+    /*                                updateDynamicLPFee()                                */
+    /* ---------------------------------------------------------------------------------- */
+
+    function test_updateDynamicLPFee_RevertsWhenMsgSenderNotInitializer(PoolKey memory key, uint24 lpFee) public {
+        vm.expectRevert(OnlyInitializer.selector);
+        hook.updateDynamicLPFee(key, lpFee);
+    }
+
     /* -------------------------------------------------------------------------------- */
     /*                                beforeInitialize()                                */
     /* -------------------------------------------------------------------------------- */
 
-    function test_beforeInitialize_RevertsWhenSenderParamNotPoolManager() public {
+    function test_beforeInitialize_RevertsWhenMsgSenderNotPoolManager() public {
         vm.expectRevert(ImmutableState.NotPoolManager.selector);
         hook.beforeInitialize(address(0), emptyPoolKey, 0);
     }
