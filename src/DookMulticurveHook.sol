@@ -34,6 +34,10 @@ contract DookMulticurveHook is UniswapV4MulticurveInitializerHook {
         getDook[poolId] = dook;
     }
 
+    function updateDynamicLPFee(PoolKey memory key, uint24 lpFee) external onlyInitializer(msg.sender) {
+        poolManager.updateDynamicLPFee(key, lpFee);
+    }
+
     /// @inheritdoc BaseHook
     function _beforeAddLiquidity(
         address,

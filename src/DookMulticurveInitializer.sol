@@ -254,8 +254,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         if (dook != address(0)) {
             require(isDookEnabled[dook], DookNotEnabled());
             DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
+            DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, fee);
             IDook(dook).onInitialization(asset, onInitializationDookCalldata);
-            poolManager.updateDynamicLPFee(poolKey, fee);
         }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
@@ -371,10 +371,10 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     }
 
     // TODO: I'm really not sure about this pattern as it's a bit risky
-    function updateDynamicFee(address asset, uint24 lpFee) external {
+    function updateDynamicLPFee(address asset, uint24 lpFee) external {
         PoolState memory state = getState[asset];
         require(msg.sender == state.dook, SenderNotAuthorized());
-        poolManager.updateDynamicLPFee(getState[asset].poolKey, lpFee);
+        DookMulticurveHook(address(HOOK)).updateDynamicLPFee(getState[asset].poolKey, lpFee);
     }
 
     /**
