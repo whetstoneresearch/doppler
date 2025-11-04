@@ -394,8 +394,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      * @param flags Array of flags to set (see flags in BaseDook.sol)
      */
     function setDookState(address[] calldata dooks, uint256[] calldata flags) external {
-        address owner = airlock.owner();
-        require(msg.sender == owner, SenderNotAirlockOwner());
+        require(msg.sender == airlock.owner(), SenderNotAirlockOwner());
 
         uint256 length = dooks.length;
 
