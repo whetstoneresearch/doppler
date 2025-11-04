@@ -17,7 +17,7 @@ import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { calculatePositions, adjustCurves, Curve } from "src/libraries/MulticurveLibV2.sol";
+import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
 import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";

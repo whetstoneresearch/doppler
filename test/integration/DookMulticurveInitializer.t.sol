@@ -7,7 +7,7 @@ import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 
-import { Curve } from "src/libraries/MulticurveLibV2.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";

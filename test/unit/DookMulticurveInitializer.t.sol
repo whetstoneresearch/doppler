@@ -37,7 +37,7 @@ import { Position } from "src/types/Position.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { Curve } from "src/libraries/MulticurveLibV2.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";
