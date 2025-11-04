@@ -197,6 +197,45 @@ contract DookMulticurveInitializerTest is Deployers {
         assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
     }
 
+    function test_initialize_CallsDookOnInitialization(bool isToken0) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitDataWithDook();
+
+        vm.prank(address(airlockOwner));
+        address[] memory dooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dooks[0] = address(dook);
+        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
+        initializer.setDookState(dooks, flags);
+
+        vm.expectCall(
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, asset, initData.onInitializationDookCalldata)
+        );
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+    }
+
+    function test_initialize_DoesNotCallDookOnInitializationWhenFlagIsOff(bool isToken0) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitDataWithDook();
+
+        vm.prank(address(airlockOwner));
+        address[] memory dooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dooks[0] = address(dook);
+        flags[0] = ON_GRADUATION_FLAG | ON_SWAP_FLAG;
+        initializer.setDookState(dooks, flags);
+
+        vm.expectCall(
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, asset, initData.onInitializationDookCalldata),
+            0
+        );
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+    }
+
     function test_initialize_StoresPoolState(bool isToken0) public {
         InitData memory initData = test_initialize_InitializesPool(isToken0);
 
