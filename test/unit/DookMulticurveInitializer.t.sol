@@ -294,16 +294,12 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.exitLiquidity(asset);
     }
 
-    /*
     function test_exitLiquidity_RevertsWhenPoolAlreadyExited(bool isToken0) public {
         test_exitLiquidity(isToken0);
-        vm.expectRevert(
-            abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Initialized, PoolStatus.Uninitialized)
-        );
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Initialized, PoolStatus.Exited));
         vm.prank(address(airlock));
         initializer.exitLiquidity(asset);
     }
-    */
 
     function test_exitLiquidity_RevertsWhenInsufficientTick(bool isToken0) public {
         test_initialize_InitializesPool(isToken0);
