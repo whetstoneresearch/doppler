@@ -380,7 +380,11 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         IDook(dook).onGraduation(asset, state.graduationDookCalldata);
     }
 
-    // TODO: I'm really not sure about this pattern as it's a bit risky
+    /**
+     * @notice Updates the LP fee for a given asset's pool
+     * @param asset Address of the asset used for the Uniswap V4 pool
+     * @param lpFee New dynamic LP fee to set
+     */
     function updateDynamicLPFee(address asset, uint24 lpFee) external {
         PoolState memory state = getState[asset];
         require(msg.sender == state.dook, SenderNotAuthorized());
