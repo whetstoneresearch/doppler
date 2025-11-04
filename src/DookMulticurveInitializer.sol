@@ -57,8 +57,6 @@ error SenderNotAuthorized();
 /// @notice Thrown when the given Doppler Hook is not enabled
 error DookNotEnabled();
 
-error DookAlreadySet();
-
 /// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
 
@@ -334,7 +332,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     }
 
     /**
-     * @notice Sets the Doppler hook for a given asset's pool if not already set
+     * @notice Sets the Doppler hook for a given asset's pool
      * @param asset Address to migrate
      */
     function setDook(
@@ -351,7 +349,6 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized());
 
         if (dook != address(0)) require(isDookEnabled[dook] > 0, DookNotEnabled());
-        require(state.dook == address(0), DookAlreadySet());
 
         getState[asset].dook = dook;
         getState[asset].graduationDookCalldata = onGraduationCalldata;
