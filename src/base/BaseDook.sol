@@ -5,6 +5,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 
+error SenderNotInitializer();
+
 error SenderNotHook();
 
 uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
@@ -12,6 +14,8 @@ uint256 constant ON_SWAP_FLAG = 1 << 1;
 uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
 abstract contract BaseDook is IDook {
+    address public immutable INITIALIZER;
+
     address public immutable HOOK;
 
     modifier onlyHook() {
@@ -19,11 +23,17 @@ abstract contract BaseDook is IDook {
         _;
     }
 
-    constructor(address hook) {
-        HOOK = hook;
+    modifier onlyInitializer() {
+        require(msg.sender == INITIALIZER, SenderNotInitializer());
+        _;
     }
 
-    function onInitialization(address asset, bytes calldata data) external onlyHook {
+    constructor(address initializer, address hook) {
+        HOOK = hook;
+        INITIALIZER = initializer;
+    }
+
+    function onInitialization(address asset, bytes calldata data) external onlyInitializer {
         _onInitialization(asset, data);
     }
 
@@ -36,7 +46,7 @@ abstract contract BaseDook is IDook {
         _onSwap(sender, key, params, data);
     }
 
-    function onGraduation(address asset, bytes calldata data) external onlyHook {
+    function onGraduation(address asset, bytes calldata data) external onlyInitializer {
         _onGraduation(asset, data);
     }
 
