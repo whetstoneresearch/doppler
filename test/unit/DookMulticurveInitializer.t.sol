@@ -28,7 +28,9 @@ import {
     CannotMigratePoolNoProvidedDook,
     Graduate,
     SenderNotAuthorized,
-    DookNotEnabled
+    DookNotEnabled,
+    SetDook,
+    SetDookState
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -370,8 +372,15 @@ contract DookMulticurveInitializerTest is Deployers {
     }
 
     function test_setDookState_SetsStates(address[] calldata dooks, uint256[] calldata flags) public {
-        vm.assume(dooks.length == flags.length);
+        uint256 length = dooks.length;
+        vm.assume(length == flags.length);
         vm.prank(airlockOwner);
+
+        for (uint256 i; i < length; i++) {
+            vm.expectEmit();
+            emit SetDookState(dooks[i], flags[i]);
+        }
+
         initializer.setDookState(dooks, flags);
     }
 
