@@ -3,5 +3,5 @@
 import { BaseDook } from "src/base/BaseDook.sol";
 
 contract SwapRestrictorDook is BaseDook {
-    constructor(address hook) BaseDook(hook) { }
+    constructor(address initializer, address hook) BaseDook(initializer, hook) { }
 }
