@@ -213,16 +213,14 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         PoolId poolId = poolKey.toId();
         getAsset[poolId] = asset;
 
+        (address dook, uint24 fee, BeneficiaryData[] memory beneficiaries, bytes memory onInitializationDookCalldata) =
+            (initData.dook, initData.fee, initData.beneficiaries, initData.onInitializationDookCalldata);
         uint256 dookFlag = isDookEnabled[initData.dook];
 
-        if (initData.dook != address(0)) {
+        if (dook != address(0)) {
             require(dookFlag > 0, DookNotEnabled());
-            DookMulticurveHook(address(HOOK)).setDook(poolId, initData.dook);
-            DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, initData.fee);
-        }
-
-        if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDook(initData.dook).onInitialization(asset, initData.onInitializationDookCalldata);
+            DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
+            DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, fee);
         }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
@@ -230,15 +228,19 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
 
         emit Create(address(poolManager), asset, numeraire);
 
-        if (initData.beneficiaries.length != 0) {
-            _storeBeneficiaries(poolKey, initData.beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
-            emit Lock(asset, initData.beneficiaries);
+        if (beneficiaries.length != 0) {
+            _storeBeneficiaries(poolKey, beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
+            emit Lock(asset, beneficiaries);
         }
 
         // If any dust asset tokens are left in this contract after providing liquidity, we send them
         // back to the Airlock so they'll be transferred to the associated governance or burnt
         if (Currency.wrap(asset).balanceOfSelf() > 0) {
             Currency.wrap(asset).transfer(address(airlock), Currency.wrap(asset).balanceOfSelf());
+        }
+
+        if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
+            IDook(dook).onInitialization(asset, onInitializationDookCalldata);
         }
 
         // Uniswap V4 pools don't have addresses, so we are returning the asset address
