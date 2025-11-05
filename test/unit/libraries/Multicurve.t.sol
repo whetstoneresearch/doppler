@@ -24,7 +24,7 @@ contract MulticurveTest is Test {
     /*                                adjustCurves()                                */
     /* ---------------------------------------------------------------------------- */
 
-    function test_adjustCurves_ReturnsSameAmountOfCurves() public pure {
+    function test_adjustCurves_ReturnsSameAmountOfCurves() public {
         Curve[] memory curves = new Curve[](4);
 
         curves[0].tickLower = 160_000;
@@ -47,7 +47,9 @@ contract MulticurveTest is Test {
         curves[3].numPositions = 1;
         curves[3].shares = WAD / 4;
 
+        vm.startSnapshotGas("Multicurve", "adjustCurves");
         (Curve[] memory adjustedCurves,,) = adjustCurves(curves, 0, int24(8), true);
+        vm.stopSnapshotGas("Multicurve", "adjustCurves");
         assertEq(adjustedCurves.length, curves.length, "Incorrect number of curves");
     }
 
@@ -196,7 +198,7 @@ contract MulticurveTest is Test {
     /*                                calculateLogNormalDistribution()                                */
     /* ---------------------------------------------------------------------------------------------- */
 
-    function test_calculateLogNormalDistribution() public pure {
+    function test_calculateLogNormalDistribution() public {
         int24 tickLower = 160_000;
         int24 tickUpper = 240_000;
         int24 tickSpacing = 8;
@@ -204,8 +206,10 @@ contract MulticurveTest is Test {
         uint16 numPositions = 10;
         uint256 curveSupply = 1e27;
 
+        vm.startSnapshotGas("Multicurve", "calculateLogNormalDistribution");
         Position[] memory positions =
             calculateLogNormalDistribution(0, tickLower, tickUpper, tickSpacing, isToken0, numPositions, curveSupply);
+        vm.stopSnapshotGas("Multicurve", "calculateLogNormalDistribution");
 
         assertEq(positions.length, numPositions, "Incorrect number of positions");
         assertEq(positions[0].tickLower, tickLower, "Incorrect first position lower tick");
@@ -222,7 +226,7 @@ contract MulticurveTest is Test {
     /*                                calculatePositions()                                */
     /* ---------------------------------------------------------------------------------- */
 
-    function test_calculatePositions() public pure {
+    function test_calculatePositions() public {
         int24 tickSpacing = 8;
         Curve[] memory curves = new Curve[](10);
 
@@ -233,7 +237,9 @@ contract MulticurveTest is Test {
             curves[i].shares = WAD / 10;
         }
 
+        vm.startSnapshotGas("Multicurve", "calculatePositions");
         Position[] memory positions = calculatePositions(curves, tickSpacing, 1e27, 0, true);
+        vm.stopSnapshotGas("Multicurve", "calculatePositions");
         assertEq(positions.length, 50, "Incorrect number of positions");
 
         for (uint256 i; i < positions.length; ++i) {
