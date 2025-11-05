@@ -255,19 +255,35 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         uint256 totalTokensOnBondingCurve,
         InitData memory initData
     ) private returns (PoolKey memory poolKey, Position[] memory positions) {
-        (Curve[] memory curves, int24 farTick, address dook) = (initData.curves, initData.farTick, initData.dook);
+        (
+            Curve[] memory curves,
+            int24 farTick,
+            address dook,
+            int24 tickSpacing,
+            uint24 fee,
+            BeneficiaryData[] memory beneficiaries,
+            bytes memory graduationDookCalldata
+        ) = (
+            initData.curves,
+            initData.farTick,
+            initData.dook,
+            initData.tickSpacing,
+            initData.fee,
+            initData.beneficiaries,
+            initData.graduationDookCalldata
+        );
 
         poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: HOOK,
-            fee: initData.dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : initData.fee,
-            tickSpacing: initData.tickSpacing
+            fee: dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
+            tickSpacing: tickSpacing
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
         (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary) =
-            adjustCurves(curves, 0, initData.tickSpacing, isToken0);
+            adjustCurves(curves, 0, tickSpacing, isToken0);
 
         int24 startTick;
 
@@ -283,16 +299,16 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
-        positions = calculatePositions(adjustedCurves, initData.tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+        positions = calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
-            beneficiaries: initData.beneficiaries,
+            beneficiaries: beneficiaries,
             adjustedCurves: adjustedCurves,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
             dook: dook,
-            graduationDookCalldata: initData.graduationDookCalldata,
-            status: initData.beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
+            graduationDookCalldata: graduationDookCalldata,
+            status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
             farTick: farTick
         });
