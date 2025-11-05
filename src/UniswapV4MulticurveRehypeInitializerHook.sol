@@ -135,11 +135,11 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
     }
 
     function _afterInitialize(
-        address sender,
+        address,
         PoolKey calldata key,
         uint160,
         int24
-    ) internal override onlyInitializer(sender) returns (bytes4) {
+    ) internal override returns (bytes4) {
         PoolId poolId = key.toId();
         Position storage position = getPosition[poolId];
         if (position.salt == bytes32(0)) {
@@ -194,8 +194,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             } else if (storedPosition.salt == params.salt) {
                 if (liquidityDelta > 0) {
                     storedPosition.liquidity += uint128(uint256(liquidityDelta));
-                } else {
-                    storedPosition.liquidity -= uint128(uint256(-liquidityDelta));
                 }
             }
         }
@@ -408,7 +406,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         );
 
         _settleDelta(key, delta);
-        poolManager.settle();
         _collectDelta(key, delta);
 
         uintIn = zeroForOne ? _abs(delta.amount0()) : _abs(delta.amount1());
@@ -449,7 +446,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         );
 
         _settleDelta(key, balanceDelta);
-        poolManager.settle();
         _collectDelta(key, balanceDelta);
 
         position.liquidity += liquidityDelta;
