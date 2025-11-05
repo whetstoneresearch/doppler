@@ -30,7 +30,8 @@ import {
     SenderNotAuthorized,
     DookNotEnabled,
     SetDook,
-    SetDookState
+    SetDookState,
+    UnreachableFarTick
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -130,6 +131,16 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.expectRevert(
             abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Uninitialized, PoolStatus.Initialized)
         );
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+    }
+
+    function test_initialize_RevertsWhenUnreachableFarTick(bool isToken0, int24 farTick) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        vm.assume(farTick > TickMath.MIN_TICK && farTick < TickMath.MAX_TICK);
+        vm.assume(farTick < 160_000 || farTick > 240_000);
+        initData.farTick = farTick;
+        vm.expectRevert(UnreachableFarTick.selector);
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
     }
@@ -299,6 +310,20 @@ contract DookMulticurveInitializerTest is Deployers {
     function test_exitLiquidity_RevertsWhenPoolAlreadyExited(bool isToken0) public {
         test_exitLiquidity(isToken0);
         vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Initialized, PoolStatus.Exited));
+        vm.prank(address(airlock));
+        initializer.exitLiquidity(asset);
+    }
+
+    function test_exitLiquidity_RevertsWhenPoolIsLocked(bool isToken0) public {
+        test_initialize_LocksPool(isToken0);
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Initialized, PoolStatus.Locked));
+        vm.prank(address(airlock));
+        initializer.exitLiquidity(asset);
+    }
+
+    function test_exitLiquidity_RevertsWhenPoolGraduated(bool isToken0) public {
+        test_graduate_GraduatesPool(isToken0);
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Initialized, PoolStatus.Graduated));
         vm.prank(address(airlock));
         initializer.exitLiquidity(asset);
     }
@@ -508,6 +533,40 @@ contract DookMulticurveInitializerTest is Deployers {
 
         (,,,, PoolStatus status,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Graduated), "Pool status should be Graduated");
+    }
+
+    function test_graduate_RevertsWhenFarTickNotReached(bool isToken0) public {
+        test_initialize_LocksPoolWithDook(isToken0);
+        (,,,,,, int24 farTick) = initializer.getState(asset);
+        (, int24 tick,,) = manager.getSlot0(poolId);
+        vm.prank(address(airlock));
+        vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, farTick, tick));
+        initializer.graduate(asset);
+    }
+
+    /* ---------------------------------------------------------------------------------- */
+    /*                                updateDynamicLPFee()                                */
+    /* ---------------------------------------------------------------------------------- */
+
+    function test_updateDynamicLPFee_RevertsWhenSenderNotDook(bool isToken0) public {
+        test_initialize_LocksPoolWithDook(isToken0);
+        vm.expectRevert(SenderNotAuthorized.selector);
+        vm.prank(address(0xbeef));
+        initializer.updateDynamicLPFee(asset, 100);
+    }
+
+    function test_updateDynamicLPFee_RevertsWhenPoolWrongStatus(bool isToken0) public {
+        test_initialize_InitializesPool(isToken0);
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Locked, PoolStatus.Initialized));
+        initializer.updateDynamicLPFee(asset, 100);
+    }
+
+    function test_updateDynamicLPFee_UpdatesFee(bool isToken0) public {
+        test_initialize_LocksPoolWithDook(isToken0);
+        vm.prank(address(dook));
+        initializer.updateDynamicLPFee(asset, 100);
+        (,,, uint24 lpFee) = manager.getSlot0(poolId);
+        assertEq(lpFee, 100, "Incorrect updated fee");
     }
 
     /* ----------------------------------------------------------------------- */
