@@ -391,6 +391,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
      */
     function updateDynamicLPFee(address asset, uint24 lpFee) external {
         PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
         require(msg.sender == state.dook, SenderNotAuthorized());
         DookMulticurveHook(address(HOOK)).updateDynamicLPFee(getState[asset].poolKey, lpFee);
     }
