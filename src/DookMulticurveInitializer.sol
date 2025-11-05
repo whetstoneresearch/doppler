@@ -67,6 +67,9 @@ error DookNotEnabled();
 /// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
 
+/// @notice Thrown when the far tick is unreachable
+error UnreachableFarTick();
+
 /**
  * @notice Data used to initialize the Uniswap V4 pool
  * @param fee Fee of the Uniswap V4 pool (capped at 1_000_000)
@@ -204,72 +207,22 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         );
 
         InitData memory initData = abi.decode(data, (InitData));
-
-        (
-            uint24 fee,
-            int24 tickSpacing,
-            Curve[] memory curves,
-            BeneficiaryData[] memory beneficiaries,
-            address dook,
-            bytes memory onInitializationDookCalldata,
-            bytes memory graduationDookCalldata,
-            int24 farTick
-        ) = (
-            initData.fee,
-            initData.tickSpacing,
-            initData.curves,
-            initData.beneficiaries,
-            initData.dook,
-            initData.onInitializationDookCalldata,
-            initData.graduationDookCalldata,
-            initData.farTick
-        );
-
-        PoolKey memory poolKey = PoolKey({
-            currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
-            currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: HOOK,
-            fee: initData.dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
-            tickSpacing: tickSpacing
-        });
-        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
-
-        (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper) =
-            adjustCurves(curves, 0, tickSpacing, isToken0);
-
-        int24 startTick = isToken0 ? tickLower : tickUpper;
-        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
-        poolManager.initialize(poolKey, sqrtPriceX96);
-
-        Position[] memory positions =
-            calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
-
-        PoolState memory state = PoolState({
-            numeraire: numeraire,
-            beneficiaries: beneficiaries,
-            adjustedCurves: adjustedCurves,
-            totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            dook: dook,
-            graduationDookCalldata: graduationDookCalldata,
-            status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
-            poolKey: poolKey,
-            farTick: isToken0 ? farTick : -farTick
-        });
-        getState[asset] = state;
+        (PoolKey memory poolKey, Position[] memory positions) =
+            _initialize(asset, numeraire, totalTokensOnBondingCurve, initData);
 
         PoolId poolId = poolKey.toId();
         getAsset[poolId] = asset;
 
-        uint256 dookFlag = isDookEnabled[dook];
+        uint256 dookFlag = isDookEnabled[initData.dook];
 
-        if (dook != address(0)) {
+        if (initData.dook != address(0)) {
             require(dookFlag > 0, DookNotEnabled());
-            DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
-            DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, fee);
+            DookMulticurveHook(address(HOOK)).setDook(poolId, initData.dook);
+            DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, initData.fee);
         }
 
         if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDook(dook).onInitialization(asset, onInitializationDookCalldata);
+            IDook(initData.dook).onInitialization(asset, initData.onInitializationDookCalldata);
         }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
@@ -277,9 +230,9 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
 
         emit Create(address(poolManager), asset, numeraire);
 
-        if (beneficiaries.length != 0) {
-            _storeBeneficiaries(poolKey, beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
-            emit Lock(asset, beneficiaries);
+        if (initData.beneficiaries.length != 0) {
+            _storeBeneficiaries(poolKey, initData.beneficiaries, airlock.owner(), MIN_PROTOCOL_OWNER_SHARES);
+            emit Lock(asset, initData.beneficiaries);
         }
 
         // If any dust asset tokens are left in this contract after providing liquidity, we send them
@@ -291,6 +244,58 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         // Uniswap V4 pools don't have addresses, so we are returning the asset address
         // instead to retrieve the associated state later during the `exitLiquidity` call
         return asset;
+    }
+
+    /// @dev Internal function to avoid stack too deep errors
+    function _initialize(
+        address asset,
+        address numeraire,
+        uint256 totalTokensOnBondingCurve,
+        InitData memory initData
+    ) private returns (PoolKey memory poolKey, Position[] memory positions) {
+        (Curve[] memory curves, int24 farTick, address dook) = (initData.curves, initData.farTick, initData.dook);
+
+        poolKey = PoolKey({
+            currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
+            currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
+            hooks: HOOK,
+            fee: initData.dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : initData.fee,
+            tickSpacing: initData.tickSpacing
+        });
+        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
+
+        (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary) =
+            adjustCurves(curves, 0, initData.tickSpacing, isToken0);
+
+        int24 startTick;
+
+        if (isToken0) {
+            startTick = lowerTickBoundary;
+            require(farTick > startTick && farTick <= upperTickBoundary, UnreachableFarTick());
+        } else {
+            startTick = upperTickBoundary;
+            farTick = -farTick;
+            require(farTick < startTick && farTick >= lowerTickBoundary, UnreachableFarTick());
+        }
+
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
+        poolManager.initialize(poolKey, sqrtPriceX96);
+
+        positions = calculatePositions(adjustedCurves, initData.tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+
+        PoolState memory state = PoolState({
+            numeraire: numeraire,
+            beneficiaries: initData.beneficiaries,
+            adjustedCurves: adjustedCurves,
+            totalTokensOnBondingCurve: totalTokensOnBondingCurve,
+            dook: dook,
+            graduationDookCalldata: initData.graduationDookCalldata,
+            status: initData.beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
+            poolKey: poolKey,
+            farTick: farTick
+        });
+
+        getState[asset] = state;
     }
 
     /// @inheritdoc IPoolInitializer
