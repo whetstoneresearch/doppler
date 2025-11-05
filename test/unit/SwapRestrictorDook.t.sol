@@ -10,15 +10,7 @@ contract SwapRestrictorDookTest is Test {
 
     SwapRestrictorDook public dook;
 
-    function test_constructor_big() public {
-        address[] memory approved = new address[](100);
-
-        for (uint256 i; i < approved.length; i++) {
-            approved[i] = address(uint160(i + 1));
-        }
-
-        vm.startSnapshotGas("SwapRestrictorDook", "constructor");
-        dook = new SwapRestrictorDook(initializer, hook, approved);
-        vm.stopSnapshotGas("SwapRestrictorDook", "constructor");
+    function setUp() public {
+        dook = new SwapRestrictorDook(initializer, hook);
     }
 }
