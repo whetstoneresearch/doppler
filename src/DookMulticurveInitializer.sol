@@ -36,10 +36,17 @@ event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
  */
 event SetDookState(address indexed dook, uint256 indexed flag);
 
+/// @notice Emitted when a dook is linked to a pool
 event SetDook(address indexed asset, address indexed dook);
 
+/// @notice Emitted when a pool graduates
 event Graduate(address indexed asset);
 
+/**
+ * @notice Thrown when the pool is not in the expected status
+ * @param expected Expected pool status
+ * @param actual Actual pool status
+ */
 error WrongPoolStatus(PoolStatus expected, PoolStatus actual);
 
 /// @notice Thrown when the current tick is not sufficient to migrate
