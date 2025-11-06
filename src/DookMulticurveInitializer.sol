@@ -70,6 +70,8 @@ error ArrayLengthsMismatch();
 /// @notice Thrown when the far tick is unreachable
 error UnreachableFarTick();
 
+error LPFeeTooHigh(uint24 maxFee, uint256 fee);
+
 /**
  * @notice Data used to initialize the Uniswap V4 pool
  * @param fee Fee of the Uniswap V4 pool (capped at 1_000_000)
@@ -118,6 +120,9 @@ struct PoolState {
     PoolKey poolKey;
     int24 farTick;
 }
+
+/// @dev Maximum LP fee allowed (1_000_000 = 100%)
+uint24 constant MAX_LP_FEE = 100_000;
 
 /**
  * @title Doppler Hook (Dook) Uniswap V4 Multicurve Initializer
@@ -416,6 +421,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
         require(msg.sender == state.dook, SenderNotAuthorized());
+        require(lpFee <= MAX_LP_FEE, LPFeeTooHigh(MAX_LP_FEE, lpFee));
         DookMulticurveHook(address(HOOK)).updateDynamicLPFee(getState[asset].poolKey, lpFee);
     }
 
