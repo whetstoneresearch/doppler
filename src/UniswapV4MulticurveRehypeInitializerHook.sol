@@ -14,7 +14,6 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { Position } from "src/types/Position.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { Quoter } from "@quoter/Quoter.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
@@ -64,11 +63,9 @@ struct Fees {
     uint24 customFee;
 }
 
-uint256 constant MAX_SWAP_FEE = SwapMath.MAX_SWAP_FEE;
-uint256 constant MAX_REBALANCE_ITERATIONS = 15;
-
-// TODO: factor in decimals haha 1e6 maybe for 18 decimals? idk haha
+uint256 constant MAX_SWAP_FEE = 1e6;
 uint128 constant EPSILON = 1e6;
+uint256 constant MAX_REBALANCE_ITERATIONS = 15;
 
 /**
  * @title Uniswap V4 Multicurve Hook

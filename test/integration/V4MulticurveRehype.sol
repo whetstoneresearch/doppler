@@ -25,6 +25,8 @@ import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { console } from "forge-std/console.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -214,20 +216,97 @@ contract V4MulticurveInitializer is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        console.log("swap0 done");
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        console.log("swap1 done");
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        console.log("swap2 done");
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        console.log("swap3 done");
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
-        console.log("swap4 done");
+    }
 
-        uint256 balance0 = numeraire.balanceOf(address(multicurveHook));
-        uint256 balance1 = TestERC20(tokenAddress).balanceOf(address(multicurveHook));
-        console.log("balance0", balance0);
-        console.log("balance1", balance1);
+    function test_rehype_MulticurveRehypeInitializerHook_swap_asset_for_quote(
+        bytes32 salt
+    ) public {
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData = _prepareInitData(tokenAddress);
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        (address asset,,,,) = airlock.create(params);
+        require(asset == tokenAddress, "Asset address mismatch");
+
+        vm.label(asset, "Asset");
+        bool isToken0 = asset < address(numeraire);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        BalanceDelta delta1 =
+            swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        BalanceDelta delta2 =
+            swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        BalanceDelta delta3 =
+            swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        BalanceDelta delta4 =
+            swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        BalanceDelta deltas = BalanceDeltaLibrary.ZERO_DELTA;
+
+        deltas = deltas + delta1;
+        deltas = deltas + delta2;
+        deltas = deltas + delta3;
+        deltas = deltas + delta4;
+
+        TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+
+        IPoolManager.SwapParams memory swapParams2 = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: isToken0 ? deltas.amount0() * 9 / 10 : deltas.amount1() * 9 / 10,
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(poolKey, swapParams2, PoolSwapTest.TestSettings(false, false), new bytes(0));
     }
 
     function _prepareInitData(
