@@ -21,6 +21,10 @@ import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurv
 import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
+import { BaseHook } from "src/base/BaseHook.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 
 /**
  * @notice Emitted when a new pool is locked
@@ -41,6 +45,36 @@ event SetDook(address indexed asset, address indexed dook);
 
 /// @notice Emitted when a pool graduates
 event Graduate(address indexed asset);
+
+/**
+ * @notice Emitted when liquidity is modified
+ * @param key Key of the related pool
+ * @param params Parameters of the liquidity modification
+ */
+event ModifyLiquidity(PoolKey key, IPoolManager.ModifyLiquidityParams params);
+
+/**
+ * @notice Emitted when a Swap occurs
+ * @param sender Address calling the PoolManager
+ * @param poolKey Key of the related pool
+ * @param poolId Id of the related pool
+ * @param params Parameters of the swap
+ * @param amount0 Balance denominated in token0
+ * @param amount1 Balance denominated in token1
+ * @param hookData Data passed to the hook
+ */
+event Swap(
+    address indexed sender,
+    PoolKey indexed poolKey,
+    PoolId indexed poolId,
+    IPoolManager.SwapParams params,
+    int128 amount0,
+    int128 amount1,
+    bytes hookData
+);
+
+/// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
+error OnlyInitializer();
 
 /**
  * @notice Thrown when the pool is not in the expected status
@@ -165,13 +199,10 @@ uint24 constant MAX_LP_FEE = 100_000;
  * this will allow the collection of fees by the designed beneficiaries. If no beneficiaries are passed, the pool
  * can be migrated later if the conditions are met.
  */
-contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAirlock, MiniV4Manager {
+contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, FeesManager, IPoolInitializer {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
-
-    /// @notice Address of the DookMulticurveHook contract
-    IHooks public immutable HOOK;
 
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
@@ -188,15 +219,8 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
-     * @param hook_ Address of the DookMulticurveHook contract
      */
-    constructor(
-        address airlock_,
-        IPoolManager poolManager_,
-        IHooks hook_
-    ) ImmutableAirlock(airlock_) MiniV4Manager(poolManager_) {
-        HOOK = hook_;
-    }
+    constructor(address airlock_, IPoolManager poolManager_) ImmutableAirlock(airlock_) ImmutableState(poolManager_) { }
 
     /// @inheritdoc IPoolInitializer
     function initialize(
@@ -224,8 +248,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
 
         if (dook != address(0)) {
             require(dookFlag > 0, DookNotEnabled());
-            DookMulticurveHook(address(HOOK)).setDook(poolId, dook);
-            DookMulticurveHook(address(HOOK)).updateDynamicLPFee(poolKey, fee);
+            poolManager.updateDynamicLPFee(poolKey, fee);
         }
 
         SafeTransferLib.safeTransferFrom(asset, address(airlock), address(this), totalTokensOnBondingCurve);
@@ -281,7 +304,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: HOOK,
+            hooks: IHooks(address(this)),
             fee: dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
             tickSpacing: tickSpacing
         });
@@ -383,13 +406,14 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         address authority = getAuthority[timelock];
         require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized());
 
-        if (dook != address(0)) require(isDookEnabled[dook] > 0, DookNotEnabled());
+        if (dook != address(0)) {
+            require(isDookEnabled[dook] > 0, DookNotEnabled());
+        }
 
         getState[asset].dook = dook;
         getState[asset].graduationDookCalldata = onGraduationCalldata;
         emit SetDook(asset, dook);
 
-        DookMulticurveHook(address(HOOK)).setDook(state.poolKey.toId(), dook);
         IDook(dook).onInitialization(asset, onInitializationCalldata);
     }
 
@@ -403,7 +427,9 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
 
         address dook = state.dook;
         uint256 flags = isDookEnabled[dook];
-        if (dook == address(0) || flags & ON_GRADUATION_FLAG == 0) revert CannotMigratePoolNoProvidedDook();
+        if (dook == address(0) || flags & ON_GRADUATION_FLAG == 0) {
+            revert CannotMigratePoolNoProvidedDook();
+        }
 
         _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
 
@@ -422,7 +448,7 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
         require(msg.sender == state.dook, SenderNotAuthorized());
         require(lpFee <= MAX_LP_FEE, LPFeeTooHigh(MAX_LP_FEE, lpFee));
-        DookMulticurveHook(address(HOOK)).updateDynamicLPFee(getState[asset].poolKey, lpFee);
+        poolManager.updateDynamicLPFee(state.poolKey, lpFee);
     }
 
     /**
@@ -485,5 +511,85 @@ contract DookMulticurveInitializer is IPoolInitializer, FeesManager, ImmutableAi
     function _canGraduateOrMigrate(PoolId poolId, bool isToken0, int24 farTick) internal view {
         (, int24 tick,,) = poolManager.getSlot0(poolId);
         require(isToken0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
+    }
+
+    /// @inheritdoc BaseHook
+    function _beforeInitialize(address sender, PoolKey calldata, uint160) internal view override returns (bytes4) {
+        require(sender == address(this), OnlyInitializer());
+        return BaseHook.beforeInitialize.selector;
+    }
+
+    /// @inheritdoc BaseHook
+    function _afterAddLiquidity(
+        address,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta,
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, BalanceDelta) {
+        emit ModifyLiquidity(key, params);
+        return (BaseHook.afterAddLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
+    }
+
+    /// @inheritdoc BaseHook
+    function _afterRemoveLiquidity(
+        address,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta,
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, BalanceDelta) {
+        emit ModifyLiquidity(key, params);
+        return (BaseHook.afterRemoveLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
+    }
+
+    /// @inheritdoc BaseHook
+    function _beforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        address asset = getAsset[key.toId()];
+        PoolState memory state = getState[asset];
+        address dook = state.dook;
+        if (dook != address(0) && isDookEnabled[dook] > 0 && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
+            IDook(dook).onSwap(sender, key, params, data);
+        }
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+    }
+
+    /// @inheritdoc BaseHook
+    function _afterSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
+        bytes calldata hookData
+    ) internal override returns (bytes4, int128) {
+        emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
+        return (BaseHook.afterSwap.selector, 0);
+    }
+
+    /// @inheritdoc BaseHook
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+        return Hooks.Permissions({
+            beforeInitialize: true,
+            afterInitialize: false,
+            beforeAddLiquidity: false,
+            beforeRemoveLiquidity: false,
+            afterAddLiquidity: true,
+            afterRemoveLiquidity: true,
+            beforeSwap: true,
+            afterSwap: true,
+            beforeDonate: false,
+            afterDonate: false,
+            beforeSwapReturnDelta: false,
+            afterSwapReturnDelta: false,
+            afterAddLiquidityReturnDelta: false,
+            afterRemoveLiquidityReturnDelta: false
+        });
     }
 }
