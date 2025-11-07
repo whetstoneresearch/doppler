@@ -7,7 +7,7 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveRehypeInitializer } from "src/UniswapV4MulticurveRehypeInitializer.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary, toBeforeSwapDelta } from "@v4-core/types/BeforeSwapDelta.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -19,6 +19,7 @@ import { Quoter } from "@quoter/Quoter.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { IERC20 } from "lib/universal-router/lib/v4-periphery/lib/v4-core/lib/forge-std/src/interfaces/IERC20.sol";
+import { console } from "forge-std/console.sol";
 
 // goals
 // - create an empty full range LP position given tickSpacing
@@ -57,10 +58,27 @@ event Swap(
     bytes hookData
 );
 
-struct Fees {
+struct FeeDistributionData {
+    address asset;
     uint128 fees0;
     uint128 fees1;
     uint24 customFee;
+    uint256 buybackPercentWad;
+    uint256 creatorPercentWad;
+    uint256 lpPercentWad;
+    uint128 creatorFees0;
+    uint128 creatorFees1;
+}
+
+struct SwapSimulation {
+    bool success;
+    uint256 amountIn;
+    uint256 amountOut;
+    uint256 fees0;
+    uint256 fees1;
+    uint160 sqrtPriceX96;
+    uint256 excess0;
+    uint256 excess1;
 }
 
 uint256 constant MAX_SWAP_FEE = 1e6;
@@ -83,20 +101,8 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
     address public immutable INITIALIZER;
     Quoter public immutable quoter;
 
-    struct SwapSimulation {
-        bool success;
-        uint256 amountIn;
-        uint256 amountOut;
-        uint256 fees0;
-        uint256 fees1;
-        uint160 sqrtPriceX96;
-        uint256 excess0;
-        uint256 excess1;
-    }
-
     mapping(PoolId poolId => Position position) public getPosition;
-    mapping(PoolId poolId => Fees fees) public getFees;
-
+    mapping(PoolId poolId => FeeDistributionData feeDistribution) public getFeeDistribution;
     /**
      *
      * @dev Modifier to ensure the caller is the Uniswap V4 Multicurve Initializer
@@ -116,7 +122,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
      */
     constructor(
         IPoolManager manager,
-        UniswapV4MulticurveInitializer initializer
+        UniswapV4MulticurveRehypeInitializer initializer
     ) BaseHook(manager) {
         INITIALIZER = address(initializer);
         quoter = new Quoter(manager);
@@ -144,8 +150,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             position.tickUpper = int24(TickMath.maxUsableTick(key.tickSpacing));
             position.salt = _fullRangeSalt(poolId);
         }
-
-        getFees[poolId] = Fees({ fees0: 0, fees1: 0, customFee: 3000 });
 
         return BaseHook.afterInitialize.selector;
     }
@@ -223,7 +227,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        uint24 fee = getFees[key.toId()].customFee;
+        uint24 fee = getFeeDistribution[key.toId()].customFee;
 
         uint256 swapAmount =
             params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
@@ -242,9 +246,9 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         poolManager.take(feeCurrency, address(this), feeAmount);
 
         if (feeCurrency == key.currency0) {
-            getFees[key.toId()].fees0 += uint128(feeAmount);
+            getFeeDistribution[key.toId()].fees0 += uint128(feeAmount);
         } else {
-            getFees[key.toId()].fees1 += uint128(feeAmount);
+            getFeeDistribution[key.toId()].fees1 += uint128(feeAmount);
         }
 
         BeforeSwapDelta returnDelta = toBeforeSwapDelta(int128(int256(feeAmount)), 0);
@@ -263,14 +267,60 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         if (sender == address(this)) {
             return (BaseHook.afterSwap.selector, 0);
         }
+        console.log("here?");
 
         PoolId poolId = key.toId();
 
-        uint256 balance0 = getFees[poolId].fees0;
-        uint256 balance1 = getFees[poolId].fees1;
+        uint256 balance0 = getFeeDistribution[poolId].fees0;
+        uint256 balance1 = getFeeDistribution[poolId].fees1;
 
         if (balance0 <= EPSILON && balance1 <= EPSILON) {
             return (BaseHook.afterSwap.selector, delta.amount0());
+        }
+
+        address asset = getFeeDistribution[poolId].asset;
+        bool isToken0 = key.currency0 == Currency.wrap(asset);
+
+        console.log("isToken0", isToken0);
+
+        uint256 buybackPercentWad = getFeeDistribution[poolId].buybackPercentWad;
+        uint256 creatorPercentWad = getFeeDistribution[poolId].creatorPercentWad;
+        uint256 lpPercentWad = getFeeDistribution[poolId].lpPercentWad;
+
+        uint256 buybackAmount = isToken0
+            ? FullMath.mulDiv(balance1, buybackPercentWad, 1e18)
+            : FullMath.mulDiv(balance0, buybackPercentWad, 1e18);
+
+        console.log("buybackAmount", buybackAmount);
+
+        uint256 creatorAmount0 = FullMath.mulDiv(balance0, creatorPercentWad, 1e18);
+        uint256 creatorAmount1 = FullMath.mulDiv(balance1, creatorPercentWad, 1e18);
+
+        console.log("creatorAmount0", creatorAmount0);
+        console.log("creatorAmount1", creatorAmount1);
+
+        uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, 1e18);
+        uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, 1e18);
+
+        console.log("lpAmount0", lpAmount0);
+        console.log("lpAmount1", lpAmount1);
+
+        if (buybackAmount > 0) {
+            console.log("here?");
+            (, uint256 buybackAmountOut, uint256 buybackAmountIn) = _executeSwap(key, !isToken0, buybackAmount);
+            console.log("buybackAmountOut", buybackAmountOut);
+            console.log("buybackAmountIn", buybackAmountIn);
+            isToken0
+                ? key.currency0.transfer(address(0), buybackAmountOut)
+                : key.currency1.transfer(address(0), buybackAmountOut);
+            balance0 = isToken0 ? balance0 : balance0 - buybackAmountIn;
+            balance1 = isToken0 ? balance1 - buybackAmountIn : balance1;
+        }
+        if (creatorPercentWad > 0) {
+            balance0 -= creatorAmount0;
+            balance1 -= creatorAmount1;
+            getFeeDistribution[poolId].creatorFees0 += uint128(creatorAmount0);
+            getFeeDistribution[poolId].creatorFees1 += uint128(creatorAmount1);
         }
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
@@ -289,7 +339,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint160 postSwapSqrtPrice;
 
         (shouldSwap, zeroForOne, swapAmountIn, swapAmountOut, postSwapSqrtPrice) =
-            _rebalanceFees(key, balance0, balance1, sqrtPriceX96);
+            _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
 
         if (shouldSwap && swapAmountIn > 0) {
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
@@ -308,15 +358,15 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
     function _rebalanceFees(
         PoolKey memory key,
-        uint256 fees0,
-        uint256 fees1,
+        uint256 lpAmount0,
+        uint256 lpAmount1,
         uint160 sqrtPriceX96
     )
         internal
         view
         returns (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96)
     {
-        (uint256 excess0, uint256 excess1) = _calculateExcess(fees0, fees1, sqrtPriceX96);
+        (uint256 excess0, uint256 excess1) = _calculateExcess(lpAmount0, lpAmount1, sqrtPriceX96);
 
         if (excess0 <= EPSILON && excess1 <= EPSILON) {
             return (false, false, 0, 0, sqrtPriceX96);
@@ -331,7 +381,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             uint256 guess = (low + high) / 2;
             if (guess == 0) guess = 1;
 
-            SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, fees0, fees1);
+            SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, lpAmount0, lpAmount1);
             if (!sim.success) {
                 if (high == 0 || high == 1) {
                     break;
@@ -458,8 +508,8 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         remaining1 = amount1 + received1;
         remaining1 = used1 > remaining1 ? 0 : remaining1 - used1;
 
-        getFees[key.toId()].fees0 = uint128(remaining0);
-        getFees[key.toId()].fees1 = uint128(remaining1);
+        getFeeDistribution[key.toId()].fees0 = uint128(remaining0);
+        getFeeDistribution[key.toId()].fees1 = uint128(remaining1);
     }
 
     function _settleDelta(
@@ -514,7 +564,9 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
                 amountSpecified: -int256(guess),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             })
-        ) returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32) {
+        ) returns (
+            int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32
+        ) {
             if (zeroForOne) {
                 if (amount0 >= 0 || amount1 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount0);
@@ -583,6 +635,28 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         return value < 0 ? uint256(-value) : uint256(value);
     }
 
+    function setFeeDistributionForPool(
+        PoolId poolId,
+        address asset,
+        uint24 customFee,
+        uint256 buybackPercentWad,
+        uint256 creatorPercentWad,
+        uint256 lpPercentWad
+    ) external onlyInitializer(msg.sender) {
+        require(buybackPercentWad + creatorPercentWad + lpPercentWad == 1e18, "Fee distribution must add up to 1e18");
+        getFeeDistribution[poolId] = FeeDistributionData({
+            asset: asset,
+            fees0: 0,
+            fees1: 0,
+            buybackPercentWad: buybackPercentWad,
+            creatorPercentWad: creatorPercentWad,
+            lpPercentWad: lpPercentWad,
+            customFee: customFee,
+            creatorFees0: 0,
+            creatorFees1: 0
+        });
+    }
+
     /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
@@ -602,4 +676,24 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             afterRemoveLiquidityReturnDelta: false
         });
     }
+}
+
+interface IRehypeHook {
+    function setFeesForPool(
+        PoolId poolId,
+        uint24 customFee
+    ) external;
+
+    function setFeeDistributionForPool(
+        PoolId poolId,
+        address asset,
+        uint24 customFee,
+        uint256 buybackPercentWad,
+        uint256 creatorPercentWad,
+        uint256 lpPercentWad
+    ) external;
+
+    function collectFees(
+        PoolId poolId
+    ) external;
 }
