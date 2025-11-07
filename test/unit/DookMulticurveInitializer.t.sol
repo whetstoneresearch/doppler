@@ -53,7 +53,6 @@ contract DookMulticurveInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
 
     DookMulticurveInitializer public initializer;
-    DookMulticurveHook public hook;
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
     MockDook public dook;
@@ -68,16 +67,15 @@ contract DookMulticurveInitializerTest is Deployers {
         deployFreshManagerAndRouters();
         (currency0, currency1) = deployAndMint2Currencies();
         airlock = new Airlock(airlockOwner);
-        hook = DookMulticurveHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-                ) ^ (0x4444 << 144)
-            )
+        initializer = DookMulticurveInitializer(
+            payable(address(
+                    uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) ^ (0x4444 << 144)
+                ))
         );
-        initializer = new DookMulticurveInitializer(address(airlock), manager, hook);
-        deployCodeTo("DookMulticurveHook", abi.encode(manager, initializer), address(hook));
+        deployCodeTo("DookMulticurveInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
         dook = new MockDook();
         vm.label(address(dook), "Dook");
 
@@ -107,7 +105,6 @@ contract DookMulticurveInitializerTest is Deployers {
     function test_constructor() public view {
         assertEq(address(initializer.airlock()), address(airlock));
         assertEq(address(initializer.poolManager()), address(manager));
-        assertEq(address(initializer.HOOK()), address(hook));
     }
 
     /* -------------------------------------------------------------------------- */
@@ -207,7 +204,6 @@ contract DookMulticurveInitializerTest is Deployers {
         assertEq32(PoolId.unwrap(key.toId()), PoolId.unwrap(poolId), "Pool Ids not matching");
         assertEq(dookAddress, address(dook), "Incorrect dook address");
         assertEq(graduationDookCalldata, initData.graduationDookCalldata, "Incorrect graduation dook calldata");
-        assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
     }
 
     function test_initialize_CallsDookOnInitialization(bool isToken0) public prepareAsset(isToken0) {
@@ -261,7 +257,7 @@ contract DookMulticurveInitializerTest is Deployers {
         assertEq(Currency.unwrap(key.currency1), Currency.unwrap(currency1), "Incorrect currency1");
         assertEq(key.fee, initData.fee, "Incorrect fee");
         assertEq(key.tickSpacing, initData.tickSpacing, "Incorrect tick spacing");
-        assertEq(address(key.hooks), address(hook), "Incorrect hook");
+        assertEq(address(key.hooks), address(initializer), "Incorrect hook");
         assertEq(farTick, isToken0 ? initData.farTick : -initData.farTick, "Incorrect far tick");
     }
 
@@ -458,7 +454,6 @@ contract DookMulticurveInitializerTest is Deployers {
 
         (,, address dookAddress,,,,) = initializer.getState(asset);
         assertEq(dookAddress, address(dook), "Incorrect dook address");
-        assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
     }
 
     function test_setDook_SetsDookWhenSenderIsAuthority(
@@ -497,7 +492,6 @@ contract DookMulticurveInitializerTest is Deployers {
 
         (,, address dookAddress,,,,) = initializer.getState(asset);
         assertEq(dookAddress, address(dook), "Incorrect dook address");
-        assertEq(dookAddress, hook.getDook(poolId), "Dook not set in hook");
     }
 
     /* ------------------------------------------------------------------------ */
@@ -584,7 +578,9 @@ contract DookMulticurveInitializerTest is Deployers {
             curves[i].shares = WAD / curves.length;
         }
 
-        poolKey = PoolKey({ currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: hook });
+        poolKey = PoolKey({
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: initializer
+        });
         poolId = poolKey.toId();
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](0);
