@@ -13,6 +13,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import {
@@ -31,12 +32,12 @@ import {
     DookNotEnabled,
     SetDook,
     SetDookState,
-    UnreachableFarTick
+    UnreachableFarTick,
+    OnlyInitializer
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { Airlock } from "src/Airlock.sol";
@@ -561,6 +562,26 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.updateDynamicLPFee(asset, 100);
         (,,, uint24 lpFee) = manager.getSlot0(poolId);
         assertEq(lpFee, 100, "Incorrect updated fee");
+    }
+
+    /* -------------------------------------------------------------------------------- */
+    /*                                beforeInitialize()                                */
+    /* -------------------------------------------------------------------------------- */
+
+    function test_beforeInitialize_RevertsWhenMsgSenderNotPoolManager(PoolKey memory key) public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        initializer.beforeInitialize(address(0), key, 0);
+    }
+
+    function test_beforeInitialize_RevertsWhenSenderParamNotInitializer() public {
+        vm.prank(address(manager));
+        vm.expectRevert(OnlyInitializer.selector);
+        initializer.beforeInitialize(address(0), key, 0);
+    }
+
+    function test_beforeInitialize_PassesWhenSenderParamInitializer() public {
+        vm.prank(address(manager));
+        initializer.beforeInitialize(address(initializer), key, 0);
     }
 
     /* ----------------------------------------------------------------------- */
