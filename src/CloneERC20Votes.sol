@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ERC20Votes } from "solady/tokens/ERC20Votes.sol";
-import { ERC20 } from "solady/tokens/ERC20.sol";
+import { ERC20Votes } from "@solady/tokens/ERC20Votes.sol";
+import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { CloneERC20 } from "src/CloneERC20.sol";
 
 /**
