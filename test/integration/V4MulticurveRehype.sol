@@ -19,8 +19,11 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveRehypeInitializerHook } from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
+import { UniswapV4MulticurveRehypeInitializer, InitData } from "src/UniswapV4MulticurveRehypeInitializer.sol";
+import {
+    IRehypeHook,
+    UniswapV4MulticurveRehypeInitializerHook
+} from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
@@ -51,7 +54,7 @@ contract LiquidityMigratorMock is ILiquidityMigrator {
 contract V4MulticurveInitializer is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
-    UniswapV4MulticurveInitializer public initializer;
+    UniswapV4MulticurveRehypeInitializer public initializer;
     UniswapV4MulticurveRehypeInitializerHook public multicurveHook;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
@@ -79,7 +82,7 @@ contract V4MulticurveInitializer is Deployers {
                 ) ^ (0x4444 << 144)
             )
         );
-        initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
+        initializer = new UniswapV4MulticurveRehypeInitializer(address(airlock), manager, multicurveHook);
         locker = new StreamableFeesLockerV2(manager, airlockOwner);
         vm.label(address(multicurveHook), "Rehype Hook");
         deployCodeTo(
@@ -155,7 +158,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function test_rehype_MulticurveInitializerRehypeV4(
+    function test_rehype_MulticurveInitializerRehypeV4_quote_for_asset_only(
         bytes32 salt
     ) public {
         string memory name = "Test Token";
@@ -222,7 +225,7 @@ contract V4MulticurveInitializer is Deployers {
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
     }
 
-    function test_rehype_MulticurveRehypeInitializerHook_swap_asset_for_quote(
+    function test_rehype_MulticurveRehypeInitializerHook_mixed_swap_types(
         bytes32 salt
     ) public {
         string memory name = "Test Token";
@@ -332,6 +335,15 @@ contract V4MulticurveInitializer is Deployers {
         });
         poolId = poolKey.toId();
 
-        return InitData({ fee: 0, tickSpacing: tickSpacing, curves: curves, beneficiaries: new BeneficiaryData[](0) });
+        return InitData({
+            fee: 0,
+            tickSpacing: tickSpacing,
+            curves: curves,
+            beneficiaries: new BeneficiaryData[](0),
+            customFee: 3000,
+            buybackPercentWad: 0.3e18,
+            creatorPercentWad: 0.3e18,
+            lpPercentWad: 0.4e18
+        });
     }
 }
