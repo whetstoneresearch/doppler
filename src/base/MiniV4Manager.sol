@@ -18,9 +18,6 @@ enum Actions {
     Collect
 }
 
-/// @dev Thrown when the caller is not the `PoolManager` contract
-error CallerNotPoolManager();
-
 /// @dev Thrown when the given action in the `unlockCallback` function is invalid
 error InvalidCallbackAction(uint8 action);
 
