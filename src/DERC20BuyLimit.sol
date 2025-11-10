@@ -31,11 +31,11 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
     /// @notice Timestamp of the end of the buy limit period
     uint256 public immutable buyLimitEnd;
 
-    /// @notice Maximum amount of tokens that can be bought by a single address during the buy limit period
-    uint256 public immutable buyLimitAmount;
+    /// @notice Maximum amount of numeraire that can be spent on tokens by a single address during the buy limit period
+    uint256 public immutable spendLimitAmount;
 
-    /// @notice Amount of tokens bought by each address during the buy limit period
-    mapping(address => uint256) public getBoughtAmounts;
+    /// @notice Amount of numeraire spent on tokens by each address during the buy limit period
+    mapping(address => uint256) public getSpentAmounts;
 
     /// @notice Pool information necessary to enforce buy limits, delayed initialization via getBuyLimitPoolInfo
     PoolInfo internal _buyLimitPoolInfo;
@@ -53,7 +53,7 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
      * @param tokenURI_ Uniform Resource Identifier (URI)
      * @param buyLimitedPoolManager_ Address of the buy limited seller
      * @param buyLimitEnd_ Timestamp of the end of the buy limit period
-     * @param buyLimitAmount_ Maximum amount of tokens that can be bought by a single address during the buy limit period
+     * @param spendLimitAmount_ Maximum amount of numeraire that can be spent on tokens by a single address during the buy limit period
      * @param airlock_ Address of the Airlock contract
      */
     constructor(
@@ -69,7 +69,7 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
         string memory tokenURI_,
         IPoolManager buyLimitedPoolManager_,
         uint256 buyLimitEnd_,
-        uint256 buyLimitAmount_,
+        uint256 spendLimitAmount_,
         address airlock_
     )
         DERC20(
@@ -88,7 +88,7 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
     {
         buyLimitedPoolManager = buyLimitedPoolManager_;
         buyLimitEnd = buyLimitEnd_;
-        buyLimitAmount = buyLimitAmount_;
+        spendLimitAmount = spendLimitAmount_;
     }
 
     function _update(
@@ -106,14 +106,16 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
         uint256 tokenAmount
     ) internal {
         if (block.timestamp < buyLimitEnd && from == address(buyLimitedPoolManager)) {
+            // Get pool info
             (bool isToken0, PoolId poolId) = getBuyLimitPoolInfo();
 
+            // Get numeraire amount (limit uses numeraire amounts, not token amounts)
             (uint160 sqrtPrice,,,) = buyLimitedPoolManager.getSlot0(poolId);
             uint256 numeraireAmount = _getQuoteAtPrice(isToken0, tokenAmount, sqrtPrice);
 
-            uint256 boughtAmount = getBoughtAmounts[to];
-            require(boughtAmount + numeraireAmount <= buyLimitAmount, BuyLimitExceeded());
-            getBoughtAmounts[to] = boughtAmount + numeraireAmount;
+            // Resulting spent amount must stay within buy limit
+            getSpentAmounts[to] += numeraireAmount;
+            require(getSpentAmounts[to] <= spendLimitAmount, BuyLimitExceeded());
         }
     }
 
