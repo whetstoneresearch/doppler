@@ -13,7 +13,7 @@ import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 
-abstract contract DeployMegaETHTestnetScript is Script {
+contract DeployMegaETHTestnetScript is Script {
     function run() public {
         vm.startBroadcast();
 
@@ -22,7 +22,7 @@ abstract contract DeployMegaETHTestnetScript is Script {
 
         // Pool Initializer modules
         LockableUniswapV3Initializer lockableUniswapV3Initializer = new LockableUniswapV3Initializer(
-            address(airlock), IUniswapV3Factory(0x09EBEA59542086Fb181AD6EF4bBaAEf497Df88E8)
+            address(airlock), IUniswapV3Factory(0x619fb6C12c36b57a8bAb05e98F42C43745DCf69f)
         );
 
         // Governance Factory modules
