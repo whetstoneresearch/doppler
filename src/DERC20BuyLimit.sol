@@ -35,7 +35,7 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
     uint256 public immutable buyLimitAmount;
 
     /// @notice Amount of tokens bought by each address during the buy limit period
-    mapping(address => uint256) public boughtAmounts;
+    mapping(address => uint256) public getBoughtAmounts;
 
     /// @notice Pool information necessary to enforce buy limits, delayed initialization via getBuyLimitPoolInfo
     PoolInfo internal _buyLimitPoolInfo;
@@ -111,9 +111,9 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
             (uint160 sqrtPrice,,,) = buyLimitedPoolManager.getSlot0(poolId);
             uint256 numeraireAmount = _getQuoteAtPrice(isToken0, tokenAmount, sqrtPrice);
 
-            uint256 boughtAmount = boughtAmounts[to];
+            uint256 boughtAmount = getBoughtAmounts[to];
             require(boughtAmount + numeraireAmount <= buyLimitAmount, BuyLimitExceeded());
-            boughtAmounts[to] = boughtAmount + numeraireAmount;
+            getBoughtAmounts[to] = boughtAmount + numeraireAmount;
         }
     }
 
