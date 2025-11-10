@@ -167,7 +167,7 @@ contract CloneERC20FactoryDookMulticurveInitializerNoOpGovernanceFactoryNoOpMigr
         createParams.tokenFactory = tokenFactory;
         createParams.tokenFactoryData = prepareCloneERC20FactoryData();
 
-        (, DookMulticurveInitializer initializer) =
+        DookMulticurveInitializer initializer =
             deployDookMulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
         createParams.poolInitializer = initializer;
         (bytes memory poolInitializerData) = prepareDookMulticurveInitializerData(address(0), address(0));

@@ -13,15 +13,15 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
-import { MiniV4Manager, CallerNotPoolManager } from "src/base/MiniV4Manager.sol";
+import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { Position } from "src/types/Position.sol";
 
 /// @dev Obviously not for production use, these functions should never be exposed without access control
 contract MiniV4ManagerImplementation is MiniV4Manager {
-    constructor(
-        IPoolManager poolManager_
-    ) MiniV4Manager(poolManager_) { }
+    constructor(IPoolManager poolManager_) ImmutableState(poolManager_) { }
 
     function mint(PoolKey memory poolKey, Position[] memory positions) external returns (BalanceDelta) {
         return _mint(poolKey, positions);
@@ -55,7 +55,7 @@ contract MiniV4ManagerTest is Deployers {
     }
 
     function test_unlockCallback_RevertsIfSenderNotPoolManager() public {
-        vm.expectRevert(CallerNotPoolManager.selector);
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
         mini.unlockCallback(new bytes(0));
     }
 
@@ -171,11 +171,7 @@ contract MiniV4ManagerTest is Deployers {
         vm.label(Currency.unwrap(currency1), "Currency1");
 
         poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            tickSpacing: 1,
-            fee: 3000,
-            hooks: IHooks(address(0))
+            currency0: currency0, currency1: currency1, tickSpacing: 1, fee: 3000, hooks: IHooks(address(0))
         });
         manager.initialize(poolKey, Constants.SQRT_PRICE_1_1);
         currency0.transfer(address(mini), amount0 * 4);

@@ -12,7 +12,6 @@ import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { DookMulticurveInitializer, InitData } from "src/DookMulticurveInitializer.sol";
-import { DookMulticurveHook } from "src/DookMulticurveHook.sol";
 
 function deployDookMulticurveInitializer(
     Vm vm,
@@ -20,17 +19,18 @@ function deployDookMulticurveInitializer(
     Airlock airlock,
     address airlockOwner,
     address poolManager
-) returns (DookMulticurveHook hook, DookMulticurveInitializer initializer) {
-    hook = DookMulticurveHook(
-        address(
-            uint160(
-                Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                    | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-            ) ^ (0x4444 << 144)
-        )
+) returns (DookMulticurveInitializer initializer) {
+    initializer = DookMulticurveInitializer(
+        payable(address(
+                uint160(
+                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+                        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                ) ^ (0x4444 << 144)
+            ))
     );
-    initializer = new DookMulticurveInitializer(address(airlock), IPoolManager(poolManager), hook);
-    deployCodeTo("DookMulticurveHook", abi.encode(address(poolManager), address(initializer)), address(hook));
+
+    deployCodeTo("DookMulticurveInitializer", abi.encode(address(airlock), address(poolManager)), address(initializer));
+
     address[] memory modules = new address[](1);
     modules[0] = address(initializer);
     ModuleState[] memory states = new ModuleState[](1);

@@ -6,6 +6,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
@@ -79,9 +80,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
      * @param poolManager_ Address of the Uniswap V4 PoolManager contract
      * @param owner_ Address of the owner of the contract
      */
-    constructor(IPoolManager poolManager_, address owner_) Ownable(owner_) MiniV4Manager(poolManager_) {
-        poolManager = poolManager_;
-    }
+    constructor(IPoolManager poolManager_, address owner_) Ownable(owner_) ImmutableState(poolManager_) { }
 
     /// @notice Checks if the `msg.sender` is an approved migrator
     modifier onlyApprovedMigrator() {
@@ -127,9 +126,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
     }
 
     /// @inheritdoc FeesManager
-    function _collectFees(
-        PoolId poolId
-    ) internal override returns (BalanceDelta fees) {
+    function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         StreamData memory stream = streams[poolId];
         require(stream.startDate != 0, StreamNotFound());
 
@@ -154,9 +151,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
      * @notice Approves a migrator
      * @param migrator Address of the migrator
      */
-    function approveMigrator(
-        address migrator
-    ) external onlyOwner {
+    function approveMigrator(address migrator) external onlyOwner {
         if (!approvedMigrators[migrator]) {
             approvedMigrators[migrator] = true;
             emit MigratorApproval(address(migrator), true);
@@ -167,9 +162,7 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
      * @notice Revokes a migrator
      * @param migrator Address of the migrator
      */
-    function revokeMigrator(
-        address migrator
-    ) external onlyOwner {
+    function revokeMigrator(address migrator) external onlyOwner {
         if (approvedMigrators[migrator]) {
             approvedMigrators[migrator] = false;
             emit MigratorApproval(address(migrator), false);

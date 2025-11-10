@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 
 /**
  * @title Doppler Hook Interface
@@ -18,7 +19,7 @@ interface IDook {
      * @param asset Address of the asset token
      * @param data Extra data to pass to the hook
      */
-    function onInitialization(address asset, bytes calldata data) external;
+    function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external;
 
     /**
      * @notice Called before every swap executed on the pool
@@ -31,6 +32,7 @@ interface IDook {
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
         bytes calldata data
     ) external;
 
@@ -39,5 +41,5 @@ interface IDook {
      * @param asset Address of the asset token
      * @param data Extra data to pass to the hook
      */
-    function onGraduation(address asset, bytes calldata data) external;
+    function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external;
 }
