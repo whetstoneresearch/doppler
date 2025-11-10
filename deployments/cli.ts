@@ -58,6 +58,11 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://sepolia.arbiscan.io/',
     isTestnet: true,
   },
+  143: {
+    name: 'Monad Mainnet',
+    explorerUrl: '',
+    isTestnet: false,
+  },
 };
 
 type Transaction = {
