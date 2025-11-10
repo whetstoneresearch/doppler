@@ -15,7 +15,7 @@ import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
 import { IDook } from "src/interfaces/IDook.sol";
@@ -228,7 +228,8 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         uint256 totalTokensOnBondingCurve,
         bytes32,
         bytes calldata data
-    ) external override onlyAirlock returns (address) {
+    ) external override returns (address) {
+        require(msg.sender == address(airlock), SenderNotAirlock());
         require(
             getState[asset].status == PoolStatus.Uninitialized,
             WrongPoolStatus(PoolStatus.Uninitialized, getState[asset].status)
@@ -346,7 +347,6 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     /// @inheritdoc IPoolInitializer
     function exitLiquidity(address asset)
         external
-        onlyAirlock
         returns (
             uint160 sqrtPriceX96,
             address token0,
@@ -357,6 +357,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
             uint128 balance1
         )
     {
+        require(msg.sender == address(airlock), SenderNotAirlock());
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Initialized, WrongPoolStatus(PoolStatus.Initialized, state.status));
         getState[asset].status = PoolStatus.Exited;
@@ -465,7 +466,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
             revert ArrayLengthsMismatch();
         }
 
-        for (uint256 i; i != length; ++i) {
+        for (uint256 i; i != length; i++) {
             isDookEnabled[dooks[i]] = flags[i];
             emit SetDookState(dooks[i], flags[i]);
         }
@@ -546,24 +547,6 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     }
 
     /// @inheritdoc BaseHook
-    function _beforeSwap(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata data
-    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
-        /*
-        address asset = getAsset[key.toId()];
-        PoolState memory state = getState[asset];
-        address dook = state.dook;
-        if (dook != address(0) && isDookEnabled[dook] > 0 && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
-            IDook(dook).onSwap(sender, key, params, data);
-        }
-        */
-        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
-    }
-
-    /// @inheritdoc BaseHook
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -574,7 +557,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         address asset = getAsset[key.toId()];
         PoolState memory state = getState[asset];
         address dook = state.dook;
-        if (dook != address(0) && isDookEnabled[dook] > 0 && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
+        if (dook != address(0) && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
             IDook(dook).onSwap(sender, key, params, balanceDelta, data);
         }
         emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
@@ -590,7 +573,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
             beforeRemoveLiquidity: false,
             afterAddLiquidity: true,
             afterRemoveLiquidity: true,
-            beforeSwap: true,
+            beforeSwap: false,
             afterSwap: true,
             beforeDonate: false,
             afterDonate: false,
