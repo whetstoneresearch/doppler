@@ -22,6 +22,7 @@ error NoCountryCode();
 error MalformedCountryCode();
 
 struct PoolInfo {
+    Doppler hook;
     bool isToken0;
     PoolId poolId;
 }
@@ -142,22 +143,25 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
         uint256 tokenAmount
     ) internal {
         if (block.timestamp < buyLimitEnd && from == address(buyLimitedPoolManager)) {
-            // Country code of buyer must be set
-            require(bytes(getCountryCode[to]).length == 2, NoCountryCode());
-
             // Get pool info
-            (bool isToken0, PoolId poolId) = getBuyLimitPoolInfo();
+            (bool earlyExit, bool isToken0, PoolId poolId) = getBuyLimitPoolInfo();
 
-            // Get numeraire amount (limit uses numeraire amounts, not token amounts)
-            (uint160 sqrtPrice,,,) = buyLimitedPoolManager.getSlot0(poolId);
-            uint256 numeraireAmount = _getQuoteAtPrice(isToken0, tokenAmount, sqrtPrice);
+            // Early exit also applies to buy limit period
+            if (!earlyExit) {
+                // Country code of buyer must be set
+                require(bytes(getCountryCode[to]).length == 2, NoCountryCode());
 
-            // Resulting spent amount must stay within buy limit
-            getSpentAmounts[to] += numeraireAmount;
-            require(getSpentAmounts[to] <= spendLimitAmount, BuyLimitExceeded());
+                // Get numeraire amount (limit uses numeraire amounts, not token amounts)
+                (uint160 sqrtPrice,,,) = buyLimitedPoolManager.getSlot0(poolId);
+                uint256 numeraireAmount = _getQuoteAtPrice(isToken0, tokenAmount, sqrtPrice);
 
-            // Emit receipt for tokens bought during the buy limit, with data for legal compliance
-            emit Receipt(to, getCountryCode[to], tokenAmount, numeraireAmount);
+                // Resulting spent amount must stay within buy limit
+                getSpentAmounts[to] += numeraireAmount;
+                require(getSpentAmounts[to] <= spendLimitAmount, BuyLimitExceeded());
+
+                // Emit receipt for tokens bought during the buy limit, with data for legal compliance
+                emit Receipt(to, getCountryCode[to], tokenAmount, numeraireAmount);
+            }
         }
     }
 
@@ -173,7 +177,7 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
         return isToken0 ? depositAmount1 : depositAmount0;
     }
 
-    function getBuyLimitPoolInfo() public returns (bool isToken0, PoolId poolId) {
+    function getBuyLimitPoolInfo() public returns (bool earlyExit, bool isToken0, PoolId poolId) {
         // The first time pool info is accessed, save it to avoid the many expensive storage reads
         if (PoolId.unwrap(_buyLimitPoolInfo.poolId) == "") {
             (,,,,, address pool,,,,) = airlock.getAssetData(address(this));
@@ -182,10 +186,10 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) = doppler.poolKey();
             poolId = PoolKey(currency0, currency1, fee, tickSpacing, hooks).toId();
 
-            _buyLimitPoolInfo = PoolInfo(isToken0, poolId);
-            return (isToken0, poolId);
+            _buyLimitPoolInfo = PoolInfo(doppler, isToken0, poolId);
+            return (doppler.earlyExit(), isToken0, poolId);
         } else {
-            return (_buyLimitPoolInfo.isToken0, _buyLimitPoolInfo.poolId);
+            return (_buyLimitPoolInfo.hook.earlyExit(), _buyLimitPoolInfo.isToken0, _buyLimitPoolInfo.poolId);
         }
     }
 }
