@@ -12,7 +12,7 @@ import { DERC20 } from "src/DERC20.sol";
 import { Doppler } from "src/Doppler.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 
-/// @dev Thrown when trying to mint before the start date
+/// @dev Thrown when trying to buy more than the per-address buy limit amount
 error BuyLimitExceeded();
 
 struct PoolInfo {
