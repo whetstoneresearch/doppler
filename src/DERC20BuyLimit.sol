@@ -15,6 +15,12 @@ import { MigrationMath } from "src/libraries/MigrationMath.sol";
 /// @dev Thrown when trying to buy more than the per-address buy limit amount
 error BuyLimitExceeded();
 
+/// @dev Thrown when an address tries to buy tokens without having set its country code during the buy limit period
+error NoCountryCode();
+
+/// @dev Thrown when trying to set a malformed ISO 3166-1 code. Not all cases are verified, only basic 2-letter format.
+error MalformedCountryCode();
+
 struct PoolInfo {
     bool isToken0;
     PoolId poolId;
@@ -36,6 +42,9 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
 
     /// @notice Amount of numeraire spent on tokens by each address during the buy limit period
     mapping(address => uint256) public getSpentAmounts;
+
+    /// @notice ISO 3166-1 alpha-2 two-letter country code. Required for each address during the buy limit period
+    mapping(address => string) public getCountryCode;
 
     /// @notice Pool information necessary to enforce buy limits, delayed initialization via getBuyLimitPoolInfo
     PoolInfo internal _buyLimitPoolInfo;
@@ -91,6 +100,24 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
         spendLimitAmount = spendLimitAmount_;
     }
 
+    function _isValidCountryCodeLetter(
+        bytes1 letter
+    ) internal pure returns (bool) {
+        return letter >= "A" && letter <= "Z";
+    }
+
+    function setCountryCode(
+        string calldata countryCode
+    ) external {
+        bytes calldata countryCodeBytes = bytes(countryCode);
+        require(
+            countryCodeBytes.length == 2 && _isValidCountryCodeLetter(countryCodeBytes[0])
+                && _isValidCountryCodeLetter(countryCodeBytes[1]),
+            MalformedCountryCode()
+        );
+        getCountryCode[msg.sender] = countryCode;
+    }
+
     function _update(
         address from,
         address to,
@@ -106,6 +133,9 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
         uint256 tokenAmount
     ) internal {
         if (block.timestamp < buyLimitEnd && from == address(buyLimitedPoolManager)) {
+            // Country code of buyer must be set
+            require(bytes(getCountryCode[to]).length == 2, NoCountryCode());
+
             // Get pool info
             (bool isToken0, PoolId poolId) = getBuyLimitPoolInfo();
 

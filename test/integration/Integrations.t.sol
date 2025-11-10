@@ -23,7 +23,7 @@ import {
     prepareGovernanceFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
 import { Doppler } from "src/Doppler.sol";
-import { BuyLimitExceeded } from "src/DERC20BuyLimit.sol";
+import { DERC20BuyLimit, BuyLimitExceeded, NoCountryCode } from "src/DERC20BuyLimit.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { TokenFactoryBuyLimit } from "src/TokenFactoryBuyLimit.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
@@ -423,6 +423,29 @@ contract TokenFactoryBuyLimitUniswapV4InitializerNoOpGovernanceFactoryUniswapV4M
 
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(pool)).poolKey();
+
+            vm.prank(buyer);
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    CustomRevert.WrappedError.selector,
+                    asset,
+                    IERC20.transfer.selector,
+                    abi.encodeWithSelector(NoCountryCode.selector),
+                    abi.encodeWithSelector(CurrencyLibrary.ERC20TransferFailed.selector)
+                )
+            );
+            swapRouter.swap{ value: 0.000_01 ether }(
+                PoolKey({
+                    currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
+                }),
+                IPoolManager.SwapParams(true, -int256(0.000_01 ether), TickMath.MIN_SQRT_PRICE + 1),
+                PoolSwapTest.TestSettings(false, false),
+                ""
+            );
+
+            DERC20BuyLimit token = DERC20BuyLimit(Currency.unwrap(currency1));
+            vm.prank(buyer);
+            token.setCountryCode("US");
 
             vm.prank(buyer);
             swapRouter.swap{ value: 0.0001 ether }(
