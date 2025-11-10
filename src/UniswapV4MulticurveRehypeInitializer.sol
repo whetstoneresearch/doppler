@@ -207,6 +207,8 @@ contract UniswapV4MulticurveRehypeInitializer is IPoolInitializer, FeesManager, 
             .setFeeDistributionForPool(
                 poolKey.toId(),
                 asset,
+                numeraire,
+                address(1), // temp hardcode to address(1) for testing
                 initData.customFee,
                 initData.buybackPercentWad,
                 initData.creatorPercentWad,
@@ -295,6 +297,6 @@ contract UniswapV4MulticurveRehypeInitializer is IPoolInitializer, FeesManager, 
     ) internal override returns (BalanceDelta fees) {
         PoolState memory state = getState[getAsset[poolId]];
         require(state.status == PoolStatus.Locked, PoolNotLocked());
-        IRehypeHook(address(HOOK)).collectFees(poolId);
+        fees = IRehypeHook(address(HOOK)).collectFees(poolId);
     }
 }

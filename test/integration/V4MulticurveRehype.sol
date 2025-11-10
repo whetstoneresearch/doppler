@@ -30,6 +30,7 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { BeneficiaryFees, FeeDistributionInfo } from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
 import { console } from "forge-std/console.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -161,63 +162,13 @@ contract V4MulticurveInitializer is Deployers {
     function test_rehype_MulticurveInitializerRehypeV4_quote_for_asset_only(
         bytes32 salt
     ) public {
-        string memory name = "Test Token";
-        string memory symbol = "TEST";
-        uint256 initialSupply = 1e27;
-
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
-
-        InitData memory initData = _prepareInitData(tokenAddress);
-
-        CreateParams memory params = CreateParams({
-            initialSupply: initialSupply,
-            numTokensToSell: initialSupply,
-            numeraire: address(numeraire),
-            tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
-            governanceFactory: IGovernanceFactory(governanceFactory),
-            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
-            poolInitializer: IPoolInitializer(initializer),
-            poolInitializerData: abi.encode(initData),
-            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
-            liquidityMigratorData: new bytes(0),
-            integrator: address(0),
-            salt: salt
-        });
-
-        (address asset,,,,) = airlock.create(params);
-        require(asset == tokenAddress, "Asset address mismatch");
-
-        vm.label(asset, "Asset");
-        bool isToken0 = asset < address(numeraire);
-
+        (bool isToken0,) = _createToken(salt);
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: 1 ether,
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        numeraire.approve(address(swapRouter), type(uint256).max);
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
@@ -225,66 +176,68 @@ contract V4MulticurveInitializer is Deployers {
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
     }
 
+    function test_rehype_MulticurveInitializerRehypeV4_increases_beneficiary_fees(
+        bytes32 salt
+    ) public {
+        (bool isToken0,) = _createToken(salt);
+        IPoolManager.SwapParams memory swapParamsQuoteIn = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        BalanceDelta initialSwapDeltas =
+            swapRouter.swap(poolKey, swapParamsQuoteIn, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        IPoolManager.SwapParams memory swapParamsQuoteOut = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: -int256(isToken0 ? initialSwapDeltas.amount1() / 2 : initialSwapDeltas.amount0() / 2),
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(poolKey, swapParamsQuoteOut, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (uint128 beneficiaryFees0, uint128 beneficiaryFees1) = multicurveHook.getBeneficiaryFees(poolId);
+        assertGt(beneficiaryFees0, 0, "Beneficiary fees not increased");
+        assertGt(beneficiaryFees1, 0, "Beneficiary fees not increased");
+    }
+
+    function test_rehype_MulticurveRehypeInitializerHook_collect_fees(
+        bytes32 salt
+    ) public {
+        (bool isToken0,) = _createToken(salt);
+
+        IPoolManager.SwapParams memory swapParamsQuoteIn = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        BalanceDelta initialSwapDeltas =
+            swapRouter.swap(poolKey, swapParamsQuoteIn, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        IPoolManager.SwapParams memory swapParamsQuoteOut = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: -int256(isToken0 ? initialSwapDeltas.amount1() / 2 : initialSwapDeltas.amount0() / 2),
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(poolKey, swapParamsQuoteOut, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (uint128 fees0, uint128 fees1) = initializer.collectFees(poolId);
+        assertGt(fees0, 0, "Fees not collected");
+        assertGt(fees1, 0, "Fees not collected");
+    }
+
     function test_rehype_MulticurveRehypeInitializerHook_mixed_swap_types(
         bytes32 salt
     ) public {
-        string memory name = "Test Token";
-        string memory symbol = "TEST";
-        uint256 initialSupply = 1e27;
-
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
-
-        InitData memory initData = _prepareInitData(tokenAddress);
-
-        CreateParams memory params = CreateParams({
-            initialSupply: initialSupply,
-            numTokensToSell: initialSupply,
-            numeraire: address(numeraire),
-            tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
-            governanceFactory: IGovernanceFactory(governanceFactory),
-            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
-            poolInitializer: IPoolInitializer(initializer),
-            poolInitializerData: abi.encode(initData),
-            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
-            liquidityMigratorData: new bytes(0),
-            integrator: address(0),
-            salt: salt
-        });
-
-        (address asset,,,,) = airlock.create(params);
-        require(asset == tokenAddress, "Asset address mismatch");
-
-        vm.label(asset, "Asset");
-        bool isToken0 = asset < address(numeraire);
-
+        (bool isToken0,) = _createToken(salt);
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: 1 ether,
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        numeraire.approve(address(swapRouter), type(uint256).max);
         BalanceDelta delta1 =
             swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
         BalanceDelta delta2 =
@@ -300,8 +253,6 @@ contract V4MulticurveInitializer is Deployers {
         deltas = deltas + delta2;
         deltas = deltas + delta3;
         deltas = deltas + delta4;
-
-        TestERC20(asset).approve(address(swapRouter), type(uint256).max);
 
         IPoolManager.SwapParams memory swapParams2 = IPoolManager.SwapParams({
             zeroForOne: isToken0,
@@ -335,15 +286,73 @@ contract V4MulticurveInitializer is Deployers {
         });
         poolId = poolKey.toId();
 
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x07), shares: uint96(0.95e18) });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: uint96(0.05e18) });
+
         return InitData({
             fee: 0,
             tickSpacing: tickSpacing,
             curves: curves,
-            beneficiaries: new BeneficiaryData[](0),
+            beneficiaries: beneficiaries,
             customFee: 3000,
             buybackPercentWad: 0.3e18,
             creatorPercentWad: 0.3e18,
             lpPercentWad: 0.4e18
         });
+    }
+
+    function _createToken(
+        bytes32 salt
+    ) internal returns (bool isToken0, address asset) {
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData = _prepareInitData(tokenAddress);
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        (asset,,,,) = airlock.create(params);
+        vm.label(asset, "Asset");
+        isToken0 = asset < address(numeraire);
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        TestERC20(asset).approve(address(swapRouter), type(uint256).max);
     }
 }
