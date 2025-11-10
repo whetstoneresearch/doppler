@@ -44,6 +44,13 @@
     "UniswapV3Initializer": "0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
   },
+  "6343": {
+    "Airlock": "0x136191b46478cab023cbc01a36160c4aad81677a",
+    "AirlockMultisig": "0x014e1c0bd34f3b10546e554cb33b3293fecdd056",
+    "LockableUniswapV3Initializer": "0x8b4c7db9121fc885689c0a50d5a1429f15aec2a0",
+    "NoOpGovernanceFactory": "0xc99b485499f78995c6f1640dbb1413c57f8ba684",
+    "NoOpMigrator": "0xce3099b2f07029b086e5e92a1573c5f5a3071783"
+  },
   "8453": {
     "Airlock": "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12",
     "Bundler": "0x136191B46478cAB023cbC01a36160C4Aad81677a",

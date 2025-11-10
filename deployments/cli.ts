@@ -58,6 +58,11 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://sepolia.arbiscan.io/',
     isTestnet: true,
   },
+  6343: {
+    name: 'MegaETH Testnet',
+    explorerUrl: '',
+    isTestnet: true,
+  }
 };
 
 type Transaction = {
