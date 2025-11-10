@@ -267,7 +267,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         }
 
         if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDook(dook).onInitialization(asset, onInitializationDookCalldata);
+            IDook(dook).onInitialization(asset, poolKey, onInitializationDookCalldata);
         }
 
         // Uniswap V4 pools don't have addresses, so we are returning the asset address
@@ -413,7 +413,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         getState[asset].graduationDookCalldata = onGraduationCalldata;
         emit SetDook(asset, dook);
 
-        IDook(dook).onInitialization(asset, onInitializationCalldata);
+        IDook(dook).onInitialization(asset, state.poolKey, onInitializationCalldata);
     }
 
     /**
@@ -434,7 +434,8 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
 
         getState[asset].status = PoolStatus.Graduated;
         emit Graduate(asset);
-        IDook(dook).onGraduation(asset, state.graduationDookCalldata);
+
+        IDook(dook).onGraduation(asset, state.poolKey, state.graduationDookCalldata);
     }
 
     /**

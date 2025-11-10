@@ -18,7 +18,7 @@ interface IDook {
      * @param asset Address of the asset token
      * @param data Extra data to pass to the hook
      */
-    function onInitialization(address asset, bytes calldata data) external;
+    function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external;
 
     /**
      * @notice Called before every swap executed on the pool
@@ -39,5 +39,5 @@ interface IDook {
      * @param asset Address of the asset token
      * @param data Extra data to pass to the hook
      */
-    function onGraduation(address asset, bytes calldata data) external;
+    function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external;
 }

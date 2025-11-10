@@ -55,8 +55,8 @@ abstract contract BaseDook is IDook {
      * @param asset Address of the asset being initialized in the Dook Multicurve Initializer
      * @param data Arbitrary data passed from the initializer to be consumed by the Dook
      */
-    function onInitialization(address asset, bytes calldata data) external onlyInitializer {
-        _onInitialization(asset, data);
+    function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
+        _onInitialization(asset, key, data);
     }
 
     /**
@@ -80,12 +80,12 @@ abstract contract BaseDook is IDook {
      * @param asset Address of the asset being graduated in the Dook Multicurve Initializer
      * @param data Arbitrary data passed from the initializer to be consumed by the Dook
      */
-    function onGraduation(address asset, bytes calldata data) external onlyInitializer {
-        _onGraduation(asset, data);
+    function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
+        _onGraduation(asset, key, data);
     }
 
     /// @dev Internal function to be overridden for initialization logic
-    function _onInitialization(address asset, bytes calldata data) internal virtual { }
+    function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal virtual { }
 
     /// @dev Internal function to be overridden for swap logic
     function _onSwap(
@@ -96,5 +96,5 @@ abstract contract BaseDook is IDook {
     ) internal virtual { }
 
     /// @dev Internal function to be overridden for graduation logic
-    function _onGraduation(address asset, bytes calldata data) internal virtual { }
+    function _onGraduation(address asset, PoolKey calldata key, bytes calldata data) internal virtual { }
 }
