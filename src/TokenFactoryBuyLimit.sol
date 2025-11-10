@@ -38,7 +38,7 @@ contract TokenFactoryBuyLimit is ITokenFactory, ImmutableAirlock {
             string memory tokenURI,
             IPoolManager buyLimitedPoolManager_,
             uint256 buyLimitEnd_,
-            uint256 buyLimitAmount_
+            uint256 spendLimitAmount_
         ) = abi.decode(
             data, (string, string, uint256, uint256, address[], uint256[], string, IPoolManager, uint256, uint256)
         );
@@ -57,7 +57,7 @@ contract TokenFactoryBuyLimit is ITokenFactory, ImmutableAirlock {
                 tokenURI,
                 buyLimitedPoolManager_,
                 buyLimitEnd_,
-                buyLimitAmount_,
+                spendLimitAmount_,
                 address(airlock)
             )
         );
