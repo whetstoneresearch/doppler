@@ -14,6 +14,7 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import {
@@ -33,7 +34,9 @@ import {
     SetDook,
     SetDookState,
     UnreachableFarTick,
-    OnlyInitializer
+    OnlyInitializer,
+    ModifyLiquidity,
+    Swap
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -45,9 +48,9 @@ import { IDook } from "src/interfaces/IDook.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";
 
 contract MockDook is IDook {
-    function onInitialization(address, bytes calldata) external { }
+    function onInitialization(address, PoolKey calldata, bytes calldata) external { }
     function onSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata) external { }
-    function onGraduation(address, bytes calldata) external { }
+    function onGraduation(address, PoolKey calldata, bytes calldata) external { }
 }
 
 contract DookMulticurveInitializerTest is Deployers {
@@ -219,7 +222,9 @@ contract DookMulticurveInitializerTest is Deployers {
 
         vm.expectCall(
             address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, asset, initData.onInitializationDookCalldata)
+            abi.encodeWithSelector(
+                IDook.onInitialization.selector, asset, poolKey, initData.onInitializationDookCalldata
+            )
         );
 
         vm.prank(address(airlock));
@@ -447,7 +452,8 @@ contract DookMulticurveInitializerTest is Deployers {
         );
 
         vm.expectCall(
-            address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, asset, onInitializationCalldata)
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
         );
         vm.expectEmit();
         emit SetDook(asset, address(dook));
@@ -485,7 +491,8 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.delegateAuthority(address(this));
 
         vm.expectCall(
-            address(dook), abi.encodeWithSelector(IDook.onInitialization.selector, asset, onInitializationCalldata)
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
         );
         vm.expectEmit();
         emit SetDook(asset, address(dook));
@@ -517,7 +524,7 @@ contract DookMulticurveInitializerTest is Deployers {
 
         vm.expectCall(
             address(dook),
-            abi.encodeWithSelector(MockDook.onGraduation.selector, asset, initData.graduationDookCalldata)
+            abi.encodeWithSelector(MockDook.onGraduation.selector, asset, poolKey, initData.graduationDookCalldata)
         );
 
         vm.expectEmit();
@@ -582,6 +589,89 @@ contract DookMulticurveInitializerTest is Deployers {
     function test_beforeInitialize_PassesWhenSenderParamInitializer() public {
         vm.prank(address(manager));
         initializer.beforeInitialize(address(initializer), key, 0);
+    }
+
+    /* --------------------------------------------------------------------------------- */
+    /*                                afterAddLiquidity()                                */
+    /* --------------------------------------------------------------------------------- */
+
+    function test_afterAddLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        initializer.afterAddLiquidity(
+            address(0),
+            key,
+            IPoolManager.ModifyLiquidityParams(0, 0, 0, 0),
+            BalanceDeltaLibrary.ZERO_DELTA,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
+    function test_afterAddLiquidity_PassesWhenMsgSenderPoolManager(
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params
+    ) public {
+        vm.expectEmit();
+        emit ModifyLiquidity(key, params);
+
+        vm.prank(address(manager));
+        initializer.afterAddLiquidity(
+            address(0), key, params, BalanceDeltaLibrary.ZERO_DELTA, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
+        );
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                beforeSwap()                                */
+    /* -------------------------------------------------------------------------- */
+
+    function test_beforeSwap_RevertsWhenMsgSenderNotPoolManager(PoolKey calldata key) public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        initializer.beforeSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            new bytes(0)
+        );
+    }
+
+    function test_beforeSwap_CallsOnSwapWhenDookSet(
+        bool isToken0,
+        address sender,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) public {
+        test_initialize_LocksPoolWithDook(isToken0);
+        vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onSwap.selector, sender, poolKey, params, data));
+        vm.prank(address(manager));
+        initializer.beforeSwap(sender, poolKey, params, data);
+    }
+
+    /* ------------------------------------------------------------------------- */
+    /*                                afterSwap()                                */
+    /* ------------------------------------------------------------------------- */
+
+    function test_afterSwap_RevertsWhenMsgSenderNotPoolManager(PoolKey calldata key) public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        initializer.afterSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
+    function test_afterSwap_PassesWhenMsgSenderPoolManager(
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        int128 balanceDelta0,
+        int128 balanceDelta1,
+        bytes calldata hookData
+    ) public {
+        vm.expectEmit();
+        emit Swap(address(this), key, key.toId(), params, balanceDelta0, balanceDelta1, hookData);
+        vm.prank(address(manager));
+        initializer.afterSwap(address(this), key, params, toBalanceDelta(balanceDelta0, balanceDelta1), hookData);
     }
 
     /* ----------------------------------------------------------------------- */
