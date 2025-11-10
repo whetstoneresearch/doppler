@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 
 /**
  * @title Doppler Hook Interface
@@ -31,6 +32,7 @@ interface IDook {
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
         bytes calldata data
     ) external;
 

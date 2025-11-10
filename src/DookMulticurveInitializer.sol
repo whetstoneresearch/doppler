@@ -552,12 +552,14 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         IPoolManager.SwapParams calldata params,
         bytes calldata data
     ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        /*
         address asset = getAsset[key.toId()];
         PoolState memory state = getState[asset];
         address dook = state.dook;
         if (dook != address(0) && isDookEnabled[dook] > 0 && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
             IDook(dook).onSwap(sender, key, params, data);
         }
+        */
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
@@ -566,10 +568,16 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
-        BalanceDelta delta,
-        bytes calldata hookData
+        BalanceDelta balanceDelta,
+        bytes calldata data
     ) internal override returns (bytes4, int128) {
-        emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
+        address asset = getAsset[key.toId()];
+        PoolState memory state = getState[asset];
+        address dook = state.dook;
+        if (dook != address(0) && isDookEnabled[dook] > 0 && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
+            IDook(dook).onSwap(sender, key, params, balanceDelta, data);
+        }
+        emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
         return (BaseHook.afterSwap.selector, 0);
     }
 

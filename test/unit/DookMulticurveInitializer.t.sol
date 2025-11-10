@@ -14,7 +14,7 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BalanceDeltaLibrary, toBalanceDelta, BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import {
@@ -49,7 +49,13 @@ import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/ba
 
 contract MockDook is IDook {
     function onInitialization(address, PoolKey calldata, bytes calldata) external { }
-    function onSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata) external { }
+    function onSwap(
+        address,
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata,
+        BalanceDelta,
+        bytes calldata
+    ) external { }
     function onGraduation(address, PoolKey calldata, bytes calldata) external { }
 }
 
@@ -640,6 +646,7 @@ contract DookMulticurveInitializerTest is Deployers {
         IPoolManager.SwapParams calldata params,
         bytes calldata data
     ) public {
+        vm.skip(true);
         test_initialize_LocksPoolWithDook(isToken0);
         vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onSwap.selector, sender, poolKey, params, data));
         vm.prank(address(manager));
@@ -664,14 +671,28 @@ contract DookMulticurveInitializerTest is Deployers {
     function test_afterSwap_PassesWhenMsgSenderPoolManager(
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
-        int128 balanceDelta0,
-        int128 balanceDelta1,
+        BalanceDelta balanceDelta,
         bytes calldata hookData
     ) public {
         vm.expectEmit();
-        emit Swap(address(this), key, key.toId(), params, balanceDelta0, balanceDelta1, hookData);
+        emit Swap(address(this), key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), hookData);
         vm.prank(address(manager));
-        initializer.afterSwap(address(this), key, params, toBalanceDelta(balanceDelta0, balanceDelta1), hookData);
+        initializer.afterSwap(address(this), key, params, balanceDelta, hookData);
+    }
+
+    function test_afterSwap_CallsOnSwapWhenDookSet(
+        bool isToken0,
+        address sender,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta balanceDelta,
+        bytes calldata data
+    ) public {
+        test_initialize_LocksPoolWithDook(isToken0);
+        vm.expectCall(
+            address(dook), abi.encodeWithSelector(IDook.onSwap.selector, sender, poolKey, params, balanceDelta, data)
+        );
+        vm.prank(address(manager));
+        initializer.afterSwap(sender, poolKey, params, balanceDelta, data);
     }
 
     /* ----------------------------------------------------------------------- */

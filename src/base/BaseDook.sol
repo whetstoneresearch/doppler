@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { IDook } from "src/interfaces/IDook.sol";
 
 /// @notice Thrown when the msg.sender is not the Dook Multicurve Initializer contract
@@ -70,9 +71,10 @@ abstract contract BaseDook is IDook {
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
+        BalanceDelta balanceDelta,
         bytes calldata data
     ) external onlyHook {
-        _onSwap(sender, key, params, data);
+        _onSwap(sender, key, params, balanceDelta, data);
     }
 
     /**
@@ -92,6 +94,7 @@ abstract contract BaseDook is IDook {
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
+        BalanceDelta balanceDelta,
         bytes calldata data
     ) internal virtual { }
 
