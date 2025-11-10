@@ -26,6 +26,15 @@ struct PoolInfo {
     PoolId poolId;
 }
 
+/**
+ * @notice Receipt for tokens bought during the buy limit, with data for legal compliance
+ * @param buyer Address of the buyer
+ * @param countryCode ISO 3166-1 alpha-2 two-letter country code
+ * @param tokenAmount Amount of tokens purchased
+ * @param numeraireAmount Amount of numeraire spent
+ */
+event Receipt(address indexed buyer, string indexed countryCode, uint256 tokenAmount, uint256 numeraireAmount);
+
 /// @notice DERC20 token with a temporary per-address purchase limit from a predefined address
 contract DERC20BuyLimit is DERC20, ImmutableAirlock {
     using PoolIdLibrary for PoolKey;
@@ -146,6 +155,9 @@ contract DERC20BuyLimit is DERC20, ImmutableAirlock {
             // Resulting spent amount must stay within buy limit
             getSpentAmounts[to] += numeraireAmount;
             require(getSpentAmounts[to] <= spendLimitAmount, BuyLimitExceeded());
+
+            // Emit receipt for tokens bought during the buy limit, with data for legal compliance
+            emit Receipt(to, getCountryCode[to], tokenAmount, numeraireAmount);
         }
     }
 
