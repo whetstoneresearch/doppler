@@ -15,6 +15,7 @@ contract DookMock is BaseDook {
 
 contract BaseDookTest is Test {
     DookMock baseDook;
+    PoolKey key;
 
     address initializer = makeAddr("initializer");
     address hook = makeAddr("hook");
@@ -38,12 +39,12 @@ contract BaseDookTest is Test {
 
     function test_onInitialization_RevertsWhenMsgSenderNotInitializer() public {
         vm.expectRevert(SenderNotInitializer.selector);
-        baseDook.onInitialization(address(0), new bytes(0));
+        baseDook.onInitialization(address(0), key, new bytes(0));
     }
 
     function test_onInitialization_PassesWhenMsgSenderInitializer() public {
         vm.prank(initializer);
-        baseDook.onInitialization(address(0), new bytes(0));
+        baseDook.onInitialization(address(0), key, new bytes(0));
     }
 
     /* ------------------------------------------------------------------------------ */
@@ -52,12 +53,12 @@ contract BaseDookTest is Test {
 
     function test_onGraduation_RevertsWhenMsgSenderNotInitializer() public {
         vm.expectRevert(SenderNotInitializer.selector);
-        baseDook.onGraduation(address(0), new bytes(0));
+        baseDook.onGraduation(address(0), key, new bytes(0));
     }
 
     function test_onGraduation_PassesWhenMsgSenderInitializer() public {
         vm.prank(initializer);
-        baseDook.onGraduation(address(0), new bytes(0));
+        baseDook.onGraduation(address(0), key, new bytes(0));
     }
 
     /* ------------------------------------------------------------------------------ */
