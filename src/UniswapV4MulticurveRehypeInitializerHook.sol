@@ -272,6 +272,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
 
         if (assetBuybackAmount > 0) {
+            // do not need to check poolManager balance - its assumed that there will always be liquidity in asset because of the full range liquidity position
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountIn) =
                 _executeSwap(key, !isToken0, assetBuybackAmount);
             isToken0
@@ -283,6 +284,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
         if (numeraireBuybackAmount > 0) {
             Currency outputCurrency = isToken0 ? key.currency1 : key.currency0;
+            // must check poolManager balance or else this will revert on failed transfer due to missing tokens
             if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > numeraireBuybackAmount) {
                 (, uint256 numeraireBuybackAmountOut, uint256 numeraireBuybackAmountIn) =
                     _executeSwap(key, isToken0, numeraireBuybackAmount);
