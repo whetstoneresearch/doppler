@@ -16,7 +16,8 @@ interface IRehypeHook {
         address numeraire,
         address buybackDst,
         uint24 customFee,
-        uint256 buybackPercentWad,
+        uint256 assetBuybackPercentWad,
+        uint256 numeraireBuybackPercentWad,
         uint256 beneficiaryPercentWad,
         uint256 lpPercentWad
     ) external;

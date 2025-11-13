@@ -52,9 +52,10 @@ struct InitData {
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
     uint24 customFee;
-    uint256 buybackPercentWad;
-    uint256 creatorPercentWad;
-    uint256 lpPercentWad;
+    uint96 assetBuybackPercentWad;
+    uint96 numeraireBuybackPercentWad;
+    uint96 beneficiaryPercentWad;
+    uint96 lpPercentWad;
 }
 
 /// @notice Possible status of a pool, note a locked pool cannot be exited
@@ -210,8 +211,9 @@ contract UniswapV4MulticurveRehypeInitializer is IPoolInitializer, FeesManager, 
                 numeraire,
                 address(1), // temp hardcode to address(1) for testing
                 initData.customFee,
-                initData.buybackPercentWad,
-                initData.creatorPercentWad,
+                initData.assetBuybackPercentWad,
+                initData.numeraireBuybackPercentWad,
+                initData.beneficiaryPercentWad,
                 initData.lpPercentWad
             );
 
