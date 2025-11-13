@@ -30,7 +30,7 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { BeneficiaryFees, FeeDistributionInfo } from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
+import { FeeDistributionInfo } from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
 import { console } from "forge-std/console.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -196,7 +196,7 @@ contract V4MulticurveInitializer is Deployers {
 
         swapRouter.swap(poolKey, swapParamsQuoteOut, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
-        (uint128 beneficiaryFees0, uint128 beneficiaryFees1) = multicurveHook.getBeneficiaryFees(poolId);
+        (,,, uint128 beneficiaryFees0, uint128 beneficiaryFees1) = multicurveHook.getHookFees(poolId);
         assertGt(beneficiaryFees0, 0, "Beneficiary fees not increased");
         assertGt(beneficiaryFees1, 0, "Beneficiary fees not increased");
     }
@@ -307,9 +307,10 @@ contract V4MulticurveInitializer is Deployers {
             curves: curves,
             beneficiaries: beneficiaries,
             customFee: 3000,
-            buybackPercentWad: 0.3e18,
-            creatorPercentWad: 0.3e18,
-            lpPercentWad: 0.4e18
+            assetBuybackPercentWad: 0.2e18,
+            numeraireBuybackPercentWad: 0.2e18,
+            beneficiaryPercentWad: 0.3e18,
+            lpPercentWad: 0.3e18
         });
     }
 

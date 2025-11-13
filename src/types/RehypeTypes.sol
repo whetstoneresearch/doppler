@@ -8,7 +8,8 @@ struct PoolInfo {
 }
 
 struct FeeDistributionInfo {
-    uint256 buybackPercentWad;
+    uint256 assetBuybackPercentWad;
+    uint256 numeraireBuybackPercentWad;
     uint256 beneficiaryPercentWad;
     uint256 lpPercentWad;
 }
@@ -17,9 +18,6 @@ struct HookFees {
     uint24 customFee;
     uint128 fees0;
     uint128 fees1;
-}
-
-struct BeneficiaryFees {
     uint128 beneficiaryFees0;
     uint128 beneficiaryFees1;
 }
