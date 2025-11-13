@@ -215,6 +215,11 @@ contract V4MulticurveInitializer is Deployers {
         BalanceDelta initialSwapDeltas =
             swapRouter.swap(poolKey, swapParamsQuoteIn, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
+        uint256 hookBalance0 = TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(multicurveHook));
+        uint256 hookBalance1 = TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(multicurveHook));
+        console.log("hookBalance0 swap 1", hookBalance0);
+        console.log("hookBalance1 swap 1", hookBalance1);
+
         IPoolManager.SwapParams memory swapParamsQuoteOut = IPoolManager.SwapParams({
             zeroForOne: isToken0,
             amountSpecified: -int256(isToken0 ? initialSwapDeltas.amount1() / 2 : initialSwapDeltas.amount0() / 2),
@@ -223,9 +228,24 @@ contract V4MulticurveInitializer is Deployers {
 
         swapRouter.swap(poolKey, swapParamsQuoteOut, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
+        hookBalance0 = TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(multicurveHook));
+        hookBalance1 = TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(multicurveHook));
+
+        console.log("hookBalance0 swap 2", hookBalance0);
+        console.log("hookBalance1 swap 2", hookBalance1);
+
         (uint128 fees0, uint128 fees1) = initializer.collectFees(poolId);
         assertGt(fees0, 0, "Fees not collected");
         assertGt(fees1, 0, "Fees not collected");
+
+        hookBalance0 = TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(multicurveHook));
+        hookBalance1 = TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(multicurveHook));
+
+        console.log("hookBalance0 after collect fees", hookBalance0);
+        console.log("hookBalance1 after collect fees", hookBalance1);
+
+        assertEq(hookBalance0, 0, "Hook balance does not net out on token0");
+        assertEq(hookBalance1, 0, "Hook balance does not net out on token1");
     }
 
     function test_rehype_MulticurveRehypeInitializerHook_mixed_swap_types(
