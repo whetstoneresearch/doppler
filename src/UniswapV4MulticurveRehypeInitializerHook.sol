@@ -19,8 +19,8 @@ import { Quoter } from "@quoter/Quoter.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { IERC20 } from "lib/universal-router/lib/v4-periphery/lib/v4-core/lib/forge-std/src/interfaces/IERC20.sol";
-import { console } from "forge-std/console.sol";
 import { toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolState } from "src/UniswapV4MulticurveRehypeInitializer.sol";
 
 // goals
 // - create an empty full range LP position given tickSpacing
@@ -297,36 +297,26 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         bool isToken0 = key.currency0 == Currency.wrap(asset);
 
         uint256 buybackPercentWad = getFeeDistributionInfo[poolId].buybackPercentWad;
-        uint256 beneficiaryPercentWad = getFeeDistributionInfo[poolId].beneficiaryPercentWad;
         uint256 lpPercentWad = getFeeDistributionInfo[poolId].lpPercentWad;
 
         uint256 buybackAmount = isToken0
             ? FullMath.mulDiv(balance1, buybackPercentWad, 1e18)
             : FullMath.mulDiv(balance0, buybackPercentWad, 1e18);
 
-        uint256 beneficiaryAmount0 = FullMath.mulDiv(balance0, beneficiaryPercentWad, 1e18);
-        uint256 beneficiaryAmount1 = FullMath.mulDiv(balance1, beneficiaryPercentWad, 1e18);
-
         uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, 1e18);
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, 1e18);
 
         if (buybackAmount > 0) {
             (, uint256 buybackAmountOut, uint256 buybackAmountIn) = _executeSwap(key, !isToken0, buybackAmount);
-            // temp hardcode to address(1) for testing
-            // TODO: add support for sending the token to treasury?
+            // if isToken0, buyback token0 using token1
+            // otherwise buyback token1 using token0
             isToken0
-                ? key.currency0.transfer(address(1), buybackAmountOut)
-                : key.currency1.transfer(address(1), buybackAmountOut);
+                ? key.currency0.transfer(getPoolInfo[poolId].buybackDst, buybackAmountOut)
+                : key.currency1.transfer(getPoolInfo[poolId].buybackDst, buybackAmountOut);
+            // if istoken0, balance0 remains the same and balance1 decreases by buybackAmountIn
             balance0 = isToken0 ? balance0 : balance0 - buybackAmountIn;
             balance1 = isToken0 ? balance1 - buybackAmountIn : balance1;
         }
-        if (beneficiaryPercentWad > 0) {
-            balance0 -= beneficiaryAmount0;
-            balance1 -= beneficiaryAmount1;
-            getBeneficiaryFees[poolId].beneficiaryFees0 += uint128(beneficiaryAmount0);
-            getBeneficiaryFees[poolId].beneficiaryFees1 += uint128(beneficiaryAmount1);
-        }
-
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
 
         Position storage position = getPosition[poolId];
@@ -349,11 +339,22 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
             if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > swapAmountOut) {
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
-                balance0 = zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut;
-                balance1 = zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn;
-                _addFullRangeLiquidity(key, position, balance0, balance1, postSwapSqrtPrice);
+                lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
+                lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
+                (uint256 amount0Added, uint256 amount1Added) =
+                    _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
+                uint256 remainder0 = lpAmount0 - amount0Added;
+                uint256 remainder1 = lpAmount1 - amount1Added;
+                balance0 = zeroForOne ? balance0 - (amount0Added + swapAmountIn) + remainder0 : balance0 + remainder0;
+                balance1 = zeroForOne ? balance1 + remainder1 : balance1 - (amount1Added + swapAmountIn) + remainder1;
             }
         }
+
+        getBeneficiaryFees[poolId].beneficiaryFees0 += uint128(balance0);
+        getBeneficiaryFees[poolId].beneficiaryFees1 += uint128(balance1);
+
+        getHookFees[poolId].fees0 = 0;
+        getHookFees[poolId].fees1 = 0;
 
         emit Swap(sender, key, key.toId(), params, delta.amount0(), delta.amount1(), hookData);
 
@@ -472,7 +473,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint256 amount0,
         uint256 amount1,
         uint160 sqrtPriceX96
-    ) internal returns (uint256 remaining0, uint256 remaining1) {
+    ) internal returns (uint256 amount0Added, uint256 amount1Added) {
         uint128 liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(position.tickLower),
@@ -501,19 +502,8 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
 
         position.liquidity += liquidityDelta;
 
-        uint256 used0 = balanceDelta.amount0() < 0 ? uint256(uint128(-balanceDelta.amount0())) : 0;
-        uint256 used1 = balanceDelta.amount1() < 0 ? uint256(uint128(-balanceDelta.amount1())) : 0;
-        uint256 received0 = balanceDelta.amount0() > 0 ? uint256(uint128(balanceDelta.amount0())) : 0;
-        uint256 received1 = balanceDelta.amount1() > 0 ? uint256(uint128(balanceDelta.amount1())) : 0;
-
-        remaining0 = amount0 + received0;
-        remaining0 = used0 > remaining0 ? 0 : remaining0 - used0;
-
-        remaining1 = amount1 + received1;
-        remaining1 = used1 > remaining1 ? 0 : remaining1 - used1;
-
-        getHookFees[key.toId()].fees0 = uint128(remaining0);
-        getHookFees[key.toId()].fees1 = uint128(remaining1);
+        amount0Added = uint256(uint128(-balanceDelta.amount0()));
+        amount1Added = uint256(uint128(-balanceDelta.amount1()));
     }
 
     function _settleDelta(
@@ -668,12 +658,18 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
     ) external returns (BalanceDelta fees) {
         BeneficiaryFees memory beneficiaryFees = getBeneficiaryFees[poolId];
 
+        (,, PoolKey memory poolKey,) =
+            UniswapV4MulticurveRehypeInitializer(INITIALIZER).getState(getPoolInfo[poolId].asset);
+
         fees = toBalanceDelta(
             int128(uint128(beneficiaryFees.beneficiaryFees0)), int128(uint128(beneficiaryFees.beneficiaryFees1))
         );
+        bool isToken0 = Currency.wrap(getPoolInfo[poolId].asset) == poolKey.currency0;
 
-        Currency.wrap(getPoolInfo[poolId].asset).transfer(INITIALIZER, beneficiaryFees.beneficiaryFees0);
-        Currency.wrap(getPoolInfo[poolId].numeraire).transfer(INITIALIZER, beneficiaryFees.beneficiaryFees1);
+        Currency.wrap(getPoolInfo[poolId].asset)
+            .transfer(INITIALIZER, isToken0 ? beneficiaryFees.beneficiaryFees0 : beneficiaryFees.beneficiaryFees1);
+        Currency.wrap(getPoolInfo[poolId].numeraire)
+            .transfer(INITIALIZER, isToken0 ? beneficiaryFees.beneficiaryFees1 : beneficiaryFees.beneficiaryFees0);
 
         beneficiaryFees.beneficiaryFees0 -= beneficiaryFees.beneficiaryFees0;
         beneficiaryFees.beneficiaryFees1 -= beneficiaryFees.beneficiaryFees1;
