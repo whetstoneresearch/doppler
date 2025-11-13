@@ -18,7 +18,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
-import { IRehypeHook } from "src/UniswapV4MulticurveRehypeInitializerHook.sol";
+import { IRehypeHook } from "src/interfaces/IRehypeHook.sol";
 
 /**
  * @notice Emitted when a new pool is locked
