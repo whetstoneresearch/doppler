@@ -165,9 +165,7 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", 0, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceeded(
-        uint256 initialSupply
-    ) public {
+    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceeded(uint256 initialSupply) public {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
@@ -185,9 +183,7 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceededReusingAddress(
-        uint256 initialSupply
-    ) public {
+    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceededReusingAddress(uint256 initialSupply) public {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
@@ -203,9 +199,7 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    function testFuzz_initialize_RevertsWhenMaxTotalPreMintExceeded(
-        uint256 initialSupply
-    ) public {
+    function testFuzz_initialize_RevertsWhenMaxTotalPreMintExceeded(uint256 initialSupply) public {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
@@ -230,16 +224,12 @@ contract CloneERC20VotesTest is Test {
     /*                                lockPool()                                */
     /* ------------------------------------------------------------------------ */
 
-    function test_lockPool_PassesWhenValidOwner(
-        address pool
-    ) public {
+    function test_lockPool_PassesWhenValidOwner(address pool) public {
         token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.lockPool(pool);
     }
 
-    function test_lockPool_RevertsWhenInvalidOwner(
-        address pool
-    ) public {
+    function test_lockPool_RevertsWhenInvalidOwner(address pool) public {
         token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
@@ -250,18 +240,14 @@ contract CloneERC20VotesTest is Test {
     /*                                unlockPool()                                */
     /* -------------------------------------------------------------------------- */
 
-    function testFuzz_unlockPool(
-        address pool
-    ) public {
+    function testFuzz_unlockPool(address pool) public {
         test_lockPool_PassesWhenValidOwner(pool);
         token.unlockPool();
         assertEq(token.lastMintTimestamp(), block.timestamp, "Inflation should have started");
         assertEq(token.currentYearStart(), block.timestamp, "Current year start should be the current timestamp");
     }
 
-    function testFuzz_unlockPool_RevertsWhenInvalidOwner(
-        address pool
-    ) public {
+    function testFuzz_unlockPool_RevertsWhenInvalidOwner(address pool) public {
         test_lockPool_PassesWhenValidOwner(pool);
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
@@ -290,10 +276,13 @@ contract CloneERC20VotesTest is Test {
         vm.startPrank(recipient);
         token.delegate(address(0xcafe));
 
-        uint256 votesTotalSupply = token.getVotesTotalSupply();
+        uint256 recipientBalance = token.balanceOf(recipient);
+        uint256 previousVotes = token.getVotes(address(0xcafe));
         vm.expectEmit(true, true, true, true);
-        emit ERC20Votes.DelegateVotesChanged(recipient, votesTotalSupply, votesTotalSupply - votesTotalSupply / 10);
-        token.transfer(address(0xbeef), initialSupply / 10);
+        emit ERC20Votes.DelegateVotesChanged(
+            address(0xcafe), previousVotes, previousVotes - recipientBalance / 10
+        );
+        token.transfer(address(0xbeef), recipientBalance / 10);
         vm.stopPrank();
     }
 
