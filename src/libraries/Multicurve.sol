@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
@@ -56,12 +57,14 @@ function adjustCurves(
     lowerTickBoundary = TickMath.MAX_TICK;
     upperTickBoundary = TickMath.MIN_TICK;
 
-    for (uint256 i; i != length; ++i) {
+    for (uint256 i; i < length; i++) {
+        Curve memory curve = curves[i];
+
         Curve memory adjustedCurve = Curve({
-            tickLower: curves[i].tickLower,
-            tickUpper: curves[i].tickUpper,
-            numPositions: curves[i].numPositions,
-            shares: curves[i].shares
+            tickLower: curve.tickLower,
+            tickUpper: curve.tickUpper,
+            numPositions: curve.numPositions,
+            shares: curve.shares
         });
 
         require(adjustedCurve.numPositions > 0, ZeroPosition());
@@ -119,17 +122,18 @@ function calculatePositions(
     int24 lowerTickBoundary = TickMath.MAX_TICK;
     int24 upperTickBoundary = TickMath.MIN_TICK;
 
-    for (uint256 i; i != length; ++i) {
-        totalShares += curves[i].shares;
+    for (uint256 i; i < length; i++) {
+        Curve memory curve = curves[i];
+        totalShares += curve.shares;
 
         // Calculate the boundaries
-        if (lowerTickBoundary > curves[i].tickLower) lowerTickBoundary = curves[i].tickLower;
-        if (upperTickBoundary < curves[i].tickUpper) upperTickBoundary = curves[i].tickUpper;
+        if (lowerTickBoundary > curve.tickLower) lowerTickBoundary = curve.tickLower;
+        if (upperTickBoundary < curve.tickUpper) upperTickBoundary = curve.tickUpper;
 
         // Calculate the positions for this curve
-        uint256 curveSupply = FullMath.mulDiv(numTokensToSell, curves[i].shares, WAD);
+        uint256 curveSupply = FixedPointMathLib.mulDiv(numTokensToSell, curve.shares, WAD);
         Position[] memory newPositions = calculateLogNormalDistribution(
-            i, curves[i].tickLower, curves[i].tickUpper, tickSpacing, isToken0, curves[i].numPositions, curveSupply
+            i, curve.tickLower, curve.tickUpper, tickSpacing, isToken0, curve.numPositions, curveSupply
         );
 
         positions = concat(positions, newPositions);
@@ -198,8 +202,12 @@ function calculateLogNormalDistribution(
             // If curveSupply is 0, we skip the liquidity calculation as we are burning max liquidity in each position
             if (curveSupply != 0) {
                 liquidity = isToken0
-                    ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1)
-                    : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1);
+                    ? LiquidityAmounts.getLiquidityForAmount0(
+                        startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition - 1
+                    )
+                    : LiquidityAmounts.getLiquidityForAmount1(
+                        farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition - 1
+                    );
             }
 
             positions[i] = Position({

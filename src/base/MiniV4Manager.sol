@@ -9,15 +9,14 @@ import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.so
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { Position } from "src/types/Position.sol";
 
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+
 /// @dev Possible actions passed through the `unlockCallback` function
 enum Actions {
     Mint,
     Burn,
     Collect
 }
-
-/// @dev Thrown when the caller is not the `PoolManager` contract
-error CallerNotPoolManager();
 
 /// @dev Thrown when the given action in the `unlockCallback` function is invalid
 error InvalidCallbackAction(uint8 action);
@@ -41,35 +40,17 @@ struct CallbackData {
  * child to mint or burn positions and collect fees from them
  * @custom:security-contact security@whetstone.cc
  */
-abstract contract MiniV4Manager is IUnlockCallback {
+abstract contract MiniV4Manager is ImmutableState, IUnlockCallback {
     using BalanceDeltaLibrary for BalanceDelta;
     using SafeCast for int128;
     using SafeCast for uint128;
     using SafeCast for uint256;
 
-    /// @notice Address of Uniswap V4 `PoolManager` contract
-    IPoolManager public immutable poolManager;
-
-    /// @dev Requires that the `msg.sender` is the stored `poolManager`
-    modifier onlyPoolManager() {
-        require(msg.sender == address(poolManager), CallerNotPoolManager());
-        _;
-    }
-
-    /// @param poolManager_ Address of Uniswap V4 `PoolManager` contract
-    constructor(
-        IPoolManager poolManager_
-    ) {
-        poolManager = poolManager_;
-    }
-
     /// @notice Ensures this contract can receive ETH
     receive() external payable { }
 
     /// @inheritdoc IUnlockCallback
-    function unlockCallback(
-        bytes calldata data
-    ) external onlyPoolManager returns (bytes memory) {
+    function unlockCallback(bytes calldata data) external onlyPoolManager returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
 
         Actions action = callbackData.action;
@@ -127,10 +108,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
      * @param positions Array of `Position` struct
      * @return feesAccrued Fees collected from the given positions, denominated in `token0` and `token1`
      */
-    function _collect(
-        PoolKey memory poolKey,
-        Position[] memory positions
-    ) internal returns (BalanceDelta feesAccrued) {
+    function _collect(PoolKey memory poolKey, Position[] memory positions) internal returns (BalanceDelta feesAccrued) {
         bytes memory data = poolManager.unlock(
             abi.encode(CallbackData({ action: Actions.Collect, poolKey: poolKey, positions: positions }))
         );
@@ -209,10 +187,7 @@ abstract contract MiniV4Manager is IUnlockCallback {
         for (uint256 i; i != length; ++i) {
             Position memory pos = positions[i];
             IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-                tickLower: pos.tickLower,
-                tickUpper: pos.tickUpper,
-                liquidityDelta: 0,
-                salt: pos.salt
+                tickLower: pos.tickLower, tickUpper: pos.tickUpper, liquidityDelta: 0, salt: pos.salt
             });
 
             (BalanceDelta balanceDelta, BalanceDelta feesAccrued) =
