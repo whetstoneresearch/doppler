@@ -409,14 +409,27 @@ contract DookMulticurveInitializerTest is Deployers {
     function test_setDookState_SetsStates(address[] calldata dooks, uint256[] calldata flags) public {
         uint256 length = dooks.length;
         vm.assume(length == flags.length);
-        vm.prank(airlockOwner);
+        vm.assume(length < 50); // Limit size to avoid timeout
+
+        // Ensure all addresses are unique to avoid overwriting in the mapping
+        for (uint256 i; i < length; i++) {
+            for (uint256 j = i + 1; j < length; j++) {
+                vm.assume(dooks[i] != dooks[j]);
+            }
+        }
 
         for (uint256 i; i < length; i++) {
             vm.expectEmit();
             emit SetDookState(dooks[i], flags[i]);
         }
 
+        vm.prank(airlockOwner);
         initializer.setDookState(dooks, flags);
+
+        for (uint256 i; i < length; i++) {
+            uint256 storedFlags = initializer.isDookEnabled(dooks[i]);
+            assertEq(storedFlags, flags[i], "Incorrect stored flags");
+        }
     }
 
     /* ----------------------------------------------------------------------- */
