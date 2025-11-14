@@ -103,6 +103,7 @@ error ArrayLengthsMismatch();
 /// @notice Thrown when the far tick is unreachable
 error UnreachableFarTick();
 
+/// @notice Thrown when the provided LP fee is above the maximum allowed
 error LPFeeTooHigh(uint24 maxFee, uint256 fee);
 
 /**
