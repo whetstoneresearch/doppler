@@ -108,10 +108,14 @@ error LPFeeTooHigh(uint24 maxFee, uint256 fee);
 
 /**
  * @notice Data used to initialize the Uniswap V4 pool
- * @param fee Fee of the Uniswap V4 pool (capped at 1_000_000)
+ * @param fee Fee of the Uniswap V4 pool (capped at 1_000_000), use a dynamic fee if a Doppler Hook is provided
+ * @param farTick Farthest tick that must be reached to allow exiting liquidity, will be flipped if necessary
  * @param tickSpacing Tick spacing for the Uniswap V4 pool
  * @param curves Array of curves to distribute liquidity across
- * @param beneficiaries Array of beneficiaries with their shares
+ * @param beneficiaries Array of beneficiaries with their shares, will lock the pool if not empty
+ * @param dook Address of the associated Doppler Hook
+ * @param onInitializationDookCalldata Calldata passed to the Doppler Hook on initialization
+ * @param graduationDookCalldata Calldata passed to the Doppler Hook on graduation
  */
 struct InitData {
     uint24 fee;
@@ -137,11 +141,13 @@ enum PoolStatus {
  * @notice State of a pool
  * @param numeraire Address of the numeraire currency
  * @param beneficiaries Array of beneficiaries with their shares
- * @param positions Array of positions held in the pool
+ * @param adjustedCurves Array of adjusted curves used for liquidity distribution
+ * @param totalTokensOnBondingCurve Total amount of tokens allocated to the bonding curve
  * @param dook Address of the Doppler hook
+ * @param graduationDookCalldata Calldata passed to the Doppler Hook on graduation
  * @param status Current status of the pool
  * @param poolKey Key of the Uniswap V4 pool
- * @param farTick The farthest tick that must be reached to allow exiting liquidity
+ * @param farTick Farthest tick that must be reached to allow exiting liquidity
  */
 struct PoolState {
     address numeraire;
@@ -360,8 +366,11 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     }
 
     /**
-     * @notice Sets the Doppler hook for a given asset's pool
-     * @param asset Address to migrate
+     * @notice Associates a Doppler hook with the pool of a given asset
+     * @param asset Address to of the targeted asset
+     * @param dook Address of the Doppler hook being associated
+     * @param onInitializationCalldata Calldata passed to the Doppler Hook on initialization
+     * @param onGraduationCalldata Calldata passed to the Doppler Hook on graduation
      */
     function setDook(
         address asset,
