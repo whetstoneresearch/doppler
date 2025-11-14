@@ -31,6 +31,9 @@ quote_style = 'double'
 tab_width = 4
 wrap_comments = false
 
+[lint]
+lint_on_build = false
+
 [invariant]
 show_metrics = true
 fail_on_revert = true
