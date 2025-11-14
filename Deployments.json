@@ -16,6 +16,20 @@
     "UniswapV4Migrator": "0x49f3fbb2dff7f3d03b622e3b2a6d3f2e6fdb2a5a",
     "UniswapV4MigratorHook": "0x53c050d3b09c80024138165520bd7c078d9e2000"
   },
+  "143": {
+    "Airlock": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12",
+    "AirlockMultisig": "0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a",
+    "Bundler": "0xc99b485499f78995c6f1640dbb1413c57f8ba684",
+    "GovernanceFactory": "0xfaafde6a5b658684cc5eb0c5c2c755b00a246f45",
+    "LaunchpadGovernanceFactory": "0x5fbe931dc4b923a7abe4c47ad68d5bf9eda5b76d",
+    "LockableUniswapV3Initializer": "0x8b4c7db9121fc885689c0a50d5a1429f15aec2a0",
+    "NoOpGovernanceFactory": "0xb4dee32eb70a5e55f3d2d861f49fb3d79f7a14d9",
+    "NoOpMigrator": "0x5f3ba43d44375286296cb85f1ea2ebfa25dde731",
+    "TokenFactory": "0xaa47d2977d622dbdfd33eef6a8276727c52eb4e5",
+    "UniswapV2Migrator": "0x136191b46478cab023cbc01a36160c4aad81677a",
+    "UniswapV4ScheduledMulticurveInitializer": "0xce3099b2f07029b086e5e92a1573c5f5a3071783",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0x580ca49389d83b019d07e17e99454f2f218e2dc0"
+  },
   "1301": {
     "Airlock": "0x0d2f38d807bfad5c18e430516e10ab560d300caf",
     "AirlockMultisig": "0x40bcb4dda3bcf7dba30c5d10c31ee2791ed9ddca",
