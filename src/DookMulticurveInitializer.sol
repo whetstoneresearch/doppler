@@ -183,6 +183,9 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     mapping(address user => address authority) public getAuthority;
 
     /**
+     * @dev Since both the `MiniV4Manager` and the `BaseHook` contracts are inheriting from the `ImmutableState` base
+     * contract we modified these contracts to get rid of their constructors, allowing us to call the base contract here
+     * and avoid the `Base constructor arguments given twice` error due to both parents inheriting from the same child
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
      */
