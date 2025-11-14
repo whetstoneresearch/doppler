@@ -46,11 +46,6 @@ abstract contract MiniV4Manager is ImmutableState, IUnlockCallback {
     using SafeCast for uint128;
     using SafeCast for uint256;
 
-    /*
-    /// @param poolManager_ Address of Uniswap V4 `PoolManager` contract
-    constructor(IPoolManager poolManager_) ImmutableState(poolManager_) { }
-    */
-
     /// @notice Ensures this contract can receive ETH
     receive() external payable { }
 
