@@ -27,15 +27,6 @@ abstract contract BaseDook is IDook {
     /// @notice Address of the Dook Multicurve Initializer contract
     address public immutable INITIALIZER;
 
-    /// @notice Address of the Dook Multicurve Hook contract
-    address public immutable HOOK;
-
-    /// @notice Restricts the caller to the Dook Multicurve Hook contract
-    modifier onlyHook() {
-        require(msg.sender == HOOK, SenderNotHook());
-        _;
-    }
-
     /// @notice Restricts the caller to the Dook Multicurve Initializer contract
     modifier onlyInitializer() {
         require(msg.sender == INITIALIZER, SenderNotInitializer());
@@ -44,10 +35,8 @@ abstract contract BaseDook is IDook {
 
     /**
      * @param initializer Address of the Dook Multicurve Initializer contract
-     * @param hook Address of the Dook Multicurve Hook contract
      */
-    constructor(address initializer, address hook) {
-        HOOK = hook;
+    constructor(address initializer) {
         INITIALIZER = initializer;
     }
 
@@ -73,7 +62,7 @@ abstract contract BaseDook is IDook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta balanceDelta,
         bytes calldata data
-    ) external onlyHook {
+    ) external onlyInitializer {
         _onSwap(sender, key, params, balanceDelta, data);
     }
 

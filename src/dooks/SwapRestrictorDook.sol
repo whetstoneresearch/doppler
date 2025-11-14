@@ -16,8 +16,10 @@ contract SwapRestrictorDook is BaseDook {
     mapping(PoolId poolId => bool isToken0) public isAssetToken0;
     mapping(PoolId poolId => mapping(address sender => uint256 amountLeft)) public amountLeftOf;
 
-    constructor(address initializer, address hook) BaseDook(initializer, hook) { }
+    /// @param initializer Address of the Dook Multicurve Initializer contract
+    constructor(address initializer) BaseDook(initializer) { }
 
+    /// @inheritdoc BaseDook
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
         (address[] memory approved, uint256 maxAmount) = abi.decode(data, (address[], uint256));
 
@@ -30,6 +32,7 @@ contract SwapRestrictorDook is BaseDook {
         }
     }
 
+    /// @inheritdoc BaseDook
     function _onSwap(
         address sender,
         PoolKey calldata key,
