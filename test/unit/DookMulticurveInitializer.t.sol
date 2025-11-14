@@ -695,13 +695,25 @@ contract DookMulticurveInitializerTest is Deployers {
     /*                                afterRemoveLiquidity()                                */
     /* ------------------------------------------------------------------------------------ */
 
+    function test_afterRemoveLiquidity_RevertsWhenMsgSenderNotPoolManager() public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        initializer.afterRemoveLiquidity(
+            address(0),
+            key,
+            IPoolManager.ModifyLiquidityParams(0, 0, 0, 0),
+            BalanceDeltaLibrary.ZERO_DELTA,
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
     function test_afterRemoveLiquidity_EmitsModifyLiquidity(
         PoolKey calldata key,
         IPoolManager.ModifyLiquidityParams calldata params
     ) public {
         vm.expectEmit();
-        emit ModifyLiquidity(poolKey, params);
-
+        emit ModifyLiquidity(key, params);
+        vm.prank(address(manager));
         initializer.afterRemoveLiquidity(
             address(0), key, params, BalanceDeltaLibrary.ZERO_DELTA, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
         );
