@@ -691,6 +691,22 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.afterSwap(sender, poolKey, params, balanceDelta, data);
     }
 
+    /* ------------------------------------------------------------------------------------ */
+    /*                                afterRemoveLiquidity()                                */
+    /* ------------------------------------------------------------------------------------ */
+
+    function test_afterRemoveLiquidity_EmitsModifyLiquidity(
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params
+    ) public {
+        vm.expectEmit();
+        emit ModifyLiquidity(poolKey, params);
+
+        initializer.afterRemoveLiquidity(
+            address(0), key, params, BalanceDeltaLibrary.ZERO_DELTA, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
+        );
+    }
+
     /* ----------------------------------------------------------------------- */
     /*                                Utilities                                */
     /* ----------------------------------------------------------------------- */
