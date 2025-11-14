@@ -36,7 +36,9 @@ import {
     UnreachableFarTick,
     OnlyInitializer,
     ModifyLiquidity,
-    Swap
+    Swap,
+    LPFeeTooHigh,
+    MAX_LP_FEE
 } from "src/DookMulticurveInitializer.sol";
 import { WAD } from "src/types/Wad.sol";
 import { Position } from "src/types/Position.sol";
@@ -575,6 +577,13 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.updateDynamicLPFee(asset, 100);
         (,,, uint24 lpFee) = manager.getSlot0(poolId);
         assertEq(lpFee, 100, "Incorrect updated fee");
+    }
+
+    function test_updateDynamicLPFee_RevertsWhenFeeTooHigh(bool isToken0) public {
+        test_initialize_LocksPoolWithDook(isToken0);
+        vm.prank(address(dook));
+        vm.expectRevert(abi.encodeWithSelector(LPFeeTooHigh.selector, MAX_LP_FEE, MAX_LP_FEE + 1));
+        initializer.updateDynamicLPFee(asset, MAX_LP_FEE + 1);
     }
 
     /* -------------------------------------------------------------------------------- */
