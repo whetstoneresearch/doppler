@@ -17,8 +17,10 @@ import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 import { LaunchpadGovernanceFactory } from "src/LaunchpadGovernanceFactory.sol";
-import { DookMulticurveInitializer } from "src/DookMulticurveInitializer.sol";
-import { mineDookMulticurveInitializer, MineDookMulticurveInitializerParams } from "test/shared/AirlockMiner.sol";
+import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
+import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { MineV4MigratorHookParams, mineV4ScheduledMulticurveHook } from "test/shared/AirlockMiner.sol";
 
 contract DeployMonadMainnetScript is Script {
     function run() public {
@@ -46,7 +48,7 @@ contract DeployMonadMainnetScript is Script {
         );
 
         LockableUniswapV3Initializer lockableUniswapV3Initializer =
-            new LockableUniswapV3Initializer(airlock, IUniswapV3Factory(0x961235a9020B05C44DF1026D956D1F4D78014276));
+            new LockableUniswapV3Initializer(airlock, IUniswapV3Factory(0x204FAca1764B154221e35c0d20aBb3c525710498));
 
         Bundler bundler = new Bundler(
             Airlock(payable(airlock)),
@@ -54,39 +56,52 @@ contract DeployMonadMainnetScript is Script {
             IQuoterV2(0x661E93cca42AfacB172121EF892830cA3b70F08d)
         );
 
-        (bytes32 salt, address minedDookMulticurveInitializer) = mineDookMulticurveInitializer(
-            MineDookMulticurveInitializerParams({
-                airlock: airlock, poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e, deployer: msg.sender
+        // Using `CREATE` we can pre-compute the UniswapV4ScheduledMulticurveInitializer address for mining the hook address
+        address precomputedV4Initializer = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
+
+        /// Mine salt for Multicurve hook address
+        (bytes32 salt, address minedHook) = mineV4ScheduledMulticurveHook(
+            MineV4MigratorHookParams({
+                poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e,
+                migrator: precomputedV4Initializer,
+                hookDeployer: 0x4e59b44847b379578588920cA78FbF26c0B4956C
             })
         );
 
-        DookMulticurveInitializer dookMulticurveInitializer = new DookMulticurveInitializer{ salt: salt }(
-            airlock, IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e)
+        // Deploy migrator with pre-mined hook address
+        UniswapV4ScheduledMulticurveInitializer v4Initializer = new UniswapV4ScheduledMulticurveInitializer(
+            airlock, IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), IHooks(minedHook)
         );
 
-        require(
-            minedDookMulticurveInitializer == address(dookMulticurveInitializer),
-            "Deployed DookMulticurveInitializer address mismatch"
+        // Deploy hook with deployed migrator address
+        UniswapV4ScheduledMulticurveInitializerHook hook = new UniswapV4ScheduledMulticurveInitializerHook{
+            salt: salt
+        }(
+            IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), v4Initializer
         );
+
+        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        require(address(v4Initializer.HOOK()) == address(hook), "Multicurve hook is not the expected address");
 
         // Whitelisting the initial modules
-        address[] memory modules = new address[](6);
-        modules[0] = address(tokenFactory);
-        modules[1] = address(launchpadGovernanceFactory);
-        modules[2] = address(governanceFactory);
-        modules[3] = address(uniswapV2LiquidityMigrator);
-        modules[4] = address(lockableUniswapV3Initializer);
-        modules[5] = address(noOpGovernanceFactory);
-        modules[6] = address(noOpMigrator);
-
-        ModuleState[] memory states = new ModuleState[](6);
-        states[0] = ModuleState.TokenFactory;
+        address[] memory modules = new address[](8);
+        ModuleState[] memory states = new ModuleState[](8);
+        modules[0] = address(governanceFactory);
+        states[0] = ModuleState.GovernanceFactory;
+        modules[1] = address(noOpGovernanceFactory);
         states[1] = ModuleState.GovernanceFactory;
+        modules[2] = address(launchpadGovernanceFactory);
         states[2] = ModuleState.GovernanceFactory;
-        states[3] = ModuleState.LiquidityMigrator;
-        states[4] = ModuleState.PoolInitializer;
-        states[5] = ModuleState.GovernanceFactory;
+        modules[3] = address(tokenFactory);
+        states[3] = ModuleState.TokenFactory;
+        modules[4] = address(noOpMigrator);
+        states[4] = ModuleState.LiquidityMigrator;
+        modules[5] = address(lockableUniswapV3Initializer);
+        states[5] = ModuleState.PoolInitializer;
+        modules[6] = address(uniswapV2LiquidityMigrator);
         states[6] = ModuleState.LiquidityMigrator;
+        modules[7] = address(v4Initializer);
+        states[7] = ModuleState.PoolInitializer;
 
         Airlock(payable(airlock)).setModuleState(modules, states);
 
