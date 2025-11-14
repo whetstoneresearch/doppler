@@ -77,7 +77,7 @@ contract DeployMonadMainnetScript is Script {
         UniswapV4ScheduledMulticurveInitializerHook hook = new UniswapV4ScheduledMulticurveInitializerHook{
             salt: salt
         }(
-            IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), v4Initializer
+            IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), address(v4Initializer)
         );
 
         /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
