@@ -649,19 +649,6 @@ contract DookMulticurveInitializerTest is Deployers {
         );
     }
 
-    function test_beforeSwap_CallsOnSwapWhenDookSet(
-        bool isToken0,
-        address sender,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata data
-    ) public {
-        vm.skip(true);
-        test_initialize_LocksPoolWithDook(isToken0);
-        vm.expectCall(address(dook), abi.encodeWithSelector(IDook.onSwap.selector, sender, poolKey, params, data));
-        vm.prank(address(manager));
-        initializer.beforeSwap(sender, poolKey, params, data);
-    }
-
     /* ------------------------------------------------------------------------- */
     /*                                afterSwap()                                */
     /* ------------------------------------------------------------------------- */
