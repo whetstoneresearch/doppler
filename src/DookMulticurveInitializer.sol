@@ -162,41 +162,7 @@ uint24 constant MAX_LP_FEE = 100_000;
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice Initializes a fresh Uniswap V4 pool and distributes liquidity across multiple positions, as
- * described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf).
- *
- * Liquidity pools can be initialized with two different flows:
- *
- * A. No beneficiaries (possible migration)
- *
- * ┌─────────────┐┌───────────┐      ┌──────┐
- * │Uninitialized││Initialized│      │Exited│
- * └──────┬──────┘└─────┬─────┘      └──┬───┘
- *        │             │               │
- *        │initialize() │               │
- *        │────────────>│               │
- *        │             │               │
- *        │             │exitLiquidity()│
- *        │             │──────────────>│
- * ┌──────┴──────┐┌─────┴─────┐      ┌──┴───┐
- * │Uninitialized││Initialized│      │Exited│
- * └─────────────┘└───────────┘      └──────┘
- *
- *
- * B. With beneficiaries (locked pool, no migration)
- *
- * ┌─────────────┐  ┌──────┐
- * │Uninitialized│  │Locked│
- * └──────┬──────┘  └──┬───┘
- *        │            │
- *        │initialize()│
- *        │───────────>│
- * ┌──────┴──────┐  ┌──┴───┐
- * │Uninitialized│  │Locked│
- * └─────────────┘  └──────┘
- *
- * Passing beneficiaries during the initialization will "lock" the pool, preventing any future migration. However
- * this will allow the collection of fees by the designed beneficiaries. If no beneficiaries are passed, the pool
- * can be migrated later if the conditions are met.
+ * described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf)
  */
 contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, FeesManager, IPoolInitializer {
     using StateLibrary for IPoolManager;
