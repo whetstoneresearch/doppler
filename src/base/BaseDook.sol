@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IDook } from "src/interfaces/IDook.sol";
+
+/// @dev Flag for the `onInitialization` callback
+uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
+
+/// @dev Flag for the `onSwap` callback
+uint256 constant ON_SWAP_FLAG = 1 << 1;
+
+/// @dev Flag for the `onGraduation` callback
+uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
 /// @notice Thrown when the msg.sender is not the Dook Multicurve Initializer contract
 error SenderNotInitializer();
 
 /// @notice Thrown when the msg.sender is not the Dook Multicurve Hook contract
 error SenderNotHook();
-
-uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
-uint256 constant ON_SWAP_FLAG = 1 << 1;
-uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
 /**
  * @title Doppler Hook Base Contract
@@ -54,6 +59,7 @@ abstract contract BaseDook is IDook {
      * @param sender Address initiating the swap
      * @param key Key of the Uniswap V4 pool where the swap is occurring
      * @param params Swap paremters as defined in IPoolManager
+     * @param balanceDelta Balance delta resulting from the swap
      * @param data Arbitrary data passed from the hook to be consumed by the Dook
      */
     function onSwap(
@@ -69,6 +75,7 @@ abstract contract BaseDook is IDook {
     /**
      * @notice Called when a pool linked to this Dook graduates
      * @param asset Address of the asset being graduated in the Dook Multicurve Initializer
+     * @param key Key of the Uniswap V4 pool graduating
      * @param data Arbitrary data passed from the initializer to be consumed by the Dook
      */
     function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
