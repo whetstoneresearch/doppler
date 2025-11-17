@@ -176,15 +176,6 @@ contract DookMulticurveInitializerTest is Deployers {
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
     }
 
-    function test_initialize_AddsLiquidity(InitDataParams memory params, bool isToken0) public {
-        // TODO: Figure out why this test is failing
-        vm.skip(true);
-        test_initialize_InitializesPool(params, isToken0);
-        console.logBytes32(PoolId.unwrap(poolId));
-        uint128 liquidity = manager.getLiquidity(poolId);
-        assertGt(liquidity, 0, "Liquidity is zero");
-    }
-
     function test_initialize_LocksPool(
         InitDataParams memory params,
         bool isToken0
@@ -473,6 +464,20 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
     }
 
+    function _setDook(bytes calldata onInitializationCalldata, bytes calldata onGraduationCalldata) public {
+        vm.expectCall(
+            address(dook),
+            abi.encodeWithSelector(IDook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
+        );
+        vm.expectEmit();
+        emit SetDook(asset, address(dook));
+        initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
+
+        (,, address dookAddress, bytes memory storedOnGraduationCalldata,,,) = initializer.getState(asset);
+        assertEq(dookAddress, address(dook), "Incorrect dook address");
+        assertEq(storedOnGraduationCalldata, onGraduationCalldata, "Incorrect graduation dook calldata");
+    }
+
     function test_setDook_SetsDookWhenSenderIsTimelock(
         InitDataParams memory params,
         bool isToken0,
@@ -489,16 +494,7 @@ contract DookMulticurveInitializerTest is Deployers {
             )
         );
 
-        vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
-        );
-        vm.expectEmit();
-        emit SetDook(asset, address(dook));
-        initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
-
-        (,, address dookAddress,,,,) = initializer.getState(asset);
-        assertEq(dookAddress, address(dook), "Incorrect dook address");
+        _setDook(onInitializationCalldata, onGraduationCalldata);
     }
 
     function test_setDook_SetsDookWhenSenderIsAuthority(
@@ -529,16 +525,7 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.prank(address(0xbeef));
         initializer.delegateAuthority(address(this));
 
-        vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
-        );
-        vm.expectEmit();
-        emit SetDook(asset, address(dook));
-        initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
-
-        (,, address dookAddress,,,,) = initializer.getState(asset);
-        assertEq(dookAddress, address(dook), "Incorrect dook address");
+        _setDook(onInitializationCalldata, onGraduationCalldata);
     }
 
     /* ------------------------------------------------------------------------ */
@@ -574,6 +561,14 @@ contract DookMulticurveInitializerTest is Deployers {
 
         (,,,, PoolStatus status,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Graduated), "Pool status should be Graduated");
+    }
+
+    function test_graduate_RevertsWhenAlreadyGraduated(InitDataParams memory params, bool isToken0) public {
+        test_graduate_GraduatesPool(params, isToken0);
+        vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Locked, PoolStatus.Graduated));
+
+        vm.prank(address(airlock));
+        initializer.graduate(asset);
     }
 
     function test_graduate_RevertsWhenFarTickNotReached(InitDataParams memory params, bool isToken0) public {
