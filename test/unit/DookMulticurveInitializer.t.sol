@@ -3,51 +3,51 @@ pragma solidity ^0.8.13;
 
 import { console } from "forge-std/console.sol";
 
-import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IPoolManager, PoolKey } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { BalanceDeltaLibrary, toBalanceDelta, BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { Airlock } from "src/Airlock.sol";
 import {
-    DookMulticurveInitializer,
-    InitData,
+    ArrayLengthsMismatch,
     BeneficiaryData,
     CannotMigrateInsufficientTick,
-    Lock,
-    PoolStatus,
-    WrongPoolStatus,
-    ArrayLengthsMismatch,
-    SenderNotAirlockOwner,
     CannotMigratePoolNoProvidedDook,
-    Graduate,
-    SenderNotAuthorized,
+    DookMulticurveInitializer,
     DookNotEnabled,
+    Graduate,
+    InitData,
+    LPFeeTooHigh,
+    Lock,
+    MAX_LP_FEE,
+    ModifyLiquidity,
+    OnlyInitializer,
+    PoolStatus,
+    SenderNotAirlockOwner,
+    SenderNotAuthorized,
     SetDook,
     SetDookState,
-    UnreachableFarTick,
-    OnlyInitializer,
-    ModifyLiquidity,
     Swap,
-    LPFeeTooHigh,
-    MAX_LP_FEE
+    UnreachableFarTick,
+    WrongPoolStatus
 } from "src/DookMulticurveInitializer.sol";
-import { WAD } from "src/types/Wad.sol";
-import { Position } from "src/types/Position.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { Airlock } from "src/Airlock.sol";
 import { IDook } from "src/interfaces/IDook.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG, ON_GRADUATION_FLAG } from "src/base/BaseDook.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { Position } from "src/types/Position.sol";
+import { WAD } from "src/types/Wad.sol";
 
 contract MockDook is IDook {
     function onInitialization(address, PoolKey calldata, bytes calldata) external { }
