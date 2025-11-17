@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Test, stdError } from "forge-std/Test.sol";
-import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { Deployers } from "test/shared/Deployers.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import {
@@ -51,9 +51,7 @@ uint256 constant DEFAULT_PD_SLUGS = 3;
 
 /// @dev Test contract allowing us to set some specific state
 contract AirlockCheat is Airlock {
-    constructor(
-        address owner_
-    ) Airlock(owner_) { }
+    constructor(address owner_) Airlock(owner_) { }
 
     function setProtocolFees(address token, uint256 amount) public {
         getProtocolFees[token] = amount;

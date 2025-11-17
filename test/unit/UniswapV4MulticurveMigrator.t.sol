@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { Deployers } from "test/shared/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
@@ -17,9 +17,7 @@ import { Curve } from "src/libraries/Multicurve.sol";
 contract AirlockMock {
     address public owner;
 
-    constructor(
-        address owner_
-    ) {
+    constructor(address owner_) {
         owner = owner_;
     }
 }

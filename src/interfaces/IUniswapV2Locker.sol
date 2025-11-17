@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 interface IUniswapV2Locker {
     /**
@@ -33,7 +33,5 @@ interface IUniswapV2Locker {
 
     function receiveAndLock(address pool, address recipient) external;
 
-    function claimFeesAndExit(
-        address pool
-    ) external;
+    function claimFeesAndExit(address pool) external;
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { Math } from "@openzeppelin/utils/math/Math.sol";
@@ -126,9 +126,7 @@ contract Airlock is Ownable {
     /**
      * @param owner_ Address receiving the ownership of the Airlock contract
      */
-    constructor(
-        address owner_
-    ) Ownable(owner_) { }
+    constructor(address owner_) Ownable(owner_) { }
 
     /**
      * @notice Deploys a new token with the associated governance, timelock and hook contracts
@@ -139,24 +137,27 @@ contract Airlock is Ownable {
      * @return timelock Address of the deployed timelock contract
      * @return migrationPool Address of the created migration pool
      */
-    function create(
-        CreateParams calldata createData
-    ) external returns (address asset, address pool, address governance, address timelock, address migrationPool) {
+    function create(CreateParams calldata createData)
+        external
+        returns (address asset, address pool, address governance, address timelock, address migrationPool)
+    {
         _validateModuleState(address(createData.tokenFactory), ModuleState.TokenFactory);
         _validateModuleState(address(createData.governanceFactory), ModuleState.GovernanceFactory);
         _validateModuleState(address(createData.poolInitializer), ModuleState.PoolInitializer);
         _validateModuleState(address(createData.liquidityMigrator), ModuleState.LiquidityMigrator);
 
-        asset = createData.tokenFactory.create(
-            createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
-        );
+        asset = createData.tokenFactory
+            .create(
+                createData.initialSupply, address(this), address(this), createData.salt, createData.tokenFactoryData
+            );
 
         (governance, timelock) = createData.governanceFactory.create(asset, createData.governanceFactoryData);
 
         ERC20(asset).approve(address(createData.poolInitializer), createData.numTokensToSell);
-        pool = createData.poolInitializer.initialize(
-            asset, createData.numeraire, createData.numTokensToSell, createData.salt, createData.poolInitializerData
-        );
+        pool = createData.poolInitializer
+            .initialize(
+                asset, createData.numeraire, createData.numTokensToSell, createData.salt, createData.poolInitializerData
+            );
 
         migrationPool =
             createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
@@ -190,9 +191,7 @@ contract Airlock is Ownable {
      * `poolInitializer` contract
      * @param asset Address of the token to migrate
      */
-    function migrate(
-        address asset
-    ) external {
+    function migrate(address asset) external {
         AssetData memory assetData = getAssetData[asset];
 
         DERC20(asset).unlockPool();

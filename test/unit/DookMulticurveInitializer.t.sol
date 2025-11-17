@@ -5,7 +5,7 @@ import { console } from "forge-std/console.sol";
 
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
-import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { Deployers } from "test/shared/Deployers.sol";
 import { IPoolManager, PoolKey } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";

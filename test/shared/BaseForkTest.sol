@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
@@ -159,9 +159,7 @@ abstract contract BaseForkTest is Test {
         _registerModules();
     }
 
-    function _deployV4Migrator(
-        address v4PoolManager
-    ) internal {
+    function _deployV4Migrator(address v4PoolManager) internal {
         console.log("\n=== Deploying V4 Migrator ===");
 
         // Get position manager address based on chain
@@ -284,9 +282,7 @@ abstract contract BaseForkTest is Test {
         );
     }
 
-    function _deployToken(
-        CreateParams memory params
-    ) internal {
+    function _deployToken(CreateParams memory params) internal {
         (address asset, address pool, address governance, address timelock, address migrationPool) =
             airlock.create(params);
 

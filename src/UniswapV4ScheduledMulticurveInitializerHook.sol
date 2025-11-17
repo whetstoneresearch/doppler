@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";

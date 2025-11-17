@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Governor } from "@openzeppelin/governance/Governor.sol";
 import { GovernorSettings } from "@openzeppelin/governance/extensions/GovernorSettings.sol";
@@ -52,21 +52,20 @@ contract Governance is
         return super.votingPeriod();
     }
 
-    function quorum(
-        uint256 blockNumber
-    ) public view override(Governor, GovernorVotesQuorumFraction) returns (uint256) {
+    function quorum(uint256 blockNumber) public view override(Governor, GovernorVotesQuorumFraction) returns (uint256) {
         return super.quorum(blockNumber);
     }
 
-    function state(
-        uint256 proposalId
-    ) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
+    function state(uint256 proposalId) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
         return super.state(proposalId);
     }
 
-    function proposalNeedsQueuing(
-        uint256 proposalId
-    ) public view override(Governor, GovernorTimelockControl) returns (bool) {
+    function proposalNeedsQueuing(uint256 proposalId)
+        public
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (bool)
+    {
         return super.proposalNeedsQueuing(proposalId);
     }
 

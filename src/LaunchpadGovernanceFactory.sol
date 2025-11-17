@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";

@@ -4,7 +4,6 @@ out = "out"
 libs = ["lib"]
 evm_version = "cancun"
 via_ir = true
-solc = '0.8.26'
 fs_permissions = [
   { access = "read", path = "./lib" },
   { access = "read", path = "./script" },
@@ -15,6 +14,12 @@ bytecode_hash = "none"
 optimizer = true
 gas_limit = "8000000000"
 create2_deployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
+
+compilation_restrictions = [
+  { paths = "lib/v4-core/src/PoolManager.sol", optimizer_runs = 44444444, version = "0.8.26", via_ir = true },
+  { paths = "src/**/*.sol", version = "0.8.30", via_ir = true },
+  { paths = "test/**/*.sol", version = "0.8.30", via_ir = true },
+]
 
 [fuzz]
 max_test_rejects = 10000000

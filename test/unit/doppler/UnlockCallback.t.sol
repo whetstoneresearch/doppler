@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";

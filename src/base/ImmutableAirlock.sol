@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Airlock } from "../Airlock.sol";
 
@@ -9,9 +9,7 @@ error SenderNotAirlock();
 abstract contract ImmutableAirlock {
     Airlock public immutable airlock;
 
-    constructor(
-        address _airlock
-    ) {
+    constructor(address _airlock) {
         airlock = Airlock(payable(_airlock));
     }
 

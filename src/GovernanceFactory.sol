@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { Governance, IVotes } from "src/Governance.sol";
@@ -10,9 +10,7 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 contract GovernanceFactory is IGovernanceFactory, ImmutableAirlock {
     TimelockFactory public immutable timelockFactory;
 
-    constructor(
-        address airlock_
-    ) ImmutableAirlock(airlock_) {
+    constructor(address airlock_) ImmutableAirlock(airlock_) {
         timelockFactory = new TimelockFactory();
     }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -53,9 +53,7 @@ contract DopplerImplementation is Doppler {
     }
 
     // make this a no-op in testing
-    function validateHookAddress(
-        BaseHook _this
-    ) internal pure override { }
+    function validateHookAddress(BaseHook _this) internal pure override { }
 
     function resetInitialized() public {
         isInitialized = false;
@@ -65,9 +63,7 @@ contract DopplerImplementation is Doppler {
         earlyExit = true;
     }
 
-    function getExpectedAmountSoldWithEpochOffset(
-        int256 offset
-    ) public view returns (uint256) {
+    function getExpectedAmountSoldWithEpochOffset(int256 offset) public view returns (uint256) {
         return _getExpectedAmountSoldWithEpochOffset(offset);
     }
 
@@ -87,15 +83,11 @@ contract DopplerImplementation is Doppler {
         return totalEpochs;
     }
 
-    function getNormalizedTimeElapsed(
-        uint256 timestamp
-    ) public view returns (uint256) {
+    function getNormalizedTimeElapsed(uint256 timestamp) public view returns (uint256) {
         return _getNormalizedTimeElapsed(timestamp);
     }
 
-    function getEpochEndWithOffset(
-        uint256 offset
-    ) public view returns (uint256) {
+    function getEpochEndWithOffset(uint256 offset) public view returns (uint256) {
         return _getEpochEndWithOffset(offset);
     }
 
@@ -142,15 +134,11 @@ contract DopplerImplementation is Doppler {
         return _computePriceDiscoverySlugsData(poolKey, upperSlug, tickUpper, assetAvailable);
     }
 
-    function getPositions(
-        bytes32 salt
-    ) public view returns (Position memory) {
+    function getPositions(bytes32 salt) public view returns (Position memory) {
         return positions[salt];
     }
 
-    function unlock(
-        bytes memory data
-    ) public returns (bytes memory) {
+    function unlock(bytes memory data) public returns (bytes memory) {
         return poolManager.unlock(data);
     }
 

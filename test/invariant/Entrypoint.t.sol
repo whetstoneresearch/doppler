@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Test } from "forge-std/Test.sol";
 import { Entrypoint, TOTAL_WEIGHTS } from "test/invariant/Entrypoint.sol";
@@ -13,9 +13,7 @@ contract EntrypointTest is Test {
         entrypoint = new Entrypoint();
     }
 
-    function test_entrypoint(
-        uint256 rng
-    ) public {
+    function test_entrypoint(uint256 rng) public {
         vm.assume(rng > 0);
         uint256 seed = type(uint256).max % rng;
 

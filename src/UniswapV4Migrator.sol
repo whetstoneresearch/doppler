@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -74,7 +74,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     IPoolManager public immutable poolManager;
 
     /// @notice Address of the Uniswap V4 Position Manager contract
-    PositionManager public immutable positionManager;
+    IPositionManager public immutable positionManager;
 
     /// @notice Address of the Streamable Fees Locker
     StreamableFeesLocker public immutable locker;
@@ -99,7 +99,7 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
     constructor(
         address airlock_,
         IPoolManager poolManager_,
-        PositionManager positionManager_,
+        IPositionManager positionManager_,
         StreamableFeesLocker locker_,
         IHooks migratorHook_
     ) ImmutableAirlock(airlock_) {

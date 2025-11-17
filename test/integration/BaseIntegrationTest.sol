@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Vm } from "forge-std/Vm.sol";
 
-import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { Deployers } from "test/shared/Deployers.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
@@ -76,22 +76,14 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
     }
 
     // Solidity doesn't like it when you pass an overloaded function as an argument so we wrap it
-    function _deployCodeTo(
-        string memory what,
-        bytes memory args,
-        address where
-    ) internal {
+    function _deployCodeTo(string memory what, bytes memory args, address where) internal {
         deployCodeTo(what, args, where);
     }
 }
 
 // TODO: Move these functions into dedicated integration test files
 
-function deployNoOpMigrator(
-    Vm vm,
-    Airlock airlock,
-    address airlockOwner
-) returns (NoOpMigrator migrator) {
+function deployNoOpMigrator(Vm vm, Airlock airlock, address airlockOwner) returns (NoOpMigrator migrator) {
     migrator = new NoOpMigrator(address(airlock));
     address[] memory modules = new address[](1);
     modules[0] = address(migrator);
@@ -117,11 +109,7 @@ function deployNoOpGovernanceFactory(
     return governanceFactory;
 }
 
-function deployTokenFactory(
-    Vm vm,
-    Airlock airlock,
-    address airlockOwner
-) returns (TokenFactory tokenFactory) {
+function deployTokenFactory(Vm vm, Airlock airlock, address airlockOwner) returns (TokenFactory tokenFactory) {
     tokenFactory = new TokenFactory(address(airlock));
     address[] memory modules = new address[](1);
     modules[0] = address(tokenFactory);
@@ -200,19 +188,14 @@ function deployWeth() returns (address weth) {
     return address(new WETH());
 }
 
-function _deployCode(
-    bytes memory creationCode
-) returns (address deployedTo) {
+function _deployCode(bytes memory creationCode) returns (address deployedTo) {
     assembly {
         deployedTo := create(0, add(creationCode, 0x20), mload(creationCode))
     }
     require(deployedTo != address(0), "Deploy failed");
 }
 
-function deployUniswapV2(
-    Vm vm,
-    address weth
-) returns (address factory, address router) {
+function deployUniswapV2(Vm vm, address weth) returns (address factory, address router) {
     factory = _deployCode(
         abi.encodePacked(vm.parseBytes(vm.readFile("./script/utils/uniswapV2Factory.bytecode")), abi.encode(address(0)))
     );

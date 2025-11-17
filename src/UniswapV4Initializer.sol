@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { IPoolManager, PoolKey, IHooks } from "@v4-core/PoolManager.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
@@ -16,9 +18,7 @@ contract DopplerDeployer {
     // These variables are purposely not immutable to avoid hitting the contract size limit
     IPoolManager public poolManager;
 
-    constructor(
-        IPoolManager poolManager_
-    ) {
+    constructor(IPoolManager poolManager_) {
         poolManager = poolManager_;
     }
 
@@ -121,9 +121,7 @@ contract UniswapV4Initializer is IPoolInitializer, ImmutableAirlock {
     }
 
     /// @inheritdoc IPoolInitializer
-    function exitLiquidity(
-        address hook
-    )
+    function exitLiquidity(address hook)
         external
         onlyAirlock
         returns (

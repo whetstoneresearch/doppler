@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 struct AddressSet {
     address[] addrs;
@@ -18,9 +18,7 @@ library LibAddressSet {
         return s.saved[addr];
     }
 
-    function count(
-        AddressSet storage s
-    ) internal view returns (uint256) {
+    function count(AddressSet storage s) internal view returns (uint256) {
         return s.addrs.length;
     }
 
@@ -41,7 +39,7 @@ library LibAddressSet {
     function reduce(
         AddressSet storage s,
         uint256 acc,
-        function(uint256,address) external returns (uint256) func
+        function(uint256, address) external returns (uint256) func
     ) internal returns (uint256) {
         for (uint256 i; i < s.addrs.length; ++i) {
             acc = func(acc, s.addrs[i]);

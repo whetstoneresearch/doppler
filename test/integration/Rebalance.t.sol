@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { stdMath } from "forge-std/StdMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -322,7 +322,7 @@ contract RebalanceTest is BaseTest {
                 false
             );
 
-        assertApproxEqRel(amountDelta, totalProceeds, 0.00000001 ether, "amountDelta != totalProceeds");
+        assertApproxEqRel(amountDelta, totalProceeds, 0.000_000_01 ether, "amountDelta != totalProceeds");
     }
 
     function test_big_swap() public {
@@ -588,8 +588,8 @@ contract RebalanceTest is BaseTest {
     function test_rebalance_PriceDiscoverySlug_RemainingEpoch() public {
         // Go to second last epoch
         vm.warp(
-            hook.startingTime()
-                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 2)
+            hook.startingTime() + hook.epochLength()
+                * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 2)
         );
 
         PoolKey memory poolKey = key;
@@ -640,14 +640,14 @@ contract RebalanceTest is BaseTest {
                 priceDiscoverySlugs[0].liquidity
             );
         }
-        assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.00001 ether);
+        assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.000_01 ether);
     }
 
     function testPriceDiscoverySlug_LastEpoch() public {
         // Go to the last epoch
         vm.warp(
-            hook.startingTime()
-                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 1)
+            hook.startingTime() + hook.epochLength()
+                * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 1)
         );
 
         PoolKey memory poolKey = key;
@@ -683,7 +683,7 @@ contract RebalanceTest is BaseTest {
                 upperSlug.liquidity
             );
         }
-        assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.00001 ether);
+        assertApproxEqRel(totalAssetLpSize, hook.numTokensToSell(), 0.000_01 ether);
     }
 
     function test_rebalance_MaxDutchAuction() public {
@@ -968,16 +968,16 @@ contract RebalanceTest is BaseTest {
         Position memory upperSlug = hook.getPositions(bytes32(uint256(2)));
 
         uint256 amount1ToSwap = LiquidityAmounts.getAmount1ForLiquidity(
-            TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
-            TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
-            upperSlug.liquidity
-        ) * 9 / 10;
+                TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                upperSlug.liquidity
+            ) * 9 / 10;
 
         uint256 amount0ToSwap = LiquidityAmounts.getAmount0ForLiquidity(
-            TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
-            TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
-            upperSlug.liquidity
-        ) * 9 / 10;
+                TickMath.getSqrtPriceAtTick(upperSlug.tickLower),
+                TickMath.getSqrtPriceAtTick(upperSlug.tickUpper),
+                upperSlug.liquidity
+            ) * 9 / 10;
 
         isToken0 ? buy(-int256(amount1ToSwap)) : buy(-int256(amount0ToSwap));
         isToken0 ? sell(-int256(amount0ToSwap)) : sell(-int256(amount1ToSwap));
@@ -1260,8 +1260,8 @@ contract RebalanceTest is BaseTest {
 
         // Go to second last epoch
         vm.warp(
-            hook.startingTime()
-                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 2)
+            hook.startingTime() + hook.epochLength()
+                * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 2)
         );
 
         // Swap some tokens
@@ -1313,8 +1313,8 @@ contract RebalanceTest is BaseTest {
 
         // Go to last epoch
         vm.warp(
-            hook.startingTime()
-                + hook.epochLength() * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 1)
+            hook.startingTime() + hook.epochLength()
+                * ((hook.endingTime() - hook.startingTime()) / hook.epochLength() - 1)
         );
 
         // Swap some tokens

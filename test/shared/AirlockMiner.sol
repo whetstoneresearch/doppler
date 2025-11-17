@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";

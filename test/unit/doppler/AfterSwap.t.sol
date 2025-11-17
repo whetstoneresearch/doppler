@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
+import { Deployers } from "test/shared/Deployers.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
@@ -84,8 +84,6 @@ contract DopplerFixtures is Deployers {
 
     /// @dev a Unichain fork should be activated with `vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);`
     function _deployAirlockAndModules() internal {
-        manager = new PoolManager(address(this));
-
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
@@ -259,9 +257,7 @@ contract DopplerFixtures is Deployers {
         assertEq(airlock.getIntegratorFees(integrator, asset), 0);
     }
 
-    function _mockEarlyExit(
-        Doppler doppler
-    ) internal {
+    function _mockEarlyExit(Doppler doppler) internal {
         // storage slot of `earlyExit` variable is slot 0
         // (via `forge inspect Doppler storage`)
         bytes32 EARLY_EXIT_SLOT = bytes32(uint256(0));

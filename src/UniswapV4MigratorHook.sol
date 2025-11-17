@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -35,9 +35,7 @@ contract UniswapV4MigratorHook is BaseHook {
 
     /// @notice Modifier to ensure the caller is the Uniswap V4 Migrator
     /// @param sender Address of the caller
-    modifier onlyMigrator(
-        address sender
-    ) {
+    modifier onlyMigrator(address sender) {
         if (sender != migrator) revert OnlyMigrator();
         _;
     }

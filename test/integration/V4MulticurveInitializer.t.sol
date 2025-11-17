@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { Deployers } from "test/shared/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -89,9 +89,7 @@ contract V4MulticurveInitializer is Deployers {
         vm.stopPrank();
     }
 
-    function test_create_MulticurveInitializerV4(
-        bytes32 salt
-    ) public {
+    function test_create_MulticurveInitializerV4(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -139,9 +137,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function test_migrate_MulticurveInitializerV4(
-        bytes32 salt
-    ) public {
+    function test_migrate_MulticurveInitializerV4(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -204,9 +200,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.migrate(asset);
     }
 
-    function _prepareInitData(
-        address token
-    ) internal returns (InitData memory) {
+    function _prepareInitData(address token) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
 
@@ -223,11 +217,7 @@ contract V4MulticurveInitializer is Deployers {
         (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
 
         poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            tickSpacing: tickSpacing,
-            fee: 0,
-            hooks: multicurveHook
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: multicurveHook
         });
         poolId = poolKey.toId();
 

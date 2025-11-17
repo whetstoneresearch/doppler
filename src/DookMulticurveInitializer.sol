@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.30;
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";

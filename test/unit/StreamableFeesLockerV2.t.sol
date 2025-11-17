@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { Deployers } from "test/shared/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 
@@ -98,11 +98,7 @@ contract StreamableFeesLockerV2Test is Deployers {
         )
     {
         key = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: 3000,
-            tickSpacing: 1,
-            hooks: IHooks(address(0))
+            currency0: currency0, currency1: currency1, fee: 3000, tickSpacing: 1, hooks: IHooks(address(0))
         });
 
         recipient = makeAddr("Recipient");

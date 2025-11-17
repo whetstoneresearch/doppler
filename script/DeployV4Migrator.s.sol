@@ -7,7 +7,7 @@ import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { Airlock } from "src/Airlock.sol";
 import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
-import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {
@@ -51,7 +51,7 @@ abstract contract DeployV4MigratorScript is Script {
         UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
             _scriptData.airlock,
             IPoolManager(_scriptData.poolManager),
-            PositionManager(payable(_scriptData.positionManager)),
+            IPositionManager(payable(_scriptData.positionManager)),
             streamableFeesLocker,
             IHooks(minedMigratorHook)
         );

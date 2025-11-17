@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 uint256 constant TOTAL_WEIGHTS = 100;
 
@@ -20,9 +20,7 @@ contract Entrypoint {
         require(totalWeights == TOTAL_WEIGHTS, "Total weights not TOTAL_WEIGHTS");
     }
 
-    function entrypoint(
-        uint256 seed
-    ) public view returns (bytes4 selector) {
+    function entrypoint(uint256 seed) public view returns (bytes4 selector) {
         uint256 value = seed % TOTAL_WEIGHTS;
         uint256 range;
 
