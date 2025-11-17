@@ -11,7 +11,7 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BaseDook, SenderNotInitializer, SenderNotHook } from "src/base/BaseDook.sol";
 
 contract DookMock is BaseDook {
-    constructor(address initializer, address hook) BaseDook(initializer, hook) { }
+    constructor(address initializer) BaseDook(initializer) { }
 }
 
 contract BaseDookTest is Test {
@@ -19,10 +19,9 @@ contract BaseDookTest is Test {
     PoolKey key;
 
     address initializer = makeAddr("initializer");
-    address hook = makeAddr("hook");
 
     function setUp() public {
-        baseDook = new DookMock(initializer, hook);
+        baseDook = new DookMock(initializer);
     }
 
     /* --------------------------------------------------------------------------- */
@@ -31,7 +30,6 @@ contract BaseDookTest is Test {
 
     function test_constructor() public view {
         assertEq(baseDook.INITIALIZER(), initializer);
-        assertEq(baseDook.HOOK(), hook);
     }
 
     /* -------------------------------------------------------------------------------- */
@@ -66,8 +64,8 @@ contract BaseDookTest is Test {
     /*                                    onSwap()                                    */
     /* ------------------------------------------------------------------------------ */
 
-    function test_onSwap_RevertsWhenMsgSenderNotHook() public {
-        vm.expectRevert(SenderNotHook.selector);
+    function test_onSwap_RevertsWhenMsgSenderNotInitializer() public {
+        vm.expectRevert(SenderNotInitializer.selector);
         baseDook.onSwap(
             address(0),
             PoolKey(Currency.wrap(address(0)), Currency.wrap(address(0)), 0, 0, IHooks(address(0))),
@@ -77,8 +75,8 @@ contract BaseDookTest is Test {
         );
     }
 
-    function test_onSwap_PassesWhenMsgSenderHook() public {
-        vm.prank(hook);
+    function test_onSwap_PassesWhenMsgSenderInitializer() public {
+        vm.prank(initializer);
         baseDook.onSwap(
             address(0),
             PoolKey(Currency.wrap(address(0)), Currency.wrap(address(0)), 0, 0, IHooks(address(0))),
