@@ -7,9 +7,21 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { BaseDook } from "src/base/BaseDook.sol";
 
+/**
+ * @notice Thrown when a swap is attempted before the sale has started
+ * @param startingTime Timestamp when the sale is scheduled to start
+ * @param actualTime Current block timestamp
+ */
 error SaleHasNotStartedYet(uint256 startingTime, uint256 actualTime);
 
-contract ScheduledLaunchedDook is BaseDook {
+/**
+ * @title Scheduled Launch Dook
+ * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
+ * @notice Doppler Hook allowing to schedule a launch time for a pool
+ */
+contract ScheduledLaunchDook is BaseDook {
+    /// @notice Returns the scheduled starting time associated with a Uniswap V4 poolId
     mapping(PoolId poolId => uint256 startingTime) public getStartingTimeOf;
 
     /// @param initializer Address of the Dook Multicurve Initializer contract
