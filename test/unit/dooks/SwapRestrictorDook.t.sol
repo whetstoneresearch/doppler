@@ -6,11 +6,10 @@ import { SwapRestrictorDook } from "src/dooks/SwapRestrictorDook.sol";
 
 contract SwapRestrictorDookTest is Test {
     address initializer = makeAddr("initializer");
-    address hook = makeAddr("hook");
 
     SwapRestrictorDook public dook;
 
     function setUp() public {
-        dook = new SwapRestrictorDook(initializer, hook);
+        dook = new SwapRestrictorDook(initializer);
     }
 }
