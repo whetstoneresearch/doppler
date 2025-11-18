@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL
 pragma solidity ^0.8.13;
 
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 /**
  * @title Doppler Hook Interface
@@ -17,6 +17,7 @@ interface IDook {
     /**
      * @notice Called during the pool initialization process or when the hook is added to an existing pool
      * @param asset Address of the asset token
+     * @param key Key of the Uniswap V4 pool being initialized
      * @param data Extra data to pass to the hook
      */
     function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external;
@@ -24,7 +25,7 @@ interface IDook {
     /**
      * @notice Called before every swap executed on the pool
      * @param sender Address of the swap sender
-     * @param key PoolKey of the pool where the swap is executed
+     * @param key Key of the Uniswap V4 pool where the swap is executed
      * @param params Swap parameters as defined in IPoolManager
      * @param data Extra data to pass to the hook
      */
@@ -39,6 +40,7 @@ interface IDook {
     /**
      * @notice Called when the pool graduates
      * @param asset Address of the asset token
+     * @param key Key of the Uniswap V4 pool graduating
      * @param data Extra data to pass to the hook
      */
     function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external;
