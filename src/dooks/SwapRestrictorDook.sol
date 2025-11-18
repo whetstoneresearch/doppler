@@ -53,7 +53,7 @@ contract SwapRestrictorDook is BaseDook {
     ) internal override {
         bool isToken0 = isAssetToken0[key.toId()];
 
-        if ((params.zeroForOne && !isToken0) || (!params.zeroForOne && isToken0)) {
+        if (params.zeroForOne != isToken0) {
             uint256 amountRequested = isToken0 ? uint128(balanceDelta.amount0()) : uint128(balanceDelta.amount1());
             PoolId poolId = key.toId();
             require(
