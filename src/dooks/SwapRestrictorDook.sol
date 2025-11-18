@@ -8,12 +8,23 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseDook } from "src/base/BaseDook.sol";
 
+/// @notice Thrown when a swap request exceeds the amount left to buy for the sender
 error InsufficientAmountLeft(PoolId poolId, address sender, uint256 amountRequested, uint256 amountLeft);
 
+/// @notice Emitted when the amount left to buy for a sender is updated
 event UpdatedAmountLeft(PoolId indexed poolId, address indexed sender, uint256 amountLeft);
 
+/**
+ * @title Swap Restrictor Dook
+ * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
+ * @notice Doppler Hook allowing to limit the amount an address can swap for a given asset in a pool
+ */
 contract SwapRestrictorDook is BaseDook {
+    /// @notice Returns true if the asset token is the `currency0` of the Uniswap V4 pool
     mapping(PoolId poolId => bool isToken0) public isAssetToken0;
+
+    /// @notice Returns the amount left to buy for a given sender and Uniswap V4 pool
     mapping(PoolId poolId => mapping(address sender => uint256 amountLeft)) public amountLeftOf;
 
     /// @param initializer Address of the Dook Multicurve Initializer contract
