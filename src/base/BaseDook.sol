@@ -15,11 +15,8 @@ uint256 constant ON_SWAP_FLAG = 1 << 1;
 /// @dev Flag for the `onGraduation` callback
 uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
-/// @notice Thrown when the msg.sender is not the Dook Multicurve Initializer contract
+/// @notice Thrown when the `msg.sender` is not the Dook Multicurve Initializer contract
 error SenderNotInitializer();
-
-/// @notice Thrown when the msg.sender is not the Dook Multicurve Hook contract
-error SenderNotHook();
 
 /**
  * @title Doppler Hook Base Contract
@@ -45,23 +42,12 @@ abstract contract BaseDook is IDook {
         INITIALIZER = initializer;
     }
 
-    /**
-     * @notice Called upon pool initialization or when linking the Dook to an asset
-     * @param asset Address of the asset being initialized in the Dook Multicurve Initializer
-     * @param data Arbitrary data passed from the initializer to be consumed by the Dook
-     */
+    /// @inheritdoc IDook
     function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
         _onInitialization(asset, key, data);
     }
 
-    /**
-     * @notice Called upon every swap in a pool linked to this Dook
-     * @param sender Address initiating the swap
-     * @param key Key of the Uniswap V4 pool where the swap is occurring
-     * @param params Swap paremters as defined in IPoolManager
-     * @param balanceDelta Balance delta resulting from the swap
-     * @param data Arbitrary data passed from the hook to be consumed by the Dook
-     */
+    /// @inheritdoc IDook
     function onSwap(
         address sender,
         PoolKey calldata key,
@@ -72,12 +58,7 @@ abstract contract BaseDook is IDook {
         _onSwap(sender, key, params, balanceDelta, data);
     }
 
-    /**
-     * @notice Called when a pool linked to this Dook graduates
-     * @param asset Address of the asset being graduated in the Dook Multicurve Initializer
-     * @param key Key of the Uniswap V4 pool graduating
-     * @param data Arbitrary data passed from the initializer to be consumed by the Dook
-     */
+    /// @inheritdoc IDook
     function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
         _onGraduation(asset, key, data);
     }
