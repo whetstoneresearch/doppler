@@ -385,15 +385,19 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         address authority = getAuthority[timelock];
         require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized());
 
+        uint256 dookFlag = isDookEnabled[dook];
+
         if (dook != address(0)) {
-            require(isDookEnabled[dook] > 0, DookNotEnabled());
+            require(dookFlag > 0, DookNotEnabled());
         }
 
         getState[asset].dook = dook;
         getState[asset].graduationDookCalldata = onGraduationCalldata;
         emit SetDook(asset, dook);
 
-        IDook(dook).onInitialization(asset, state.poolKey, onInitializationCalldata);
+        if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
+            IDook(dook).onInitialization(asset, state.poolKey, onInitializationCalldata);
+        }
     }
 
     /**
