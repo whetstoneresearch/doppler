@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
 import { Ownable } from "@solady/auth/Ownable.sol";
 import { ERC20Votes } from "@solady/tokens/ERC20Votes.sol";
 import { Initializable } from "@solady/utils/Initializable.sol";
-import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
+import { Test } from "forge-std/Test.sol";
 import {
     ArrayLengthsMismatch,
+    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MAX_TOTAL_PRE_MINT_WAD,
+    MAX_YEARLY_MINT_RATE_WAD,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
-    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MaxYearlyMintRateExceeded,
     MintingNotStartedYet,
-    NoMintableAmount,
-    MAX_YEARLY_MINT_RATE_WAD,
-    MAX_TOTAL_PRE_MINT_WAD,
-    MaxYearlyMintRateExceeded
+    NoMintableAmount
 } from "src/CloneERC20.sol";
+import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 
 function generateRecipients(
     uint256 seed,
@@ -279,9 +279,7 @@ contract CloneERC20VotesTest is Test {
         uint256 recipientBalance = token.balanceOf(recipient);
         uint256 previousVotes = token.getVotes(address(0xcafe));
         vm.expectEmit(true, true, true, true);
-        emit ERC20Votes.DelegateVotesChanged(
-            address(0xcafe), previousVotes, previousVotes - recipientBalance / 10
-        );
+        emit ERC20Votes.DelegateVotesChanged(address(0xcafe), previousVotes, previousVotes - recipientBalance / 10);
         token.transfer(address(0xbeef), recipientBalance / 10);
         vm.stopPrank();
     }
@@ -381,7 +379,7 @@ contract CloneERC20VotesTest is Test {
         string memory tokenURI,
         uint256 seed
     ) public {
-        vm.assume(yearlyMintRate > 0);
+        yearlyMintRate = bound(yearlyMintRate, 0.005 ether, MAX_YEARLY_MINT_RATE_WAD);
         testFuzz_initialize(
             name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
