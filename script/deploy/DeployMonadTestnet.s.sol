@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
@@ -13,8 +14,10 @@ import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initialize
 import { Bundler } from "src/Bundler.sol";
 import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
+import { DookMulticurveInitializer } from "src/DookMulticurveInitializer.sol";
 import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
+import { mineDookMulticurveInitializer, MineDookMulticurveInitializerParams } from "test/shared/AirlockMiner.sol";
 
 contract DeployMonadTestnetScript is Script {
     function run() public {
@@ -49,6 +52,21 @@ contract DeployMonadTestnetScript is Script {
             Airlock(payable(airlock)),
             UniversalRouter(payable(0x3aE6D8A282D67893e17AA70ebFFb33EE5aa65893)),
             IQuoterV2(0x1b4E313fEF15630AF3e6F2dE550Dbf4cC9D3081d)
+        );
+
+        (bytes32 salt, address minedDookMulticurveInitializer) = mineDookMulticurveInitializer(
+            MineDookMulticurveInitializerParams({
+                airlock: airlock, poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e, deployer: msg.sender
+            })
+        );
+
+        DookMulticurveInitializer dookMulticurveInitializer = new DookMulticurveInitializer{ salt: salt }(
+            airlock, IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e)
+        );
+
+        require(
+            minedDookMulticurveInitializer == address(dookMulticurveInitializer),
+            "Deployed DookMulticurveInitializer address mismatch"
         );
 
         // Whitelisting the initial modules

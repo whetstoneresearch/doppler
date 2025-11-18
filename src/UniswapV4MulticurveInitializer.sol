@@ -10,6 +10,7 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { FeesManager } from "src/base/FeesManager.sol";
 import { Position } from "src/types/Position.sol";
@@ -143,7 +144,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         address airlock_,
         IPoolManager poolManager_,
         IHooks hook_
-    ) ImmutableAirlock(airlock_) MiniV4Manager(poolManager_) {
+    ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) {
         HOOK = hook_;
     }
 
@@ -215,9 +216,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     }
 
     /// @inheritdoc IPoolInitializer
-    function exitLiquidity(
-        address asset
-    )
+    function exitLiquidity(address asset)
         external
         onlyAirlock
         returns (
@@ -257,9 +256,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of positions currently held in the Uniswap V4 pool
      */
-    function getPositions(
-        address asset
-    ) external view returns (Position[] memory) {
+    function getPositions(address asset) external view returns (Position[] memory) {
         return getState[asset].positions;
     }
 
@@ -268,16 +265,12 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of beneficiaries with their shares
      */
-    function getBeneficiaries(
-        address asset
-    ) external view returns (BeneficiaryData[] memory) {
+    function getBeneficiaries(address asset) external view returns (BeneficiaryData[] memory) {
         return getState[asset].beneficiaries;
     }
 
     /// @inheritdoc FeesManager
-    function _collectFees(
-        PoolId poolId
-    ) internal override returns (BalanceDelta fees) {
+    function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         PoolState memory state = getState[getAsset[poolId]];
         require(state.status == PoolStatus.Locked, PoolNotLocked());
         fees = _collect(state.poolKey, state.positions);
