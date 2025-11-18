@@ -2,10 +2,10 @@
 pragma solidity ^0.8.26;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseDook } from "src/base/BaseDook.sol";
 
 error InsufficientAmountLeft(PoolId poolId, address sender, uint256 amountRequested, uint256 amountLeft);
