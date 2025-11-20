@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { IERC20Errors } from "@openzeppelin/interfaces/draft-IERC6093.sol";
+import { Test } from "forge-std/Test.sol";
 import {
-    DERC20,
     ArrayLengthsMismatch,
+    DERC20,
+    MAX_PRE_MINT_PER_ADDRESS_WAD,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
-    MAX_PRE_MINT_PER_ADDRESS_WAD,
-    PoolLocked,
     MintingNotStartedYet,
-    NoMintableAmount
-} from "src/DERC20.sol";
-import { IERC20Errors } from "@openzeppelin/interfaces/draft-IERC6093.sol";
+    NoMintableAmount,
+    PoolLocked
+} from "src/modules/token/DERC20.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
 uint256 constant YEARLY_MINT_RATE = 0.02e18;

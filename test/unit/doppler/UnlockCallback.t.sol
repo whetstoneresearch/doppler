@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { Doppler } from "src/modules/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { Doppler } from "src/Doppler.sol";
 
 contract UnlockCallbackTest is BaseTest {
     function test_unlockCallback_RevertsWhenNotPoolManager() public {

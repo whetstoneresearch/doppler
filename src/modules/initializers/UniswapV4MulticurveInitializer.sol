@@ -1,23 +1,22 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
-
 import { FeesManager } from "src/base/FeesManager.sol";
-import { Position } from "src/types/Position.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
+import { Position } from "src/types/Position.sol";
 
 /**
  * @notice Emitted when a new pool is locked
@@ -215,9 +214,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
     }
 
     /// @inheritdoc IPoolInitializer
-    function exitLiquidity(
-        address asset
-    )
+    function exitLiquidity(address asset)
         external
         onlyAirlock
         returns (
@@ -257,9 +254,7 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of positions currently held in the Uniswap V4 pool
      */
-    function getPositions(
-        address asset
-    ) external view returns (Position[] memory) {
+    function getPositions(address asset) external view returns (Position[] memory) {
         return getState[asset].positions;
     }
 
@@ -268,16 +263,12 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of beneficiaries with their shares
      */
-    function getBeneficiaries(
-        address asset
-    ) external view returns (BeneficiaryData[] memory) {
+    function getBeneficiaries(address asset) external view returns (BeneficiaryData[] memory) {
         return getState[asset].beneficiaries;
     }
 
     /// @inheritdoc FeesManager
-    function _collectFees(
-        PoolId poolId
-    ) internal override returns (BalanceDelta fees) {
+    function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         PoolState memory state = getState[getAsset[poolId]];
         require(state.status == PoolStatus.Locked, PoolNotLocked());
         fees = _collect(state.poolKey, state.positions);

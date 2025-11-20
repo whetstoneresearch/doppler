@@ -3,13 +3,15 @@ pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { Doppler } from "src/Doppler.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { Doppler } from "src/modules/initializers/Doppler.sol";
+import { UniswapV4Initializer } from "src/modules/initializers/UniswapV4Initializer.sol";
+import { UniswapV4Initializer } from "src/modules/initializers/UniswapV4Initializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/modules/initializers/UniswapV4MulticurveInitializerHook.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { UniswapV4MigratorHook } from "src/modules/migrators/UniswapV4MigratorHook.sol";
+import { DERC20 } from "src/modules/token/DERC20.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -43,9 +45,7 @@ struct MineV4MigratorHookParams {
     address hookDeployer;
 }
 
-function mineV4MigratorHook(
-    MineV4MigratorHookParams memory params
-) view returns (bytes32, address) {
+function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 migratorHookInitHash = keccak256(
         abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager, params.migrator))
     );
@@ -59,9 +59,7 @@ function mineV4MigratorHook(
     revert("AirlockMiner: could not find salt");
 }
 
-function mineV4MulticurveHook(
-    MineV4MigratorHookParams memory params
-) view returns (bytes32, address) {
+function mineV4MulticurveHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 multicurveHookInitHash = keccak256(
         abi.encodePacked(
             type(UniswapV4MulticurveInitializerHook).creationCode,
@@ -87,9 +85,7 @@ function mineV4MulticurveHook(
     revert("AirlockMiner: could not find salt");
 }
 
-function mineV4ScheduledMulticurveHook(
-    MineV4MigratorHookParams memory params
-) view returns (bytes32, address) {
+function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 multicurveHookInitHash = keccak256(
         abi.encodePacked(
             type(UniswapV4ScheduledMulticurveInitializerHook).creationCode,
@@ -115,9 +111,7 @@ function mineV4ScheduledMulticurveHook(
     revert("AirlockMiner: could not find salt");
 }
 
-function mineV4(
-    MineV4Params memory params
-) view returns (bytes32, address, address) {
+function mineV4(MineV4Params memory params) view returns (bytes32, address, address) {
     (
         uint256 minimumProceeds,
         uint256 maximumProceeds,
@@ -203,11 +197,7 @@ function mineV4(
     revert("AirlockMiner: could not find salt");
 }
 
-function computeCreate2Address(
-    bytes32 salt,
-    bytes32 initCodeHash,
-    address deployer
-) pure returns (address) {
+function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) pure returns (address) {
     return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
 }
 

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
+import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@v3-core/interfaces/callback/IUniswapV3MintCallback.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Airlock } from "src/Airlock.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 
 /**
  * @notice Emitted when a collect event is called
@@ -216,9 +216,7 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
     }
 
     /// @inheritdoc IPoolInitializer
-    function exitLiquidity(
-        address pool
-    )
+    function exitLiquidity(address pool)
         external
         onlyAirlock
         returns (
@@ -262,9 +260,7 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
      * @return fees0ToDistribute Total fees collected in token0
      * @return fees1ToDistribute Total fees collected in token1
      */
-    function collectFees(
-        address pool
-    ) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
+    function collectFees(address pool) external returns (uint256 fees0ToDistribute, uint256 fees1ToDistribute) {
         require(getState[pool].status == PoolStatus.Locked, PoolLocked());
 
         address token0 = IUniswapV3Pool(pool).token0();
@@ -339,8 +335,9 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
 
         require(posTickLower < posTickUpper, InvalidTickRangeMisordered(posTickLower, posTickUpper));
 
-        lpTail =
-            LpPosition({ tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, id: uint16(id) });
+        lpTail = LpPosition({
+            tickLower: posTickLower, tickUpper: posTickUpper, liquidity: lpTailLiquidity, id: uint16(id)
+        });
     }
 
     /// @notice Calculates the distribution of liquidity positions across tick ranges
@@ -384,34 +381,34 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
                 uint128 liquidity;
                 if (totalAmtToBeSold != 0) {
                     liquidity = isToken0
-                        ? LiquidityAmounts.getLiquidityForAmount0(startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition)
-                        : LiquidityAmounts.getLiquidityForAmount1(farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition);
+                        ? LiquidityAmounts.getLiquidityForAmount0(
+                            startingSqrtPriceX96, farSqrtPriceX96, amountPerPosition
+                        )
+                        : LiquidityAmounts.getLiquidityForAmount1(
+                            farSqrtPriceX96, startingSqrtPriceX96, amountPerPosition
+                        );
 
-                    totalAssetsSold += (
-                        isToken0
-                            ? SqrtPriceMath.getAmount0Delta(startingSqrtPriceX96, farSqrtPriceX96, liquidity, true)
-                            : SqrtPriceMath.getAmount1Delta(farSqrtPriceX96, startingSqrtPriceX96, liquidity, true)
-                    );
+                    totalAssetsSold += (isToken0
+                                ? SqrtPriceMath.getAmount0Delta(startingSqrtPriceX96, farSqrtPriceX96, liquidity, true)
+                                : SqrtPriceMath.getAmount1Delta(farSqrtPriceX96, startingSqrtPriceX96, liquidity, true));
 
                     // note: we keep track how the theoretical reserves amount at that time to then calculate the breakeven liquidity amount
                     // once we get to the end of the loop, we will know exactly how many of the reserve assets have been raised, and we can
                     // calculate the total amount of reserves after the endTick which makes swappers and LPs indifferent between Uniswap v2 (CPMM) and Uniswap v3 (CLAMM)
                     // we can then bond the tokens to the Uniswap v2 pool by moving them over to the Uniswap v3 pool whenever possible, but there is no rush as it goes up
-                    reserves += (
-                        isToken0
-                            ? SqrtPriceMath.getAmount1Delta(
-                                farSqrtPriceX96,
-                                startingSqrtPriceX96,
-                                liquidity,
-                                false // round against the reserves to undercount eventual liquidity
-                            )
-                            : SqrtPriceMath.getAmount0Delta(
-                                startingSqrtPriceX96,
-                                farSqrtPriceX96,
-                                liquidity,
-                                false // round against the reserves to undercount eventual liquidity
-                            )
-                    );
+                    reserves += (isToken0
+                                ? SqrtPriceMath.getAmount1Delta(
+                                    farSqrtPriceX96,
+                                    startingSqrtPriceX96,
+                                    liquidity,
+                                    false // round against the reserves to undercount eventual liquidity
+                                )
+                                : SqrtPriceMath.getAmount0Delta(
+                                    startingSqrtPriceX96,
+                                    farSqrtPriceX96,
+                                    liquidity,
+                                    false // round against the reserves to undercount eventual liquidity
+                                ));
                 }
 
                 newPositions[i] = LpPosition({
@@ -446,13 +443,14 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
         uint16 numPositions
     ) internal {
         for (uint256 i; i <= numPositions; i++) {
-            IUniswapV3Pool(pool).mint(
-                address(this),
-                newPositions[i].tickLower,
-                newPositions[i].tickUpper,
-                newPositions[i].liquidity,
-                abi.encode(CallbackData({ asset: asset, numeraire: numeraire, fee: fee }))
-            );
+            IUniswapV3Pool(pool)
+                .mint(
+                    address(this),
+                    newPositions[i].tickLower,
+                    newPositions[i].tickUpper,
+                    newPositions[i].liquidity,
+                    abi.encode(CallbackData({ asset: asset, numeraire: numeraire, fee: fee }))
+                );
         }
     }
 
@@ -460,9 +458,7 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
      * @dev Validates beneficiaries array and ensures protocol owner compliance
      * @param beneficiaries Array of beneficiaries to validate
      */
-    function _validateBeneficiaries(
-        BeneficiaryData[] memory beneficiaries
-    ) internal view {
+    function _validateBeneficiaries(BeneficiaryData[] memory beneficiaries) internal view {
         address protocolOwner = Airlock(airlock).owner();
         address prevBeneficiary;
         uint256 totalShares;
@@ -507,9 +503,10 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
             // you must poke the position via burning it to collecting fees
             IUniswapV3Pool(pool).burn(positions[i].tickLower, positions[i].tickUpper, 0);
 
-            (posFees0, posFees1) = IUniswapV3Pool(pool).collect(
-                address(this), positions[i].tickLower, positions[i].tickUpper, type(uint128).max, type(uint128).max
-            );
+            (posFees0, posFees1) = IUniswapV3Pool(pool)
+                .collect(
+                    address(this), positions[i].tickLower, positions[i].tickUpper, type(uint128).max, type(uint128).max
+                );
 
             fees0 += posFees0;
             fees1 += posFees1;
@@ -537,9 +534,10 @@ contract LockableUniswapV3Initializer is IPoolInitializer, IUniswapV3MintCallbac
         for (uint256 i; i < positions.length; i++) {
             (posAmount0, posAmount1) =
                 IUniswapV3Pool(pool).burn(positions[i].tickLower, positions[i].tickUpper, positions[i].liquidity);
-            (posBalance0, posBalance1) = IUniswapV3Pool(pool).collect(
-                address(this), positions[i].tickLower, positions[i].tickUpper, type(uint128).max, type(uint128).max
-            );
+            (posBalance0, posBalance1) = IUniswapV3Pool(pool)
+                .collect(
+                    address(this), positions[i].tickLower, positions[i].tickUpper, type(uint128).max, type(uint128).max
+                );
 
             amount0 += posAmount0;
             amount1 += posAmount1;

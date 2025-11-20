@@ -2,26 +2,26 @@
 pragma solidity ^0.8.24;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 import {
     CannotSwapBeforeStartTime,
     InvalidSwapAfterMaturityInsufficientProceeds,
     InvalidSwapAfterMaturitySufficientProceeds,
-    MAX_SWAP_FEE,
-    Position,
     LOWER_SLUG_SALT,
-    NUM_DEFAULT_SLUGS
-} from "src/Doppler.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { alignTick } from "src/libraries/TickLibrary.sol";
+    MAX_SWAP_FEE,
+    NUM_DEFAULT_SLUGS,
+    Position
+} from "src/modules/initializers/Doppler.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract SwapTest is BaseTest {
     using StateLibrary for IPoolManager;

@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
-import { BalanceDelta, add, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
-import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
-import { TransientStateLibrary } from "@v4-core/libraries/TransientStateLibrary.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
-import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
+import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { FixedPoint96 } from "@v4-core/libraries/FixedPoint96.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { SwapMath } from "@v4-core/libraries/SwapMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { TransientStateLibrary } from "@v4-core/libraries/TransientStateLibrary.sol";
+import { BalanceDelta, BalanceDeltaLibrary, add } from "@v4-core/types/BalanceDelta.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 /// @notice Data for a liquidity slug, an intermediate representation of a `Position`
 /// @dev Output struct when computing slug data for a `Position`
@@ -535,7 +535,7 @@ contract Doppler is BaseHook {
         }
 
         uint24 swapFee = (swapParams.zeroForOne ? protocolFee.getZeroForOneFee() : protocolFee.getOneForZeroFee())
-            .calculateSwapFee(lpFee);
+        .calculateSwapFee(lpFee);
 
         if (isToken0) {
             int128 amount0 = swapDelta.amount0();
@@ -601,9 +601,7 @@ contract Doppler is BaseHook {
     ///         We adjust the bonding curve according to the amount tokens sold relative to the expected amount
     /// @dev Called during beforeSwap when entering a new epoch
     /// @param key The pool key
-    function _rebalance(
-        PoolKey calldata key
-    ) internal {
+    function _rebalance(PoolKey calldata key) internal {
         // We increment by 1 to 1-index the epoch
         uint256 currentEpoch = _getCurrentEpoch();
         uint256 epochsPassed = currentEpoch - uint256(state.lastEpoch);
@@ -638,7 +636,7 @@ contract Doppler is BaseHook {
 
             // Otherwise, we only apply a partial Dutch auction adjustment
             accumulatorDelta += _getMaxTickDeltaPerEpoch()
-                * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedSoldFirstEpoch)) / I_WAD;
+            * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedSoldFirstEpoch)) / I_WAD;
         } else {
             // If we sold more than expected, we apply the oversold logic
             int24 tauTick = startingTick + int24(state.tickAccumulator / I_WAD);
@@ -672,7 +670,7 @@ contract Doppler is BaseHook {
 
             if (totalTokensSold_ < expectedSold) {
                 accumulatorDelta += _getMaxTickDeltaPerEpoch()
-                    * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedSold)) / I_WAD;
+                * int256(WAD - FullMath.mulDiv(totalTokensSold_, WAD, expectedSold)) / I_WAD;
             }
         }
 
@@ -781,9 +779,7 @@ contract Doppler is BaseHook {
     /// @notice If offset == 0, retrieves the end time of the current epoch
     ///         If offset == n, retrieves the end time of the nth epoch from the current
     /// @param offset The offset from the current epoch
-    function _getEpochEndWithOffset(
-        uint256 offset
-    ) internal view returns (uint256) {
+    function _getEpochEndWithOffset(uint256 offset) internal view returns (uint256) {
         uint256 epochEnd = (_getCurrentEpoch() + offset) * epochLength + startingTime;
         if (epochEnd > endingTime) {
             epochEnd = endingTime;
@@ -799,9 +795,7 @@ contract Doppler is BaseHook {
 
     /// @notice Retrieves the elapsed time since the start of the sale, normalized to 1e18
     /// @param timestamp The timestamp to retrieve for
-    function _getNormalizedTimeElapsed(
-        uint256 timestamp
-    ) internal view returns (uint256) {
+    function _getNormalizedTimeElapsed(uint256 timestamp) internal view returns (uint256) {
         return FullMath.mulDiv(timestamp - startingTime, WAD, endingTime - startingTime);
     }
 
@@ -809,9 +803,7 @@ contract Doppler is BaseHook {
     ///         If offset == 1, retrieves the expected amount sold by the end of the current epoch
     ///         If offset == n, retrieves the expected amount sold by the end of the nth epoch from the current
     /// @param offset The epoch offset to retrieve for
-    function _getExpectedAmountSoldWithEpochOffset(
-        int256 offset
-    ) internal view returns (uint256) {
+    function _getExpectedAmountSoldWithEpochOffset(int256 offset) internal view returns (uint256) {
         return FullMath.mulDiv(
             _getNormalizedTimeElapsed(
                 uint256((int256(_getCurrentEpoch()) + offset - 1) * int256(epochLength) + int256(startingTime))
@@ -1145,9 +1137,7 @@ contract Doppler is BaseHook {
             poolManager.swap(
                 key,
                 IPoolManager.SwapParams({
-                    zeroForOne: swapPrice < currentPrice,
-                    amountSpecified: 1,
-                    sqrtPriceLimitX96: swapPrice
+                    zeroForOne: swapPrice < currentPrice, amountSpecified: 1, sqrtPriceLimitX96: swapPrice
                 }),
                 ""
             );
@@ -1214,9 +1204,7 @@ contract Doppler is BaseHook {
     /// @notice Callback to add liquidity to the pool in afterInitialize
     /// or remove liquidity during migration
     /// @param data The callback data (key, sender, tick)
-    function unlockCallback(
-        bytes calldata data
-    ) external onlyPoolManager returns (bytes memory) {
+    function unlockCallback(bytes calldata data) external onlyPoolManager returns (bytes memory) {
         CallbackData memory callbackData = abi.decode(data, (CallbackData));
         (PoolKey memory key, address sender, int24 tick, bool isMigration) =
             (callbackData.key, callbackData.sender, callbackData.tick, callbackData.isMigration);
@@ -1382,9 +1370,7 @@ contract Doppler is BaseHook {
      * @return balance1 Total balance of token1 migrated (including fees1)
      *
      */
-    function migrate(
-        address recipient
-    )
+    function migrate(address recipient)
         external
         returns (
             uint160 sqrtPriceX96,

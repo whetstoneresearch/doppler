@@ -5,34 +5,37 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IPoolManager, PoolKey } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 
+import { Airlock } from "src/Airlock.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import {
     BeneficiaryData,
     CannotMigrateInsufficientTick,
-    PoolAlreadyInitialized,
-    PoolStatus,
-    PoolNotLocked,
+    Lock,
     PoolAlreadyExited,
-    Lock
-} from "src/UniswapV4MulticurveInitializer.sol";
+    PoolAlreadyInitialized,
+    PoolNotLocked,
+    PoolStatus
+} from "src/modules/initializers/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/modules/initializers/UniswapV4MulticurveInitializerHook.sol";
 import {
-    UniswapV4ScheduledMulticurveInitializerHook,
-    CannotSwapBeforeStartingTime
-} from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
-import { WAD } from "src/types/Wad.sol";
-import { UniswapV4ScheduledMulticurveInitializer, InitData } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
-import { Position } from "src/types/Position.sol";
+    InitData,
+    UniswapV4ScheduledMulticurveInitializer
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
+import {
+    CannotSwapBeforeStartingTime,
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { Airlock } from "src/Airlock.sol";
+import { Position } from "src/types/Position.sol";
+import { WAD } from "src/types/Wad.sol";
 
 contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -64,9 +67,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         deployCodeTo("UniswapV4ScheduledMulticurveInitializerHook", abi.encode(manager, initializer), address(hook));
     }
 
-    modifier prepareAsset(
-        bool isToken0
-    ) {
+    modifier prepareAsset(bool isToken0) {
         asset = isToken0 ? Currency.unwrap(currency0) : Currency.unwrap(currency1);
         numeraire = isToken0 ? Currency.unwrap(currency1) : Currency.unwrap(currency0);
         vm.label(asset, "Asset");
@@ -103,18 +104,18 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         );
     }
 
-    function test_initialize_RevertsWhenAlreadyInitialized(
-        bool isToken0
-    ) public {
+    function test_initialize_RevertsWhenAlreadyInitialized(bool isToken0) public {
         InitData memory initData = test_initialize_InitializesPool(isToken0);
         vm.expectRevert(PoolAlreadyInitialized.selector);
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
     }
 
-    function test_initialize_InitializesPool(
-        bool isToken0
-    ) public prepareAsset(isToken0) returns (InitData memory initData) {
+    function test_initialize_InitializesPool(bool isToken0)
+        public
+        prepareAsset(isToken0)
+        returns (InitData memory initData)
+    {
         initData = _prepareInitData();
 
         vm.expectEmit();
@@ -129,9 +130,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
     }
 
-    function test_initialize_AddsLiquidity(
-        bool isToken0
-    ) public {
+    function test_initialize_AddsLiquidity(bool isToken0) public {
         // TODO: Figure out why this test is failing
         vm.skip(true);
         test_initialize_InitializesPool(isToken0);
@@ -139,9 +138,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         assertGt(liquidity, 0, "Liquidity is zero");
     }
 
-    function test_initialize_LocksPool(
-        bool isToken0
-    ) public prepareAsset(isToken0) {
+    function test_initialize_LocksPool(bool isToken0) public prepareAsset(isToken0) {
         InitData memory initData = _prepareInitDataLock();
 
         vm.expectEmit();
@@ -160,9 +157,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         }
     }
 
-    function test_initialize_StoresPoolState(
-        bool isToken0
-    ) public {
+    function test_initialize_StoresPoolState(bool isToken0) public {
         InitData memory initData = test_initialize_InitializesPool(isToken0);
 
         (address returnedNumeraire, PoolStatus status, PoolKey memory key, int24 farTick) = initializer.getState(asset);
@@ -181,9 +176,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
     /*                                exitLiquidity()                                */
     /* ----------------------------------------------------------------------------- */
 
-    function test_exitLiquidity(
-        bool isToken0
-    ) public {
+    function test_exitLiquidity(bool isToken0) public {
         test_initialize_InitializesPool(isToken0);
 
         (,,, int24 farTick) = initializer.getState(asset);
@@ -214,26 +207,20 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         }
     }
 
-    function test_exitLiquidity_RevertsWhenSenderNotAirlock(
-        bool isToken0
-    ) public {
+    function test_exitLiquidity_RevertsWhenSenderNotAirlock(bool isToken0) public {
         test_initialize_InitializesPool(isToken0);
         vm.expectRevert(SenderNotAirlock.selector);
         initializer.exitLiquidity(asset);
     }
 
-    function test_exitLiquidity_RevertsWhenPoolNotInitialized(
-        bool isToken0
-    ) public {
+    function test_exitLiquidity_RevertsWhenPoolNotInitialized(bool isToken0) public {
         test_exitLiquidity(isToken0);
         vm.expectRevert(PoolAlreadyExited.selector);
         vm.prank(address(airlock));
         initializer.exitLiquidity(asset);
     }
 
-    function test_exitLiquidity_RevertsWhenInsufficientTick(
-        bool isToken0
-    ) public {
+    function test_exitLiquidity_RevertsWhenInsufficientTick(bool isToken0) public {
         test_initialize_InitializesPool(isToken0);
         (,,, int24 farTick) = initializer.getState(asset);
         (, int24 tick,,) = manager.getSlot0(poolId);
@@ -252,9 +239,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         initializer.collectFees(PoolId.wrap(0));
     }
 
-    function test_collectFees(
-        bool isToken0
-    ) public prepareAsset(isToken0) {
+    function test_collectFees(bool isToken0) public prepareAsset(isToken0) {
         InitData memory initData = _prepareInitDataLock();
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
@@ -306,10 +291,7 @@ contract UniswapV4ScheduledMulticurveInitializerTest is Deployers {
         return initData;
     }
 
-    function _buyUntilFarTick(
-        int24 farTick,
-        bool isToken0
-    ) internal {
+    function _buyUntilFarTick(int24 farTick, bool isToken0) internal {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: int256(totalTokensOnBondingCurve),

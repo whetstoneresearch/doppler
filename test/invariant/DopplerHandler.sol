@@ -1,27 +1,31 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { Pool } from "@v4-core/libraries/Pool.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Test } from "forge-std/Test.sol";
+import { MAX_SWAP_FEE } from "src/modules/initializers/Doppler.sol";
+import {
+    InvalidSwapAfterMaturityInsufficientProceeds,
+    MaximumProceedsReached,
+    SwapBelowRange
+} from "src/modules/initializers/Doppler.sol";
+import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
-import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
-import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
-import { InvalidSwapAfterMaturityInsufficientProceeds, SwapBelowRange, MaximumProceedsReached } from "src/Doppler.sol";
 
 uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
@@ -77,9 +81,7 @@ contract DopplerHandler is Test {
         vm.stopPrank();
     }
 
-    modifier useActor(
-        uint256 actorIndexSeed
-    ) {
+    modifier useActor(uint256 actorIndexSeed) {
         currentActor = actors.rand(actorIndexSeed);
         vm.startPrank(currentActor);
         _;
@@ -127,9 +129,7 @@ contract DopplerHandler is Test {
     }
 
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
-    function buyExactAmountIn(
-        uint256 amount
-    ) public createActor {
+    function buyExactAmountIn(uint256 amount) public createActor {
         amount = amount % 10 ether + 0.001 ether;
 
         if (ghost_totalTokensSold > 0 && block.timestamp > hook.startingTime()) {
@@ -148,7 +148,9 @@ contract DopplerHandler is Test {
             IPoolManager.SwapParams(!isToken0, -int256(amount), isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
             ""
-        ) returns (BalanceDelta delta) {
+        ) returns (
+            BalanceDelta delta
+        ) {
             uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
             uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
 
@@ -200,9 +202,7 @@ contract DopplerHandler is Test {
         }
     }
 
-    function buyExactAmountOut(
-        uint256 assetsToBuy
-    ) public createActor {
+    function buyExactAmountOut(uint256 assetsToBuy) public createActor {
         vm.assume(assetsToBuy > 0 && assetsToBuy <= hook.numTokensToSell());
         assetsToBuy = 1 ether;
         uint256 amountInRequired = router.computeBuyExactOut(assetsToBuy);
@@ -236,9 +236,7 @@ contract DopplerHandler is Test {
         }
     }
 
-    function sellExactIn(
-        uint256 seed
-    ) public useActor(uint256(uint160(msg.sender))) {
+    function sellExactIn(uint256 seed) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
         // vm.assume(currentActor != address(0) && assetBalanceOf[currentActor] > 0);
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
@@ -253,7 +251,9 @@ contract DopplerHandler is Test {
             IPoolManager.SwapParams(isToken0, -int256(assetsToSell), isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT),
             PoolSwapTest.TestSettings(false, false),
             ""
-        ) returns (BalanceDelta delta) {
+        ) returns (
+            BalanceDelta delta
+        ) {
             uint256 delta0 = uint256(int256(delta.amount0() < 0 ? -delta.amount0() : delta.amount0()));
             uint256 delta1 = uint256(int256(delta.amount1() < 0 ? -delta.amount1() : delta.amount1()));
 
@@ -314,9 +314,7 @@ contract DopplerHandler is Test {
         }
     }
 
-    function sellExactOut(
-        uint256 seed
-    ) public useActor(uint256(uint160(msg.sender))) {
+    function sellExactOut(uint256 seed) public useActor(uint256(uint160(msg.sender))) {
         // If the currentActor is address(0), it means no one has bought any assets yet.
         if (currentActor == address(0) || assetBalanceOf[currentActor] == 0) return;
 
@@ -347,9 +345,7 @@ contract DopplerHandler is Test {
     }
 
     /// @dev Jumps to the next epoch
-    function goNextEpoch(
-        uint256 seed
-    ) public {
+    function goNextEpoch(uint256 seed) public {
         uint256 rand = seed % 100;
         vm.assume(rand > 80);
         vm.warp(block.timestamp + hook.epochLength());

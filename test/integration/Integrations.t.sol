@@ -1,59 +1,59 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Currency } from "@v4-core/types/Currency.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
-import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { GovernanceFactory } from "src/modules/governance/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/modules/governance/NoOpGovernanceFactory.sol";
+import { Doppler } from "src/modules/initializers/Doppler.sol";
+import { UniswapV3Initializer } from "src/modules/initializers/UniswapV3Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/modules/initializers/UniswapV4Initializer.sol";
+import { UniswapV4MulticurveInitializer } from "src/modules/initializers/UniswapV4MulticurveInitializer.sol";
+import { NoOpMigrator } from "src/modules/migrators/NoOpMigrator.sol";
+import { UniswapV4Migrator } from "src/modules/migrators/UniswapV4Migrator.sol";
+import { CloneERC20Factory } from "src/modules/token/CloneERC20Factory.sol";
+import { CloneERC20VotesFactory } from "src/modules/token/CloneERC20VotesFactory.sol";
+import { TokenFactory } from "src/modules/token/TokenFactory.sol";
 import {
     BaseIntegrationTest,
-    deployTokenFactory,
-    deployNoOpMigrator,
-    deployNoOpGovernanceFactory,
-    prepareTokenFactoryData,
     deployGovernanceFactory,
-    prepareGovernanceFactoryData
+    deployNoOpGovernanceFactory,
+    deployNoOpMigrator,
+    deployTokenFactory,
+    prepareGovernanceFactoryData,
+    prepareTokenFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
-import { Doppler } from "src/Doppler.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
-import {
-    deployUniswapV4MulticurveInitializer,
-    prepareUniswapV4MulticurveInitializerData
-} from "test/integration/UniswapV4MulticurveInitializer.t.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 import { deployCloneERC20Factory, prepareCloneERC20FactoryData } from "test/integration/CloneERC20Factory.t.sol";
-import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
 import {
     deployCloneERC20VotesFactory,
     prepareCloneERC20VotesFactoryData
 } from "test/integration/CloneERC20VotesFactory.t.sol";
-import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
-import {
-    deployUniswapV4Migrator,
-    prepareUniswapV4MigratorData
-} from "test/integration/UniswapV4MigratorIntegration.t.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import {
     deployUniswapV3Initializer,
     prepareUniswapV3InitializerData
 } from "test/integration/UniswapV3Initializer.t.sol";
-import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
 import {
-    WETH_MAINNET,
+    deployUniswapV4Migrator,
+    prepareUniswapV4MigratorData
+} from "test/integration/UniswapV4MigratorIntegration.t.sol";
+import {
+    deployUniswapV4MulticurveInitializer,
+    prepareUniswapV4MulticurveInitializerData
+} from "test/integration/UniswapV4MulticurveInitializer.t.sol";
+import {
+    UNISWAP_V2_FACTORY_MAINNET,
+    UNISWAP_V2_ROUTER_MAINNET,
     UNISWAP_V3_FACTORY_MAINNET,
     UNISWAP_V3_ROUTER_MAINNET,
-    UNISWAP_V2_FACTORY_MAINNET,
-    UNISWAP_V2_ROUTER_MAINNET
+    WETH_MAINNET
 } from "test/shared/Addresses.sol";
 
 contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is BaseIntegrationTest {
@@ -228,9 +228,7 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
             (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) =
                 Doppler(payable(pool)).poolKey();
 
-            swapRouter.swap{
-                value: 0.0001 ether
-            }(
+            swapRouter.swap{ value: 0.0001 ether }(
                 PoolKey({
                     currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing
                 }),

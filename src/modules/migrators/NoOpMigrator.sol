@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 
 /// @dev Thrown when attempting to migrate liquidity
 error CannotMigrate();
@@ -17,9 +17,7 @@ address constant DEAD_ADDRESS = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
  */
 contract NoOpMigrator is ILiquidityMigrator, ImmutableAirlock {
     /// @param airlock_ Address of the Airlock contract
-    constructor(
-        address airlock_
-    ) ImmutableAirlock(airlock_) { }
+    constructor(address airlock_) ImmutableAirlock(airlock_) { }
 
     /// @inheritdoc ILiquidityMigrator
     function initialize(address, address, bytes calldata) external view onlyAirlock returns (address) {

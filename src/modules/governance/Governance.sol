@@ -2,12 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { Governor } from "@openzeppelin/governance/Governor.sol";
-import { GovernorSettings } from "@openzeppelin/governance/extensions/GovernorSettings.sol";
+import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { GovernorCountingSimple } from "@openzeppelin/governance/extensions/GovernorCountingSimple.sol";
+import { GovernorSettings } from "@openzeppelin/governance/extensions/GovernorSettings.sol";
+import { GovernorTimelockControl } from "@openzeppelin/governance/extensions/GovernorTimelockControl.sol";
 import { GovernorVotes } from "@openzeppelin/governance/extensions/GovernorVotes.sol";
 import { GovernorVotesQuorumFraction } from "@openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
-import { GovernorTimelockControl } from "@openzeppelin/governance/extensions/GovernorTimelockControl.sol";
-import { TimelockController } from "@openzeppelin/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/governance/utils/IVotes.sol";
 
 /// @notice Thrown if propose is called before the proposal period starts.
@@ -52,21 +52,20 @@ contract Governance is
         return super.votingPeriod();
     }
 
-    function quorum(
-        uint256 blockNumber
-    ) public view override(Governor, GovernorVotesQuorumFraction) returns (uint256) {
+    function quorum(uint256 blockNumber) public view override(Governor, GovernorVotesQuorumFraction) returns (uint256) {
         return super.quorum(blockNumber);
     }
 
-    function state(
-        uint256 proposalId
-    ) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
+    function state(uint256 proposalId) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
         return super.state(proposalId);
     }
 
-    function proposalNeedsQueuing(
-        uint256 proposalId
-    ) public view override(Governor, GovernorTimelockControl) returns (bool) {
+    function proposalNeedsQueuing(uint256 proposalId)
+        public
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (bool)
+    {
         return super.proposalNeedsQueuing(proposalId);
     }
 

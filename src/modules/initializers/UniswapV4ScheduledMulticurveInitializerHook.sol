@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
-import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/modules/initializers/UniswapV4MulticurveInitializerHook.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializer
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
 
 /// @notice Thrown when a swap is attempted before the starting time
 error CannotSwapBeforeStartingTime();
@@ -39,10 +41,7 @@ contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveIniti
      * @param poolKey Key of the pool
      * @param startingTime Timestamp at which trading can start, past times are set to current block timestamp
      */
-    function setStartingTime(
-        PoolKey memory poolKey,
-        uint256 startingTime
-    ) external onlyInitializer(msg.sender) {
+    function setStartingTime(PoolKey memory poolKey, uint256 startingTime) external onlyInitializer(msg.sender) {
         startingTimeOf[poolKey.toId()] = startingTime <= block.timestamp ? block.timestamp : startingTime;
     }
 

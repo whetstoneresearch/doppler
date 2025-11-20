@@ -2,13 +2,13 @@
 pragma solidity ^0.8.0;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
+import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BaseV4Quoter } from "@v4-periphery/base/BaseV4Quoter.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
-import { ParseBytes } from "@v4-core/libraries/ParseBytes.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { Doppler, Position } from "src/Doppler.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
+import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { Doppler, Position } from "src/modules/initializers/Doppler.sol";
 
 // Demarcates the id of the lower, upper, and price discovery slugs
 bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));
@@ -140,17 +140,13 @@ library DopplerLensRevert {
     /// @notice Error thrown containing the sqrtPriceX96 as the data, to be caught and parsed later
     error DopplerLensData(DopplerLensReturnData returnData);
 
-    function revertDopplerLensData(
-        DopplerLensReturnData memory returnData
-    ) internal pure {
+    function revertDopplerLensData(DopplerLensReturnData memory returnData) internal pure {
         revert DopplerLensData(returnData);
     }
 
     /// @notice Reverts using the revertData as the reason
     /// @dev To bubble up both the valid QuoteSwap(amount) error, or an alternative error thrown during simulation
-    function bubbleReason(
-        bytes memory revertData
-    ) internal pure {
+    function bubbleReason(bytes memory revertData) internal pure {
         // mload(revertData): the length of the revert data
         // add(revertData, 0x20): a pointer to the start of the revert data
         assembly ("memory-safe") {
@@ -160,9 +156,7 @@ library DopplerLensRevert {
 
     /// @notice Validates whether a revert reason is a valid doppler lens data or not
     /// if valid, it decodes the data to return. Otherwise it reverts.
-    function parseDopplerLensData(
-        bytes memory reason
-    ) internal pure returns (DopplerLensReturnData memory returnData) {
+    function parseDopplerLensData(bytes memory reason) internal pure returns (DopplerLensReturnData memory returnData) {
         if (reason.parseSelector() != DopplerLensData.selector) {
             revert UnexpectedRevertBytes(reason);
         }

@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
+import { CloneERC20Factory } from "src/modules/token/CloneERC20Factory.sol";
 
 function deployCloneERC20Factory(
     Vm vm,

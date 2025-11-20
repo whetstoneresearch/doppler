@@ -1,20 +1,20 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
 import { Create2 } from "@openzeppelin/utils/Create2.sol";
-import { Commands } from "@universal-router/libraries/Commands.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
+import { Commands } from "@universal-router/libraries/Commands.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { ITokenFactory, TokenFactory } from "src/TokenFactory.sol";
-import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { InitData } from "src/UniswapV3Initializer.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { CreateParams } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
+import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { InitData } from "src/modules/initializers/UniswapV3Initializer.sol";
+import { DERC20 } from "src/modules/token/DERC20.sol";
+import { ITokenFactory, TokenFactory } from "src/modules/token/TokenFactory.sol";
 
 address payable constant airlock = payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254);
 address payable constant ur = payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3);
@@ -57,11 +57,7 @@ contract BundlerTest is Test {
             poolInitializer: IPoolInitializer(0x9F4e56be80f08ba1A2445645EFa6d231E27b43ec),
             poolInitializerData: abi.encode(
                 InitData({
-                    fee: 3000,
-                    tickLower: -200_040,
-                    tickUpper: -167_520,
-                    numPositions: 10,
-                    maxShareToBeSold: 0.23 ether
+                    fee: 3000, tickLower: -200_040, tickUpper: -167_520, numPositions: 10, maxShareToBeSold: 0.23 ether
                 })
             ),
             liquidityMigrator: ILiquidityMigrator(0xf6023127f6E937091D5B605680056A6D27524bad),

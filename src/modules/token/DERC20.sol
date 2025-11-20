@@ -1,18 +1,29 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ERC20 } from "@solady/tokens/ERC20.sol";
-import { Initializable } from "@solady/utils/Initializable.sol";
-import { Ownable } from "@solady/auth/Ownable.sol";
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { ERC20Permit } from "@openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
+import { ERC20Votes } from "@openzeppelin/token/ERC20/extensions/ERC20Votes.sol";
+import { Nonces } from "@openzeppelin/utils/Nonces.sol";
 
 /// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
 
+/// @dev Thrown when trying to mint more than the yearly cap
+error ExceedsYearlyMintCap();
+
 /// @dev Thrown when there is no amount to mint
 error NoMintableAmount();
 
+/// @dev Thrown when trying to transfer tokens into the pool while it is locked
+error PoolLocked();
+
 /// @dev Thrown when two arrays have different lengths
 error ArrayLengthsMismatch();
+
+/// @dev Thrown when trying to release tokens before the end of the vesting period
+error ReleaseAmountInvalid();
 
 /// @dev Thrown when trying to premint more than the maximum allowed per address
 error MaxPreMintPerAddressExceeded(uint256 amount, uint256 limit);
@@ -38,6 +49,9 @@ uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.2 ether;
 /// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
 uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
 
+/// @dev Address of the canonical Permit2 contract
+address constant PERMIT_2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
 /**
  * @notice Vesting data for a specific address
  * @param totalAmount Total amount of vested tokens
@@ -48,31 +62,22 @@ struct VestingData {
     uint256 releasedAmount;
 }
 
-/**
- * @title CloneERC20
- * @author Whetstone Research
- * @notice ERC20 token with permit, inflationary minting, and vesting features
- * @dev This contract is designed to be cloned using the ERC1167 minimal proxy pattern
- * @custom:security-contact security@whetstone.cc
- */
-contract CloneERC20 is ERC20, Initializable, Ownable {
-    /// @dev Name of the token
-    string private _name;
-
-    /// @dev Symbol of the token
-    string private _symbol;
-
-    /// @notice Uniform Resource Identifier (URI)
-    string public tokenURI;
-
+/// @custom:security-contact security@whetstone.cc
+contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     /// @notice Timestamp of the start of the vesting period
-    uint256 public vestingStart;
+    uint256 public immutable vestingStart;
 
     /// @notice Duration of the vesting period (in seconds)
-    uint256 public vestingDuration;
+    uint256 public immutable vestingDuration;
 
     /// @notice Total amount of vested tokens
-    uint256 public vestedTotalAmount;
+    uint256 public immutable vestedTotalAmount;
+
+    /// @notice Address of the liquidity pool
+    address public pool;
+
+    /// @notice Whether the pool can receive tokens (unlocked) or not
+    bool public isPoolUnlocked;
 
     /// @notice Maximum rate of tokens that can be minted in a year
     uint256 public yearlyMintRate;
@@ -83,29 +88,30 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     /// @notice Timestamp of the last inflation mint
     uint256 public lastMintTimestamp;
 
+    /// @notice Uniform Resource Identifier (URI)
+    string public tokenURI;
+
     /// @notice Returns vesting data for a specific address
     mapping(address account => VestingData vestingData) public getVestingDataOf;
 
-    /// @dev Ensures that the vesting period has started
     modifier hasVestingStarted() {
         require(vestingStart > 0, VestingNotStartedYet());
         _;
     }
 
     /**
-     * @notice Initializes the token with the given parameters
      * @param name_ Name of the token
      * @param symbol_ Symbol of the token
      * @param initialSupply Initial supply of the token
-     * @param recipient Address receiving the initial supply minus the vested tokens
-     * @param owner_ Address receiving ownership of the contract
-     * @param yearlyMintRate_ Rate of tokens that can be minted in a year (expressed in WAD)
+     * @param recipient Address receiving the initial supply
+     * @param owner_ Address receiving the ownership of the token
+     * @param yearlyMintRate_ Maximum inflation rate of token in a year
      * @param vestingDuration_ Duration of the vesting period (in seconds)
-     * @param recipients_ Addresses receiving vested tokens
-     * @param amounts_ Amounts of vested tokens for each address in `recipients_`
-     * @param tokenURI_ Uniform Resource Identifier (URI) of the token
+     * @param recipients_ Array of addresses receiving vested tokens
+     * @param amounts_ Array of amounts of tokens to be vested
+     * @param tokenURI_ Uniform Resource Identifier (URI)
      */
-    function initialize(
+    constructor(
         string memory name_,
         string memory symbol_,
         uint256 initialSupply,
@@ -116,16 +122,11 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
         address[] memory recipients_,
         uint256[] memory amounts_,
         string memory tokenURI_
-    ) external initializer {
-        _initializeOwner(owner_);
-
+    ) ERC20(name_, symbol_) ERC20Permit(name_) Ownable(owner_) {
         require(
             yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD,
             MaxYearlyMintRateExceeded(yearlyMintRate_, MAX_YEARLY_MINT_RATE_WAD)
         );
-
-        _name = name_;
-        _symbol = symbol_;
         yearlyMintRate = yearlyMintRate_;
         vestingStart = block.timestamp;
         vestingDuration = vestingDuration_;
@@ -138,7 +139,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
 
         uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
 
-        for (uint256 i; i != length; ++i) {
+        for (uint256 i; i < length; ++i) {
             uint256 amount = amounts_[i];
             getVestingDataOf[recipients_[i]].totalAmount += amount;
             require(
@@ -148,11 +149,13 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
             vestedTokens += amount;
         }
 
+        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+        require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
+        require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
+
+        vestedTotalAmount = vestedTokens;
+
         if (vestedTokens > 0) {
-            uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
-            require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
-            require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
-            vestedTotalAmount = vestedTokens;
             _mint(address(this), vestedTokens);
         }
 
@@ -160,14 +163,17 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     }
 
     /**
-     * @notice Legacy function kept for compatibility purposes
+     * @notice Locks the pool, preventing it from receiving tokens
+     * @param pool_ Address of the pool to lock
      */
-    function lockPool(
-        address
-    ) external onlyOwner { }
+    function lockPool(address pool_) external onlyOwner {
+        pool = pool_;
+        isPoolUnlocked = false;
+    }
 
-    /// @notice Legacy function call, now used to track vesting start
+    /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
+        isPoolUnlocked = true;
         currentYearStart = lastMintTimestamp = block.timestamp;
     }
 
@@ -212,9 +218,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @notice Burns `amount` of tokens from the address `owner`
      * @param amount Amount of tokens to burn
      */
-    function burn(
-        uint256 amount
-    ) external onlyOwner {
+    function burn(uint256 amount) external onlyOwner {
         _burn(owner(), amount);
     }
 
@@ -222,9 +226,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @notice Updates the maximum rate of tokens that can be minted in a year
      * @param newMintRate New maximum rate of tokens that can be minted in a year
      */
-    function updateMintRate(
-        uint256 newMintRate
-    ) external onlyOwner {
+    function updateMintRate(uint256 newMintRate) external onlyOwner {
         // Inflation can't be more than 2% of token supply per year
         require(
             newMintRate <= MAX_YEARLY_MINT_RATE_WAD, MaxYearlyMintRateExceeded(newMintRate, MAX_YEARLY_MINT_RATE_WAD)
@@ -241,9 +243,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @notice Updates the token Uniform Resource Identifier (URI)
      * @param tokenURI_ New token Uniform Resource Identifier (URI)
      */
-    function updateTokenURI(
-        string memory tokenURI_
-    ) external onlyOwner {
+    function updateTokenURI(string memory tokenURI_) external onlyOwner {
         tokenURI = tokenURI_;
     }
 
@@ -261,9 +261,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @param account Recipient of the vested tokens
      * @return Amount of vested tokens available
      */
-    function computeAvailableVestedAmount(
-        address account
-    ) public view returns (uint256) {
+    function computeAvailableVestedAmount(address account) public view returns (uint256) {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {
@@ -275,13 +273,21 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
         return vestedAmount - getVestingDataOf[account].releasedAmount;
     }
 
-    /// @notice Returns the name of the token
-    function name() public view override returns (string memory) {
-        return _name;
+    /// @inheritdoc Nonces
+    function nonces(address owner_) public view override(ERC20Permit, Nonces) returns (uint256) {
+        return super.nonces(owner_);
     }
 
-    /// @notice Returns the symbol of the token
-    function symbol() public view override returns (string memory) {
-        return _symbol;
+    /// @inheritdoc ERC20
+    function allowance(address owner, address spender) public view override returns (uint256) {
+        if (spender == PERMIT_2) return type(uint256).max;
+        return super.allowance(owner, spender);
+    }
+
+    /// @inheritdoc ERC20
+    function _update(address from, address to, uint256 value) internal override(ERC20, ERC20Votes) {
+        if (to == pool && isPoolUnlocked == false) revert PoolLocked();
+
+        super._update(from, to, value);
     }
 }

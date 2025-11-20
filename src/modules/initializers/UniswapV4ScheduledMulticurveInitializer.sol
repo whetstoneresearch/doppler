@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
-import { Position } from "src/types/Position.sol";
 import {
-    UniswapV4MulticurveInitializer,
+    Lock,
+    PoolAlreadyInitialized,
     PoolState,
     PoolStatus,
-    PoolAlreadyInitialized,
-    Lock
-} from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+    UniswapV4MulticurveInitializer
+} from "src/modules/initializers/UniswapV4MulticurveInitializer.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
+import { Position } from "src/types/Position.sol";
 
 /**
  * @notice Data used to initialize the Uniswap V4 pool

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
+import { UniswapV4Migrator } from "src/modules/migrators/UniswapV4Migrator.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Migrator
 error OnlyMigrator();
@@ -35,9 +34,7 @@ contract UniswapV4MigratorHook is BaseHook {
 
     /// @notice Modifier to ensure the caller is the Uniswap V4 Migrator
     /// @param sender Address of the caller
-    modifier onlyMigrator(
-        address sender
-    ) {
+    modifier onlyMigrator(address sender) {
         if (sender != migrator) revert OnlyMigrator();
         _;
     }
