@@ -2,35 +2,33 @@
 pragma solidity ^0.8.13;
 
 import { ERC721 } from "@solmate/tokens/ERC721.sol";
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { UniswapV4Migrator } from "src/modules/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/modules/migrators/UniswapV4MigratorHook.sol";
 import {
-    UnorderedBeneficiaries,
+    BeneficiaryData,
+    InvalidProtocolOwnerBeneficiary,
+    InvalidProtocolOwnerShares,
     InvalidShares,
     InvalidTotalShares,
-    InvalidProtocolOwnerShares,
-    InvalidProtocolOwnerBeneficiary,
     MIN_PROTOCOL_OWNER_SHARES,
-    BeneficiaryData
+    UnorderedBeneficiaries
 } from "src/types/BeneficiaryData.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 // We don't use the `PositionDescriptor` contract explictly here but importing it ensures it gets compiled
-import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
 import { PosmTestSetup } from "@v4-periphery-test/shared/PosmTestSetup.sol";
+import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
 
 contract MockAirlock {
     address public owner;
 
-    constructor(
-        address _owner
-    ) {
+    constructor(address _owner) {
         owner = _owner;
     }
 }
@@ -186,7 +184,7 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         beneficiaries[2] = BeneficiaryData({
             beneficiary: airlock.owner(),
             shares: 0.05e18 // Total is 0.9e18, not 1e18
-         });
+        });
 
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));

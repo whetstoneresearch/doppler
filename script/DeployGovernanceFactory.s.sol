@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { GovernanceFactory } from "src/modules/governance/GovernanceFactory.sol";
 
 struct ScriptData {
     address airlock;

@@ -2,29 +2,29 @@
 pragma solidity ^0.8.13;
 
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
-import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { GovernanceFactory } from "src/modules/governance/GovernanceFactory.sol";
+import { InitData, UniswapV4MulticurveInitializer } from "src/modules/initializers/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/modules/initializers/UniswapV4MulticurveInitializerHook.sol";
+import { DERC20 } from "src/modules/token/DERC20.sol";
+import { TokenFactory } from "src/modules/token/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { UniswapV4MulticurveInitializer, InitData } from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { DERC20 } from "src/DERC20.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
     function initialize(address, address, bytes memory) external pure override returns (address) {
@@ -89,9 +89,7 @@ contract V4MulticurveInitializer is Deployers {
         vm.stopPrank();
     }
 
-    function test_create_MulticurveInitializerV4(
-        bytes32 salt
-    ) public {
+    function test_create_MulticurveInitializerV4(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -139,9 +137,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function test_migrate_MulticurveInitializerV4(
-        bytes32 salt
-    ) public {
+    function test_migrate_MulticurveInitializerV4(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -204,9 +200,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.migrate(asset);
     }
 
-    function _prepareInitData(
-        address token
-    ) internal returns (InitData memory) {
+    function _prepareInitData(address token) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
 
@@ -223,11 +217,7 @@ contract V4MulticurveInitializer is Deployers {
         (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
 
         poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            tickSpacing: tickSpacing,
-            fee: 0,
-            hooks: multicurveHook
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: multicurveHook
         });
         poolId = poolKey.toId();
 

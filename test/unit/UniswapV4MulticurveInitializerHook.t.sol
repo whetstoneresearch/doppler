@@ -3,21 +3,21 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import {
-    UniswapV4MulticurveInitializerHook,
-    OnlyInitializer,
     ModifyLiquidity,
-    Swap
-} from "src/UniswapV4MulticurveInitializerHook.sol";
+    OnlyInitializer,
+    Swap,
+    UniswapV4MulticurveInitializerHook
+} from "src/modules/initializers/UniswapV4MulticurveInitializerHook.sol";
 
 contract UniswapV4MulticurveInitializerHookTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -126,10 +126,7 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         });
 
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta,
-            salt: salt
+            tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: salt
         });
 
         vm.expectEmit();
@@ -177,10 +174,7 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         });
 
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta,
-            salt: salt
+            tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: salt
         });
 
         vm.expectEmit();
@@ -230,9 +224,7 @@ contract UniswapV4MulticurveInitializerHookTest is Test {
         });
 
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-            zeroForOne: zeroForOne,
-            amountSpecified: amountSpecified,
-            sqrtPriceLimitX96: sqrtPriceLimitX96
+            zeroForOne: zeroForOne, amountSpecified: amountSpecified, sqrtPriceLimitX96: sqrtPriceLimitX96
         });
 
         vm.expectEmit();

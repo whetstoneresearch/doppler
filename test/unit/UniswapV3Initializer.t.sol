@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
-import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
-import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { WETH } from "@solmate/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { WETH } from "@solmate/tokens/WETH.sol";
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import {
-    UniswapV3Initializer,
-    PoolAlreadyInitialized,
-    PoolAlreadyExited,
-    OnlyPool,
-    CallbackData,
-    InitData
-} from "src/UniswapV3Initializer.sol";
+import { Test } from "forge-std/Test.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { WETH_MAINNET, UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+import {
+    CallbackData,
+    InitData,
+    OnlyPool,
+    PoolAlreadyExited,
+    PoolAlreadyInitialized,
+    UniswapV3Initializer
+} from "src/modules/initializers/UniswapV3Initializer.sol";
+import { DERC20 } from "src/modules/token/DERC20.sol";
+import { UNISWAP_V3_FACTORY_MAINNET, UNISWAP_V3_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
@@ -68,9 +68,10 @@ contract UniswapV3InitializerTest is Test {
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
 
         // FIXME: The test fails because the call is looking at the wrong range (ticks were negated and flipped)
-        (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
-        );
+        (uint128 liquidity,,,,) = IUniswapV3Pool(pool)
+            .positions(
+                keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
+            );
         assertEq(liquidity, totalLiquidity, "Wrong liquidity");
     }
 
@@ -158,18 +159,19 @@ contract UniswapV3InitializerTest is Test {
 
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 60 : targetTick - 60);
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH_MAINNET,
-                tokenOut: address(token),
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: 1000 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: priceLimit
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(token),
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: 1000 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: priceLimit
+                })
+            );
 
         // (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
@@ -281,31 +283,33 @@ contract UniswapV3InitializerTest is Test {
         WETH(payable(WETH_MAINNET)).deposit{ value: 1000 ether }();
         WETH(payable(WETH_MAINNET)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH_MAINNET,
-                tokenOut: address(isToken0),
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: 1 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(isToken0),
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: 1 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+                })
+            );
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH_MAINNET,
-                tokenOut: address(notIsToken0),
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: 1 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(notIsToken0),
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: 1 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
+                })
+            );
 
         uint256 isToken0Balance = isToken0.balanceOf(address(0x666));
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
@@ -352,15 +356,15 @@ contract UniswapV3InitializerTest is Test {
             uint256 mid = (low + high) / 2;
 
             (amountReceivedIsToken0, sqrtPriceX96AfterIsToken0, initializedTicksCrossedIsToken0, gasEstimateIsToken0) =
-            quoter.quoteExactInputSingle(
-                IQuoterV2.QuoteExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(isToken0),
-                    fee: 3000,
-                    amountIn: mid,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickUpperIsToken0)
-                })
-            );
+                quoter.quoteExactInputSingle(
+                    IQuoterV2.QuoteExactInputSingleParams({
+                        tokenIn: WETH_MAINNET,
+                        tokenOut: address(isToken0),
+                        fee: 3000,
+                        amountIn: mid,
+                        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickUpperIsToken0)
+                    })
+                );
 
             if (sqrtPriceX96AfterIsToken0 < sqrtPriceTargetTickIsToken0) {
                 low = mid + 1;
@@ -385,15 +389,16 @@ contract UniswapV3InitializerTest is Test {
                 sqrtPriceX96AfterNotIsToken0,
                 initializedTicksCrossedNotIsToken0,
                 gasEstimateNotIsToken0
-            ) = quoter.quoteExactInputSingle(
-                IQuoterV2.QuoteExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(notIsToken0),
-                    fee: 3000,
-                    amountIn: mid,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0)
-                })
-            );
+            ) =
+                quoter.quoteExactInputSingle(
+                    IQuoterV2.QuoteExactInputSingleParams({
+                        tokenIn: WETH_MAINNET,
+                        tokenOut: address(notIsToken0),
+                        fee: 3000,
+                        amountIn: mid,
+                        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0)
+                    })
+                );
 
             if (sqrtPriceX96AfterNotIsToken0 > sqrtPriceTargetTickNotIsToken0) {
                 low = mid + 1;

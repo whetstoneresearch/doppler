@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { Script, console } from "forge-std/Script.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
-import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { GovernanceFactory } from "src/modules/governance/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/modules/governance/NoOpGovernanceFactory.sol";
+import { LockableUniswapV3Initializer } from "src/modules/initializers/LockableUniswapV3Initializer.sol";
+import { IUniswapV3Factory, UniswapV3Initializer } from "src/modules/initializers/UniswapV3Initializer.sol";
+import { NoOpMigrator } from "src/modules/migrators/NoOpMigrator.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/modules/migrators/UniswapV2Migrator.sol";
+import { TokenFactory } from "src/modules/token/TokenFactory.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 contract DeployMonadTestnetScript is Script {

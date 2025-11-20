@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { BaseTest } from "test/shared/BaseTest.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { MAX_TICK_SPACING, InvalidTickSpacing, AlreadyInitialized, InvalidGamma } from "src/Doppler.sol";
+import {
+    AlreadyInitialized,
+    InvalidGamma,
+    InvalidTickSpacing,
+    MAX_TICK_SPACING
+} from "src/modules/initializers/Doppler.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract BeforeInitializeTest is BaseTest {
     function test_beforeInitialize_RevertsWhenNotPoolManager() public {

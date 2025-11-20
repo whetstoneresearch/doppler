@@ -3,11 +3,11 @@ pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
 
-import { Position } from "src/Doppler.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { BaseTest } from "test/shared/BaseTest.sol";
 import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Position } from "src/modules/initializers/Doppler.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract RefundTest is BaseTest {
     function test_refund_SellBackAllTokens() public {

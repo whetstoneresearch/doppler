@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { GovernanceFactory } from "src/modules/governance/GovernanceFactory.sol";
+import { UniswapV3Initializer } from "src/modules/initializers/UniswapV3Initializer.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/modules/migrators/UniswapV2Migrator.sol";
+import { TokenFactory } from "src/modules/token/TokenFactory.sol";
 
 import {
-    UNISWAP_V3_FACTORY_MAINNET,
     UNISWAP_V2_FACTORY_MAINNET,
-    UNISWAP_V2_ROUTER_MAINNET
+    UNISWAP_V2_ROUTER_MAINNET,
+    UNISWAP_V3_FACTORY_MAINNET
 } from "test/shared/Addresses.sol";
 
 contract V3PocTest is Test {

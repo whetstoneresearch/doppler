@@ -3,20 +3,20 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
-import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 import {
     ArrayLengthsMismatch,
+    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MAX_TOTAL_PRE_MINT_WAD,
+    MAX_YEARLY_MINT_RATE_WAD,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
-    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MaxYearlyMintRateExceeded,
     MintingNotStartedYet,
-    NoMintableAmount,
-    MAX_YEARLY_MINT_RATE_WAD,
-    MAX_TOTAL_PRE_MINT_WAD,
-    MaxYearlyMintRateExceeded
-} from "src/CloneERC20.sol";
+    NoMintableAmount
+} from "src/modules/token/CloneERC20.sol";
+import { CloneERC20Votes } from "src/modules/token/CloneERC20Votes.sol";
+import { CloneERC20VotesFactory } from "src/modules/token/CloneERC20VotesFactory.sol";
 import { generateRecipients } from "test/unit/CloneERC20Votes.t.sol";
 
 contract CloneERC20VotesFactoryTest is Test {

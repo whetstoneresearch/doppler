@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { SenderNotPoolManager } from "src/Doppler.sol";
+import { SenderNotPoolManager } from "src/modules/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract ReceiveTest is BaseTest {

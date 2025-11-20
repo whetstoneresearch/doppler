@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
+import { TokenFactory } from "src/modules/token/TokenFactory.sol";
 
 struct ScriptData {
     uint256 chainId;

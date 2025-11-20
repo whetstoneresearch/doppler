@@ -1,10 +1,14 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Script, console } from "forge-std/Script.sol";
-import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
-import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializer
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/modules/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { MineV4MigratorHookParams, mineV4ScheduledMulticurveHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {
@@ -46,7 +50,9 @@ abstract contract DeployUniswapV4ScheduledMulticurveInitializerScript is Script 
         // Deploy hook with deployed migrator address
         UniswapV4ScheduledMulticurveInitializerHook hook = new UniswapV4ScheduledMulticurveInitializerHook{
             salt: salt
-        }(IPoolManager(_scriptData.poolManager), initializer);
+        }(
+            IPoolManager(_scriptData.poolManager), initializer
+        );
 
         /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
         require(address(initializer.HOOK()) == address(hook), "Multicurve hook is not the expected address");
