@@ -1,0 +1,10 @@
+[base]
+endpoint_url = "${BASE_MAINNET_RPC_URL}"
+
+[base.address]
+weth = ""
+uniswap_v4_pool_manager = ""
+
+[monad]
+endpoint_url = "${MONAD_MAINNET_RPC_URL}"
+uniswap_v4_pool_manager = ""
