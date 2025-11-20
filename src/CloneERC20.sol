@@ -74,12 +74,6 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     /// @notice Total amount of vested tokens
     uint256 public vestedTotalAmount;
 
-    /// @notice Address of the liquidity pool
-    address public pool;
-
-    /// @notice Whether the pool can receive tokens (unlocked) or not
-    bool public isPoolUnlocked;
-
     /// @notice Maximum rate of tokens that can be minted in a year
     uint256 public yearlyMintRate;
 
@@ -166,18 +160,14 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     }
 
     /**
-     * @notice Locks the pool, preventing it from receiving tokens
-     * @param pool_ Address of the pool to lock
+     * @notice Legacy function kept for compatibility purposes
      */
     function lockPool(
-        address pool_
-    ) external onlyOwner {
-        pool = pool_;
-    }
+        address
+    ) external onlyOwner { }
 
-    /// @notice Unlocks the pool, allowing it to receive tokens
+    /// @notice Legacy function call, now used to track vesting start
     function unlockPool() external onlyOwner {
-        isPoolUnlocked = true;
         currentYearStart = lastMintTimestamp = block.timestamp;
     }
 
