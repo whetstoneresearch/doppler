@@ -34,6 +34,9 @@ sort_imports = true
 contract_new_lines = true
 override_spacing = false
 
+[lint]
+lint_on_build = false
+
 [invariant]
 show_metrics = true
 fail_on_revert = true
