@@ -25,11 +25,14 @@ depth = 512
 bracket_spacing = true
 int_types = 'long'
 line_length = 120
-multiline_func_header = 'params_first'
+multiline_func_header = 'params_first_multi'
 number_underscore = 'thousands'
 quote_style = 'double'
 tab_width = 4
 wrap_comments = false
+sort_imports = true
+contract_new_lines = true
+override_spacing = false
 
 [invariant]
 show_metrics = true
