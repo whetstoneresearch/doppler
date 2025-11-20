@@ -2,9 +2,24 @@
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
 
 [base.address]
-weth = ""
-uniswap_v4_pool_manager = ""
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+uniswap_v2_router = ""
+uniswap_v2_factory = ""
+uniswap_v3_factory = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
+uniswap_v4_pool_manager = "0x498581fF718922c3f8e6A244956aF099B2652b2b"
+uniwsap_v4_position_manager = "0x7C5f5A4bBd8fD63184577525326123B519429bDc"
 
-[monad]
-endpoint_url = "${MONAD_MAINNET_RPC_URL}"
-uniswap_v4_pool_manager = ""
+airlock_multisig = "0x852a09C89463D236eea2f097623574f23E225769"
+
+airlock = "0x0000000000000000000000000000000000000000"
+lockable_uniswap_v3_initializer = ""
+streamable_fees_locker = "0x0000000000000000000000000000000000000000"
+
+[base_sepolia]
+endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
+
+[base_sepolia.address]
+multisig_signers = [
+  "0x00000000000000000000000000000000deadbeef",
+  "0x000000000000000000000000000000c0ffeebabe",
+]
