@@ -14,12 +14,12 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
-import { IDook } from "src/interfaces/IDook.sol";
+import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
@@ -34,13 +34,13 @@ event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 
 /**
  * @notice Emitted when the state of a Doppler Hook is set
- * @param dook Address of the Doppler Hook
- * @param flag Flag of the Doppler Hook (see flags in BaseDook.sol)
+ * @param dopplerHook Address of the Doppler Hook
+ * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHook.sol)
  */
-event SetDookState(address indexed dook, uint256 indexed flag);
+event SetDopplerHookState(address indexed dopplerHook, uint256 indexed flag);
 
-/// @notice Emitted when a dook is linked to a pool
-event SetDook(address indexed asset, address indexed dook);
+/// @notice Emitted when a dopplerHook is linked to a pool
+event SetDopplerHook(address indexed asset, address indexed dopplerHook);
 
 /// @notice Emitted when a pool graduates
 event Graduate(address indexed asset);
@@ -86,16 +86,16 @@ error WrongPoolStatus(PoolStatus expected, PoolStatus actual);
 error CannotMigrateInsufficientTick(int24 targetTick, int24 currentTick);
 
 /// @notice Thrown when the hook is not provided but migration is attempted
-error CannotMigratePoolNoProvidedDook();
+error CannotMigratePoolNoProvidedDopplerHook();
 
-/// @notice Thrown when an unauthorized sender calls `setDookState()`
+/// @notice Thrown when an unauthorized sender calls `setDopplerHookState()`
 error SenderNotAirlockOwner();
 
 /// @notice Thrown when an unauthorized sender tries to associate a Doppler Hook to a pool
 error SenderNotAuthorized();
 
 /// @notice Thrown when the given Doppler Hook is not enabled
-error DookNotEnabled();
+error DopplerHookNotEnabled();
 
 /// @notice Thrown when the lengths of two arrays do not match
 error ArrayLengthsMismatch();
@@ -113,9 +113,9 @@ error LPFeeTooHigh(uint24 maxFee, uint256 fee);
  * @param tickSpacing Tick spacing for the Uniswap V4 pool
  * @param curves Array of curves to distribute liquidity across
  * @param beneficiaries Array of beneficiaries with their shares, will lock the pool if not empty
- * @param dook Address of the associated Doppler Hook
- * @param onInitializationDookCalldata Calldata passed to the Doppler Hook on initialization
- * @param graduationDookCalldata Calldata passed to the Doppler Hook on graduation
+ * @param dopplerHook Address of the associated Doppler Hook
+ * @param onInitializationDopplerHookCalldata Calldata passed to the Doppler Hook on initialization
+ * @param graduationDopplerHookCalldata Calldata passed to the Doppler Hook on graduation
  */
 struct InitData {
     uint24 fee;
@@ -123,9 +123,9 @@ struct InitData {
     int24 farTick;
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
-    address dook;
-    bytes onInitializationDookCalldata;
-    bytes graduationDookCalldata;
+    address dopplerHook;
+    bytes onInitializationDopplerHookCalldata;
+    bytes graduationDopplerHookCalldata;
 }
 
 /// @notice Possible status of a pool, note a locked pool cannot be exited
@@ -143,8 +143,8 @@ enum PoolStatus {
  * @param beneficiaries Array of beneficiaries with their shares
  * @param adjustedCurves Array of adjusted curves used for liquidity distribution
  * @param totalTokensOnBondingCurve Total amount of tokens allocated to the bonding curve
- * @param dook Address of the Doppler hook
- * @param graduationDookCalldata Calldata passed to the Doppler Hook on graduation
+ * @param dopplerHook Address of the Doppler hook
+ * @param graduationDopplerHookCalldata Calldata passed to the Doppler Hook on graduation
  * @param status Current status of the pool
  * @param poolKey Key of the Uniswap V4 pool
  * @param farTick Farthest tick that must be reached to allow exiting liquidity
@@ -154,8 +154,8 @@ struct PoolState {
     BeneficiaryData[] beneficiaries;
     Curve[] adjustedCurves;
     uint256 totalTokensOnBondingCurve;
-    address dook;
-    bytes graduationDookCalldata;
+    address dopplerHook;
+    bytes graduationDopplerHookCalldata;
     PoolStatus status;
     PoolKey poolKey;
     int24 farTick;
@@ -165,13 +165,14 @@ struct PoolState {
 uint24 constant MAX_LP_FEE = 100_000;
 
 /**
- * @title Doppler Hook (Dook) Uniswap V4 Multicurve Initializer
+ * @title Doppler Hook Uniswap V4 Multicurve Initializer
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
- * @notice Initializes a fresh Uniswap V4 pool and distributes liquidity across multiple positions, as
- * described in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf)
+ * @notice Initializes a Uniswap V4 pool and distributes liquidity across multiple positions, as described
+ * in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf), with optional support for
+ * Doppler Hooks for dynamic fee adjustment and custom logic on initialization, swaps and pool graduation
  */
-contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, FeesManager, IPoolInitializer {
+contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, FeesManager, IPoolInitializer {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
@@ -183,7 +184,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     mapping(PoolId poolId => address asset) internal getAsset;
 
     /// @notice Returns a non-zero value if a Doppler hook is enabled
-    mapping(address dook => uint256 flags) public isDookEnabled;
+    mapping(address dopplerHook => uint256 flags) public isDopplerHookEnabled;
 
     /// @notice Returns the delegated authority for a user
     mapping(address user => address authority) public getAuthority;
@@ -218,12 +219,16 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         PoolId poolId = poolKey.toId();
         getAsset[poolId] = asset;
 
-        (address dook, uint24 fee, BeneficiaryData[] memory beneficiaries, bytes memory onInitializationDookCalldata) =
-            (initData.dook, initData.fee, initData.beneficiaries, initData.onInitializationDookCalldata);
-        uint256 dookFlag = isDookEnabled[initData.dook];
+        (
+            address dopplerHook,
+            uint24 fee,
+            BeneficiaryData[] memory beneficiaries,
+            bytes memory onInitializationDopplerHookCalldata
+        ) = (initData.dopplerHook, initData.fee, initData.beneficiaries, initData.onInitializationDopplerHookCalldata);
+        uint256 dopplerHookFlag = isDopplerHookEnabled[initData.dopplerHook];
 
-        if (dook != address(0)) {
-            require(dookFlag > 0, DookNotEnabled());
+        if (dopplerHook != address(0)) {
+            require(dopplerHookFlag > 0, DopplerHookNotEnabled());
             poolManager.updateDynamicLPFee(poolKey, fee);
         }
 
@@ -243,8 +248,8 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
             Currency.wrap(asset).transfer(address(airlock), Currency.wrap(asset).balanceOfSelf());
         }
 
-        if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDook(dook).onInitialization(asset, poolKey, onInitializationDookCalldata);
+        if (dopplerHookFlag & ON_INITIALIZATION_FLAG != 0) {
+            IDopplerHook(dopplerHook).onInitialization(asset, poolKey, onInitializationDopplerHookCalldata);
         }
 
         // Uniswap V4 pools don't have addresses, so we are returning the asset address
@@ -262,26 +267,26 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         (
             Curve[] memory curves,
             int24 farTick,
-            address dook,
+            address dopplerHook,
             int24 tickSpacing,
             uint24 fee,
             BeneficiaryData[] memory beneficiaries,
-            bytes memory graduationDookCalldata
+            bytes memory graduationDopplerHookCalldata
         ) = (
             initData.curves,
             initData.farTick,
-            initData.dook,
+            initData.dopplerHook,
             initData.tickSpacing,
             initData.fee,
             initData.beneficiaries,
-            initData.graduationDookCalldata
+            initData.graduationDopplerHookCalldata
         );
 
         poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: IHooks(address(this)),
-            fee: dook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
+            fee: dopplerHook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
             tickSpacing: tickSpacing
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
@@ -310,8 +315,8 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
             beneficiaries: beneficiaries,
             adjustedCurves: adjustedCurves,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            dook: dook,
-            graduationDookCalldata: graduationDookCalldata,
+            dopplerHook: dopplerHook,
+            graduationDopplerHookCalldata: graduationDopplerHookCalldata,
             status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
             farTick: farTick
@@ -368,13 +373,13 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     /**
      * @notice Associates a Doppler hook with the pool of a given asset
      * @param asset Address to of the targeted asset
-     * @param dook Address of the Doppler hook being associated
+     * @param dopplerHook Address of the Doppler hook being associated
      * @param onInitializationCalldata Calldata passed to the Doppler Hook on initialization
      * @param onGraduationCalldata Calldata passed to the Doppler Hook on graduation
      */
-    function setDook(
+    function setDopplerHook(
         address asset,
-        address dook,
+        address dopplerHook,
         bytes calldata onInitializationCalldata,
         bytes calldata onGraduationCalldata
     ) external {
@@ -385,18 +390,18 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         address authority = getAuthority[timelock];
         require(msg.sender == authority || msg.sender == timelock, SenderNotAuthorized());
 
-        uint256 dookFlag = isDookEnabled[dook];
+        uint256 dopplerHookFlag = isDopplerHookEnabled[dopplerHook];
 
-        if (dook != address(0)) {
-            require(dookFlag > 0, DookNotEnabled());
+        if (dopplerHook != address(0)) {
+            require(dopplerHookFlag > 0, DopplerHookNotEnabled());
         }
 
-        getState[asset].dook = dook;
-        getState[asset].graduationDookCalldata = onGraduationCalldata;
-        emit SetDook(asset, dook);
+        getState[asset].dopplerHook = dopplerHook;
+        getState[asset].graduationDopplerHookCalldata = onGraduationCalldata;
+        emit SetDopplerHook(asset, dopplerHook);
 
-        if (dookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDook(dook).onInitialization(asset, state.poolKey, onInitializationCalldata);
+        if (dopplerHookFlag & ON_INITIALIZATION_FLAG != 0) {
+            IDopplerHook(dopplerHook).onInitialization(asset, state.poolKey, onInitializationCalldata);
         }
     }
 
@@ -408,10 +413,10 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
-        address dook = state.dook;
-        uint256 flags = isDookEnabled[dook];
-        if (dook == address(0) || flags & ON_GRADUATION_FLAG == 0) {
-            revert CannotMigratePoolNoProvidedDook();
+        address dopplerHook = state.dopplerHook;
+        uint256 flags = isDopplerHookEnabled[dopplerHook];
+        if (dopplerHook == address(0) || flags & ON_GRADUATION_FLAG == 0) {
+            revert CannotMigratePoolNoProvidedDopplerHook();
         }
 
         _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
@@ -419,7 +424,7 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
         getState[asset].status = PoolStatus.Graduated;
         emit Graduate(asset);
 
-        IDook(dook).onGraduation(asset, state.poolKey, state.graduationDookCalldata);
+        IDopplerHook(dopplerHook).onGraduation(asset, state.poolKey, state.graduationDopplerHookCalldata);
     }
 
     /**
@@ -430,28 +435,28 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     function updateDynamicLPFee(address asset, uint24 lpFee) external {
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
-        require(msg.sender == state.dook, SenderNotAuthorized());
+        require(msg.sender == state.dopplerHook, SenderNotAuthorized());
         require(lpFee <= MAX_LP_FEE, LPFeeTooHigh(MAX_LP_FEE, lpFee));
         poolManager.updateDynamicLPFee(state.poolKey, lpFee);
     }
 
     /**
      * @notice Sets the state of a given Doppler hooks array
-     * @param dooks Array of Doppler hook addresses
-     * @param flags Array of flags to set (see flags in BaseDook.sol)
+     * @param dopplerHooks Array of Doppler hook addresses
+     * @param flags Array of flags to set (see flags in BaseDopplerHook.sol)
      */
-    function setDookState(address[] calldata dooks, uint256[] calldata flags) external {
+    function setDopplerHookState(address[] calldata dopplerHooks, uint256[] calldata flags) external {
         require(msg.sender == airlock.owner(), SenderNotAirlockOwner());
 
-        uint256 length = dooks.length;
+        uint256 length = dopplerHooks.length;
 
         if (length != flags.length) {
             revert ArrayLengthsMismatch();
         }
 
         for (uint256 i; i != length; i++) {
-            isDookEnabled[dooks[i]] = flags[i];
-            emit SetDookState(dooks[i], flags[i]);
+            isDopplerHookEnabled[dopplerHooks[i]] = flags[i];
+            emit SetDopplerHookState(dopplerHooks[i], flags[i]);
         }
     }
 
@@ -539,9 +544,9 @@ contract DookMulticurveInitializer is ImmutableAirlock, BaseHook, MiniV4Manager,
     ) internal override returns (bytes4, int128) {
         address asset = getAsset[key.toId()];
         PoolState memory state = getState[asset];
-        address dook = state.dook;
-        if (dook != address(0) && isDookEnabled[dook] & ON_SWAP_FLAG != 0) {
-            IDook(dook).onSwap(sender, key, params, balanceDelta, data);
+        address dopplerHook = state.dopplerHook;
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
+            IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
         }
         emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
         return (BaseHook.afterSwap.selector, 0);

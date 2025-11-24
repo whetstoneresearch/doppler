@@ -1,64 +1,64 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Currency } from "@v4-core/types/Currency.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
-import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
+import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
+import { Doppler } from "src/Doppler.sol";
+import { DopplerHookInitializer } from "src/DopplerHookInitializer.sol";
+import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "src/NoOpMigrator.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 import {
     BaseIntegrationTest,
-    deployTokenFactory,
-    deployNoOpMigrator,
-    deployNoOpGovernanceFactory,
-    prepareTokenFactoryData,
     deployGovernanceFactory,
-    prepareGovernanceFactoryData
+    deployNoOpGovernanceFactory,
+    deployNoOpMigrator,
+    deployTokenFactory,
+    prepareGovernanceFactoryData,
+    prepareTokenFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
-import { Doppler } from "src/Doppler.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { deployCloneERC20Factory, prepareCloneERC20FactoryData } from "test/integration/CloneERC20Factory.t.sol";
+import {
+    deployCloneERC20VotesFactory,
+    prepareCloneERC20VotesFactoryData
+} from "test/integration/CloneERC20VotesFactory.t.sol";
+import {
+    deployDopplerHookMulticurveInitializer,
+    prepareDopplerHookMulticurveInitializerData
+} from "test/integration/DopplerHookInitializer.t.sol";
+import {
+    deployUniswapV3Initializer,
+    prepareUniswapV3InitializerData
+} from "test/integration/UniswapV3Initializer.t.sol";
 import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
+import {
+    deployUniswapV4Migrator,
+    prepareUniswapV4MigratorData
+} from "test/integration/UniswapV4MigratorIntegration.t.sol";
 import {
     deployUniswapV4MulticurveInitializer,
     prepareUniswapV4MulticurveInitializerData
 } from "test/integration/UniswapV4MulticurveInitializer.t.sol";
 import {
-    deployDookMulticurveInitializer,
-    prepareDookMulticurveInitializerData
-} from "test/integration/DookMulticurveInitializer.t.sol";
-import { DookMulticurveInitializer } from "src/DookMulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
-import { deployCloneERC20Factory, prepareCloneERC20FactoryData } from "test/integration/CloneERC20Factory.t.sol";
-import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
-import {
-    deployCloneERC20VotesFactory,
-    prepareCloneERC20VotesFactoryData
-} from "test/integration/CloneERC20VotesFactory.t.sol";
-import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
-import {
-    deployUniswapV4Migrator,
-    prepareUniswapV4MigratorData
-} from "test/integration/UniswapV4MigratorIntegration.t.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import {
-    deployUniswapV3Initializer,
-    prepareUniswapV3InitializerData
-} from "test/integration/UniswapV3Initializer.t.sol";
-import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import {
-    WETH_MAINNET,
+    UNISWAP_V2_FACTORY_MAINNET,
+    UNISWAP_V2_ROUTER_MAINNET,
     UNISWAP_V3_FACTORY_MAINNET,
     UNISWAP_V3_ROUTER_MAINNET,
-    UNISWAP_V2_FACTORY_MAINNET,
-    UNISWAP_V2_ROUTER_MAINNET
+    WETH_MAINNET
 } from "test/shared/Addresses.sol";
 
 contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is BaseIntegrationTest {
@@ -155,22 +155,22 @@ contract CloneERC20FactoryUniswapV4MulticurveInitializerNoOpGovernanceFactoryNoO
     }
 }
 
-contract CloneERC20FactoryDookMulticurveInitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is
+contract CloneERC20FactoryDopplerHookMulticurveInitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is
     BaseIntegrationTest
 {
     function setUp() public override {
         super.setUp();
 
-        name = "CloneERC20FactoryDookMulticurveInitializerNoOpGovernanceFactoryNoOpMigrator";
+        name = "CloneERC20FactoryDopplerHookMulticurveInitializerNoOpGovernanceFactoryNoOpMigrator";
 
         CloneERC20Factory tokenFactory = deployCloneERC20Factory(vm, airlock, AIRLOCK_OWNER);
         createParams.tokenFactory = tokenFactory;
         createParams.tokenFactoryData = prepareCloneERC20FactoryData();
 
-        DookMulticurveInitializer initializer =
-            deployDookMulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
+        DopplerHookInitializer initializer =
+            deployDopplerHookMulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
         createParams.poolInitializer = initializer;
-        (bytes memory poolInitializerData) = prepareDookMulticurveInitializerData(address(0), address(0));
+        (bytes memory poolInitializerData) = prepareDopplerHookMulticurveInitializerData(address(0), address(0));
         createParams.poolInitializerData = poolInitializerData;
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;

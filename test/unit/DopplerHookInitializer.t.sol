@@ -21,9 +21,9 @@ import {
     ArrayLengthsMismatch,
     BeneficiaryData,
     CannotMigrateInsufficientTick,
-    CannotMigratePoolNoProvidedDook,
-    DookMulticurveInitializer,
-    DookNotEnabled,
+    CannotMigratePoolNoProvidedDopplerHook,
+    DopplerHookInitializer,
+    DopplerHookNotEnabled,
     Graduate,
     InitData,
     LPFeeTooHigh,
@@ -34,22 +34,22 @@ import {
     PoolStatus,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
-    SetDook,
-    SetDookState,
+    SetDopplerHook,
+    SetDopplerHookState,
     Swap,
     UnreachableFarTick,
     WrongPoolStatus
-} from "src/DookMulticurveInitializer.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDook.sol";
+} from "src/DopplerHookInitializer.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { IDook } from "src/interfaces/IDook.sol";
+import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { WAD } from "src/types/Wad.sol";
 
-contract MockDook is IDook {
+contract MockDopplerHook is IDopplerHook {
     function onInitialization(address, PoolKey calldata, bytes calldata) external { }
     function onSwap(
         address,
@@ -61,13 +61,13 @@ contract MockDook is IDook {
     function onGraduation(address, PoolKey calldata, bytes calldata) external { }
 }
 
-contract DookMulticurveInitializerTest is Deployers {
+contract DopplerHookMulticurveInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
 
-    DookMulticurveInitializer public initializer;
+    DopplerHookInitializer public initializer;
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
-    MockDook public dook;
+    MockDopplerHook public dopplerHook;
 
     uint256 internal totalTokensOnBondingCurve = 1e27;
     PoolKey internal poolKey;
@@ -79,7 +79,7 @@ contract DookMulticurveInitializerTest is Deployers {
         deployFreshManagerAndRouters();
         (currency0, currency1) = deployAndMint2Currencies();
         airlock = new Airlock(airlockOwner);
-        initializer = DookMulticurveInitializer(
+        initializer = DopplerHookInitializer(
             payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
@@ -87,16 +87,16 @@ contract DookMulticurveInitializerTest is Deployers {
                     ) ^ (0x4444 << 144)
                 ))
         );
-        deployCodeTo("DookMulticurveInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
-        dook = new MockDook();
-        vm.label(address(dook), "Dook");
+        deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
+        dopplerHook = new MockDopplerHook();
+        vm.label(address(dopplerHook), "DopplerHook");
 
-        address[] memory dooks = new address[](1);
+        address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dooks[0] = address(dook);
+        dopplerHooks[0] = address(dopplerHook);
         flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
         vm.prank(airlockOwner);
-        initializer.setDookState(dooks, flags);
+        initializer.setDopplerHookState(dopplerHooks, flags);
     }
 
     modifier prepareAsset(bool isToken0) {
@@ -198,39 +198,43 @@ contract DookMulticurveInitializerTest is Deployers {
         }
     }
 
-    function test_initialize_LocksPoolWithDook(
+    function test_initialize_LocksPoolWithDopplerHook(
         InitDataParams memory params,
         bool isToken0
     ) public prepareAsset(isToken0) returns (InitData memory initData) {
-        initData = _prepareInitDataWithDook(params);
+        initData = _prepareInitDataWithDopplerHook(params);
 
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
-        (,, address dookAddress, bytes memory graduationDookCalldata,, PoolKey memory key,) =
+        (,, address dopplerHookAddress, bytes memory graduationDopplerHookCalldata,, PoolKey memory key,) =
             initializer.getState(asset);
         assertEq32(PoolId.unwrap(key.toId()), PoolId.unwrap(poolId), "Pool Ids not matching");
-        assertEq(dookAddress, address(dook), "Incorrect dook address");
-        assertEq(graduationDookCalldata, initData.graduationDookCalldata, "Incorrect graduation dook calldata");
+        assertEq(dopplerHookAddress, address(dopplerHook), "Incorrect dopplerHook address");
+        assertEq(
+            graduationDopplerHookCalldata,
+            initData.graduationDopplerHookCalldata,
+            "Incorrect graduation dopplerHook calldata"
+        );
     }
 
-    function test_initialize_CallsDookOnInitialization(
+    function test_initialize_CallsDopplerHookOnInitialization(
         InitDataParams memory params,
         bool isToken0
     ) public prepareAsset(isToken0) {
-        InitData memory initData = _prepareInitDataWithDook(params);
+        InitData memory initData = _prepareInitDataWithDopplerHook(params);
 
         vm.prank(address(airlockOwner));
-        address[] memory dooks = new address[](1);
+        address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dooks[0] = address(dook);
+        dopplerHooks[0] = address(dopplerHook);
         flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
-        initializer.setDookState(dooks, flags);
+        initializer.setDopplerHookState(dopplerHooks, flags);
 
         vm.expectCall(
-            address(dook),
+            address(dopplerHook),
             abi.encodeWithSelector(
-                IDook.onInitialization.selector, asset, poolKey, initData.onInitializationDookCalldata
+                IDopplerHook.onInitialization.selector, asset, poolKey, initData.onInitializationDopplerHookCalldata
             )
         );
 
@@ -238,22 +242,24 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
     }
 
-    function test_initialize_DoesNotCallDookOnInitializationWhenFlagIsOff(
+    function test_initialize_DoesNotCallDopplerHookOnInitializationWhenFlagIsOff(
         InitDataParams memory params,
         bool isToken0
     ) public prepareAsset(isToken0) {
-        InitData memory initData = _prepareInitDataWithDook(params);
+        InitData memory initData = _prepareInitDataWithDopplerHook(params);
 
         vm.prank(address(airlockOwner));
-        address[] memory dooks = new address[](1);
+        address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dooks[0] = address(dook);
+        dopplerHooks[0] = address(dopplerHook);
         flags[0] = ON_GRADUATION_FLAG | ON_SWAP_FLAG;
-        initializer.setDookState(dooks, flags);
+        initializer.setDopplerHookState(dopplerHooks, flags);
 
         vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, asset, initData.onInitializationDookCalldata),
+            address(dopplerHook),
+            abi.encodeWithSelector(
+                IDopplerHook.onInitialization.selector, asset, initData.onInitializationDopplerHookCalldata
+            ),
             0
         );
 
@@ -387,98 +393,98 @@ contract DookMulticurveInitializerTest is Deployers {
     }
 
     /* ---------------------------------------------------------------------------- */
-    /*                                setDookState()                                */
+    /*                                setDopplerHookState()                                */
     /* ---------------------------------------------------------------------------- */
 
-    function test_setDookState_RevertsWhenSenderNotAirlockOwner(
-        address[] calldata dooks,
+    function test_setDopplerHookState_RevertsWhenSenderNotAirlockOwner(
+        address[] calldata dopplerHooks,
         uint256[] calldata flags
     ) public {
         vm.expectRevert(SenderNotAirlockOwner.selector);
-        initializer.setDookState(dooks, flags);
+        initializer.setDopplerHookState(dopplerHooks, flags);
     }
 
-    function test_setDookState_RevertsWhenArrayLengthsMismatch(
-        address[] calldata dooks,
+    function test_setDopplerHookState_RevertsWhenArrayLengthsMismatch(
+        address[] calldata dopplerHooks,
         uint256[] calldata flags
     ) public {
-        vm.assume(dooks.length != flags.length);
+        vm.assume(dopplerHooks.length != flags.length);
         vm.prank(airlockOwner);
         vm.expectRevert(ArrayLengthsMismatch.selector);
-        initializer.setDookState(dooks, flags);
+        initializer.setDopplerHookState(dopplerHooks, flags);
     }
 
     // TODO: Refactor this function so unique addresses are generated instead of expecting unique
     // addresses from the fuzzer directly, this should reduce the number of discarded runs
-    function test_setDookState_SetsStates(address[] calldata dooks, uint256[] calldata flags) public {
-        uint256 length = dooks.length;
+    function test_setDopplerHookState_SetsStates(address[] calldata dopplerHooks, uint256[] calldata flags) public {
+        uint256 length = dopplerHooks.length;
         vm.assume(length == flags.length);
         vm.assume(length < 50); // Limit size to avoid timeout
 
         // Ensure all addresses are unique to avoid overwriting in the mapping
         for (uint256 i; i < length; i++) {
             for (uint256 j = i + 1; j < length; j++) {
-                vm.assume(dooks[i] != dooks[j]);
+                vm.assume(dopplerHooks[i] != dopplerHooks[j]);
             }
         }
 
         for (uint256 i; i < length; i++) {
             vm.expectEmit();
-            emit SetDookState(dooks[i], flags[i]);
+            emit SetDopplerHookState(dopplerHooks[i], flags[i]);
         }
 
         vm.prank(airlockOwner);
-        initializer.setDookState(dooks, flags);
+        initializer.setDopplerHookState(dopplerHooks, flags);
 
         for (uint256 i; i < length; i++) {
-            uint256 storedFlags = initializer.isDookEnabled(dooks[i]);
+            uint256 storedFlags = initializer.isDopplerHookEnabled(dopplerHooks[i]);
             assertEq(storedFlags, flags[i], "Incorrect stored flags");
         }
     }
 
     /* ----------------------------------------------------------------------- */
-    /*                                setDook()                                */
+    /*                                setDopplerHook()                                */
     /* ----------------------------------------------------------------------- */
 
-    function test_setDook_RevertsIfPoolNotLocked(InitDataParams memory params, bool isToken0) public {
+    function test_setDopplerHook_RevertsIfPoolNotLocked(InitDataParams memory params, bool isToken0) public {
         test_initialize_InitializesPool(params, isToken0);
         vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Locked, PoolStatus.Initialized));
-        initializer.setDook(asset, address(dook), new bytes(0), new bytes(0));
+        initializer.setDopplerHook(asset, address(dopplerHook), new bytes(0), new bytes(0));
     }
 
-    function test_setDook_RevertsWhenSenderNotAuthorized(InitDataParams memory params, bool isToken0) public {
+    function test_setDopplerHook_RevertsWhenSenderNotAuthorized(InitDataParams memory params, bool isToken0) public {
         test_initialize_LocksPool(params, isToken0);
         vm.expectRevert(SenderNotAuthorized.selector);
         vm.prank(address(0xbeef));
-        initializer.setDook(asset, address(dook), new bytes(0), new bytes(0));
+        initializer.setDopplerHook(asset, address(dopplerHook), new bytes(0), new bytes(0));
     }
 
-    function test_setDook_RevertsWhenDookNotEnabled(
+    function test_setDopplerHook_RevertsWhenDopplerHookNotEnabled(
         InitDataParams memory params,
         bool isToken0
     ) public prepareAsset(isToken0) {
-        InitData memory initData = _prepareInitDataWithDook(params);
-        initData.dook = address(0xdeadbeef);
+        InitData memory initData = _prepareInitDataWithDopplerHook(params);
+        initData.dopplerHook = address(0xdeadbeef);
         vm.prank(address(airlock));
-        vm.expectRevert(DookNotEnabled.selector);
+        vm.expectRevert(DopplerHookNotEnabled.selector);
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
     }
 
-    function _setDook(bytes calldata onInitializationCalldata, bytes calldata onGraduationCalldata) public {
+    function _setDopplerHook(bytes calldata onInitializationCalldata, bytes calldata onGraduationCalldata) public {
         vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
+            address(dopplerHook),
+            abi.encodeWithSelector(IDopplerHook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
         );
         vm.expectEmit();
-        emit SetDook(asset, address(dook));
-        initializer.setDook(asset, address(dook), onInitializationCalldata, onGraduationCalldata);
+        emit SetDopplerHook(asset, address(dopplerHook));
+        initializer.setDopplerHook(asset, address(dopplerHook), onInitializationCalldata, onGraduationCalldata);
 
-        (,, address dookAddress, bytes memory storedOnGraduationCalldata,,,) = initializer.getState(asset);
-        assertEq(dookAddress, address(dook), "Incorrect dook address");
-        assertEq(storedOnGraduationCalldata, onGraduationCalldata, "Incorrect graduation dook calldata");
+        (,, address dopplerHookAddress, bytes memory storedOnGraduationCalldata,,,) = initializer.getState(asset);
+        assertEq(dopplerHookAddress, address(dopplerHook), "Incorrect dopplerHook address");
+        assertEq(storedOnGraduationCalldata, onGraduationCalldata, "Incorrect graduation dopplerHook calldata");
     }
 
-    function test_setDook_SetsDookWhenSenderIsTimelock(
+    function test_setDopplerHook_SetsDopplerHookWhenSenderIsTimelock(
         InitDataParams memory params,
         bool isToken0,
         bytes calldata onInitializationCalldata,
@@ -494,10 +500,10 @@ contract DookMulticurveInitializerTest is Deployers {
             )
         );
 
-        _setDook(onInitializationCalldata, onGraduationCalldata);
+        _setDopplerHook(onInitializationCalldata, onGraduationCalldata);
     }
 
-    function test_setDook_SetsDookWhenSenderIsAuthority(
+    function test_setDopplerHook_SetsDopplerHookWhenSenderIsAuthority(
         InitDataParams memory params,
         bool isToken0,
         bytes calldata onInitializationCalldata,
@@ -525,7 +531,7 @@ contract DookMulticurveInitializerTest is Deployers {
         vm.prank(address(0xbeef));
         initializer.delegateAuthority(address(this));
 
-        _setDook(onInitializationCalldata, onGraduationCalldata);
+        _setDopplerHook(onInitializationCalldata, onGraduationCalldata);
     }
 
     /* ------------------------------------------------------------------------ */
@@ -538,19 +544,21 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.graduate(asset);
     }
 
-    function test_graduate_RevertsWhenNoProvidedDook(InitDataParams memory params, bool isToken0) public {
+    function test_graduate_RevertsWhenNoProvidedDopplerHook(InitDataParams memory params, bool isToken0) public {
         test_initialize_LocksPool(params, isToken0);
-        vm.expectRevert(CannotMigratePoolNoProvidedDook.selector);
+        vm.expectRevert(CannotMigratePoolNoProvidedDopplerHook.selector);
         initializer.graduate(asset);
     }
 
     function test_graduate_GraduatesPool(InitDataParams memory params, bool isToken0) public {
-        InitData memory initData = test_initialize_LocksPoolWithDook(params, isToken0);
+        InitData memory initData = test_initialize_LocksPoolWithDopplerHook(params, isToken0);
         _buyUntilFarTick(isToken0);
 
         vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(MockDook.onGraduation.selector, asset, poolKey, initData.graduationDookCalldata)
+            address(dopplerHook),
+            abi.encodeWithSelector(
+                MockDopplerHook.onGraduation.selector, asset, poolKey, initData.graduationDopplerHookCalldata
+            )
         );
 
         vm.expectEmit();
@@ -572,7 +580,7 @@ contract DookMulticurveInitializerTest is Deployers {
     }
 
     function test_graduate_RevertsWhenFarTickNotReached(InitDataParams memory params, bool isToken0) public {
-        test_initialize_LocksPoolWithDook(params, isToken0);
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
         (,,,,,, int24 farTick) = initializer.getState(asset);
         (, int24 tick,,) = manager.getSlot0(poolId);
         vm.prank(address(airlock));
@@ -584,8 +592,11 @@ contract DookMulticurveInitializerTest is Deployers {
     /*                                updateDynamicLPFee()                                */
     /* ---------------------------------------------------------------------------------- */
 
-    function test_updateDynamicLPFee_RevertsWhenSenderNotDook(InitDataParams memory params, bool isToken0) public {
-        test_initialize_LocksPoolWithDook(params, isToken0);
+    function test_updateDynamicLPFee_RevertsWhenSenderNotDopplerHook(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
         vm.expectRevert(SenderNotAuthorized.selector);
         vm.prank(address(0xbeef));
         initializer.updateDynamicLPFee(asset, 100);
@@ -598,16 +609,16 @@ contract DookMulticurveInitializerTest is Deployers {
     }
 
     function test_updateDynamicLPFee_UpdatesFee(InitDataParams memory params, bool isToken0) public {
-        test_initialize_LocksPoolWithDook(params, isToken0);
-        vm.prank(address(dook));
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
+        vm.prank(address(dopplerHook));
         initializer.updateDynamicLPFee(asset, 100);
         (,,, uint24 lpFee) = manager.getSlot0(poolId);
         assertEq(lpFee, 100, "Incorrect updated fee");
     }
 
     function test_updateDynamicLPFee_RevertsWhenFeeTooHigh(InitDataParams memory params, bool isToken0) public {
-        test_initialize_LocksPoolWithDook(params, isToken0);
-        vm.prank(address(dook));
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
+        vm.prank(address(dopplerHook));
         vm.expectRevert(abi.encodeWithSelector(LPFeeTooHigh.selector, MAX_LP_FEE, MAX_LP_FEE + 1));
         initializer.updateDynamicLPFee(asset, MAX_LP_FEE + 1);
     }
@@ -688,7 +699,7 @@ contract DookMulticurveInitializerTest is Deployers {
         initializer.afterSwap(address(this), key, params, balanceDelta, hookData);
     }
 
-    function test_afterSwap_CallsOnSwapWhenDookSet(
+    function test_afterSwap_CallsOnSwapWhenDopplerHookSet(
         InitDataParams memory initParams,
         bool isToken0,
         address sender,
@@ -696,10 +707,10 @@ contract DookMulticurveInitializerTest is Deployers {
         BalanceDelta balanceDelta,
         bytes calldata data
     ) public {
-        test_initialize_LocksPoolWithDook(initParams, isToken0);
+        test_initialize_LocksPoolWithDopplerHook(initParams, isToken0);
         vm.expectCall(
-            address(dook),
-            abi.encodeWithSelector(IDook.onSwap.selector, sender, poolKey, swapParams, balanceDelta, data)
+            address(dopplerHook),
+            abi.encodeWithSelector(IDopplerHook.onSwap.selector, sender, poolKey, swapParams, balanceDelta, data)
         );
         vm.prank(address(manager));
         initializer.afterSwap(sender, poolKey, swapParams, balanceDelta, data);
@@ -767,9 +778,9 @@ contract DookMulticurveInitializerTest is Deployers {
             tickSpacing: tickSpacing,
             curves: curves,
             beneficiaries: beneficiaries,
-            dook: address(0),
-            onInitializationDookCalldata: new bytes(0),
-            graduationDookCalldata: new bytes(0),
+            dopplerHook: address(0),
+            onInitializationDopplerHookCalldata: new bytes(0),
+            graduationDopplerHookCalldata: new bytes(0),
             farTick: 200_000
         });
     }
@@ -783,10 +794,10 @@ contract DookMulticurveInitializerTest is Deployers {
         return initData;
     }
 
-    function _prepareInitDataWithDook(InitDataParams memory params) internal returns (InitData memory) {
+    function _prepareInitDataWithDopplerHook(InitDataParams memory params) internal returns (InitData memory) {
         InitData memory initData = _prepareInitDataLock(params);
-        initData.dook = address(dook);
-        initData.graduationDookCalldata = abi.encode(0xbeef);
+        initData.dopplerHook = address(dopplerHook);
+        initData.graduationDopplerHookCalldata = abi.encode(0xbeef);
         poolKey.fee = LPFeeLibrary.DYNAMIC_FEE_FLAG;
         poolId = poolKey.toId();
         return initData;

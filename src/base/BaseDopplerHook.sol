@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { IDook } from "src/interfaces/IDook.sol";
+import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 
 /// @dev Flag for the `onInitialization` callback
 uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
@@ -15,7 +15,7 @@ uint256 constant ON_SWAP_FLAG = 1 << 1;
 /// @dev Flag for the `onGraduation` callback
 uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
-/// @notice Thrown when the `msg.sender` is not the Dook Multicurve Initializer contract
+/// @notice Thrown when the `msg.sender` is not the DopplerHookInitializer contract
 error SenderNotInitializer();
 
 /**
@@ -25,29 +25,29 @@ error SenderNotInitializer();
  * callback functions along with virtual internal functions to be overridden by child contracts
  * @custom:security-contact security@whetstone.cc
  */
-abstract contract BaseDook is IDook {
-    /// @notice Address of the Dook Multicurve Initializer contract
+abstract contract BaseDopplerHook is IDopplerHook {
+    /// @notice Address of the DopplerHookInitializer contract
     address public immutable INITIALIZER;
 
-    /// @notice Restricts the caller to the Dook Multicurve Initializer contract
+    /// @notice Restricts the caller to the DopplerHookInitializer contract
     modifier onlyInitializer() {
         require(msg.sender == INITIALIZER, SenderNotInitializer());
         _;
     }
 
     /**
-     * @param initializer Address of the Dook Multicurve Initializer contract
+     * @param initializer Address of the DopplerHookInitializer contract
      */
     constructor(address initializer) {
         INITIALIZER = initializer;
     }
 
-    /// @inheritdoc IDook
+    /// @inheritdoc IDopplerHook
     function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
         _onInitialization(asset, key, data);
     }
 
-    /// @inheritdoc IDook
+    /// @inheritdoc IDopplerHook
     function onSwap(
         address sender,
         PoolKey calldata key,
@@ -58,7 +58,7 @@ abstract contract BaseDook is IDook {
         _onSwap(sender, key, params, balanceDelta, data);
     }
 
-    /// @inheritdoc IDook
+    /// @inheritdoc IDopplerHook
     function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
         _onGraduation(asset, key, data);
     }

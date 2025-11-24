@@ -2,15 +2,15 @@
 pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { Doppler } from "src/Doppler.sol";
+import { DopplerHookInitializer } from "src/DopplerHookInitializer.sol";
+import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
 import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
-import { DookMulticurveInitializer } from "src/DookMulticurveInitializer.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;
@@ -26,7 +26,7 @@ uint160 constant DOPPLER_HOOK_FLAGS = uint160(
 uint160 constant MIGRATOR_HOOK_FLAGS =
     uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
 
-uint160 constant DOOK_MULTICURVE_INITIALIZER_FLAGS = uint160(
+uint160 constant DOPPLER_HOOK_INITIALIZER_FLAGS = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
         | Hooks.AFTER_SWAP_FLAG
 );
@@ -49,18 +49,18 @@ struct MineV4MigratorHookParams {
     address hookDeployer;
 }
 
-struct MineDookMulticurveInitializerParams {
+struct MineDopplerHookMulticurveInitializerParams {
     address airlock;
     address poolManager;
     address deployer;
 }
 
-function mineDookMulticurveInitializer(MineDookMulticurveInitializerParams memory params)
+function mineDopplerHookMulticurveInitializer(MineDopplerHookMulticurveInitializerParams memory params)
     view
     returns (bytes32, address)
 {
     bytes32 initHash = keccak256(
-        abi.encodePacked(type(DookMulticurveInitializer).creationCode, abi.encode(params.airlock, params.poolManager))
+        abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(params.airlock, params.poolManager))
     );
 
     for (uint256 salt; salt < 200_000; salt++) {

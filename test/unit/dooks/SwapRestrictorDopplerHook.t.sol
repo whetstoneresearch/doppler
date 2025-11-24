@@ -7,15 +7,19 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { SenderNotInitializer } from "src/base/BaseDook.sol";
-import { InsufficientAmountLeft, SwapRestrictorDook, UpdatedAmountLeft } from "src/dooks/SwapRestrictorDook.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
+import {
+    InsufficientAmountLeft,
+    SwapRestrictorDopplerHook,
+    UpdatedAmountLeft
+} from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 
-contract SwapRestrictorDookTest is Test {
-    SwapRestrictorDook internal dook;
+contract SwapRestrictorDopplerHookTest is Test {
+    SwapRestrictorDopplerHook internal dopplerHook;
     address internal initializer = makeAddr("initializer");
 
     function setUp() public {
-        dook = new SwapRestrictorDook(initializer);
+        dopplerHook = new SwapRestrictorDopplerHook(initializer);
     }
 
     /* -------------------------------------------------------------------------------- */
@@ -37,10 +41,10 @@ contract SwapRestrictorDookTest is Test {
         }
 
         vm.prank(initializer);
-        dook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
 
         for (uint256 i; i < approved.length; i++) {
-            assertEq(dook.amountLeftOf(poolId, approved[i]), maxAmount);
+            assertEq(dopplerHook.amountLeftOf(poolId, approved[i]), maxAmount);
         }
     }
 
@@ -53,7 +57,7 @@ contract SwapRestrictorDookTest is Test {
         IPoolManager.SwapParams calldata swapParams
     ) public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_DecreasesAmountLeftWhenBuyingAsset(bool isTokenZero, PoolKey calldata poolKey) public {
@@ -63,7 +67,7 @@ contract SwapRestrictorDookTest is Test {
         uint256 maxAmount = 1e18;
 
         vm.prank(initializer);
-        dook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
 
         IPoolManager.SwapParams memory swapParams =
             IPoolManager.SwapParams({ zeroForOne: !isTokenZero, amountSpecified: 0, sqrtPriceLimitX96: 0 });
@@ -72,7 +76,7 @@ contract SwapRestrictorDookTest is Test {
         emit UpdatedAmountLeft(poolKey.toId(), approved[0], 0);
 
         vm.prank(initializer);
-        dook.onSwap(
+        dopplerHook.onSwap(
             approved[0],
             poolKey,
             swapParams,
@@ -80,7 +84,7 @@ contract SwapRestrictorDookTest is Test {
             new bytes(0)
         );
 
-        assertEq(dook.amountLeftOf(poolKey.toId(), approved[0]), 0);
+        assertEq(dopplerHook.amountLeftOf(poolKey.toId(), approved[0]), 0);
     }
 
     function test_onSwap_IgnoresAmountLeftWhenSellingAsset(bool isTokenZero, PoolKey calldata poolKey) public {
@@ -90,13 +94,13 @@ contract SwapRestrictorDookTest is Test {
         uint256 maxAmount = 1e18;
 
         vm.prank(initializer);
-        dook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
 
         IPoolManager.SwapParams memory swapParams =
             IPoolManager.SwapParams({ zeroForOne: !isTokenZero, amountSpecified: 0, sqrtPriceLimitX96: 0 });
 
         vm.prank(initializer);
-        dook.onSwap(
+        dopplerHook.onSwap(
             approved[0],
             poolKey,
             swapParams,
@@ -104,7 +108,7 @@ contract SwapRestrictorDookTest is Test {
             new bytes(0)
         );
 
-        assertEq(dook.amountLeftOf(poolKey.toId(), approved[0]), maxAmount);
+        assertEq(dopplerHook.amountLeftOf(poolKey.toId(), approved[0]), maxAmount);
     }
 
     function test_onSwap_RevertsWhenTryingToBuyMoreThanLeftAmount(bool isTokenZero, PoolKey calldata poolKey) public {
@@ -114,7 +118,7 @@ contract SwapRestrictorDookTest is Test {
         uint256 maxAmount = 1e18;
 
         vm.prank(initializer);
-        dook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(approved, maxAmount));
 
         IPoolManager.SwapParams memory swapParams =
             IPoolManager.SwapParams({ zeroForOne: !isTokenZero, amountSpecified: 0, sqrtPriceLimitX96: 0 });
@@ -125,12 +129,12 @@ contract SwapRestrictorDookTest is Test {
                 poolKey.toId(),
                 approved[0],
                 2e18,
-                dook.amountLeftOf(poolKey.toId(), approved[0])
+                dopplerHook.amountLeftOf(poolKey.toId(), approved[0])
             )
         );
 
         vm.prank(initializer);
-        dook.onSwap(
+        dopplerHook.onSwap(
             approved[0],
             poolKey,
             swapParams,
