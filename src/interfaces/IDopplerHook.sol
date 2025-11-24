@@ -9,11 +9,11 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
  * @title Doppler Hook Interface
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
- * @notice Doppler Hooks (Dooks) are contracts that can be hooked to a Uniswap V4 pool deployed using the
- * Dook Multicurve Initializer, they allow for custom logic to be executed during specific pool events such
+ * @notice Doppler Hooks are contracts that can be hooked to Uniswap V4 pools deployed using the
+ * DopplerHookInitializer, they allow for custom logic to be executed during specific pool events such
  * as initialization, swaps and graduation
  */
-interface IDook {
+interface IDopplerHook {
     /**
      * @notice Called during the pool initialization process or when the hook is added to an existing pool
      * @param asset Address of the asset token

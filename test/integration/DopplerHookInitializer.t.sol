@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Vm } from "forge-std/Vm.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
+import { Vm } from "forge-std/Vm.sol";
 
+import { Airlock, ModuleState } from "src/Airlock.sol";
+import { DopplerHookInitializer, InitData } from "src/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
-import { Airlock, ModuleState } from "src/Airlock.sol";
-import { DookMulticurveInitializer, InitData } from "src/DookMulticurveInitializer.sol";
 
-function deployDookMulticurveInitializer(
+function deployDopplerHookMulticurveInitializer(
     Vm vm,
     function(string memory, bytes memory, address) deployCodeTo,
     Airlock airlock,
     address airlockOwner,
     address poolManager
-) returns (DookMulticurveInitializer initializer) {
-    initializer = DookMulticurveInitializer(
+) returns (DopplerHookInitializer initializer) {
+    initializer = DopplerHookInitializer(
         payable(address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
@@ -29,7 +29,7 @@ function deployDookMulticurveInitializer(
             ))
     );
 
-    deployCodeTo("DookMulticurveInitializer", abi.encode(address(airlock), address(poolManager)), address(initializer));
+    deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(poolManager)), address(initializer));
 
     address[] memory modules = new address[](1);
     modules[0] = address(initializer);
@@ -39,7 +39,7 @@ function deployDookMulticurveInitializer(
     airlock.setModuleState(modules, states);
 }
 
-function prepareDookMulticurveInitializerData(
+function prepareDopplerHookMulticurveInitializerData(
     address asset,
     address numeraire
 ) pure returns (bytes memory poolInitializerData) {
@@ -63,9 +63,9 @@ function prepareDookMulticurveInitializerData(
             tickSpacing: tickSpacing,
             curves: curves,
             beneficiaries: new BeneficiaryData[](0),
-            dook: address(0),
-            onInitializationDookCalldata: new bytes(0),
-            graduationDookCalldata: new bytes(0),
+            dopplerHook: address(0),
+            onInitializationDopplerHookCalldata: new bytes(0),
+            graduationDopplerHookCalldata: new bytes(0),
             farTick: 200_000
         })
     );
