@@ -18,7 +18,6 @@
   },
   "143": {
     "Airlock": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12",
-    "AirlockMultisig": "0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a",
     "Bundler": "0xc99b485499f78995c6f1640dbb1413c57f8ba684",
     "GovernanceFactory": "0xfaafde6a5b658684cc5eb0c5c2c755b00a246f45",
     "LaunchpadGovernanceFactory": "0x5fbe931dc4b923a7abe4c47ad68d5bf9eda5b76d",
@@ -32,7 +31,6 @@
   },
   "1301": {
     "Airlock": "0x0d2f38d807bfad5c18e430516e10ab560d300caf",
-    "AirlockMultisig": "0x40bcb4dda3bcf7dba30c5d10c31ee2791ed9ddca",
     "Bundler": "0xed344444633b965cd148f8ffce3765938a179094",
     "DopplerDeployer": "0x77b5f559ee9cf3bfcf2fff5731a84332d8eecac9",
     "DopplerLensQuoter": "0x917da361072ce968acd810bbfc9b64079426ebf0",
@@ -82,7 +80,6 @@
   },
   "10143": {
     "Airlock": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b",
-    "AirlockMultisig": "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299",
     "Bundler": "0xf6023127f6e937091d5b605680056a6d27524bad",
     "DopplerDeployer": "0x166109c4ee7fe69164631caa937daa5f5cebfef0",
     "DopplerLensQuoter": "0x2f2bacd46d3f5c9ee052ab392b73711db89129db",
@@ -114,7 +111,6 @@
   },
   "84532": {
     "Airlock": "0x3411306ce66c9469bff1535ba955503c4bde1c6e",
-    "AirlockMultisig": "0x852a09c89463d236eea2f097623574f23e225769",
     "BasicMultisig": "0x6f645fa08b7eadad620cec85634204b1d7a46dc2",
     "Bundler": "0xab7bacb0d5c2c10152f92d34e07f530eb3cb0fb1",
     "DopplerDeployer": "0x82d727ffda3f874da802663fc2f3f4b83dc3aaba",
