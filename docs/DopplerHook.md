@@ -2,7 +2,7 @@
 
 ## Overview
 
-Doppler Hooks are a set of callback functions that can be called during the lifecycle of "locked" pools initialized by the `DookMulticurveInitializer` contract. Three main events will trigger these hooks:
+Doppler Hooks are a set of callback functions that can be called during the lifecycle of "locked" pools initialized by the `DopplerHookMulticurveInitializer` contract. Three main events will trigger these hooks:
 
 - `initialization`: when a new pool is created
 - `swap`: when a swap occurs in the pool
@@ -21,8 +21,8 @@ A couple of things to note:
 
 Here are the different callback functions available for the Doppler Hooks, note that they can be implemented selectively based on the use case:
 
-| Callback Function                                                                     | Triggered By                                                                                                                    |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `onInitialization(address, PoolKey calldata, bytes calldata)`                         | - `initialize()` if a `dook` address is set in the `InitData`<br />- `setDook()` if a dook is set after the pool initialization |
-| `onSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)` | `afterSwap` before each swap happening in the Uniswap V4 pool                                                                   |
-| `onGraduation(address, PoolKey calldata, bytes calldata)`                             | `graduate` if the graduation conditions are met (e.g. `farTick` reached)                                                        |
+| Callback Function                                                                     | Triggered By                                                                                                                                          |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onInitialization(address, PoolKey calldata, bytes calldata)`                         | - `initialize()` if a `dopplerHook` address is set in the `InitData`<br />- `setDopplerHook()` if a Doppler Hook is set after the pool initialization |
+| `onSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)` | `afterSwap` before each swap happening in the Uniswap V4 pool                                                                                         |
+| `onGraduation(address, PoolKey calldata, bytes calldata)`                             | `graduate` if the graduation conditions are met (e.g. `farTick` reached)                                                                              |
