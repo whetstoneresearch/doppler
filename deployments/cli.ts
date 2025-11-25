@@ -25,17 +25,17 @@ const chains: {[chainId: number]: ChainDetails } = {
   },
   1301: {
     name: 'Unichain Sepolia',
-    explorerUrl: 'https://sepolia.uniscan.xyz/',
+    explorerUrl: 'https://sepolia.uniscan.xyz',
     isTestnet: true,
   },
   57073: {
     name: 'Ink',
-    explorerUrl: 'https://explorer.inkonchain.com/',
+    explorerUrl: 'https://explorer.inkonchain.com',
     isTestnet: false,
   },
   763373: {
     name: 'Ink Sepolia',
-    explorerUrl: 'https://explorer-sepolia.inkonchain.com/',
+    explorerUrl: 'https://explorer-sepolia.inkonchain.com',
     isTestnet: true,
   },
   480: {
@@ -60,7 +60,7 @@ const chains: {[chainId: number]: ChainDetails } = {
   },
   143: {
     name: 'Monad Mainnet',
-    explorerUrl: '',
+    explorerUrl: 'https://monadscan.com',
     isTestnet: false,
   },
 };
@@ -162,7 +162,7 @@ async function generateHistoryLogs(): Promise<void> {
     const transactions = broadcast.transactions
       .filter((transaction) => (transaction.transactionType === 'CREATE'
         || transaction.transactionType === 'CREATE2')
-        && transaction.hash !== null && transaction.contractName !== null)
+        && transaction.hash !== null && transaction.contractName !== null && transaction.contractName !== 'AirlockMultisig')
       .map(transaction => ({
         contractName: transaction.contractName,
         contractAddress: transaction.contractAddress,
@@ -210,7 +210,8 @@ async function generateHistoryLogs(): Promise<void> {
     }
 
     deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
-    const latestDeployments = getLatestDeployments(deployments[chainId]);
+    let latestDeployments = getLatestDeployments(deployments[chainId]);
+    latestDeployments = latestDeployments.filter(d => d.contractName !== 'AirlockMultisig');
     mainnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     mainnetDeployments += generateTable(latestDeployments, chainId);
     mainnetLabels.push(chains[chainId].name);
