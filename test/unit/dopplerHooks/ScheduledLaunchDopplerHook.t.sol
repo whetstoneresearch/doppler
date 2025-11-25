@@ -55,4 +55,20 @@ contract ScheduledLaunchDopplerHookTest is Test {
         vm.prank(initializer);
         dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
+
+    function test_onSwap_PassesAfterStartingTime(
+        PoolKey calldata poolKey,
+        uint256 timestamp,
+        uint256 startingTime,
+        IPoolManager.SwapParams calldata swapParams
+    ) public {
+        vm.assume(startingTime <= timestamp);
+        vm.warp(timestamp);
+
+        vm.prank(initializer);
+        dopplerHook.onInitialization(address(0), poolKey, abi.encode(startingTime));
+
+        vm.prank(initializer);
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+    }
 }
