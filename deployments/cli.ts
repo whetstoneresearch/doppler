@@ -191,8 +191,10 @@ async function generateHistoryLogs(): Promise<void> {
       timestamps[d.timestamp].push(d);
     });
 
-    for (let i = Object.values(timestamps).length - 1; i >= 0; i--) {
-      const t = Object.values(timestamps)[i];
+    const sortedTimestamps = Object.keys(timestamps).sort((a, b) => Number(b) - Number(a));
+
+    for (const timestamp of sortedTimestamps) {
+      const t = timestamps[timestamp];
       content += `### ${convertTimestamp(t[0].timestamp)}\n`;
       content += generateTable(t, chainId);
     }
