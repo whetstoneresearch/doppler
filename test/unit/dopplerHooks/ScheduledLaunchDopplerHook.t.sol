@@ -6,6 +6,7 @@ import { BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 
 contract ScheduledLaunchDopplerHookTest is Test {
@@ -35,9 +36,25 @@ contract ScheduledLaunchDopplerHookTest is Test {
         assertEq(dopplerHook.getStartingTimeOf(poolKey.toId()), startingTime);
     }
 
+    function test_onInitialization_RevertsWhenSenderNotInitializer(
+        PoolKey calldata poolKey,
+        uint256 startingTime
+    ) public {
+        vm.expectRevert(SenderNotInitializer.selector);
+        dopplerHook.onInitialization(address(0), poolKey, abi.encode(startingTime));
+    }
+
     /* ---------------------------------------------------------------------- */
     /*                                onSwap()                                */
     /* ---------------------------------------------------------------------- */
+
+    function test_onSwap_RevertsWhenSenderNotInitializer(
+        PoolKey calldata poolKey,
+        IPoolManager.SwapParams calldata swapParams
+    ) public {
+        vm.expectRevert(SenderNotInitializer.selector);
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+    }
 
     function test_onSwap_RevertsWhenSaleNotStarted(
         PoolKey calldata poolKey,
