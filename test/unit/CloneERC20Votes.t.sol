@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
 import { Ownable } from "@solady/auth/Ownable.sol";
 import { ERC20Votes } from "@solady/tokens/ERC20Votes.sol";
 import { Initializable } from "@solady/utils/Initializable.sol";
-import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
+import { Test } from "forge-std/Test.sol";
 import {
     ArrayLengthsMismatch,
+    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MAX_TOTAL_PRE_MINT_WAD,
+    MAX_YEARLY_MINT_RATE_WAD,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
-    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MaxYearlyMintRateExceeded,
     MintingNotStartedYet,
-    NoMintableAmount,
-    MAX_YEARLY_MINT_RATE_WAD,
-    MAX_TOTAL_PRE_MINT_WAD,
-    MaxYearlyMintRateExceeded
+    NoMintableAmount
 } from "src/CloneERC20.sol";
+import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 
 function generateRecipients(
     uint256 seed,
@@ -165,9 +165,7 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", 0, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceeded(
-        uint256 initialSupply
-    ) public {
+    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceeded(uint256 initialSupply) public {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
@@ -185,9 +183,7 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceededReusingAddress(
-        uint256 initialSupply
-    ) public {
+    function testFuzz_initialize_RevertsWhenMaxPreMintPerAddressExceededReusingAddress(uint256 initialSupply) public {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
@@ -203,9 +199,7 @@ contract CloneERC20VotesTest is Test {
         token.initialize("", "", initialSupply, address(0), address(0), 0, 0, recipients, amounts, "");
     }
 
-    function testFuzz_initialize_RevertsWhenMaxTotalPreMintExceeded(
-        uint256 initialSupply
-    ) public {
+    function testFuzz_initialize_RevertsWhenMaxTotalPreMintExceeded(uint256 initialSupply) public {
         vm.assume(initialSupply > MIN_INITIAL_SUPPLY);
         vm.assume(initialSupply < type(uint256).max / MAX_TOTAL_PRE_MINT_WAD);
 
@@ -230,16 +224,12 @@ contract CloneERC20VotesTest is Test {
     /*                                lockPool()                                */
     /* ------------------------------------------------------------------------ */
 
-    function test_lockPool_PassesWhenValidOwner(
-        address pool
-    ) public {
+    function test_lockPool_PassesWhenValidOwner(address pool) public {
         token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
         token.lockPool(pool);
     }
 
-    function test_lockPool_RevertsWhenInvalidOwner(
-        address pool
-    ) public {
+    function test_lockPool_RevertsWhenInvalidOwner(address pool) public {
         token.initialize("", "", 0, address(0), address(this), 0, 0, new address[](0), new uint256[](0), "");
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
@@ -250,18 +240,14 @@ contract CloneERC20VotesTest is Test {
     /*                                unlockPool()                                */
     /* -------------------------------------------------------------------------- */
 
-    function testFuzz_unlockPool(
-        address pool
-    ) public {
+    function testFuzz_unlockPool(address pool) public {
         test_lockPool_PassesWhenValidOwner(pool);
         token.unlockPool();
         assertEq(token.lastMintTimestamp(), block.timestamp, "Inflation should have started");
         assertEq(token.currentYearStart(), block.timestamp, "Current year start should be the current timestamp");
     }
 
-    function testFuzz_unlockPool_RevertsWhenInvalidOwner(
-        address pool
-    ) public {
+    function testFuzz_unlockPool_RevertsWhenInvalidOwner(address pool) public {
         test_lockPool_PassesWhenValidOwner(pool);
         vm.prank(address(0xbeef));
         vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
@@ -290,10 +276,11 @@ contract CloneERC20VotesTest is Test {
         vm.startPrank(recipient);
         token.delegate(address(0xcafe));
 
-        uint256 votesTotalSupply = token.getVotesTotalSupply();
+        uint256 recipientBalance = token.balanceOf(recipient);
+        uint256 previousVotes = token.getVotes(address(0xcafe));
         vm.expectEmit(true, true, true, true);
-        emit ERC20Votes.DelegateVotesChanged(recipient, votesTotalSupply, votesTotalSupply - votesTotalSupply / 10);
-        token.transfer(address(0xbeef), initialSupply / 10);
+        emit ERC20Votes.DelegateVotesChanged(address(0xcafe), previousVotes, previousVotes - recipientBalance / 10);
+        token.transfer(address(0xbeef), recipientBalance / 10);
         vm.stopPrank();
     }
 
@@ -392,7 +379,7 @@ contract CloneERC20VotesTest is Test {
         string memory tokenURI,
         uint256 seed
     ) public {
-        vm.assume(yearlyMintRate > 0);
+        yearlyMintRate = bound(yearlyMintRate, 0.005 ether, MAX_YEARLY_MINT_RATE_WAD);
         testFuzz_initialize(
             name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );

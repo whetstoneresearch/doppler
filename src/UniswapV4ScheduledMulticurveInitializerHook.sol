@@ -29,20 +29,14 @@ contract UniswapV4ScheduledMulticurveInitializerHook is UniswapV4MulticurveIniti
      * @param manager Address of the Uniswap V4 Pool Manager
      * @param initializer Address of the Uniswap V4 Multicurve Initializer contract
      */
-    constructor(
-        IPoolManager manager,
-        UniswapV4ScheduledMulticurveInitializer initializer
-    ) UniswapV4MulticurveInitializerHook(manager, initializer) { }
+    constructor(IPoolManager manager, address initializer) UniswapV4MulticurveInitializerHook(manager, initializer) { }
 
     /**
      * @notice Sets the starting time for a given pool
      * @param poolKey Key of the pool
      * @param startingTime Timestamp at which trading can start, past times are set to current block timestamp
      */
-    function setStartingTime(
-        PoolKey memory poolKey,
-        uint256 startingTime
-    ) external onlyInitializer(msg.sender) {
+    function setStartingTime(PoolKey memory poolKey, uint256 startingTime) external onlyInitializer(msg.sender) {
         startingTimeOf[poolKey.toId()] = startingTime <= block.timestamp ? block.timestamp : startingTime;
     }
 

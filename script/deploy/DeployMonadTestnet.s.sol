@@ -1,19 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Script, console } from "forge-std/Script.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
+import { DopplerHookInitializer } from "src/DopplerHookInitializer.sol";
+import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { NoOpMigrator } from "src/NoOpMigrator.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { IUniswapV3Factory, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import {
+    MineDopplerHookMulticurveInitializerParams,
+    mineDopplerHookMulticurveInitializer
+} from "test/shared/AirlockMiner.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 contract DeployMonadTestnetScript is Script {
@@ -49,6 +55,21 @@ contract DeployMonadTestnetScript is Script {
             Airlock(payable(airlock)),
             UniversalRouter(payable(0x3aE6D8A282D67893e17AA70ebFFb33EE5aa65893)),
             IQuoterV2(0x1b4E313fEF15630AF3e6F2dE550Dbf4cC9D3081d)
+        );
+
+        (bytes32 salt, address minedDopplerHookMulticurveInitializer) = mineDopplerHookMulticurveInitializer(
+            MineDopplerHookMulticurveInitializerParams({
+                airlock: airlock, poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e, deployer: msg.sender
+            })
+        );
+
+        DopplerHookInitializer dopplerHookMulticurveInitializer = new DopplerHookInitializer{ salt: salt }(
+            airlock, IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e)
+        );
+
+        require(
+            minedDopplerHookMulticurveInitializer == address(dopplerHookMulticurveInitializer),
+            "Deployed DopplerHookInitializer address mismatch"
         );
 
         // Whitelisting the initial modules

@@ -46,7 +46,9 @@ abstract contract DeployUniswapV4ScheduledMulticurveInitializerScript is Script 
         // Deploy hook with deployed migrator address
         UniswapV4ScheduledMulticurveInitializerHook hook = new UniswapV4ScheduledMulticurveInitializerHook{
             salt: salt
-        }(IPoolManager(_scriptData.poolManager), initializer);
+        }(
+            IPoolManager(_scriptData.poolManager), address(initializer)
+        );
 
         /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
         require(address(initializer.HOOK()) == address(hook), "Multicurve hook is not the expected address");
