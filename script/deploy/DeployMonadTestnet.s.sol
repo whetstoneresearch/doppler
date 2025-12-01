@@ -16,10 +16,7 @@ import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { TokenFactory } from "src/TokenFactory.sol";
 import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { IUniswapV3Factory, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import {
-    MineDopplerHookMulticurveInitializerParams,
-    mineDopplerHookMulticurveInitializer
-} from "test/shared/AirlockMiner.sol";
+import { MineDopplerHookInitializerParams, mineDopplerHookInitializer } from "test/shared/AirlockMiner.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 contract DeployMonadTestnetScript is Script {
@@ -57,18 +54,18 @@ contract DeployMonadTestnetScript is Script {
             IQuoterV2(0x1b4E313fEF15630AF3e6F2dE550Dbf4cC9D3081d)
         );
 
-        (bytes32 salt, address minedDopplerHookMulticurveInitializer) = mineDopplerHookMulticurveInitializer(
-            MineDopplerHookMulticurveInitializerParams({
+        (bytes32 salt, address minedDopplerHookInitializer) = mineDopplerHookInitializer(
+            MineDopplerHookInitializerParams({
                 airlock: airlock, poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e, deployer: msg.sender
             })
         );
 
-        DopplerHookInitializer dopplerHookMulticurveInitializer = new DopplerHookInitializer{ salt: salt }(
+        DopplerHookInitializer dopplerHookInitializer = new DopplerHookInitializer{ salt: salt }(
             airlock, IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e)
         );
 
         require(
-            minedDopplerHookMulticurveInitializer == address(dopplerHookMulticurveInitializer),
+            minedDopplerHookInitializer == address(dopplerHookInitializer),
             "Deployed DopplerHookInitializer address mismatch"
         );
 
