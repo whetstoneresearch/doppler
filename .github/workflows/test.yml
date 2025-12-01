@@ -38,7 +38,7 @@ jobs:
         id: version
 
       - name: Run Forge build
-        run: forge build --sizes
+        run: forge build --via-ir --sizes
         id: build
 
       - name: Run Forge tests
