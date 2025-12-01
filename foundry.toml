@@ -22,7 +22,7 @@ runs = 32
 depth = 512
 
 [fmt]
-single_line_statement_blocks = "multi"
+single_line_statement_blocks = "preserve"
 bracket_spacing = true
 int_types = "long"
 line_length = 120
