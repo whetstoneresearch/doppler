@@ -22,23 +22,25 @@ jobs:
 
     name: Foundry project
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
+
+      - name: Show Forge version
+        run: forge --version
+        id: version
 
       - name: Run Forge build
-        run: |
-          forge --version
-          forge build --sizes
+        run: forge build --sizes
         id: build
 
       - name: Run Forge tests
-        run: |
-          forge test -vvv --via-ir
+        run: forge test -vvv --via-ir
         id: test
