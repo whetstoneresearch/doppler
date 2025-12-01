@@ -7,12 +7,13 @@ permit2/=lib/v4-periphery/lib/permit2/
 
 @solmate/=lib/v4-core/lib/solmate/src
 @solady/=lib/solady/src/
-src:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
-test:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
+@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
+lib/v4-core/:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/
+lib/v4-periphery/:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/
+lib/universal-router/:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/
 
 @v4-periphery/=lib/v4-periphery/src/
 @v4-periphery-test/=lib/v4-periphery/test/
-
 
 @v4-core-test/=lib/v4-periphery/lib/v4-core/test/
 @v4-core/=lib/v4-periphery/lib/v4-core/src/
@@ -21,6 +22,5 @@ test:@openzeppelin/=lib/v4-core/lib/openzeppelin-contracts/contracts/
 @v3-core/=lib/v3-core/contracts
 @uniswap/v3-core/=lib/v3-core/
 @universal-router=lib/universal-router/contracts/
-
 
 @uniswap/v2-core/contracts/interfaces/=src/interfaces/
