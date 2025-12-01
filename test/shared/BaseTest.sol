@@ -150,8 +150,8 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens.
     function _deployTokens() public {
-        isToken0 = vm.envOr("IS_TOKEN_0", true);
-        usingEth = vm.envOr("USING_ETH", false);
+        isToken0 = vm.envOr("IS_TOKEN_0", false);
+        usingEth = vm.envOr("USING_ETH", true);
 
         if (usingEth) {
             isToken0 = false;
