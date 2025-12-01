@@ -1,0 +1,57 @@
+# Deployment configurations for the different chains we support
+#
+# Each section defines the necessary parameters for deploying contracts on a specific network and
+# must follow the following format:
+#
+# [network-name]
+# endpoint_url = "${SECRET_RPC_URL}"
+# create2_factory = "0x0000000000000000000000000000000000000000"
+# create_x = "0x0000000000000000000000000000000000000000"
+# uniswap_v4_pool_manager = "0x0000000000000000000000000000000000000000"
+# airlock = "0x0000000000000000000000000000000000000000"
+
+# Mainnets
+
+[base]
+endpoint_url = "${BASE_MAINNET_RPC_URL}"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock = ""
+uniswap_v4_pool_manager = ""
+
+[unichain]
+endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock = ""
+uniswap_v4_pool_manager = ""
+
+[monad]
+endpoint_url = "${MONAD_MAINNET_RPC_URL}"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock = ""
+uniswap_v4_pool_manager = ""
+
+# Testnets
+
+[base-sepolia]
+endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock = ""
+uniswap_v4_pool_manager = ""
+
+[unichain-sepolia]
+endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock = ""
+uniswap_v4_pool_manager = ""
+
+[monad-testnet]
+endpoint_url = "${MONAD_TESTNET_RPC_URL}"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock = "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b"
+uniswap_v4_pool_manager = ""
