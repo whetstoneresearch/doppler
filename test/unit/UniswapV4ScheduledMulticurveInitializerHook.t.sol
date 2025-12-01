@@ -12,11 +12,11 @@ import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
-import { ModifyLiquidity, OnlyInitializer, Swap } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { ModifyLiquidity, OnlyInitializer, Swap } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
 import {
     CannotSwapBeforeStartingTime,
     UniswapV4ScheduledMulticurveInitializerHook
-} from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+} from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 
 contract UniswapV4ScheduledMulticurveInitializerHookTest is Test {
     UniswapV4ScheduledMulticurveInitializerHook public hook;

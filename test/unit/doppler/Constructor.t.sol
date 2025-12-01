@@ -14,7 +14,7 @@ import {
     InvalidTickRange,
     InvalidTimeRange,
     MAX_PRICE_DISCOVERY_SLUGS
-} from "src/Doppler.sol";
+} from "src/initializers/Doppler.sol";
 import { HookConfig, HookConfigs } from "test/shared/HookConfigs.sol";
 
 contract DopplerNoValidateHook is Doppler {

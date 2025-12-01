@@ -11,7 +11,8 @@ import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Test } from "forge-std/Test.sol";
-import { DERC20 } from "src/DERC20.sol";
+import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     CallbackData,
     InitData,
@@ -25,9 +26,8 @@ import {
     PoolAlreadyInitialized,
     PoolStatus,
     WAD
-} from "src/LockableUniswapV3Initializer.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+} from "src/initializers/LockableUniswapV3Initializer.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
 import { UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;

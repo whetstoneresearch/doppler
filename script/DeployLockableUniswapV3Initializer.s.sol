@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { Script } from "forge-std/Script.sol";
-import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
+import { LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
 
 struct ScriptData {
     address airlock;

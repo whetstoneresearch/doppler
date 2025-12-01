@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 import {

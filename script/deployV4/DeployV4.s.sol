@@ -5,7 +5,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
-import { DopplerDeployer, IPoolManager, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { DopplerDeployer, IPoolManager, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 
 struct V4ScriptData {

@@ -13,7 +13,7 @@ import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { stdMath } from "forge-std/StdMath.sol";
-import { I_WAD, MAX_SWAP_FEE, Position, WAD } from "src/Doppler.sol";
+import { I_WAD, MAX_SWAP_FEE, Position, WAD } from "src/initializers/Doppler.sol";
 import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 

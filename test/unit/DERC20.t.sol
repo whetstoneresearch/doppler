@@ -13,7 +13,7 @@ import {
     MintingNotStartedYet,
     NoMintableAmount,
     PoolLocked
-} from "src/DERC20.sol";
+} from "src/tokens/DERC20.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
 uint256 constant YEARLY_MINT_RATE = 0.02e18;

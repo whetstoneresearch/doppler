@@ -2,15 +2,17 @@
 pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { Doppler } from "src/Doppler.sol";
-import { DopplerHookInitializer } from "src/DopplerHookInitializer.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
+import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
 
 // mask to slice out the bottom 14 bit of the address
 uint160 constant FLAG_MASK = 0x3FFF;

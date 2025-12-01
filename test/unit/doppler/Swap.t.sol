@@ -19,7 +19,7 @@ import {
     MAX_SWAP_FEE,
     NUM_DEFAULT_SLUGS,
     Position
-} from "src/Doppler.sol";
+} from "src/initializers/Doppler.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 

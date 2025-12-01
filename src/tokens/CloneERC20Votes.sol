@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { ERC20 } from "solady/tokens/ERC20.sol";
 import { ERC20Votes } from "solady/tokens/ERC20Votes.sol";
-import { CloneERC20 } from "src/CloneERC20.sol";
+import { CloneERC20 } from "src/tokens/CloneERC20.sol";
 
 /**
  * @title CloneERC20Votes

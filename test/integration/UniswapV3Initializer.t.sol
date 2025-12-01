@@ -12,7 +12,7 @@ import {
     PoolAlreadyExited,
     PoolAlreadyInitialized,
     UniswapV3Initializer
-} from "src/UniswapV3Initializer.sol";
+} from "src/initializers/UniswapV3Initializer.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;

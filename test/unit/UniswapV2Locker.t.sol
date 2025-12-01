@@ -5,11 +5,11 @@ import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Test } from "forge-std/Test.sol";
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
-import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2LockerTest is Test {

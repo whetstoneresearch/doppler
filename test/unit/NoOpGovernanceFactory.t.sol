@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 
 contract NoOpGovernanceFactoryTest is Test {
     NoOpGovernanceFactory public factory;

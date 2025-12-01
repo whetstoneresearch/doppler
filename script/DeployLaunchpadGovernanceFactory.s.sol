@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
-import { LaunchpadGovernanceFactory } from "src/LaunchpadGovernanceFactory.sol";
+import { LaunchpadGovernanceFactory } from "src/governance/LaunchpadGovernanceFactory.sol";
 
 struct ScriptData {
     uint256 chainId;

@@ -9,7 +9,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
-import { Doppler } from "src/Doppler.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
 import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import {
     DEFAULT_ENDING_TIME,

@@ -14,6 +14,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 
 import { Airlock } from "src/Airlock.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     BeneficiaryData,
     CannotMigrateInsufficientTick,
@@ -24,9 +25,8 @@ import {
     PoolNotLocked,
     PoolStatus,
     UniswapV4MulticurveInitializer
-} from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+} from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";

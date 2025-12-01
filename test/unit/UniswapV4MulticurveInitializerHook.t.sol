@@ -17,7 +17,7 @@ import {
     OnlyInitializer,
     Swap,
     UniswapV4MulticurveInitializerHook
-} from "src/UniswapV4MulticurveInitializerHook.sol";
+} from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
 
 contract UniswapV4MulticurveInitializerHookTest is Test {
     using PoolIdLibrary for PoolKey;

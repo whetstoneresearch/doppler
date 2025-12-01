@@ -12,17 +12,17 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { InitData, UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { InitData, UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 

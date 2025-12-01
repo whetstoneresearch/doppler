@@ -9,7 +9,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { Position } from "src/Doppler.sol";
+import { Position } from "src/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract AfterInitializeTest is BaseTest {

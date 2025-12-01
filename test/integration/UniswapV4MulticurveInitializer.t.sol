@@ -8,8 +8,8 @@ import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { InitData, UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { InitData, UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";

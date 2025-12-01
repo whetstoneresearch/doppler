@@ -15,8 +15,8 @@ import {
     MaxYearlyMintRateExceeded,
     MintingNotStartedYet,
     NoMintableAmount
-} from "src/CloneERC20.sol";
-import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
+} from "src/tokens/CloneERC20.sol";
+import { CloneERC20Votes } from "src/tokens/CloneERC20Votes.sol";
 
 function generateRecipients(
     uint256 seed,

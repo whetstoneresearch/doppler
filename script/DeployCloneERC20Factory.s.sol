@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
-import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
+import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 
 struct ScriptData {
     address airlock;

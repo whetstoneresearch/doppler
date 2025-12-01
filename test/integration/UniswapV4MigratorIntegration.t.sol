@@ -9,8 +9,8 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
 
 function deployUniswapV4Migrator(
     Vm vm,

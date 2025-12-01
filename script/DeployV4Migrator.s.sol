@@ -6,8 +6,8 @@ import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager
 import { Script, console } from "forge-std/Script.sol";
 import { Airlock } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {

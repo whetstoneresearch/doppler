@@ -7,8 +7,8 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSw
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
+import { UniswapV4ScheduledMulticurveInitializer } from "src/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
 
 /// @notice Thrown when a swap is attempted before the starting time
 error CannotSwapBeforeStartingTime();

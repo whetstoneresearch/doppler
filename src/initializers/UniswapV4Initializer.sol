@@ -6,8 +6,8 @@ import { IHooks, IPoolManager, PoolKey } from "@v4-core/PoolManager.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
-import { Doppler } from "src/Doppler.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 
 error InvalidTokenOrder();

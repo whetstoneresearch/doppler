@@ -7,7 +7,7 @@ import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.s
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
 error OnlyInitializer();

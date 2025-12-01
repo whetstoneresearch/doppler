@@ -7,10 +7,10 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { UniswapV4MulticurveMigrator } from "src/UniswapV4MulticurveMigrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MulticurveMigrator } from "src/migrators/UniswapV4MulticurveMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 

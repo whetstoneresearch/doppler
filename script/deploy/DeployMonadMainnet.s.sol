@@ -8,17 +8,19 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Script, console } from "forge-std/Script.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { LaunchpadGovernanceFactory } from "src/LaunchpadGovernanceFactory.sol";
-import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
-import { IUniswapV3Factory, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { LaunchpadGovernanceFactory } from "src/governance/LaunchpadGovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
+import { IUniswapV3Factory, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
+import { UniswapV4ScheduledMulticurveInitializer } from "src/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineV4MigratorHookParams, mineV4ScheduledMulticurveHook } from "test/shared/AirlockMiner.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 

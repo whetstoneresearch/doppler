@@ -8,7 +8,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BaseV4Quoter } from "@v4-periphery/base/BaseV4Quoter.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import { Doppler, Position } from "src/Doppler.sol";
+import { Doppler, Position } from "src/initializers/Doppler.sol";
 
 // Demarcates the id of the lower, upper, and price discovery slugs
 bytes32 constant LOWER_SLUG_SALT = bytes32(uint256(1));

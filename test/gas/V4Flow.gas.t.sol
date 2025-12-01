@@ -20,13 +20,13 @@ import { Vm } from "forge-std/Vm.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { Doppler } from "src/Doppler.sol";
-import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { ITokenFactory, TokenFactory } from "src/TokenFactory.sol";
-import { DopplerDeployer, IPoolInitializer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { ILiquidityMigrator, UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { GovernanceFactory, IGovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerDeployer, IPoolInitializer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { ILiquidityMigrator, UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { ITokenFactory, TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 
 // TODO: Since now we're taking gas snapshots in the unit tests we can also remove that file, but before doing so

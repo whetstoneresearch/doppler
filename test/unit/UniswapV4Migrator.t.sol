@@ -10,8 +10,8 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
 import {
     BeneficiaryData,
     InvalidProtocolOwnerBeneficiary,

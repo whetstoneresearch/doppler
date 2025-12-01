@@ -9,12 +9,12 @@ import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { CreateParams } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { ITokenFactory, TokenFactory } from "src/TokenFactory.sol";
-import { InitData } from "src/UniswapV3Initializer.sol";
+import { InitData } from "src/initializers/UniswapV3Initializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
+import { ITokenFactory, TokenFactory } from "src/tokens/TokenFactory.sol";
 
 address payable constant airlock = payable(0x77EbfBAE15AD200758E9E2E61597c0B07d731254);
 address payable constant ur = payable(0xEf740bf23aCaE26f6492B10de645D6B98dC8Eaf3);

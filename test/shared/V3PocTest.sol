@@ -4,10 +4,10 @@ pragma solidity ^0.8.13;
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
-import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 import {
     UNISWAP_V2_FACTORY_MAINNET,

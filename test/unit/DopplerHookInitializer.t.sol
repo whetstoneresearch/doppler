@@ -17,6 +17,8 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { Airlock } from "src/Airlock.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     ArrayLengthsMismatch,
     BeneficiaryData,
@@ -39,9 +41,7 @@ import {
     Swap,
     UnreachableFarTick,
     WrongPoolStatus
-} from "src/DopplerHookInitializer.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+} from "src/initializers/DopplerHookInitializer.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";

@@ -8,7 +8,7 @@ import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { DopplerHookInitializer, InitData } from "src/DopplerHookInitializer.sol";
+import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";

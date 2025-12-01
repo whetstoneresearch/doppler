@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { CannotAddLiquidity } from "src/Doppler.sol";
+import { CannotAddLiquidity } from "src/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract BeforeAddLiquidityTest is BaseTest {

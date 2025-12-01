@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 contract TokenFactoryTest is Test {
     TokenFactory public factory;

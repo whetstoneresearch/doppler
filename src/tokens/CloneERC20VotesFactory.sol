@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import { LibClone } from "solady/utils/LibClone.sol";
-import { CloneERC20Votes } from "src/CloneERC20Votes.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { CloneERC20Votes } from "src/tokens/CloneERC20Votes.sol";
 
 /**
  * @title CloneERC20VotesFactory

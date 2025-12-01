@@ -13,8 +13,10 @@ import {
     PoolState,
     PoolStatus,
     UniswapV4MulticurveInitializer
-} from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+} from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";

@@ -7,7 +7,7 @@ import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.s
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Migrator
 error OnlyMigrator();

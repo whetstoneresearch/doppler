@@ -22,7 +22,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IStateView, StateView } from "@v4-periphery/lens/StateView.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
+import { MAX_SWAP_FEE } from "src/initializers/Doppler.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 

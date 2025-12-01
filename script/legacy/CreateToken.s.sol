@@ -10,8 +10,8 @@ import {
     IPoolInitializer,
     ITokenFactory
 } from "src/Airlock.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { InitData } from "src/UniswapV3Initializer.sol";
+import { InitData } from "src/initializers/UniswapV3Initializer.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
 
 struct Params {
     Airlock airlock;

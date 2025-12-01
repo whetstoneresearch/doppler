@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { Doppler } from "src/Doppler.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract UnlockCallbackTest is BaseTest {

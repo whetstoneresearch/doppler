@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
+import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 
 struct ScriptData {
     uint256 chainId;

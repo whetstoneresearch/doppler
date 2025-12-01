@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { MAX_PRICE_DISCOVERY_SLUGS, MAX_TICK_SPACING } from "src/Doppler.sol";
+import { MAX_PRICE_DISCOVERY_SLUGS, MAX_TICK_SPACING } from "src/initializers/Doppler.sol";
 
 struct HookConfig {
     uint256 numTokensToSell;

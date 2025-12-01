@@ -10,17 +10,17 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import {
     ILiquidityMigrator,
     IUniswapV2Factory,
     IUniswapV2Router02,
     UniswapV2Migrator
-} from "src/UniswapV2Migrator.sol";
+} from "src/migrators/UniswapV2Migrator.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 /**
  * @dev Integration tests can inherit from this base contract and override the `setUp` function to update the `CreateParams`,

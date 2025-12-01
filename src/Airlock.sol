@@ -8,7 +8,7 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { DERC20 } from "src/token/DERC20.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
 
 enum ModuleState {
     NotWhitelisted,

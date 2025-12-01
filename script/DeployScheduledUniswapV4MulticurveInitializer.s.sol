@@ -3,8 +3,10 @@ pragma solidity ^0.8.24;
 
 import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Script, console } from "forge-std/Script.sol";
-import { UniswapV4ScheduledMulticurveInitializer } from "src/UniswapV4ScheduledMulticurveInitializer.sol";
-import { UniswapV4ScheduledMulticurveInitializerHook } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
+import { UniswapV4ScheduledMulticurveInitializer } from "src/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
+import {
+    UniswapV4ScheduledMulticurveInitializerHook
+} from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { MineV4MigratorHookParams, mineV4ScheduledMulticurveHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {

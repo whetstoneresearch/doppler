@@ -16,8 +16,12 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
-import { InvalidSwapAfterMaturityInsufficientProceeds, MaximumProceedsReached, SwapBelowRange } from "src/Doppler.sol";
+import { MAX_SWAP_FEE } from "src/initializers/Doppler.sol";
+import {
+    InvalidSwapAfterMaturityInsufficientProceeds,
+    MaximumProceedsReached,
+    SwapBelowRange
+} from "src/initializers/Doppler.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRouter } from "test/shared/CustomRouter.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";

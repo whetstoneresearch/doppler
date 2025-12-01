@@ -16,16 +16,16 @@ import {
     SetModuleState,
     WrongModuleState
 } from "src/Airlock.sol";
-import { DERC20, ERC20 } from "src/DERC20.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
-import { IUniswapV3Factory, InitData, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { IUniswapV3Factory, InitData, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { DERC20, ERC20 } from "src/tokens/DERC20.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 // TODO: Reuse these constants from the BaseTest

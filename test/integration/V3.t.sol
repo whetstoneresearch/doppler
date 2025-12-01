@@ -8,11 +8,20 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Test } from "forge-std/Test.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { DERC20 } from "src/DERC20.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { IUniswapV2Factory, IUniswapV2Pair, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
-import { CannotMigrateInsufficientTick, InitData, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import {
+    CannotMigrateInsufficientTick,
+    InitData,
+    UniswapV3Initializer
+} from "src/initializers/UniswapV3Initializer.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Pair,
+    IUniswapV2Router02,
+    UniswapV2Migrator
+} from "src/migrators/UniswapV2Migrator.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET,

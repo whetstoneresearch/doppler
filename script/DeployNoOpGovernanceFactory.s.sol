@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 
 struct ScriptData {
     uint256 chainId;

@@ -5,7 +5,7 @@ import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { IPoolManager, StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { CannotMigrate, MAX_SWAP_FEE, Position, SenderNotInitializer } from "src/Doppler.sol";
+import { CannotMigrate, MAX_SWAP_FEE, Position, SenderNotInitializer } from "src/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract MigrateTest is BaseTest {

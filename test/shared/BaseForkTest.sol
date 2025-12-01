@@ -10,18 +10,18 @@ import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
-import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import { UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
+import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { DopplerDeployer } from "src/initializers/UniswapV4Initializer.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
     UNISWAP_V2_FACTORY_BASE,
     UNISWAP_V2_FACTORY_MAINNET,
