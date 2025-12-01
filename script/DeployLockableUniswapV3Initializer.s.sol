@@ -1,8 +1,8 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Script } from "forge-std/Script.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { Script } from "forge-std/Script.sol";
 import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
 
 struct ScriptData {

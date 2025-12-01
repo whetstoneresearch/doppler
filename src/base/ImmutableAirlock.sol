@@ -9,9 +9,7 @@ error SenderNotAirlock();
 abstract contract ImmutableAirlock {
     Airlock public immutable airlock;
 
-    constructor(
-        address _airlock
-    ) {
+    constructor(address _airlock) {
         airlock = Airlock(payable(_airlock));
     }
 

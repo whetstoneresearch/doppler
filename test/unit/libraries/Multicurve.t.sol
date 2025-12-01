@@ -5,18 +5,18 @@ import { Test, console } from "forge-std/Test.sol";
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
-import { isTickAligned } from "src/libraries/TickLibrary.sol";
-import { Position } from "src/types/Position.sol";
 import {
-    adjustCurves,
-    calculateLpTail,
-    calculateLogNormalDistribution,
-    calculatePositions,
     Curve,
     InvalidTotalShares,
     ZeroPosition,
-    ZeroShare
+    ZeroShare,
+    adjustCurves,
+    calculateLogNormalDistribution,
+    calculateLpTail,
+    calculatePositions
 } from "src/libraries/Multicurve.sol";
+import { isTickAligned } from "src/libraries/TickLibrary.sol";
+import { Position } from "src/types/Position.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract MulticurveTest is Test {

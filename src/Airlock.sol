@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { Math } from "@openzeppelin/utils/math/Math.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
-import { DERC20 } from "src/DERC20.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { DERC20 } from "src/token/DERC20.sol";
 
 enum ModuleState {
     NotWhitelisted,

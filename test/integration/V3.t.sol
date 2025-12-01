@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
-import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
-import { WETH } from "solmate/src/tokens/WETH.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { UniswapV3Initializer, InitData, CannotMigrateInsufficientTick } from "src/UniswapV3Initializer.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory, IUniswapV2Pair } from "src/UniswapV2Migrator.sol";
+import { Test } from "forge-std/Test.sol";
+import { WETH } from "solmate/src/tokens/WETH.sol";
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { DERC20 } from "src/DERC20.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { IUniswapV2Factory, IUniswapV2Pair, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { CannotMigrateInsufficientTick, InitData, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
 import {
-    WETH_MAINNET,
+    UNISWAP_V2_FACTORY_MAINNET,
+    UNISWAP_V2_ROUTER_MAINNET,
     UNISWAP_V3_FACTORY_MAINNET,
     UNISWAP_V3_ROUTER_MAINNET,
-    UNISWAP_V2_FACTORY_MAINNET,
-    UNISWAP_V2_ROUTER_MAINNET
+    WETH_MAINNET
 } from "test/shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
@@ -94,9 +94,8 @@ contract V3Test is Test {
 
         isToken0 = predictedAsset < address(WETH_MAINNET);
 
-        int24 tickSpacing = IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET).feeAmountTickSpacing(
-            uint24(vm.envOr("V3_FEE", uint256(3000)))
-        );
+        int24 tickSpacing = IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET)
+            .feeAmountTickSpacing(uint24(vm.envOr("V3_FEE", uint256(3000))));
 
         int24 tickLower = adjustTick(isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK, tickSpacing);
         int24 tickUpper = adjustTick(isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK, tickSpacing);
@@ -142,32 +141,34 @@ contract V3Test is Test {
 
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick : targetTick);
 
-        uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH_MAINNET,
-                tokenOut: address(asset),
-                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: 1000 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: priceLimit
-            })
-        );
+        uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(asset),
+                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: 1000 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: priceLimit
+                })
+            );
 
         priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 80 : targetTick - 80);
-        amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH_MAINNET,
-                tokenOut: address(asset),
-                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: 1000 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: priceLimit
-            })
-        );
+        amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(asset),
+                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: 1000 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: priceLimit
+                })
+            );
 
         assertGt(amountOut, 0, "Amount out is 0");
 
@@ -236,9 +237,8 @@ contract V3Test is Test {
         );
         isToken0 = predictedAsset < address(WETH_MAINNET);
 
-        int24 tickSpacing = IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET).feeAmountTickSpacing(
-            uint24(vm.envOr("V3_FEE", uint256(3000)))
-        );
+        int24 tickSpacing = IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET)
+            .feeAmountTickSpacing(uint24(vm.envOr("V3_FEE", uint256(3000))));
 
         int24 tickLower = adjustTick(isToken0 ? -DEFAULT_UPPER_TICK : DEFAULT_LOWER_TICK, tickSpacing);
         int24 tickUpper = adjustTick(isToken0 ? -DEFAULT_LOWER_TICK : DEFAULT_UPPER_TICK, tickSpacing);
@@ -288,18 +288,19 @@ contract V3Test is Test {
 
         // buy some asset to randomly trade against
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(targetTick);
-        uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH_MAINNET,
-                tokenOut: address(asset),
-                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: 1 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: priceLimit
-            })
-        );
+        uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH_MAINNET,
+                    tokenOut: address(asset),
+                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: 1 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: priceLimit
+                })
+            );
         assertEq(amountOut, DERC20(asset).balanceOf(address(this)));
 
         // perform a bunch of random swaps

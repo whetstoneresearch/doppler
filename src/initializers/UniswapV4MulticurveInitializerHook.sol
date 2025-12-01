@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
@@ -55,9 +55,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
      * @dev Modifier to ensure the caller is the Uniswap V4 Multicurve Initializer
      * @param sender Address of the caller
      */
-    modifier onlyInitializer(
-        address sender
-    ) {
+    modifier onlyInitializer(address sender) {
         if (sender != INITIALIZER) revert OnlyInitializer();
         _;
     }
@@ -67,10 +65,7 @@ contract UniswapV4MulticurveInitializerHook is BaseHook {
      * @param manager Address of the Uniswap V4 Pool Manager
      * @param initializer Address of the Uniswap V4 Multicurve Initializer contract
      */
-    constructor(
-        IPoolManager manager,
-        address initializer
-    ) BaseHook(manager) {
+    constructor(IPoolManager manager, address initializer) BaseHook(manager) {
         INITIALIZER = initializer;
     }
 

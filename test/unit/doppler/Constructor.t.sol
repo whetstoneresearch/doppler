@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { HookConfig, HookConfigs } from "test/shared/HookConfigs.sol";
+import { Test } from "forge-std/Test.sol";
 import {
     Doppler,
-    MAX_PRICE_DISCOVERY_SLUGS,
-    InvalidTickRange,
-    InvalidGamma,
     InvalidEpochLength,
-    InvalidTimeRange,
+    InvalidGamma,
     InvalidNumPDSlugs,
     InvalidProceedLimits,
-    InvalidStartTime
+    InvalidStartTime,
+    InvalidTickRange,
+    InvalidTimeRange,
+    MAX_PRICE_DISCOVERY_SLUGS
 } from "src/Doppler.sol";
+import { HookConfig, HookConfigs } from "test/shared/HookConfigs.sol";
 
 contract DopplerNoValidateHook is Doppler {
     constructor(
@@ -42,9 +42,7 @@ contract DopplerNoValidateHook is Doppler {
         )
     { }
 
-    function validateHookAddress(
-        BaseHook _this
-    ) internal pure override { }
+    function validateHookAddress(BaseHook _this) internal pure override { }
 }
 
 /// @dev Just a small contract to deploy Doppler contracts and be able to use `vm.expectRevert` easily

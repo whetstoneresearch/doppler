@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { CannotAddLiquidity } from "src/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
@@ -18,10 +18,7 @@ contract BeforeAddLiquidityTest is BaseTest {
             address(this),
             key,
             IPoolManager.ModifyLiquidityParams({
-                tickLower: -100_000,
-                tickUpper: 100_000,
-                liquidityDelta: 100e18,
-                salt: bytes32(0)
+                tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)
             }),
             ""
         );
@@ -33,10 +30,7 @@ contract BeforeAddLiquidityTest is BaseTest {
             address(hook),
             key,
             IPoolManager.ModifyLiquidityParams({
-                tickLower: -100_000,
-                tickUpper: 100_000,
-                liquidityDelta: 100e18,
-                salt: bytes32(0)
+                tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)
             }),
             ""
         );
@@ -51,10 +45,7 @@ contract BeforeAddLiquidityTest is BaseTest {
             address(0xBEEF),
             key,
             IPoolManager.ModifyLiquidityParams({
-                tickLower: -100_000,
-                tickUpper: 100_000,
-                liquidityDelta: 100e18,
-                salt: bytes32(0)
+                tickLower: -100_000, tickUpper: 100_000, liquidityDelta: 100e18, salt: bytes32(0)
             }),
             ""
         );

@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
-import { SafeTransferLib, ERC20 } from "@solmate/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
-import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
-import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
+import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
+import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 
 contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
     using SafeTransferLib for ERC20;
@@ -56,10 +56,7 @@ contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
         uint112 amount1 = uint112((balance * reserve1) / supply);
 
         getState[pool] = PoolState({
-            amount0: amount0,
-            amount1: amount1,
-            minUnlockDate: uint32(block.timestamp + 365 days),
-            recipient: recipient
+            amount0: amount0, amount1: amount1, minUnlockDate: uint32(block.timestamp + 365 days), recipient: recipient
         });
     }
 
@@ -68,9 +65,7 @@ contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
      * and the principal tokens to the recipient i.e. Timelock contract by default
      * @param pool Address of the pool
      */
-    function claimFeesAndExit(
-        address pool
-    ) external {
+    function claimFeesAndExit(address pool) external {
         PoolState memory state = getState[pool];
 
         require(state.minUnlockDate > 0, PoolNotInitialized());

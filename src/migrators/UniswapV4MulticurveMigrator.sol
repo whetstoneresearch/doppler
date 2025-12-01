@@ -4,20 +4,20 @@ pragma solidity ^0.8.24;
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
-import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
-import { BeneficiaryData, storeBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { Position } from "src/types/Position.sol";
-import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
+import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
+import { EMPTY_ADDRESS } from "src/types/Constants.sol";
+import { Position } from "src/types/Position.sol";
 
 /**
  * @notice Data to use for the migration

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
-import { ERC20Votes } from "@openzeppelin/token/ERC20/extensions/ERC20Votes.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
+import { ERC20Votes } from "@openzeppelin/token/ERC20/extensions/ERC20Votes.sol";
 import { Nonces } from "@openzeppelin/utils/Nonces.sol";
 
 /// @dev Thrown when trying to mint before the start date
@@ -166,9 +166,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @notice Locks the pool, preventing it from receiving tokens
      * @param pool_ Address of the pool to lock
      */
-    function lockPool(
-        address pool_
-    ) external onlyOwner {
+    function lockPool(address pool_) external onlyOwner {
         pool = pool_;
         isPoolUnlocked = false;
     }
@@ -220,9 +218,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @notice Burns `amount` of tokens from the address `owner`
      * @param amount Amount of tokens to burn
      */
-    function burn(
-        uint256 amount
-    ) external onlyOwner {
+    function burn(uint256 amount) external onlyOwner {
         _burn(owner(), amount);
     }
 
@@ -230,9 +226,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @notice Updates the maximum rate of tokens that can be minted in a year
      * @param newMintRate New maximum rate of tokens that can be minted in a year
      */
-    function updateMintRate(
-        uint256 newMintRate
-    ) external onlyOwner {
+    function updateMintRate(uint256 newMintRate) external onlyOwner {
         // Inflation can't be more than 2% of token supply per year
         require(
             newMintRate <= MAX_YEARLY_MINT_RATE_WAD, MaxYearlyMintRateExceeded(newMintRate, MAX_YEARLY_MINT_RATE_WAD)
@@ -249,9 +243,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @notice Updates the token Uniform Resource Identifier (URI)
      * @param tokenURI_ New token Uniform Resource Identifier (URI)
      */
-    function updateTokenURI(
-        string memory tokenURI_
-    ) external onlyOwner {
+    function updateTokenURI(string memory tokenURI_) external onlyOwner {
         tokenURI = tokenURI_;
     }
 
@@ -269,9 +261,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
      * @param account Recipient of the vested tokens
      * @return Amount of vested tokens available
      */
-    function computeAvailableVestedAmount(
-        address account
-    ) public view returns (uint256) {
+    function computeAvailableVestedAmount(address account) public view returns (uint256) {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {
@@ -284,9 +274,7 @@ contract DERC20 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /// @inheritdoc Nonces
-    function nonces(
-        address owner_
-    ) public view override(ERC20Permit, Nonces) returns (uint256) {
+    function nonces(address owner_) public view override(ERC20Permit, Nonces) returns (uint256) {
         return super.nonces(owner_);
     }
 

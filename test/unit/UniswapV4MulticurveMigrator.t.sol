@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 
-import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { WAD } from "src/types/Wad.sol";
-import { UniswapV4MulticurveMigrator } from "src/UniswapV4MulticurveMigrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { UniswapV4MulticurveMigrator } from "src/UniswapV4MulticurveMigrator.sol";
+import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { WAD } from "src/types/Wad.sol";
 
 contract AirlockMock {
     address public owner;
 
-    constructor(
-        address owner_
-    ) {
+    constructor(address owner_) {
         owner = owner_;
     }
 }

@@ -5,13 +5,13 @@ import { Script, console } from "forge-std/Script.sol";
 import {
     Airlock,
     CreateParams,
-    ITokenFactory,
     IGovernanceFactory,
+    ILiquidityMigrator,
     IPoolInitializer,
-    ILiquidityMigrator
+    ITokenFactory
 } from "src/Airlock.sol";
-import { InitData } from "src/UniswapV3Initializer.sol";
 import { DERC20 } from "src/DERC20.sol";
+import { InitData } from "src/UniswapV3Initializer.sol";
 
 struct Params {
     Airlock airlock;
@@ -46,9 +46,7 @@ contract CreateTokenScript is Script {
         vm.stopBroadcast();
     }
 
-    function _deployToken(
-        Params memory params
-    ) internal {
+    function _deployToken(Params memory params) internal {
         // Will be set later on
         bool isToken0;
 
@@ -108,23 +106,24 @@ contract CreateTokenScript is Script {
             })
         );
 
-        (address asset,,,,) = params.airlock.create(
-            CreateParams(
-                INITIAL_SUPPLY,
-                900_000_000 ether,
-                params.weth,
-                params.tokenFactory,
-                tokenFactoryData,
-                params.governanceFactory,
-                governanceData,
-                params.poolInitializer,
-                poolInitializerData,
-                params.liquidityMigrator,
-                new bytes(0),
-                address(0),
-                salt
-            )
-        );
+        (address asset,,,,) = params.airlock
+            .create(
+                CreateParams(
+                    INITIAL_SUPPLY,
+                    900_000_000 ether,
+                    params.weth,
+                    params.tokenFactory,
+                    tokenFactoryData,
+                    params.governanceFactory,
+                    governanceData,
+                    params.poolInitializer,
+                    poolInitializerData,
+                    params.liquidityMigrator,
+                    new bytes(0),
+                    address(0),
+                    salt
+                )
+            );
 
         console.log("Token deployed at: %s!", asset);
 

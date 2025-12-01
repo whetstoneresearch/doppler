@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Vm } from "forge-std/Vm.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
+import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
 import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
 
 function deployUniswapV4Migrator(
     Vm vm,
@@ -46,9 +46,7 @@ function deployUniswapV4Migrator(
     vm.stopPrank();
 }
 
-function prepareUniswapV4MigratorData(
-    Airlock airlock
-) view returns (bytes memory) {
+function prepareUniswapV4MigratorData(Airlock airlock) view returns (bytes memory) {
     BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
     beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
     beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbeef), shares: 0.05e18 });
@@ -60,9 +58,7 @@ function prepareUniswapV4MigratorData(
     return abi.encode(2000, tickSpacing, 30 days, beneficiaries);
 }
 
-function sortBeneficiaries(
-    BeneficiaryData[] memory beneficiaries
-) pure returns (BeneficiaryData[] memory) {
+function sortBeneficiaries(BeneficiaryData[] memory beneficiaries) pure returns (BeneficiaryData[] memory) {
     uint256 length = beneficiaries.length;
     for (uint256 i = 0; i < length - 1; i++) {
         for (uint256 j = 0; j < length - i - 1; j++) {

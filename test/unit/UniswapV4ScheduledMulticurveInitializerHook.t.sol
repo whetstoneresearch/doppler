@@ -3,19 +3,19 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
-import { OnlyInitializer, ModifyLiquidity, Swap } from "src/UniswapV4MulticurveInitializerHook.sol";
+import { ModifyLiquidity, OnlyInitializer, Swap } from "src/UniswapV4MulticurveInitializerHook.sol";
 import {
-    UniswapV4ScheduledMulticurveInitializerHook,
-    CannotSwapBeforeStartingTime
+    CannotSwapBeforeStartingTime,
+    UniswapV4ScheduledMulticurveInitializerHook
 } from "src/UniswapV4ScheduledMulticurveInitializerHook.sol";
 
 contract UniswapV4ScheduledMulticurveInitializerHookTest is Test {
@@ -76,9 +76,7 @@ contract UniswapV4ScheduledMulticurveInitializerHookTest is Test {
         hook.beforeAddLiquidity(address(0), emptyPoolKey, emptyParams, new bytes(0));
     }
 
-    function test_beforeAddLiquidity_PassesWhenMsgSenderIsPoolManager(
-        address sender
-    ) public {
+    function test_beforeAddLiquidity_PassesWhenMsgSenderIsPoolManager(address sender) public {
         vm.prank(poolManager);
         hook.beforeAddLiquidity(sender, emptyPoolKey, emptyParams, new bytes(0));
     }
@@ -272,10 +270,7 @@ contract UniswapV4ScheduledMulticurveInitializerHookTest is Test {
     /*                                setStartingTime()                                */
     /* ------------------------------------------------------------------------------- */
 
-    function test_setStartingTime_SetsStartingTime(
-        uint256 actualTime,
-        uint256 startingTime
-    ) public {
+    function test_setStartingTime_SetsStartingTime(uint256 actualTime, uint256 startingTime) public {
         vm.warp(actualTime);
 
         vm.prank(initializer);

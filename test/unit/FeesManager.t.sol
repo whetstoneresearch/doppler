@@ -4,23 +4,23 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
-import { BalanceDelta, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { BalanceDelta, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
-import { WAD } from "src/types/Wad.sol";
+import { Collect, FeesManager, Release, UpdateBeneficiary } from "src/base/FeesManager.sol";
 import {
     BeneficiaryData,
-    UnorderedBeneficiaries,
-    InvalidShares,
-    InvalidProtocolOwnerShares,
-    InvalidTotalShares,
     InvalidProtocolOwnerBeneficiary,
-    MIN_PROTOCOL_OWNER_SHARES
+    InvalidProtocolOwnerShares,
+    InvalidShares,
+    InvalidTotalShares,
+    MIN_PROTOCOL_OWNER_SHARES,
+    UnorderedBeneficiaries
 } from "src/types/BeneficiaryData.sol";
-import { FeesManager, Collect, UpdateBeneficiary, Release } from "src/base/FeesManager.sol";
+import { WAD } from "src/types/Wad.sol";
 
 contract FeesManagerImplementation is FeesManager {
     address internal immutable PROTOCOL_OWNER;
@@ -35,9 +35,7 @@ contract FeesManagerImplementation is FeesManager {
         _storeBeneficiaries(poolKey, beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES);
     }
 
-    function _collectFees(
-        PoolId poolId
-    ) internal override returns (BalanceDelta fees) {
+    function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         (uint256 fees0, uint256 fees1) = poolManager.collect(getPoolKey[poolId]);
         fees = toBalanceDelta(int128(uint128(fees0)), int128(uint128(fees1)));
     }
@@ -49,9 +47,7 @@ contract PoolManagerMock {
         TestERC20(Currency.unwrap(poolKey.currency1)).mint(address(this), amount1);
     }
 
-    function collect(
-        PoolKey memory poolKey
-    ) external returns (uint256 amount0, uint256 amount1) {
+    function collect(PoolKey memory poolKey) external returns (uint256 amount0, uint256 amount1) {
         amount0 = poolKey.currency0.balanceOf(address(this));
         poolKey.currency0.transfer(msg.sender, amount0);
         amount1 = poolKey.currency1.balanceOf(address(this));

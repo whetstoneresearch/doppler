@@ -1,34 +1,34 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
-import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
-import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
-import { WETH } from "@solmate/tokens/WETH.sol";
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
+import { WETH } from "@solmate/tokens/WETH.sol";
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+import { Test } from "forge-std/Test.sol";
+import { DERC20 } from "src/DERC20.sol";
 import {
-    LockableUniswapV3Initializer,
-    PoolAlreadyInitialized,
-    PoolAlreadyExited,
-    OnlyPool,
     CallbackData,
     InitData,
-    MaxShareToBeSoldExceeded,
-    WAD,
-    InvalidTickRangeMisordered,
     InvalidFee,
     InvalidTickRange,
-    PoolStatus
+    InvalidTickRangeMisordered,
+    LockableUniswapV3Initializer,
+    MaxShareToBeSoldExceeded,
+    OnlyPool,
+    PoolAlreadyExited,
+    PoolAlreadyInitialized,
+    PoolStatus,
+    WAD
 } from "src/LockableUniswapV3Initializer.sol";
 import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { DERC20 } from "src/DERC20.sol";
+import { UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
@@ -86,9 +86,10 @@ contract LockableUniswapV3InitializerTest is Test {
         uint128 totalLiquidity = IUniswapV3Pool(pool).liquidity();
         assertTrue(totalLiquidity > 0, "Wrong total liquidity");
 
-        (uint128 liquidity,,,,) = IUniswapV3Pool(pool).positions(
-            keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
-        );
+        (uint128 liquidity,,,,) = IUniswapV3Pool(pool)
+            .positions(
+                keccak256(abi.encodePacked(address(initializer), int24(DEFAULT_LOWER_TICK), int24(DEFAULT_UPPER_TICK)))
+            );
         assertEq(liquidity, totalLiquidity, "Wrong liquidity");
     }
 
@@ -354,18 +355,19 @@ contract LockableUniswapV3InitializerTest is Test {
 
         uint256 amountIn = 1 ether;
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: numeraire,
-                tokenOut: asset,
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: amountIn,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: numeraire,
+                    tokenOut: asset,
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: amountIn,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                })
+            );
 
         uint256 expectedFees1 = amountIn - amountIn * 3000 / 1_000_000;
 
@@ -424,18 +426,19 @@ contract LockableUniswapV3InitializerTest is Test {
 
         uint160 priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 60 : targetTick - 60);
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                tokenOut: address(token),
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: 1000 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: priceLimit
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                    tokenOut: address(token),
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: 1000 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: priceLimit
+                })
+            );
 
         // (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
 
@@ -563,31 +566,33 @@ contract LockableUniswapV3InitializerTest is Test {
         WETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).deposit{ value: 1000 ether }();
         WETH(payable(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                tokenOut: address(isToken0),
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: 1 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                    tokenOut: address(isToken0),
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: 1 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+                })
+            );
 
-        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                tokenOut: address(notIsToken0),
-                fee: 3000,
-                recipient: address(0x666),
-                deadline: block.timestamp,
-                amountIn: 1 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
-            })
-        );
+        ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                    tokenOut: address(notIsToken0),
+                    fee: 3000,
+                    recipient: address(0x666),
+                    deadline: block.timestamp,
+                    amountIn: 1 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
+                })
+            );
 
         uint256 isToken0Balance = isToken0.balanceOf(address(0x666));
         uint256 notIsToken0Balance = notIsToken0.balanceOf(address(0x666));
@@ -634,15 +639,15 @@ contract LockableUniswapV3InitializerTest is Test {
             uint256 mid = (low + high) / 2;
 
             (amountReceivedIsToken0, sqrtPriceX96AfterIsToken0, initializedTicksCrossedIsToken0, gasEstimateIsToken0) =
-            quoter.quoteExactInputSingle(
-                IQuoterV2.QuoteExactInputSingleParams({
-                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                    tokenOut: address(isToken0),
-                    fee: 3000,
-                    amountIn: mid,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickUpperIsToken0)
-                })
-            );
+                quoter.quoteExactInputSingle(
+                    IQuoterV2.QuoteExactInputSingleParams({
+                        tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                        tokenOut: address(isToken0),
+                        fee: 3000,
+                        amountIn: mid,
+                        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickUpperIsToken0)
+                    })
+                );
 
             if (sqrtPriceX96AfterIsToken0 < sqrtPriceTargetTickIsToken0) {
                 low = mid + 1;
@@ -667,15 +672,16 @@ contract LockableUniswapV3InitializerTest is Test {
                 sqrtPriceX96AfterNotIsToken0,
                 initializedTicksCrossedNotIsToken0,
                 gasEstimateNotIsToken0
-            ) = quoter.quoteExactInputSingle(
-                IQuoterV2.QuoteExactInputSingleParams({
-                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                    tokenOut: address(notIsToken0),
-                    fee: 3000,
-                    amountIn: mid,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0)
-                })
-            );
+            ) =
+                quoter.quoteExactInputSingle(
+                    IQuoterV2.QuoteExactInputSingleParams({
+                        tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                        tokenOut: address(notIsToken0),
+                        fee: 3000,
+                        amountIn: mid,
+                        sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(tickLowerNotIsToken0)
+                    })
+                );
 
             if (sqrtPriceX96AfterNotIsToken0 > sqrtPriceTargetTickNotIsToken0) {
                 low = mid + 1;

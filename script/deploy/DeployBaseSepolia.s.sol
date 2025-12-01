@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { DeployScript, ScriptData } from "script/deploy/Deploy.s.sol";
 import { ChainIds } from "script/ChainIds.sol";
+import { DeployScript, ScriptData } from "script/deploy/Deploy.s.sol";
 
 contract DeployBaseSepolia is DeployScript {
     function setUp() public override {

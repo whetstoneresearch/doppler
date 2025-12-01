@@ -32,9 +32,7 @@ interface IPoolInitializer {
      * @return fees1 Amount of fees accrued for token1
      * @return balance1 Amount of token1 in the pool
      */
-    function exitLiquidity(
-        address target
-    )
+    function exitLiquidity(address target)
         external
         returns (
             uint160 sqrtPriceX96,
@@ -60,7 +58,5 @@ interface IHook {
      * @notice Triggers the migration stage of the hook contract
      * @return Price of the pool
      */
-    function migrate(
-        address recipient
-    ) external returns (uint256);
+    function migrate(address recipient) external returns (uint256);
 }

@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { FeesManager } from "src/base/FeesManager.sol";
-import { Position } from "src/types/Position.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { calculatePositions, adjustCurves, Curve } from "src/libraries/Multicurve.sol";
+import { Position } from "src/types/Position.sol";
 
 /**
  * @notice Emitted when a new pool is locked

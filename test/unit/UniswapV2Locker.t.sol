@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test } from "forge-std/Test.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
-import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
-import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { Test } from "forge-std/Test.sol";
 import { Airlock } from "src/Airlock.sol";
-import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
+import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
+import { UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2LockerTest is Test {
     UniswapV2Locker public locker;
@@ -63,15 +63,11 @@ contract UniswapV2LockerTest is Test {
         locker.receiveAndLock(address(pool), address(0xbeef));
     }
 
-    function getAssetData(
-        address
-    ) external pure { }
+    function getAssetData(address) external pure { }
 
     function owner() external pure { }
 
-    function getAsset(
-        address
-    ) external pure { }
+    function getAsset(address) external pure { }
 
     function test_claimFeesAndExit_RevertsWhenMinUnlockDateNotReached() public {
         test_receiveAndLock_InitializesPool();
@@ -87,9 +83,8 @@ contract UniswapV2LockerTest is Test {
         path[1] = address(tokenBar);
 
         tokenFoo.approve(UNISWAP_V2_ROUTER_MAINNET, 1 ether);
-        IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET).swapExactTokensForTokens(
-            1 ether, 0, path, address(this), block.timestamp
-        );
+        IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET)
+            .swapExactTokensForTokens(1 ether, 0, path, address(this), block.timestamp);
 
         address tokenOwner = address(0xb0b);
         vm.mockCall(address(airlock), abi.encodeWithSelector(this.owner.selector), abi.encode(tokenOwner));

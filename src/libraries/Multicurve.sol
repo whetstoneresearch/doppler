@@ -6,8 +6,8 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
+import { TickRangeMisordered, alignTick, isRangeOrdered, isTickAligned } from "src/libraries/TickLibrary.sol";
 import { Position, concat } from "src/types/Position.sol";
-import { isTickAligned, alignTick, TickRangeMisordered, isRangeOrdered } from "src/libraries/TickLibrary.sol";
 import { WAD } from "src/types/Wad.sol";
 
 /// @notice Thrown when a curve has zero positions

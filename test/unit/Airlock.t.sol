@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test, stdError } from "forge-std/Test.sol";
-import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Test, stdError } from "forge-std/Test.sol";
 import {
     Airlock,
-    ModuleState,
-    WrongModuleState,
-    SetModuleState,
-    CreateParams,
-    Collect,
     ArrayLengthsMismatch,
     AssetData,
-    Migrate
+    Collect,
+    CreateParams,
+    Migrate,
+    ModuleState,
+    SetModuleState,
+    WrongModuleState
 } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
 import { DERC20, ERC20 } from "src/DERC20.sol";
-import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { InitData, UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { IUniswapV3Factory, InitData, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UNISWAP_V2_ROUTER_MAINNET, UNISWAP_V2_FACTORY_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
+import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 // TODO: Reuse these constants from the BaseTest
 string constant DEFAULT_TOKEN_NAME = "Test";
@@ -51,9 +51,7 @@ uint256 constant DEFAULT_PD_SLUGS = 3;
 
 /// @dev Test contract allowing us to set some specific state
 contract AirlockCheat is Airlock {
-    constructor(
-        address owner_
-    ) Airlock(owner_) { }
+    constructor(address owner_) Airlock(owner_) { }
 
     function setProtocolFees(address token, uint256 amount) public {
         getProtocolFees[token] = amount;

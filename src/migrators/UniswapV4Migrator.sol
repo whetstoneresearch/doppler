@@ -2,25 +2,25 @@
 pragma solidity ^0.8.24;
 
 import { ERC20 } from "@solmate/utils/SafeTransferLib.sol";
-import { Actions } from "@v4-periphery/libraries/Actions.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { PositionManager } from "@v4-periphery/PositionManager.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { Actions } from "@v4-periphery/libraries/Actions.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { BeneficiaryData, storeBeneficiaries, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
-import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { Airlock } from "src/Airlock.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
+import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
+import { DEAD_ADDRESS, EMPTY_ADDRESS } from "src/types/Constants.sol";
 
 /**
  * @notice Data to use for the migration

@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DERC20 } from "src/DERC20.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 
 /// @custom:security-contact security@whetstone.cc
 contract TokenFactory is ITokenFactory, ImmutableAirlock {
-    constructor(
-        address airlock_
-    ) ImmutableAirlock(airlock_) { }
+    constructor(address airlock_) ImmutableAirlock(airlock_) { }
 
     /**
      * @notice Creates a new DERC20 token

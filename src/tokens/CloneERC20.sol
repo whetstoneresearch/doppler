@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { Ownable } from "solady/auth/Ownable.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
 import { Initializable } from "solady/utils/Initializable.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
@@ -162,9 +162,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     /**
      * @notice Legacy function kept for compatibility purposes
      */
-    function lockPool(
-        address
-    ) external onlyOwner { }
+    function lockPool(address) external onlyOwner { }
 
     /// @notice Legacy function call, now used to track vesting start
     function unlockPool() external onlyOwner {
@@ -212,9 +210,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @notice Burns `amount` of tokens from the address `owner`
      * @param amount Amount of tokens to burn
      */
-    function burn(
-        uint256 amount
-    ) external onlyOwner {
+    function burn(uint256 amount) external onlyOwner {
         _burn(owner(), amount);
     }
 
@@ -222,9 +218,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @notice Updates the maximum rate of tokens that can be minted in a year
      * @param newMintRate New maximum rate of tokens that can be minted in a year
      */
-    function updateMintRate(
-        uint256 newMintRate
-    ) external onlyOwner {
+    function updateMintRate(uint256 newMintRate) external onlyOwner {
         // Inflation can't be more than 2% of token supply per year
         require(
             newMintRate <= MAX_YEARLY_MINT_RATE_WAD, MaxYearlyMintRateExceeded(newMintRate, MAX_YEARLY_MINT_RATE_WAD)
@@ -241,9 +235,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @notice Updates the token Uniform Resource Identifier (URI)
      * @param tokenURI_ New token Uniform Resource Identifier (URI)
      */
-    function updateTokenURI(
-        string memory tokenURI_
-    ) external onlyOwner {
+    function updateTokenURI(string memory tokenURI_) external onlyOwner {
         tokenURI = tokenURI_;
     }
 
@@ -261,9 +253,7 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
      * @param account Recipient of the vested tokens
      * @return Amount of vested tokens available
      */
-    function computeAvailableVestedAmount(
-        address account
-    ) public view returns (uint256) {
+    function computeAvailableVestedAmount(address account) public view returns (uint256) {
         uint256 vestedAmount;
 
         if (block.timestamp < vestingStart + vestingDuration) {

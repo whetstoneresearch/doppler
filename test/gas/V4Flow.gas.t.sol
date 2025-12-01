@@ -3,31 +3,31 @@ pragma solidity ^0.8.13;
 
 import { console } from "forge-std/console.sol";
 
-import { Vm } from "forge-std/Vm.sol";
-import { Test } from "forge-std/Test.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { PositionManager } from "@v4-periphery/PositionManager.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
-import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
+import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
-import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { DopplerDeployer, UniswapV4Initializer, IPoolInitializer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4Migrator, ILiquidityMigrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { TokenFactory, ITokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
-import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { Doppler } from "src/Doppler.sol";
+import { GovernanceFactory, IGovernanceFactory } from "src/GovernanceFactory.sol";
+import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { ITokenFactory, TokenFactory } from "src/TokenFactory.sol";
+import { DopplerDeployer, IPoolInitializer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { ILiquidityMigrator, UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 
 // TODO: Since now we're taking gas snapshots in the unit tests we can also remove that file, but before doing so
 // we need to make sure we cover all the different flows in the different Doppler tests
@@ -148,9 +148,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         vm.warp(startingTime);
 
         vm.startSnapshotGas("V4 Flow", "First buy");
-        swapRouter.swap{
-            value: 0.001 ether
-        }(
+        swapRouter.swap{ value: 0.001 ether }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -166,9 +164,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
 
         vm.warp(101);
         vm.startSnapshotGas("V4 Flow", "Second buy (new epoch)");
-        swapRouter.swap{
-            value: 0.001 ether
-        }(
+        swapRouter.swap{ value: 0.001 ether }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -181,9 +177,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         console.log("Total proceeds after first buy: %e", totalProceeds);
 
         vm.startSnapshotGas("V4 Flow", "Third buy (same epoch)");
-        swapRouter.swap{
-            value: 0.001 ether
-        }(
+        swapRouter.swap{ value: 0.001 ether }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -199,9 +193,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
 
         vm.warp(110);
         vm.startSnapshotGas("V4 Flow", "Fourth buy (epoch #10)");
-        swapRouter.swap{
-            value: 0.001 ether
-        }(
+        swapRouter.swap{ value: 0.001 ether }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -215,9 +207,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
 
         vm.warp(299);
         vm.startSnapshotGas("V4 Flow", "Last buy (final epoch)");
-        swapRouter.swap{
-            value: 0.001 ether
-        }(
+        swapRouter.swap{ value: 0.001 ether }(
             PoolKey({ currency0: currency0, currency1: currency1, hooks: hooks, fee: fee, tickSpacing: tickSpacing }),
             IPoolManager.SwapParams(true, -int256(0.001 ether), TickMath.MIN_SQRT_PRICE + 1),
             PoolSwapTest.TestSettings(false, false),
@@ -233,9 +223,11 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         airlock.migrate(asset);
     }
 
-    function sortBeneficiaries(
-        BeneficiaryData[] memory beneficiaries
-    ) internal pure returns (BeneficiaryData[] memory) {
+    function sortBeneficiaries(BeneficiaryData[] memory beneficiaries)
+        internal
+        pure
+        returns (BeneficiaryData[] memory)
+    {
         uint256 length = beneficiaries.length;
         for (uint256 i = 0; i < length - 1; i++) {
             for (uint256 j = 0; j < length - i - 1; j++) {

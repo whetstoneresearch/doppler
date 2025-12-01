@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
 
-import { BaseTest } from "test/shared/BaseTest.sol";
-import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
-import { LOWER_SLUG_SALT } from "src/Doppler.sol";
 import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { LOWER_SLUG_SALT } from "src/Doppler.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
+import { DopplerHandler } from "test/invariant/DopplerHandler.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract DopplerInvariantsTest is BaseTest {
     DopplerHandler public handler;

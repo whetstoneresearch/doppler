@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Script, console } from "forge-std/Script.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
-import { IStateView } from "@v4-periphery/lens/StateView.sol";
-import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
-import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
+import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IStateView } from "@v4-periphery/lens/StateView.sol";
+import { Script, console } from "forge-std/Script.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV2Migrator, IUniswapV2Router02, IUniswapV2Factory } from "src/UniswapV2Migrator.sol";
-import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV3Initializer, IUniswapV3Factory } from "src/UniswapV3Initializer.sol";
-import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
 import { Bundler } from "src/Bundler.sol";
-import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { GovernanceFactory } from "src/GovernanceFactory.sol";
 import { LockableUniswapV3Initializer } from "src/LockableUniswapV3Initializer.sol";
 import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
 import { NoOpMigrator } from "src/NoOpMigrator.sol";
+import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TokenFactory } from "src/TokenFactory.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/UniswapV2Migrator.sol";
+import { IUniswapV3Factory, UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
+import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
+import { UniswapV4MigratorHook } from "src/UniswapV4MigratorHook.sol";
+import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 struct ScriptData {
@@ -72,9 +72,7 @@ abstract contract DeployScript is Script {
         vm.stopBroadcast();
     }
 
-    function _deployDoppler(
-        ScriptData memory scriptData
-    )
+    function _deployDoppler(ScriptData memory scriptData)
         internal
         returns (
             Airlock airlock,
@@ -204,9 +202,7 @@ abstract contract DeployScript is Script {
             new Bundler(airlock, UniversalRouter(payable(scriptData.universalRouter)), IQuoterV2(scriptData.quoterV2));
     }
 
-    function _deployLens(
-        ScriptData memory scriptData
-    ) internal returns (DopplerLensQuoter lens) {
+    function _deployLens(ScriptData memory scriptData) internal returns (DopplerLensQuoter lens) {
         require(scriptData.poolManager != address(0), "Cannot find PoolManager address!");
         require(scriptData.stateView != address(0), "Cannot find StateView address!");
         lens = new DopplerLensQuoter(IPoolManager(scriptData.poolManager), IStateView(scriptData.stateView));

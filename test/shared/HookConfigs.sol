@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { MAX_TICK_SPACING, MAX_PRICE_DISCOVERY_SLUGS } from "src/Doppler.sol";
+import { MAX_PRICE_DISCOVERY_SLUGS, MAX_TICK_SPACING } from "src/Doppler.sol";
 
 struct HookConfig {
     uint256 numTokensToSell;
@@ -21,13 +21,9 @@ struct HookConfig {
 }
 
 library HookConfigs {
-    function isValidConfig(
-        HookConfig memory config
-    ) internal pure returns (bool) { }
+    function isValidConfig(HookConfig memory config) internal pure returns (bool) { }
 
-    function generateConfig(
-        uint256 seed
-    ) internal pure returns (HookConfig memory config) {
+    function generateConfig(uint256 seed) internal pure returns (HookConfig memory config) {
         bool isToken0 = seed % 2 == 0;
         int24 tickSpacing = (int24(uint24(seed)) % MAX_TICK_SPACING) + 1;
         uint256 numPDSlugs = seed % MAX_PRICE_DISCOVERY_SLUGS + 1;
