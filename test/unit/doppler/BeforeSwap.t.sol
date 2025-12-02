@@ -3,8 +3,8 @@ pragma solidity ^0.8.24;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { CannotSwapBeforeStartTime, MaximumProceedsReached } from "src/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
-import { MaximumProceedsReached, CannotSwapBeforeStartTime } from "src/Doppler.sol";
 
 contract BeforeSwapTest is BaseTest {
     function test_beforeSwap_RevertsIfNotPoolManager() public {

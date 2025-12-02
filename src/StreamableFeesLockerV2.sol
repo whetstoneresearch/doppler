@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { FeesManager } from "src/base/FeesManager.sol";
-import { Position } from "src/types/Position.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
+import { Position } from "src/types/Position.sol";
 
 /**
  * @notice Data structure for stream information

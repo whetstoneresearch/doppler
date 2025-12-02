@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { console } from "forge-std/console.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
-import { SlugData, Position } from "src/Doppler.sol";
+import { console } from "forge-std/console.sol";
+import { Position, SlugData } from "src/initializers/Doppler.sol";
 import { DopplerImplementation } from "test/shared/DopplerImplementation.sol";
 
 struct SlugDataWithName {
@@ -80,7 +80,7 @@ library SlugVis {
 
     function getSlugDataFromPositions(
         uint256 numPDSlugs,
-        function (bytes32) view external returns (Position memory) fx
+        function(bytes32) external view returns (Position memory) fx
     ) internal view returns (SlugData memory, SlugData memory, SlugData[] memory) {
         Position memory lowerPosition = fx(LOWER_SLUG_SALT);
         Position memory upperPosition = fx(UPPER_SLUG_SALT);
@@ -90,14 +90,10 @@ library SlugVis {
         }
 
         SlugData memory lowerSlug = SlugData({
-            liquidity: lowerPosition.liquidity,
-            tickLower: lowerPosition.tickLower,
-            tickUpper: lowerPosition.tickUpper
+            liquidity: lowerPosition.liquidity, tickLower: lowerPosition.tickLower, tickUpper: lowerPosition.tickUpper
         });
         SlugData memory upperSlug = SlugData({
-            liquidity: upperPosition.liquidity,
-            tickLower: upperPosition.tickLower,
-            tickUpper: upperPosition.tickUpper
+            liquidity: upperPosition.liquidity, tickLower: upperPosition.tickLower, tickUpper: upperPosition.tickUpper
         });
         SlugData[] memory pdSlugs = new SlugData[](numPDSlugs);
         for (uint256 i = 0; i < numPDSlugs; i++) {
@@ -156,9 +152,7 @@ library SlugVis {
         return json;
     }
 
-    function uint2str(
-        uint256 _i
-    ) internal pure returns (string memory _uintAsString) {
+    function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
             return "0";
         }
@@ -178,9 +172,7 @@ library SlugVis {
         return string(bstr);
     }
 
-    function int2str(
-        int256 _i
-    ) internal pure returns (string memory) {
+    function int2str(int256 _i) internal pure returns (string memory) {
         if (_i == 0) {
             return "0";
         }

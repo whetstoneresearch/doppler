@@ -7,8 +7,8 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { WAD } from "src/types/Wad.sol";
 import { storeBeneficiaries } from "src/types/BeneficiaryData.sol";
+import { WAD } from "src/types/Wad.sol";
 
 /// @notice Thrown when the new beneficiary is the same as the caller
 error InvalidNewBeneficiary();
@@ -77,9 +77,7 @@ abstract contract FeesManager is ReentrancyGuard {
      * @return fees0 Total fees collected in token0 since last collection
      * @return fees1 Total fees collected in token1 since last collection
      */
-    function collectFees(
-        PoolId poolId
-    ) external nonReentrant returns (uint128 fees0, uint128 fees1) {
+    function collectFees(PoolId poolId) external nonReentrant returns (uint128 fees0, uint128 fees1) {
         BalanceDelta fees = _collectFees(poolId);
         fees0 = uint128(fees.amount0());
         fees1 = uint128(fees.amount1());
@@ -165,9 +163,7 @@ abstract contract FeesManager is ReentrancyGuard {
      * @param poolId Pool id representation of the Uniswap V4 pool to collect fees from
      * @return fees Collected fees denominated in `token0` and `token1` represented as a `BalanceDelta` type
      */
-    function _collectFees(
-        PoolId poolId
-    ) internal virtual returns (BalanceDelta fees);
+    function _collectFees(PoolId poolId) internal virtual returns (BalanceDelta fees);
 
     /**
      * @dev Stores the shares of a beneficiary for a given Uniswap V4 pool

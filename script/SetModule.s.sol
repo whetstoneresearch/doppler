@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 import { ModuleState } from "src/Airlock.sol";
+import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 /// @notice Small helper CLI to set module states, for testing purposes.
 /// This CLI assumes the `msg.sender` is an approved signer of the AirlockMultisig.
@@ -13,7 +13,9 @@ contract SetModuleScript is Script {
             try vm.promptAddress("Please enter the address of the module to set") returns (address module) {
                 try vm.promptUint(
                     "Please enter the module state:\n- 1 - TokenFactory\n- 2 - GovernanceFactory\n- 3 - PoolInitializer\n- 4 - LiquidityMigrator"
-                ) returns (uint256 state) {
+                ) returns (
+                    uint256 state
+                ) {
                     require(state <= 4, "Invalid module state");
 
                     vm.startBroadcast();

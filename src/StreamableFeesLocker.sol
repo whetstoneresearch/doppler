@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
+import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { ERC721, ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
-import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 
 /// @notice Data structure for position information
@@ -120,9 +120,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
     /// @notice Modifier to restrict sender to approved migrators only
     /// @param migrator Address of the migrator
-    modifier onlyApprovedMigrator(
-        address migrator
-    ) {
+    modifier onlyApprovedMigrator(address migrator) {
         if (!approvedMigrators[migrator]) {
             revert NotApprovedMigrator();
         }
@@ -160,9 +158,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
     /// @notice Accrues and distributes fees for a position
     /// @param tokenId ID of the position to accrue fees for
-    function distributeFees(
-        uint256 tokenId
-    ) external nonReentrant {
+    function distributeFees(uint256 tokenId) external nonReentrant {
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, PositionNotFound());
         require(position.isUnlocked != true, PositionAlreadyUnlocked());
@@ -227,9 +223,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
     /// @notice Releases accrued fees to the caller
     /// @param tokenId ID of the position to release fees from
-    function releaseFees(
-        uint256 tokenId
-    ) external nonReentrant {
+    function releaseFees(uint256 tokenId) external nonReentrant {
         // Check if position exists
         PositionData memory position = positions[tokenId];
         require(position.startDate != 0, PositionNotFound());
@@ -251,9 +245,10 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
     /// @param poolKey Pool information
     /// @return amount0ToDistribute Amount of token0 to distribute
     /// @return amount1ToDistribute Amount of token1 to distribute
-    function _updateCurrencyBalances(
-        PoolKey memory poolKey
-    ) internal returns (uint256 amount0ToDistribute, uint256 amount1ToDistribute) {
+    function _updateCurrencyBalances(PoolKey memory poolKey)
+        internal
+        returns (uint256 amount0ToDistribute, uint256 amount1ToDistribute)
+    {
         // Cache currency balances for reentrancy protection
         uint256 currency0Balance = poolKey.currency0.balanceOfSelf();
         uint256 currency1Balance = poolKey.currency1.balanceOfSelf();
@@ -340,9 +335,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
     /// @notice Approves a migrator
     /// @param migrator Address of the migrator
-    function approveMigrator(
-        address migrator
-    ) external onlyOwner {
+    function approveMigrator(address migrator) external onlyOwner {
         if (!approvedMigrators[migrator]) {
             approvedMigrators[migrator] = true;
             emit MigratorApproval(address(migrator), true);
@@ -351,9 +344,7 @@ contract StreamableFeesLocker is ERC721TokenReceiver, ReentrancyGuard, Ownable {
 
     /// @notice Revokes a migrator
     /// @param migrator Address of the migrator
-    function revokeMigrator(
-        address migrator
-    ) external onlyOwner {
+    function revokeMigrator(address migrator) external onlyOwner {
         if (approvedMigrators[migrator]) {
             approvedMigrators[migrator] = false;
             emit MigratorApproval(address(migrator), false);

@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
-import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
-import { StateView, IStateView } from "@v4-periphery/lens/StateView.sol";
-import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
-import { V4Quoter, IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
-import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
-import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
-import { CustomRouter } from "test/shared/CustomRouter.sol";
-import { MAX_SWAP_FEE } from "src/Doppler.sol";
 import { DopplerImplementation } from "./DopplerImplementation.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { IPoolManager, PoolManager } from "@v4-core/PoolManager.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { ProtocolFeeLibrary } from "@v4-core/libraries/ProtocolFeeLibrary.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IStateView, StateView } from "@v4-periphery/lens/StateView.sol";
+import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { Test } from "forge-std/Test.sol";
+import { MAX_SWAP_FEE } from "src/initializers/Doppler.sol";
+import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
+import { CustomRouter } from "test/shared/CustomRouter.sol";
 
 using PoolIdLibrary for PoolKey;
 using StateLibrary for IPoolManager;
@@ -83,14 +83,12 @@ contract BaseTest is Test, Deployers {
     // Context
 
     DopplerImplementation hook = DopplerImplementation(
-        payable(
-            address(
+        payable(address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
                         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
                 ) ^ (0x4444 << 144)
-            )
-        )
+            ))
     );
 
     address asset;
@@ -115,6 +113,7 @@ contract BaseTest is Test, Deployers {
     CustomRouter router;
     DopplerLensQuoter lensQuoter;
     StateView stateView;
+
     // Deploy functions
 
     /// @dev Deploys a new pair of asset and numeraire tokens and the related Doppler hook
@@ -136,9 +135,7 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens and the related Doppler hook with
     /// a given configuration.
-    function _deploy(
-        DopplerConfig memory config
-    ) public {
+    function _deploy(DopplerConfig memory config) public {
         _deployTokens();
         _deployDoppler(config);
     }
@@ -153,8 +150,8 @@ contract BaseTest is Test, Deployers {
 
     /// @dev Deploys a new pair of asset and numeraire tokens.
     function _deployTokens() public {
-        isToken0 = vm.envOr("IS_TOKEN_0", true);
-        usingEth = vm.envOr("USING_ETH", false);
+        isToken0 = vm.envOr("IS_TOKEN_0", false);
+        usingEth = vm.envOr("USING_ETH", true);
 
         if (usingEth) {
             isToken0 = false;
@@ -181,9 +178,7 @@ contract BaseTest is Test, Deployers {
     }
 
     /// @dev Deploys a new Doppler hook with a given configuration.
-    function _deployDoppler(
-        DopplerConfig memory config
-    ) public {
+    function _deployDoppler(DopplerConfig memory config) public {
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
         vm.label(address(token0), "Token0");
         vm.label(address(token1), "Token1");
@@ -281,57 +276,39 @@ contract BaseTest is Test, Deployers {
         vm.label(address(router), "Router");
     }
 
-    function computeBuyExactOut(
-        uint256 amountOut
-    ) public returns (uint256) {
+    function computeBuyExactOut(uint256 amountOut) public returns (uint256) {
         (uint256 amountIn,) = quoter.quoteExactOutputSingle(
             IV4Quoter.QuoteExactSingleParams({
-                poolKey: key,
-                zeroForOne: !isToken0,
-                exactAmount: uint128(amountOut),
-                hookData: ""
+                poolKey: key, zeroForOne: !isToken0, exactAmount: uint128(amountOut), hookData: ""
             })
         );
 
         return amountIn;
     }
 
-    function computeSellExactOut(
-        uint256 amountOut
-    ) public returns (uint256) {
+    function computeSellExactOut(uint256 amountOut) public returns (uint256) {
         (uint256 amountIn,) = quoter.quoteExactOutputSingle(
             IV4Quoter.QuoteExactSingleParams({
-                poolKey: key,
-                zeroForOne: isToken0,
-                exactAmount: uint128(amountOut),
-                hookData: ""
+                poolKey: key, zeroForOne: isToken0, exactAmount: uint128(amountOut), hookData: ""
             })
         );
 
         return amountIn;
     }
 
-    function buyExactIn(
-        uint256 amount
-    ) public returns (uint256, uint256) {
+    function buyExactIn(uint256 amount) public returns (uint256, uint256) {
         return buy(-int256(amount));
     }
 
-    function buyExactOut(
-        uint256 amount
-    ) public returns (uint256, uint256) {
+    function buyExactOut(uint256 amount) public returns (uint256, uint256) {
         return buy(int256(amount));
     }
 
-    function sellExactIn(
-        uint256 amount
-    ) public returns (uint256, uint256) {
+    function sellExactIn(uint256 amount) public returns (uint256, uint256) {
         return sell(-int256(amount));
     }
 
-    function sellExactOut(
-        uint256 amount
-    ) public returns (uint256, uint256) {
+    function sellExactOut(uint256 amount) public returns (uint256, uint256) {
         return sell(int256(amount));
     }
 
@@ -340,9 +317,7 @@ contract BaseTest is Test, Deployers {
     /// a positive value specifies the amount of asset tokens to buy.
     /// @return Amount of asset tokens bought.
     /// @return Amount of numeraire tokens used.
-    function buy(
-        int256 amount
-    ) public returns (uint256, uint256) {
+    function buy(int256 amount) public returns (uint256, uint256) {
         // Negative means exactIn, positive means exactOut.
         uint256 mintAmount = amount < 0 ? uint256(-amount) : computeBuyExactOut(uint256(amount));
 
@@ -371,9 +346,7 @@ contract BaseTest is Test, Deployers {
     /// specifies the amount of numeraire tokens to receive.
     /// @return Amount of asset tokens sold.
     /// @return Amount of numeraire tokens received.
-    function sell(
-        int256 amount
-    ) public returns (uint256, uint256) {
+    function sell(int256 amount) public returns (uint256, uint256) {
         // Negative means exactIn, positive means exactOut.
         uint256 approveAmount = amount < 0 ? uint256(-amount) : computeSellExactOut(uint256(amount));
         TestERC20(asset).approve(address(swapRouter), uint256(approveAmount));
@@ -466,9 +439,7 @@ contract BaseTest is Test, Deployers {
 
     // Cheatcodes
 
-    function goToEpoch(
-        uint256 epoch
-    ) internal {
+    function goToEpoch(uint256 epoch) internal {
         vm.warp(hook.startingTime() + ((epoch - 1) * hook.epochLength()));
         assertEq(hook.getCurrentEpoch(), epoch, "Current epoch mismatch");
     }
@@ -477,9 +448,7 @@ contract BaseTest is Test, Deployers {
         vm.warp(block.timestamp + hook.epochLength());
     }
 
-    function skipEpochs(
-        uint256 epochs
-    ) internal {
+    function skipEpochs(uint256 epochs) internal {
         vm.warp(block.timestamp + hook.epochLength() * epochs);
     }
 
@@ -509,9 +478,10 @@ contract BaseTest is Test, Deployers {
         }
     }
 
-    function prankAndMigrate(
-        address recipient
-    ) internal returns (uint160, address, uint128, uint128, address, uint128, uint128) {
+    function prankAndMigrate(address recipient)
+        internal
+        returns (uint160, address, uint128, uint128, address, uint128, uint128)
+    {
         vm.prank(hook.initializer());
         return hook.migrate(recipient);
     }
