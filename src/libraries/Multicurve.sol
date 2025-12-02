@@ -116,30 +116,32 @@ function calculatePositions(
     uint256 otherCurrencySupply,
     bool isToken0
 ) pure returns (Position[] memory positions) {
-    uint256 length = curves.length;
-    uint256 totalShares;
-
     int24 lowerTickBoundary = TickMath.MAX_TICK;
     int24 upperTickBoundary = TickMath.MIN_TICK;
 
-    for (uint256 i; i < length; i++) {
-        Curve memory curve = curves[i];
-        totalShares += curve.shares;
+    {
+        uint256 totalShares;
+        uint256 length = curves.length;
 
-        // Calculate the boundaries
-        if (lowerTickBoundary > curve.tickLower) lowerTickBoundary = curve.tickLower;
-        if (upperTickBoundary < curve.tickUpper) upperTickBoundary = curve.tickUpper;
+        for (uint256 i; i < length; i++) {
+            Curve memory curve = curves[i];
+            totalShares += curve.shares;
 
-        // Calculate the positions for this curve
-        uint256 curveSupply = FixedPointMathLib.mulDiv(numTokensToSell, curve.shares, WAD);
-        Position[] memory newPositions = calculateLogNormalDistribution(
-            i, curve.tickLower, curve.tickUpper, tickSpacing, isToken0, curve.numPositions, curveSupply
-        );
+            // Calculate the boundaries
+            if (lowerTickBoundary > curve.tickLower) lowerTickBoundary = curve.tickLower;
+            if (upperTickBoundary < curve.tickUpper) upperTickBoundary = curve.tickUpper;
 
-        positions = concat(positions, newPositions);
+            // Calculate the positions for this curve
+            uint256 curveSupply = FixedPointMathLib.mulDiv(numTokensToSell, curve.shares, WAD);
+            Position[] memory newPositions = calculateLogNormalDistribution(
+                i, curve.tickLower, curve.tickUpper, tickSpacing, isToken0, curve.numPositions, curveSupply
+            );
+
+            positions = concat(positions, newPositions);
+        }
+
+        require(totalShares == WAD, InvalidTotalShares());
     }
-
-    require(totalShares == WAD, InvalidTotalShares());
 
     // If there's any supply of the other currency, we can compute the head position using the inverse logic of the tail
     if (otherCurrencySupply > 0) {
