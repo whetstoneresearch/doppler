@@ -1,53 +1,74 @@
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
 
+[8453.bool]
+is_testnet = false
+
 [8453.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12"
-token_factory_80 = "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496"
+token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 
 [130]
 endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
+
+[130.bool]
+is_testnet = false
 
 [130.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x77ebfbae15ad200758e9e2e61597c0b07d731254"
-token_factory_80 = "0x90193C961A926261B756D1E5bb255e67ff9498A1"
+token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 
 [143]
 endpoint_url = "${MONAD_MAINNET_RPC_URL}"
+
+[143.bool]
+is_testnet = false
 
 [143.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
-token_factory_80 = "0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3"
+token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 
 [84532]
 endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
+
+[84532.bool]
+is_testnet = true
 
 [84532.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x3411306ce66c9469bff1535ba955503c4bde1c6e"
-token_factory_80 = "0x50EEf481cae4250d252Ae577A09bF514f224C6C4"
+token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
+airlock_multisig = "0x852a09c89463d236eea2f097623574f23e225769"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
+
+[1301.bool]
+is_testnet = true
 
 [1301.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x0d2f38d807bfad5c18e430516e10ab560d300caf"
-token_factory_80 = "0xDEb1E9a6Be7Baf84208BB6E10aC9F9bbE1D70809"
+token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
+airlock_multisig = "0x40bcb4dda3bcf7dba30c5d10c31ee2791ed9ddca"
 
 [10143]
 endpoint_url = "${MONAD_TESTNET_RPC_URL}"
+
+[10143.bool]
+is_testnet = true
 
 [10143.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b"
-token_factory_80 = "0x4f559F30f5eB88D635FDe1548C4267DB8FaB0351"
+token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
+airlock_multisig = "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299"
