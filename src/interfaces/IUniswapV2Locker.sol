@@ -33,7 +33,5 @@ interface IUniswapV2Locker {
 
     function receiveAndLock(address pool, address recipient) external;
 
-    function claimFeesAndExit(
-        address pool
-    ) external;
+    function claimFeesAndExit(address pool) external;
 }

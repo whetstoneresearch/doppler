@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { BaseTest } from "test/shared/BaseTest.sol";
-import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
 import { IV4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
+import { DopplerLensReturnData } from "src/lens/DopplerLens.sol";
+import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract DopplerLensTest is BaseTest {
     function test_lens_fetches_consistent_ticks() public {

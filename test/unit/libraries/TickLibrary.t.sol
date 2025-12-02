@@ -3,15 +3,15 @@ pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
 
-import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
 import {
     TickNotAligned,
     TickRangeMisordered,
     alignTick,
-    isTickAligned,
     isRangeOrdered,
+    isTickAligned,
     isTickSpacingValid
 } from "src/libraries/TickLibrary.sol";
 
@@ -49,27 +49,21 @@ contract TickLibraryTest is Test {
         isRangeOrdered(tickLower, tickUpper);
     }
 
-    function test_isTickSpacingValid(
-        int24 tickSpacing
-    ) public pure {
+    function test_isTickSpacingValid(int24 tickSpacing) public pure {
         vm.assume(tickSpacing >= TickMath.MIN_TICK_SPACING);
         vm.assume(tickSpacing <= TickMath.MAX_TICK_SPACING);
         isTickSpacingValid(tickSpacing);
     }
 
     /// forge-config: default.allow_internal_expect_revert = true
-    function test_isTickSpacingValid_RevertsIfTooSmall(
-        int24 tickSpacing
-    ) public {
+    function test_isTickSpacingValid_RevertsIfTooSmall(int24 tickSpacing) public {
         vm.assume(tickSpacing < 0);
         vm.expectRevert(abi.encodeWithSelector(IPoolManager.TickSpacingTooSmall.selector, tickSpacing));
         isTickSpacingValid(tickSpacing);
     }
 
     /// forge-config: default.allow_internal_expect_revert = true
-    function test_isTickSpacingValid_RevertsIfTooLarge(
-        int24 tickSpacing
-    ) public {
+    function test_isTickSpacingValid_RevertsIfTooLarge(int24 tickSpacing) public {
         vm.assume(tickSpacing > TickMath.MAX_TICK_SPACING);
         vm.expectRevert(abi.encodeWithSelector(IPoolManager.TickSpacingTooLarge.selector, tickSpacing));
         isTickSpacingValid(tickSpacing);

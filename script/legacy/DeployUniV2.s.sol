@@ -36,9 +36,7 @@ abstract contract DeployUniV2Script is Script {
         vm.stopBroadcast();
     }
 
-    function _deployCode(
-        bytes memory creationCode
-    ) internal returns (address deployedTo) {
+    function _deployCode(bytes memory creationCode) internal returns (address deployedTo) {
         assembly {
             deployedTo := create(0, add(creationCode, 0x20), mload(creationCode))
         }

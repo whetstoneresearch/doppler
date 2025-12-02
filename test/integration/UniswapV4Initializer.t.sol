@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Vm } from "forge-std/Vm.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import {
-    DEFAULT_MINIMUM_PROCEEDS,
-    DEFAULT_MAXIMUM_PROCEEDS,
-    DEFAULT_GAMMA,
-    DEFAULT_EPOCH_LENGTH
-} from "test/shared/DopplerFixtures.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
+import {
+    DEFAULT_EPOCH_LENGTH,
+    DEFAULT_GAMMA,
+    DEFAULT_MAXIMUM_PROCEEDS,
+    DEFAULT_MINIMUM_PROCEEDS
+} from "test/shared/DopplerFixtures.sol";
 
 int24 constant DEFAULT_START_TICK = 6000;
 int24 constant DEFAULT_END_TICK = 60_000;

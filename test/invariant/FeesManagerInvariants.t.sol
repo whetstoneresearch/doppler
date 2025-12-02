@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Test } from "forge-std/Test.sol";
 
-import { WAD } from "src/types/Wad.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
-import { FeesManagerImplementation, PoolManagerMock } from "test/unit/FeesManager.t.sol";
+import { WAD } from "src/types/Wad.sol";
+import { FeesManagerImplementation, PoolManagerMock } from "test/unit/base/FeesManager.t.sol";
 
 address constant PROTOCOL_OWNER = address(0xB16B055);
 
@@ -39,18 +39,12 @@ contract FeesManagerHandler is Test {
     PoolId[] internal _poolIds;
     mapping(PoolId poolId => PoolKey poolKey) public _poolKeys;
 
-    constructor(
-        FeesManagerImplementation implementation_,
-        PoolManagerMock poolManager_
-    ) {
+    constructor(FeesManagerImplementation implementation_, PoolManagerMock poolManager_) {
         implementation = implementation_;
         poolManager = poolManager_;
     }
 
-    function entrypoint(
-        uint256 fees0,
-        uint256 fees1
-    ) public {
+    function entrypoint(uint256 fees0, uint256 fees1) public {
         // 2% of the time we store new beneficiaries, 98% of the time we collect fees
         if (fees0 % 100 < 2) {
             return storeBeneficiaries(fees0);
@@ -60,9 +54,7 @@ contract FeesManagerHandler is Test {
     }
 
     /// @dev Cannot let the fuzzer pass random beneficiaries as it'll be too
-    function storeBeneficiaries(
-        uint256 seed
-    ) public {
+    function storeBeneficiaries(uint256 seed) public {
         TestERC20 token0 = new TestERC20(0);
         TestERC20 token1 = new TestERC20(0);
 
@@ -89,10 +81,7 @@ contract FeesManagerHandler is Test {
         }
     }
 
-    function collectFees(
-        uint256 fees0,
-        uint256 fees1
-    ) public {
+    function collectFees(uint256 fees0, uint256 fees1) public {
         PoolId poolId = _poolIds[uint256(keccak256(abi.encode(msg.sender))) % _poolIds.length];
 
         fees0 = bound(fees0, 0, type(uint48).max);
@@ -141,17 +130,12 @@ contract FeesManagerHandler is Test {
         ghost_totalFees1[poolId] += fees1;
     }
 
-    function updateBeneficiary(
-        address newBeneficiary
-    ) public {
+    function updateBeneficiary(address newBeneficiary) public {
         PoolId poolId = _poolIds[uint256(keccak256(abi.encode(msg.sender))) % _poolIds.length];
         implementation.updateBeneficiary(poolId, newBeneficiary);
     }
 
-    function getOwed(
-        PoolId poolId,
-        address beneficiary
-    ) public view returns (uint256 owed0, uint256 owed1) {
+    function getOwed(PoolId poolId, address beneficiary) public view returns (uint256 owed0, uint256 owed1) {
         uint256 cumulatedFees0 = implementation.getCumulatedFees0(poolId);
         uint256 cumulatedFees1 = implementation.getCumulatedFees1(poolId);
 
@@ -166,22 +150,16 @@ contract FeesManagerHandler is Test {
         return _poolIds;
     }
 
-    function getPoolKey(
-        PoolId poolId
-    ) public view returns (PoolKey memory) {
+    function getPoolKey(PoolId poolId) public view returns (PoolKey memory) {
         return _poolKeys[poolId];
     }
 
-    function getBeneficiaries(
-        PoolId poolId_
-    ) public view returns (BeneficiaryData[] memory) {
+    function getBeneficiaries(PoolId poolId_) public view returns (BeneficiaryData[] memory) {
         return _beneficiaries[poolId_];
     }
 
     /// @dev We generate an array of beneficiaries ourselves to make sure its valid
-    function generateBeneficiaries(
-        uint256 seed
-    ) private pure returns (BeneficiaryData[] memory beneficiaries) {
+    function generateBeneficiaries(uint256 seed) private pure returns (BeneficiaryData[] memory beneficiaries) {
         uint256 length = seed % 50 + 1;
         beneficiaries = new BeneficiaryData[](length);
 

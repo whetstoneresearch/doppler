@@ -15,9 +15,7 @@ library ChainIds {
 
 using LibString for uint256;
 
-function checkChainId(
-    uint256 expected
-) view {
+function checkChainId(uint256 expected) view {
     require(
         block.chainid == expected,
         string.concat("Expected chainId ", expected.toString(), " but actual is ", block.chainid.toString())

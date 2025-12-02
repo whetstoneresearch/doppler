@@ -2,25 +2,25 @@
 pragma solidity ^0.8.13;
 
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
-import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
-import { UniswapV4Initializer, DopplerDeployer } from "src/UniswapV4Initializer.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { UniswapV2Migrator, IUniswapV2Factory, IUniswapV2Router02 } from "src/UniswapV2Migrator.sol";
-import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
-import { mineV4, MineV4Params } from "test/shared/AirlockMiner.sol";
-import { Doppler } from "src/Doppler.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IPoolManager, PoolManager } from "@v4-core/PoolManager.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
-import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { alignTick } from "src/libraries/TickLibrary.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
+import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
+import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -259,9 +259,7 @@ contract DopplerFixtures is Deployers {
         assertEq(airlock.getIntegratorFees(integrator, asset), 0);
     }
 
-    function _mockEarlyExit(
-        Doppler doppler
-    ) internal {
+    function _mockEarlyExit(Doppler doppler) internal {
         // storage slot of `earlyExit` variable is slot 0
         // (via `forge inspect Doppler storage`)
         bytes32 EARLY_EXIT_SLOT = bytes32(uint256(0));

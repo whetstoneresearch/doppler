@@ -3,9 +3,7 @@ pragma solidity ^0.8.13;
 
 /// @notice Library to decode CustomRevert errors from Uniswap V4
 library CustomRevertDecoder {
-    function decode(
-        bytes memory err
-    )
+    function decode(bytes memory err)
         public
         pure
         returns (

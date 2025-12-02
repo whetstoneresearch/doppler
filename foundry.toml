@@ -23,15 +23,18 @@ runs = 32
 depth = 512
 
 [fmt]
+single_line_statement_blocks = "preserve"
 bracket_spacing = true
-int_types = 'long'
+int_types = "long"
 line_length = 120
-multiline_func_header = 'params_first_multi'
-number_underscore = 'thousands'
-quote_style = 'double'
+multiline_func_header = "params_first_multi"
+number_underscore = "thousands"
+quote_style = "double"
 tab_width = 4
 wrap_comments = false
 sort_imports = true
+contract_new_lines = false
+override_spacing = false
 
 [lint]
 lint_on_build = false
@@ -45,14 +48,14 @@ base = { key = "${BASESCAN_API_KEY}" }
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
-unichain = "${UNICHAIN_MAINNET_RPC_UR}"
-base = "${BASE_MAINNET_RPC_UR}"
-ink = "${INK_MAINNET_RPC_UR}"
-unichain_sepolia = "${UNICHAIN_SEPOLIA_RPC_UR}"
-base_sepolia = "${BASE_SEPOLIA_RPC_UR}"
-ink_sepolia = "${INK_SEPOLIA_RPC_UR}"
-world_sepolia = "${WORLD_SEPOLIA_RPC_UR}"
-arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_UR}"
+unichain = "${UNICHAIN_MAINNET_RPC_URL}"
+base = "${BASE_MAINNET_RPC_URL}"
+ink = "${INK_MAINNET_RPC_URL}"
+unichain_sepolia = "${UNICHAIN_SEPOLIA_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+ink_sepolia = "${INK_SEPOLIA_RPC_URL}"
+world_sepolia = "${WORLD_SEPOLIA_RPC_URL}"
+arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_URL}"
 
 [profile.deep]
 

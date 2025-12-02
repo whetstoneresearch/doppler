@@ -3,24 +3,24 @@ pragma solidity ^0.8.13;
 
 import { Vm } from "forge-std/Vm.sol";
 
+import { WETH } from "@solady/tokens/WETH.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
-import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
-import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { WETH } from "@solady/tokens/WETH.sol";
-import { DERC20 } from "src/DERC20.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import {
-    UniswapV2Migrator,
     ILiquidityMigrator,
+    IUniswapV2Factory,
     IUniswapV2Router02,
-    IUniswapV2Factory
-} from "src/UniswapV2Migrator.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { Airlock, ModuleState, CreateParams } from "src/Airlock.sol";
+    UniswapV2Migrator
+} from "src/migrators/UniswapV2Migrator.sol";
+import { DERC20 } from "src/tokens/DERC20.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 /**
  * @dev Integration tests can inherit from this base contract and override the `setUp` function to update the `CreateParams`,
@@ -76,22 +76,14 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
     }
 
     // Solidity doesn't like it when you pass an overloaded function as an argument so we wrap it
-    function _deployCodeTo(
-        string memory what,
-        bytes memory args,
-        address where
-    ) internal {
+    function _deployCodeTo(string memory what, bytes memory args, address where) internal {
         deployCodeTo(what, args, where);
     }
 }
 
 // TODO: Move these functions into dedicated integration test files
 
-function deployNoOpMigrator(
-    Vm vm,
-    Airlock airlock,
-    address airlockOwner
-) returns (NoOpMigrator migrator) {
+function deployNoOpMigrator(Vm vm, Airlock airlock, address airlockOwner) returns (NoOpMigrator migrator) {
     migrator = new NoOpMigrator(address(airlock));
     address[] memory modules = new address[](1);
     modules[0] = address(migrator);
@@ -117,11 +109,7 @@ function deployNoOpGovernanceFactory(
     return governanceFactory;
 }
 
-function deployTokenFactory(
-    Vm vm,
-    Airlock airlock,
-    address airlockOwner
-) returns (TokenFactory tokenFactory) {
+function deployTokenFactory(Vm vm, Airlock airlock, address airlockOwner) returns (TokenFactory tokenFactory) {
     tokenFactory = new TokenFactory(address(airlock));
     address[] memory modules = new address[](1);
     modules[0] = address(tokenFactory);
@@ -200,19 +188,14 @@ function deployWeth() returns (address weth) {
     return address(new WETH());
 }
 
-function _deployCode(
-    bytes memory creationCode
-) returns (address deployedTo) {
+function _deployCode(bytes memory creationCode) returns (address deployedTo) {
     assembly {
         deployedTo := create(0, add(creationCode, 0x20), mload(creationCode))
     }
     require(deployedTo != address(0), "Deploy failed");
 }
 
-function deployUniswapV2(
-    Vm vm,
-    address weth
-) returns (address factory, address router) {
+function deployUniswapV2(Vm vm, address weth) returns (address factory, address router) {
     factory = _deployCode(
         abi.encodePacked(vm.parseBytes(vm.readFile("./script/utils/uniswapV2Factory.bytecode")), abi.encode(address(0)))
     );

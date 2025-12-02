@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
-import { StateLibrary, IPoolManager } from "@v4-core/libraries/StateLibrary.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { IPoolManager, StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { SenderNotInitializer, CannotMigrate, MAX_SWAP_FEE, Position } from "src/Doppler.sol";
+import { CannotMigrate, MAX_SWAP_FEE, Position, SenderNotInitializer } from "src/initializers/Doppler.sol";
 import { BaseTest } from "test/shared/BaseTest.sol";
 
 contract MigrateTest is BaseTest {
@@ -148,8 +148,8 @@ contract MigrateTest is BaseTest {
 
         (,, uint128 fees0, uint128 balance0,, uint128 fees1, uint128 balance1) = prankAndMigrate(recipient);
 
-        assertApproxEqRel(fees0, feesAccrued0, 0.000001 ether, "fees0 should be equal to feesAccrued0");
-        assertApproxEqRel(fees1, feesAccrued1, 0.000001 ether, "fees1 should be equal to feesAccrued1");
+        assertApproxEqRel(fees0, feesAccrued0, 0.000_001 ether, "fees0 should be equal to feesAccrued0");
+        assertApproxEqRel(fees1, feesAccrued1, 0.000_001 ether, "fees1 should be equal to feesAccrued1");
 
         uint256 managerDust0 = usingEth ? address(manager).balance : ERC20(token0).balanceOf(address(manager));
         uint256 managerDust1 = ERC20(token1).balanceOf(address(manager));

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
-import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
-import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { ERC721TokenReceiver } from "@solmate/tokens/ERC721.sol";
-import { StreamableFeesLocker, BeneficiaryData } from "src/StreamableFeesLocker.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
+import { Test } from "forge-std/Test.sol";
+import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
@@ -161,15 +161,15 @@ contract StreamableFeesLockerTest is Test {
         beneficiaries[0] = BeneficiaryData({
             beneficiary: BENEFICIARY_1,
             shares: 0.5e18 // 50%
-         });
+        });
         beneficiaries[1] = BeneficiaryData({
             beneficiary: BENEFICIARY_2,
             shares: 0.3e18 // 30%
-         });
+        });
         beneficiaries[2] = BeneficiaryData({
             beneficiary: BENEFICIARY_3,
             shares: 0.2e18 // 20%
-         });
+        });
 
         bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
         vm.prank(address(positionManager));
@@ -651,15 +651,15 @@ contract StreamableFeesLockerTest is Test {
         beneficiaries[0] = BeneficiaryData({
             beneficiary: BENEFICIARY_1,
             shares: 0.5e18 // 50%
-         });
+        });
         beneficiaries[1] = BeneficiaryData({
             beneficiary: BENEFICIARY_2,
             shares: 0.3e18 // 30%
-         });
+        });
         beneficiaries[2] = BeneficiaryData({
             beneficiary: BENEFICIARY_3,
             shares: 0.2e18 // 20%
-         });
+        });
 
         // Lock position
         bytes memory positionData = abi.encode(RECIPIENT, LOCK_DURATION, beneficiaries);
@@ -742,11 +742,11 @@ contract StreamableFeesLockerTest is Test {
         beneficiaries[0] = BeneficiaryData({
             beneficiary: BENEFICIARY_1,
             shares: 0.6e18 // 60%
-         });
+        });
         beneficiaries[1] = BeneficiaryData({
             beneficiary: BENEFICIARY_2,
             shares: 0.4e18 // 40%
-         });
+        });
 
         bytes memory positionData = abi.encode(DEAD_ADDRESS, LOCK_DURATION, beneficiaries);
 

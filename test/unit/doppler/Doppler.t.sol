@@ -13,12 +13,8 @@ contract DopplerTest is BaseTest {
 
         assertApproxEqAbs(
             hook.endingTick(),
-            (
-                (
-                    maxTickDeltaPerEpoch
-                        * (int256((hook.endingTime() - hook.startingTime())) / int256(hook.epochLength()))
-                ) / 1e18 + hook.startingTick()
-            ),
+            ((maxTickDeltaPerEpoch * (int256((hook.endingTime() - hook.startingTime())) / int256(hook.epochLength())))
+                    / 1e18 + hook.startingTick()),
             1
         );
     }
@@ -29,9 +25,7 @@ contract DopplerTest is BaseTest {
 
     // TODO: int16 accumulator might over/underflow with certain hook configurations
     //       Consider whether we need to protect against this in the contract or whether it's not a concern
-    function testGetTicksBasedOnState_ReturnsExpectedAmountSold(
-        int16 accumulator
-    ) public view {
+    function testGetTicksBasedOnState_ReturnsExpectedAmountSold(int16 accumulator) public view {
         (int24 tickLower, int24 tickUpper) = hook.getTicksBasedOnState(accumulator, key.tickSpacing);
         int24 gamma = hook.gamma();
 
@@ -67,9 +61,7 @@ contract DopplerTest is BaseTest {
     //                  _getNormalizedTimeElapsed Unit Tests
     // =========================================================================
 
-    function testGetNormalizedTimeElapsed(
-        uint16 bps
-    ) public view {
+    function testGetNormalizedTimeElapsed(uint16 bps) public view {
         vm.assume(bps <= 10_000);
 
         uint256 endingTime = hook.endingTime();

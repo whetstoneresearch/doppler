@@ -10,18 +10,18 @@ import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { CloneERC20Factory } from "src/CloneERC20Factory.sol";
-import { CloneERC20VotesFactory } from "src/CloneERC20VotesFactory.sol";
-import { Doppler } from "src/Doppler.sol";
-import { DopplerHookInitializer } from "src/DopplerHookInitializer.sol";
-import { GovernanceFactory } from "src/GovernanceFactory.sol";
-import { NoOpGovernanceFactory } from "src/NoOpGovernanceFactory.sol";
-import { NoOpMigrator } from "src/NoOpMigrator.sol";
-import { TokenFactory } from "src/TokenFactory.sol";
-import { UniswapV3Initializer } from "src/UniswapV3Initializer.sol";
-import { DopplerDeployer, UniswapV4Initializer } from "src/UniswapV4Initializer.sol";
-import { UniswapV4Migrator } from "src/UniswapV4Migrator.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
+import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
+import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
+import { CloneERC20VotesFactory } from "src/tokens/CloneERC20VotesFactory.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
     BaseIntegrationTest,
     deployGovernanceFactory,

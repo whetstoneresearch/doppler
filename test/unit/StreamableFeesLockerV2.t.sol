@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
-import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
+import { Lock, MigratorApproval, NotApprovedMigrator, StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
-import { StreamableFeesLockerV2, MigratorApproval, NotApprovedMigrator, Lock } from "src/StreamableFeesLockerV2.sol";
 
 contract StreamableFeesLockerV2Test is Deployers {
     StreamableFeesLockerV2 public locker;
@@ -98,11 +98,7 @@ contract StreamableFeesLockerV2Test is Deployers {
         )
     {
         key = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: 3000,
-            tickSpacing: 1,
-            hooks: IHooks(address(0))
+            currency0: currency0, currency1: currency1, fee: 3000, tickSpacing: 1, hooks: IHooks(address(0))
         });
 
         recipient = makeAddr("Recipient");

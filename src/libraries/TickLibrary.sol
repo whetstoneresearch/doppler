@@ -60,9 +60,7 @@ function isRangeOrdered(int24 tickLower, int24 tickUpper) pure {
  * @dev Checks if a tick spacing is valid according to Uniswap V4 constraints, reverts if not
  * @param tickSpacing Tick spacing to check
  */
-function isTickSpacingValid(
-    int24 tickSpacing
-) pure {
+function isTickSpacingValid(int24 tickSpacing) pure {
     require(tickSpacing <= TickMath.MAX_TICK_SPACING, IPoolManager.TickSpacingTooLarge(tickSpacing));
     require(tickSpacing >= TickMath.MIN_TICK_SPACING, IPoolManager.TickSpacingTooSmall(tickSpacing));
 }

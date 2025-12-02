@@ -1,10 +1,10 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Script, console } from "forge-std/Script.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/UniswapV4MulticurveInitializerHook.sol";
-import { IPoolManager, IHooks } from "@v4-core/interfaces/IPoolManager.sol";
+import { UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
 import { MineV4MigratorHookParams, mineV4MulticurveHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {
