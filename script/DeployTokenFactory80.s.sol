@@ -20,9 +20,14 @@ contract DeployTokenFactory80Script is Script, Config {
     function deployToChain(uint256 chainId) internal {
         vm.selectFork(forkOf[chainId]);
 
+        address airlock = config.get("airlock").toAddress();
+        address createX = config.get("create_x").toAddress();
+        bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xbeef));
+
         vm.startBroadcast();
-        address tokenFactory =
-            ICreateX(config.get("create_x").toAddress()).deployCreate3(type(TokenFactory80).creationCode);
+        address tokenFactory = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(TokenFactory80).creationCode, abi.encode(airlock)));
+
         console.log("TokenFactory80 deployed to:", address(tokenFactory));
         config.set("token_factory_80", address(tokenFactory));
         vm.stopBroadcast();
