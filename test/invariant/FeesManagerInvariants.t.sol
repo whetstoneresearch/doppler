@@ -10,7 +10,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
-import { FeesManagerImplementation, PoolManagerMock } from "test/unit/FeesManager.t.sol";
+import { FeesManagerImplementation, PoolManagerMock } from "test/unit/base/FeesManager.t.sol";
 
 address constant PROTOCOL_OWNER = address(0xB16B055);
 

@@ -17,7 +17,7 @@ import {
 } from "src/tokens/CloneERC20.sol";
 import { CloneERC20Votes } from "src/tokens/CloneERC20Votes.sol";
 import { CloneERC20VotesFactory } from "src/tokens/CloneERC20VotesFactory.sol";
-import { generateRecipients } from "test/unit/CloneERC20Votes.t.sol";
+import { generateRecipients } from "test/unit/tokens/CloneERC20Votes.t.sol";
 
 contract CloneERC20VotesFactoryTest is Test {
     address internal AIRLOCK = makeAddr("Airlock");
