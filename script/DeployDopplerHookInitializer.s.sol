@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { DopplerHookInitializer } from "src/DopplerHookInitializer.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MineDopplerHookInitializerParams, mineDopplerHookInitializer } from "test/shared/AirlockMiner.sol";
 
 contract DeployDopplerHookInitializerScript is Script, Config {
