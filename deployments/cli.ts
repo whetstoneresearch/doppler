@@ -55,7 +55,7 @@ const chains: {[chainId: number]: ChainDetails } = {
   },
   421614: {
     name: 'Arbitrum Sepolia',
-    explorerUrl: 'https://sepolia.arbiscan.io/',
+    explorerUrl: 'https://sepolia.arbiscan.io',
     isTestnet: true,
   },
   143: {
