@@ -30,10 +30,10 @@ error VestingNotStartedYet();
 error MaxYearlyMintRateExceeded(uint256 amount, uint256 limit);
 
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
-uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.2 ether;
+uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.8 ether;
 
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
-uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.2 ether;
+uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.8 ether;
 
 /// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
 uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
