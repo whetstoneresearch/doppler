@@ -52,6 +52,7 @@ struct InitData {
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
     uint24 customFee;
+    address buybackDst;
     uint96 assetBuybackPercentWad;
     uint96 numeraireBuybackPercentWad;
     uint96 beneficiaryPercentWad;
@@ -209,7 +210,7 @@ contract UniswapV4MulticurveRehypeInitializer is IPoolInitializer, FeesManager, 
                 poolKey.toId(),
                 asset,
                 numeraire,
-                address(1), // temp hardcode to address(1) for testing
+                initData.buybackDst,
                 initData.customFee,
                 initData.assetBuybackPercentWad,
                 initData.numeraireBuybackPercentWad,
