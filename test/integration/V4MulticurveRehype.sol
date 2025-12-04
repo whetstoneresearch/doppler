@@ -307,6 +307,7 @@ contract V4MulticurveInitializer is Deployers {
             curves: curves,
             beneficiaries: beneficiaries,
             customFee: 3000,
+            buybackDst: address(0x07),
             assetBuybackPercentWad: 0.2e18,
             numeraireBuybackPercentWad: 0.2e18,
             beneficiaryPercentWad: 0.3e18,
