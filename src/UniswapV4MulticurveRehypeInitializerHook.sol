@@ -654,10 +654,14 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
         bool isToken0 = Currency.wrap(getPoolInfo[poolId].asset) == poolKey.currency0;
 
-        Currency.wrap(getPoolInfo[poolId].asset)
-            .transfer(INITIALIZER, isToken0 ? hookFees.beneficiaryFees0 : hookFees.beneficiaryFees1);
-        Currency.wrap(getPoolInfo[poolId].numeraire)
-            .transfer(INITIALIZER, isToken0 ? hookFees.beneficiaryFees1 : hookFees.beneficiaryFees0);
+        if (hookFees.beneficiaryFees0 > 0) {
+            Currency.wrap(getPoolInfo[poolId].asset)
+                .transfer(INITIALIZER, isToken0 ? hookFees.beneficiaryFees0 : hookFees.beneficiaryFees1);
+        }
+        if (hookFees.beneficiaryFees1 > 0) {
+            Currency.wrap(getPoolInfo[poolId].numeraire)
+                .transfer(INITIALIZER, isToken0 ? hookFees.beneficiaryFees1 : hookFees.beneficiaryFees0);
+        }
 
         getHookFees[poolId].beneficiaryFees0 = 0;
         getHookFees[poolId].beneficiaryFees1 = 0;
