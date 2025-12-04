@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Config } from "forge-std/Config.sol";
-import { console } from "forge-std/Console.sol";
 import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { TokenFactory80 } from "src/tokens/TokenFactory80.sol";
 
