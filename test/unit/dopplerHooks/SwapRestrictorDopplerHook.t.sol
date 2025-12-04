@@ -88,6 +88,8 @@ contract SwapRestrictorDopplerHookTest is Test {
     }
 
     function test_onSwap_IgnoresAmountLeftWhenSellingAsset(bool isTokenZero, PoolKey calldata poolKey) public {
+        vm.assume(Currency.unwrap(poolKey.currency0) != Currency.unwrap(poolKey.currency1));
+
         address asset = Currency.unwrap(isTokenZero ? poolKey.currency0 : poolKey.currency1);
         address[] memory approved = new address[](1);
         approved[0] = address(0x123);
@@ -112,6 +114,8 @@ contract SwapRestrictorDopplerHookTest is Test {
     }
 
     function test_onSwap_RevertsWhenTryingToBuyMoreThanLeftAmount(bool isTokenZero, PoolKey calldata poolKey) public {
+        vm.assume(Currency.unwrap(poolKey.currency0) != Currency.unwrap(poolKey.currency1));
+
         address asset = Currency.unwrap(isTokenZero ? poolKey.currency0 : poolKey.currency1);
         address[] memory approved = new address[](1);
         approved[0] = address(0x123);

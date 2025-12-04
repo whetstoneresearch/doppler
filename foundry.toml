@@ -9,6 +9,7 @@ fs_permissions = [
   { access = "read", path = "./lib" },
   { access = "read", path = "./script" },
   { access = "write", path = "./deployments" },
+  { access = "read-write", path = "./deployments.config.toml" },
 ]
 optimizer_runs = 0
 bytecode_hash = "none"
