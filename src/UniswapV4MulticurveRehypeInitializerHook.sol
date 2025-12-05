@@ -302,7 +302,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
 
         Position storage position = getPosition[poolId];
-        _initializePositionIfNeeded(position, key, poolId);
 
         bool shouldSwap;
         bool zeroForOne;
