@@ -250,7 +250,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint256 balance1 = getHookFees[poolId].fees1;
 
         if (balance0 <= EPSILON && balance1 <= EPSILON) {
-            return (BaseHook.afterSwap.selector, delta.amount0());
+            return (BaseHook.afterSwap.selector, 0);
         }
 
         address asset = getPoolInfo[poolId].asset;
@@ -260,21 +260,21 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint256 numeraireBuybackPercentWad = getFeeDistributionInfo[poolId].numeraireBuybackPercentWad;
         uint256 lpPercentWad = getFeeDistributionInfo[poolId].lpPercentWad;
 
-        uint256 assetBuybackAmount = isToken0
+        uint256 assetBuybackAmountIn = isToken0
             ? FullMath.mulDiv(balance1, assetBuybackPercentWad, WAD)
             : FullMath.mulDiv(balance0, assetBuybackPercentWad, WAD);
 
-        uint256 numeraireBuybackAmount = isToken0
+        uint256 numeraireBuybackAmountIn = isToken0
             ? FullMath.mulDiv(balance0, numeraireBuybackPercentWad, WAD)
             : FullMath.mulDiv(balance1, numeraireBuybackPercentWad, WAD);
 
         uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, WAD);
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
 
-        if (assetBuybackAmount > 0) {
+        if (assetBuybackAmountIn > 0) {
             // do not need to check poolManager balance - its assumed that there will always be liquidity in asset because of the full range liquidity position
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountIn) =
-                _executeSwap(key, !isToken0, assetBuybackAmount);
+                _executeSwap(key, !isToken0, assetBuybackAmountIn);
             isToken0
                 ? key.currency0.transfer(getPoolInfo[poolId].buybackDst, assetBuybackAmountOut)
                 : key.currency1.transfer(getPoolInfo[poolId].buybackDst, assetBuybackAmountOut);
@@ -282,17 +282,21 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             balance1 = isToken0 ? balance1 - assetBuybackAmountIn : balance1;
         }
 
-        if (numeraireBuybackAmount > 0) {
+        if (numeraireBuybackAmountIn > 0) {
             Currency outputCurrency = isToken0 ? key.currency1 : key.currency0;
-            // must check poolManager balance or else this will revert on failed transfer due to missing tokens
-            if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > numeraireBuybackAmount) {
-                (, uint256 numeraireBuybackAmountOut, uint256 numeraireBuybackAmountIn) =
-                    _executeSwap(key, isToken0, numeraireBuybackAmount);
+            Currency inputCurrency = isToken0 ? key.currency0 : key.currency1;
+            SwapSimulation memory sim = _simulateSwap(
+                key, isToken0, numeraireBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1
+            );
+            uint256 poolManagerOutputBalance = IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager));
+            if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
+                (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
+                    _executeSwap(key, isToken0, numeraireBuybackAmountIn);
                 isToken0
-                    ? key.currency1.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOut)
-                    : key.currency0.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOut);
-                balance0 = isToken0 ? balance0 - numeraireBuybackAmountIn : balance0;
-                balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountIn;
+                    ? key.currency1.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOutResult)
+                    : key.currency0.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOutResult);
+                balance0 = isToken0 ? balance0 - numeraireBuybackAmountInUsed : balance0;
+                balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountInUsed;
             }
         }
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
@@ -431,11 +435,22 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             new bytes(0)
         );
 
-        _settleDelta(key, delta);
-        _collectDelta(key, delta);
-
         uintIn = zeroForOne ? _abs(delta.amount0()) : _abs(delta.amount1());
         uintOut = zeroForOne ? _abs(delta.amount1()) : _abs(delta.amount0());
+
+        console.log("amountIn", uintIn);
+        console.log("amountOut", uintOut);
+
+        _settleDelta(key, delta);
+        console.log("token0 balance", IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this)));
+        console.log("token1 balance", IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this)));
+        console.log(
+            "token0 balance poolManager", IERC20(Currency.unwrap(key.currency0)).balanceOf(address(poolManager))
+        );
+        console.log(
+            "token1 balance poolManager", IERC20(Currency.unwrap(key.currency1)).balanceOf(address(poolManager))
+        );
+        _collectDelta(key, delta);
 
         (sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
         return (sqrtPriceX96, uintOut, uintIn);
