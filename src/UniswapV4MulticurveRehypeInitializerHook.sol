@@ -463,7 +463,7 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             return (amount0, amount1);
         }
 
-        (BalanceDelta balanceDelta,) = poolManager.modifyLiquidity(
+        (BalanceDelta balanceDelta, BalanceDelta feeDelta) = poolManager.modifyLiquidity(
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: position.tickLower,
@@ -474,13 +474,16 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             new bytes(0)
         );
 
-        _settleDelta(key, balanceDelta);
-        _collectDelta(key, balanceDelta);
+        // subtract the fees to avoid overflow when casting to uint
+        BalanceDelta realizedDelta = balanceDelta - feeDelta;
+
+        _settleDelta(key, realizedDelta);
+        _collectDelta(key, realizedDelta);
 
         position.liquidity += liquidityDelta;
 
-        amount0Added = uint256(uint128(-balanceDelta.amount0()));
-        amount1Added = uint256(uint128(-balanceDelta.amount1()));
+        amount0Added = uint256(uint128(-realizedDelta.amount0()));
+        amount1Added = uint256(uint128(-realizedDelta.amount1()));
     }
 
     function _settleDelta(
