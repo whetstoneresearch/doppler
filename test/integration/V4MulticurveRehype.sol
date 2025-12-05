@@ -52,7 +52,7 @@ contract LiquidityMigratorMock is ILiquidityMigrator {
     }
 }
 
-contract V4MulticurveInitializer is Deployers {
+contract V4MulticurveRehype is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
     UniswapV4MulticurveRehypeInitializer public initializer;
