@@ -435,22 +435,11 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             new bytes(0)
         );
 
+        _settleDelta(key, delta);
+        _collectDelta(key, delta);
+
         uintIn = zeroForOne ? _abs(delta.amount0()) : _abs(delta.amount1());
         uintOut = zeroForOne ? _abs(delta.amount1()) : _abs(delta.amount0());
-
-        console.log("amountIn", uintIn);
-        console.log("amountOut", uintOut);
-
-        _settleDelta(key, delta);
-        console.log("token0 balance", IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this)));
-        console.log("token1 balance", IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this)));
-        console.log(
-            "token0 balance poolManager", IERC20(Currency.unwrap(key.currency0)).balanceOf(address(poolManager))
-        );
-        console.log(
-            "token1 balance poolManager", IERC20(Currency.unwrap(key.currency1)).balanceOf(address(poolManager))
-        );
-        _collectDelta(key, delta);
 
         (sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
         return (sqrtPriceX96, uintOut, uintIn);
