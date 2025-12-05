@@ -577,11 +577,9 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
             MigrationMath.computeDepositAmounts(fees0, fees1, sqrtPriceX96);
 
         if (depositAmount0 > fees0) {
-            (, depositAmount1) = MigrationMath.computeDepositAmounts(fees0, depositAmount1, sqrtPriceX96);
             excess0 = 0;
             excess1 = fees1 > depositAmount1 ? fees1 - depositAmount1 : 0;
         } else {
-            (depositAmount0,) = MigrationMath.computeDepositAmounts(depositAmount0, fees1, sqrtPriceX96);
             excess0 = fees0 > depositAmount0 ? fees0 - depositAmount0 : 0;
             excess1 = 0;
         }
