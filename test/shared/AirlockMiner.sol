@@ -27,6 +27,7 @@ struct MineDopplerHookInitializerParams {
     address airlock;
     address poolManager;
     address deployer;
+    address sender;
 }
 
 function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory params) view returns (bytes32, address) {
@@ -34,16 +35,34 @@ function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory para
         abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(params.airlock, params.poolManager))
     );
 
-    for (uint256 salt; salt < 200_000; salt++) {
-        address initializer = computeCreate2Address(bytes32(salt), initHash, params.deployer);
+    bytes32 salt = bytes32((uint256(uint160(params.sender)) << 96));
+
+    for (uint96 seed; seed < type(uint96).max; seed++) {
+        salt = salt | bytes12(seed);
+        address initializer = computeCreate3Address(salt, params.deployer);
         if (
             uint160(initializer) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_INITIALIZER_FLAGS && initializer.code.length == 0
         ) {
-            return (bytes32(salt), initializer);
+            return (salt, initializer);
         }
     }
 
     revert("AirlockMiner: could not find salt");
+}
+
+function computeCreate3Address(bytes32 salt, address deployer) pure returns (address computedAddress) {
+    assembly ("memory-safe") {
+        let ptr := mload(0x40)
+        mstore(0x00, deployer)
+        mstore8(0x0b, 0xff)
+        mstore(0x20, salt)
+        mstore(0x40, hex"21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f")
+        mstore(0x14, keccak256(0x0b, 0x55))
+        mstore(0x40, ptr)
+        mstore(0x00, 0xd694)
+        mstore8(0x34, 0x01)
+        computedAddress := keccak256(0x1e, 0x17)
+    }
 }
 
 /* ---------------------------------------------------------------------------------- */
