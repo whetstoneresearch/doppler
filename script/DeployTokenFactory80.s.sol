@@ -28,8 +28,8 @@ contract DeployTokenFactory80Script is Script, Config {
         address tokenFactory = ICreateX(createX)
             .deployCreate3(salt, abi.encodePacked(type(TokenFactory80).creationCode, abi.encode(airlock)));
 
-        console.log("TokenFactory80 deployed to:", address(tokenFactory));
-        config.set("token_factory_80", address(tokenFactory));
+        console.log("TokenFactory80 deployed to:", tokenFactory);
+        config.set("token_factory_80", tokenFactory);
         vm.stopBroadcast();
     }
 }

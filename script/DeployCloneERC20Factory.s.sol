@@ -28,8 +28,8 @@ contract DeployCloneERC20FactoryScript is Script, Config {
         address cloneERC20Factory = ICreateX(createX)
             .deployCreate3(salt, abi.encodePacked(type(CloneERC20Factory).creationCode, abi.encode(airlock)));
 
-        console.log("CloneERC20Factory deployed to:", address(cloneERC20Factory));
-        config.set("clone_erc20_factory", address(cloneERC20Factory));
+        console.log("CloneERC20Factory deployed to:", cloneERC20Factory);
+        config.set("clone_erc20_factory", cloneERC20Factory);
         vm.stopBroadcast();
     }
 }
