@@ -157,21 +157,8 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         int256 liquidityDelta = params.liquidityDelta;
 
         if (liquidityDelta != 0) {
-            if (storedPosition.salt == bytes32(0)) {
-                int24 minTick = TickMath.minUsableTick(key.tickSpacing);
-                int24 maxTick = TickMath.maxUsableTick(key.tickSpacing);
-                if (params.tickLower == minTick || params.tickUpper == maxTick) {
-                    storedPosition.tickLower = params.tickLower;
-                    storedPosition.tickUpper = params.tickUpper;
-                    storedPosition.salt = params.salt;
-                    if (liquidityDelta > 0) {
-                        storedPosition.liquidity = uint128(uint256(liquidityDelta));
-                    }
-                }
-            } else if (storedPosition.salt == params.salt) {
-                if (liquidityDelta > 0) {
-                    storedPosition.liquidity += uint128(uint256(liquidityDelta));
-                }
+            if (liquidityDelta > 0) {
+                storedPosition.liquidity += uint128(uint256(liquidityDelta));
             }
         }
 
@@ -387,7 +374,6 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
                 } else {
                     if (low == guess) {
                         if (high <= guess + 1) break;
-                        low = guess;
                     } else {
                         low = guess;
                     }
