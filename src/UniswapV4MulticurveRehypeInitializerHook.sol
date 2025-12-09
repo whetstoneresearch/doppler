@@ -437,13 +437,16 @@ contract UniswapV4MulticurveRehypeInitializerHook is BaseHook {
         uint256 amount1,
         uint160 sqrtPriceX96
     ) internal returns (uint256 amount0Added, uint256 amount1Added) {
-        uint128 liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtPriceX96,
-            TickMath.getSqrtPriceAtTick(position.tickLower),
-            TickMath.getSqrtPriceAtTick(position.tickUpper),
-            amount0,
-            amount1
-        );
+        uint128 liquidityDelta = 0;
+        if (amount0 >= 1 && amount1 >= 1) {
+            liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
+                sqrtPriceX96,
+                TickMath.getSqrtPriceAtTick(position.tickLower),
+                TickMath.getSqrtPriceAtTick(position.tickUpper),
+                amount0 - 1,
+                amount1 - 1
+            );
+        }
 
         if (liquidityDelta == 0) {
             return (amount0, amount1);
