@@ -19,8 +19,5 @@
   },
   "lib/v4-periphery": {
     "rev": "9628c36b4f5083d19606e63224e4041fe748edae"
-  },
-  "lib/view-quoter-v4": {
-    "rev": "f05058eb219687b01000476857c63c8bd129e308"
   }
 }
