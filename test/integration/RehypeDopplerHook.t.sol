@@ -286,13 +286,18 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             amountSpecified: 1 ether,
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
-
         BalanceDelta delta1 =
             swapRouter.swap(poolKey, swapParams1, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
+        console.log("delta1.amount0()", delta1.amount0());
+        console.log("delta1.amount1()", delta1.amount1());
+
         int256 amountToSwapBack = isToken0
-            ? int256(uint256(uint128(-delta1.amount0())) / 2)
-            : int256(uint256(uint128(-delta1.amount1())) / 2);
+            ? -int256(uint256(uint128(delta1.amount0())) / 2)
+            : -int256(uint256(uint128(delta1.amount1())) / 2);
+        console.log("amountToSwapBack", amountToSwapBack);
+
+        console.log("asset balance this", TestERC20(asset).balanceOf(address(this)));
 
         IPoolManager.SwapParams memory swapParams2 = IPoolManager.SwapParams({
             zeroForOne: isToken0,
@@ -341,7 +346,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint256 initializerBalance1Before =
                 TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(initializer));
 
-            BalanceDelta fees = rehypeDopplerHook.collectFees(poolId);
+            BalanceDelta fees = rehypeDopplerHook.collectFees(address(asset));
 
             (,,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After) = rehypeDopplerHook.getHookFees(poolId);
             assertEq(beneficiaryFees0After, 0, "Beneficiary fees0 should be 0 after collection");

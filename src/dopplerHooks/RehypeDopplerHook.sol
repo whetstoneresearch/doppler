@@ -160,6 +160,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
             balance0 = isToken0 ? balance0 : balance0 - assetBuybackAmountInUsed;
             balance1 = isToken0 ? balance1 - assetBuybackAmountInUsed : balance1;
         }
+        console.log("isToken0", isToken0);
 
         if (numeraireBuybackAmountIn > 0) {
             Currency outputCurrency = isToken0 ? key.currency1 : key.currency0;
@@ -193,6 +194,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         console.log("swapAmountOut", swapAmountOut);
         console.log("postSwapSqrtPrice", postSwapSqrtPrice);
         if (shouldSwap && swapAmountIn > 0) {
+            console.log("here???");
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
             if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > swapAmountOut) {
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
@@ -411,8 +413,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
             int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32
         ) {
             if (zeroForOne) {
+                console.log("zeroForOne");
                 if (amount0 >= 0 || amount1 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount0);
+                console.log("amountIn", amountIn);
                 if (amountIn > fees0) return simulation;
                 uint256 amountOut = uint256(amount1);
                 simulation.success = true;
@@ -421,8 +425,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 simulation.fees0 = fees0 - amountIn;
                 simulation.fees1 = fees1 + amountOut;
             } else {
+                console.log("!zeroForOne");
+                console.log("amount1", amount1);
+                console.log("amount0", amount0);
                 if (amount1 >= 0 || amount0 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount1);
+                console.log("amountIn", amountIn);
                 if (amountIn > fees1) return simulation;
                 uint256 amountOut = uint256(amount0);
                 simulation.success = true;
