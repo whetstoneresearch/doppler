@@ -12,7 +12,6 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { console } from "forge-std/console.sol";
 import { IERC20 } from "lib/universal-router/lib/v4-periphery/lib/v4-core/lib/forge-std/src/interfaces/IERC20.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
@@ -125,8 +124,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         uint256 balance0 = getHookFees[poolId].fees0;
         uint256 balance1 = getHookFees[poolId].fees1;
-        console.log("balance0", balance0);
-        console.log("balance1", balance1);
 
         if (balance0 <= EPSILON && balance1 <= EPSILON) {
             return (Currency.wrap(address(0)), 0);
@@ -149,9 +146,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, WAD);
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
-
-        console.log("addedTogether", assetBuybackAmountIn + numeraireBuybackAmountIn + lpAmount0 + lpAmount1);
-        console.log("remainder", balance0 - (assetBuybackAmountIn + numeraireBuybackAmountIn + lpAmount0 + lpAmount1));
 
         if (assetBuybackAmountIn > 0) {
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
@@ -197,9 +191,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 balance1 = zeroForOne ? balance1 + swapAmountOut - amount1Added : balance1 - swapAmountIn - amount1Added;
             }
         }
-
-        console.log("balance0", balance0);
-        console.log("balance1", balance1);
 
         getHookFees[poolId].beneficiaryFees0 += uint128(balance0);
         getHookFees[poolId].beneficiaryFees1 += uint128(balance1);
@@ -407,10 +398,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
             int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32
         ) {
             if (zeroForOne) {
-                console.log("zeroForOne");
                 if (amount0 >= 0 || amount1 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount0);
-                console.log("amountIn", amountIn);
                 if (amountIn > fees0) return simulation;
                 uint256 amountOut = uint256(amount1);
                 simulation.success = true;
@@ -419,12 +408,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 simulation.fees0 = fees0 - amountIn;
                 simulation.fees1 = fees1 + amountOut;
             } else {
-                console.log("!zeroForOne");
-                console.log("amount1", amount1);
-                console.log("amount0", amount0);
                 if (amount1 >= 0 || amount0 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount1);
-                console.log("amountIn", amountIn);
                 if (amountIn > fees1) return simulation;
                 uint256 amountOut = uint256(amount0);
                 simulation.success = true;

@@ -117,13 +117,26 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bytes32 salt = bytes32(uint256(2));
         (bool isToken0, address asset) = _createToken(salt);
 
-        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+        IPoolManager.SwapParams memory swapParamsIn = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: 1 ether,
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        BalanceDelta delta1 =
+            swapRouter.swap(poolKey, swapParamsIn, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        int256 amountToSwapBack = isToken0
+            ? -int256(uint256(uint128(delta1.amount0())) / 2)
+            : -int256(uint256(uint128(delta1.amount1())) / 2);
+
+        IPoolManager.SwapParams memory swapParamsOut = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: amountToSwapBack,
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(poolKey, swapParamsOut, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         (uint24 customFee, uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1) =
             rehypeDopplerHook.getHookFees(poolId);
