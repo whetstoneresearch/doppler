@@ -57,7 +57,7 @@ contract MockDopplerHook is IDopplerHook {
         IPoolManager.SwapParams calldata,
         BalanceDelta,
         bytes calldata
-    ) external { }
+    ) external returns (Currency, int128) { }
     function onGraduation(address, PoolKey calldata, bytes calldata) external { }
 }
 

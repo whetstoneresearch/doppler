@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
@@ -41,9 +42,10 @@ contract ScheduledLaunchDopplerHook is BaseDopplerHook {
         IPoolManager.SwapParams calldata,
         BalanceDelta,
         bytes calldata
-    ) internal view override {
+    ) internal view override returns (Currency, int128) {
         PoolId poolId = key.toId();
         uint256 startingTime = getStartingTimeOf[poolId];
         require(block.timestamp >= startingTime, SaleHasNotStartedYet(startingTime, block.timestamp));
+        return (Currency.wrap(address(0)), 0);
     }
 }

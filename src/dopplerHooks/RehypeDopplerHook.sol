@@ -114,13 +114,14 @@ contract RehypeDopplerHook is BaseDopplerHook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta delta,
         bytes calldata
-    ) internal override {
+    ) internal override returns (Currency, int128) {
         if (sender == address(this)) {
-            return;
+            return (Currency.wrap(address(0)), 0);
         }
 
         PoolId poolId = key.toId();
-        _collectSwapFees(params, delta, key, poolId);
+
+        (Currency feeCurrency, int128 hookDelta) = _collectSwapFees(params, delta, key, poolId);
 
         uint256 balance0 = getHookFees[poolId].fees0;
         uint256 balance1 = getHookFees[poolId].fees1;
@@ -128,7 +129,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         console.log("balance1", balance1);
 
         if (balance0 <= EPSILON && balance1 <= EPSILON) {
-            return;
+            return (Currency.wrap(address(0)), 0);
         }
 
         address asset = getPoolInfo[poolId].asset;
@@ -214,6 +215,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         getHookFees[poolId].fees0 = 0;
         getHookFees[poolId].fees1 = 0;
+
+        return (feeCurrency, hookDelta);
     }
 
     function _rebalanceFees(
@@ -571,31 +574,26 @@ contract RehypeDopplerHook is BaseDopplerHook {
         BalanceDelta delta,
         PoolKey memory key,
         PoolId poolId
-    ) internal {
+    ) internal returns (Currency feeCurrency, int128 feeDelta) {
         bool outputIsToken0 = params.zeroForOne ? false : true;
         int256 outputAmount = outputIsToken0 ? delta.amount0() : delta.amount1();
 
         if (outputAmount <= 0) {
-            return;
+            return (feeCurrency, feeDelta);
         }
 
-        uint256 feeAmount = FullMath.mulDiv(uint256(outputAmount), getHookFees[poolId].customFee, MAX_SWAP_FEE);
-        console.log("feeAmount", feeAmount);
-
-        bool isExactIn = params.amountSpecified < 0;
-        Currency feeCurrency;
-        if (isExactIn) {
+        if (params.amountSpecified < 0) {
             feeCurrency = outputIsToken0 ? key.currency0 : key.currency1;
         } else {
             bool inputIsToken0 = params.zeroForOne ? true : false;
             feeCurrency = inputIsToken0 ? key.currency0 : key.currency1;
         }
 
-        uint256 balanceOfFeeCurrency = IERC20(Currency.unwrap(feeCurrency)).balanceOf(address(poolManager));
-        console.log("balanceOfFeeCurrency", balanceOfFeeCurrency);
+        uint256 feeAmount = FullMath.mulDiv(uint256(outputAmount), getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
-            return;
+            return (feeCurrency, feeDelta);
         }
 
         poolManager.take(feeCurrency, address(this), feeAmount);
@@ -605,6 +603,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
         } else {
             getHookFees[poolId].fees1 += uint128(feeAmount);
         }
+
+        return (feeCurrency, int128(uint128(feeAmount)));
     }
 }
 

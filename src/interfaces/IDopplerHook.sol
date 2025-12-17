@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 /**
@@ -23,11 +24,12 @@ interface IDopplerHook {
     function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external;
 
     /**
-     * @notice Called before every swap executed on the pool
+     * @notice Called after every swap executed
      * @param sender Address of the swap sender
      * @param key Key of the Uniswap V4 pool where the swap is executed
      * @param params Swap parameters as defined in IPoolManager
      * @param data Extra data to pass to the hook
+     * @return Hook's delta in unspecified currency (Positive: the hook is owed/took currency, negative: the hook owes/sent currency)
      */
     function onSwap(
         address sender,
@@ -35,7 +37,7 @@ interface IDopplerHook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta delta,
         bytes calldata data
-    ) external;
+    ) external returns (Currency, int128);
 
     /**
      * @notice Called when the pool graduates

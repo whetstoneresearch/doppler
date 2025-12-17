@@ -545,11 +545,23 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         address asset = getAsset[key.toId()];
         PoolState memory state = getState[asset];
         address dopplerHook = state.dopplerHook;
+
+        int128 delta;
+
         if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
-            IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+            Currency feeCurrency;
+            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+
+            if (delta != 0) {
+                poolManager.take(feeCurrency, address(this), uint128(delta));
+                poolManager.sync(feeCurrency);
+                feeCurrency.transfer(address(poolManager), uint128(delta));
+                poolManager.settleFor(dopplerHook);
+            }
         }
+
         emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
-        return (BaseHook.afterSwap.selector, 0);
+        return (BaseHook.afterSwap.selector, delta);
     }
 
     /// @inheritdoc BaseHook
@@ -566,7 +578,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
+            afterSwapReturnDelta: true,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });

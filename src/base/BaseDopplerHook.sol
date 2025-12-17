@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 
@@ -54,8 +55,8 @@ abstract contract BaseDopplerHook is IDopplerHook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta balanceDelta,
         bytes calldata data
-    ) external onlyInitializer {
-        _onSwap(sender, key, params, balanceDelta, data);
+    ) external onlyInitializer returns (Currency, int128) {
+        return _onSwap(sender, key, params, balanceDelta, data);
     }
 
     /// @inheritdoc IDopplerHook
@@ -73,7 +74,7 @@ abstract contract BaseDopplerHook is IDopplerHook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta balanceDelta,
         bytes calldata data
-    ) internal virtual { }
+    ) internal virtual returns (Currency, int128) { }
 
     /// @dev Internal function to be overridden for graduation logic
     function _onGraduation(address asset, PoolKey calldata key, bytes calldata data) internal virtual { }
