@@ -193,10 +193,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
                 (uint256 amount0Added, uint256 amount1Added) =
                     _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
-                uint256 remainder0 = lpAmount0 - amount0Added;
-                uint256 remainder1 = lpAmount1 - amount1Added;
-                balance0 = zeroForOne ? balance0 - (amount0Added + swapAmountIn) + remainder0 : balance0 + remainder0;
-                balance1 = zeroForOne ? balance1 + remainder1 : balance1 - (amount1Added + swapAmountIn) + remainder1;
+                balance0 = zeroForOne ? balance0 - swapAmountIn - amount0Added : balance0 + swapAmountOut - amount0Added;
+                balance1 = zeroForOne ? balance1 + swapAmountOut - amount1Added : balance1 - swapAmountIn - amount1Added;
             }
         }
 
