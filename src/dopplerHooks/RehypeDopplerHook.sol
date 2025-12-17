@@ -150,29 +150,26 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, WAD);
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
 
+        console.log("addedTogether", assetBuybackAmountIn + numeraireBuybackAmountIn + lpAmount0 + lpAmount1);
+        console.log("remainder", balance0 - (assetBuybackAmountIn + numeraireBuybackAmountIn + lpAmount0 + lpAmount1));
+
         if (assetBuybackAmountIn > 0) {
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
                 _executeSwap(key, !isToken0, assetBuybackAmountIn);
-            console.log("assetBuybackAmountOut", assetBuybackAmountOut);
             isToken0
                 ? key.currency0.transfer(getPoolInfo[poolId].buybackDst, assetBuybackAmountOut)
                 : key.currency1.transfer(getPoolInfo[poolId].buybackDst, assetBuybackAmountOut);
-            console.log("assetBuybackAmountInUsed", assetBuybackAmountInUsed);
             balance0 = isToken0 ? balance0 : balance0 - assetBuybackAmountInUsed;
             balance1 = isToken0 ? balance1 - assetBuybackAmountInUsed : balance1;
         }
-        console.log("isToken0", isToken0);
 
         if (numeraireBuybackAmountIn > 0) {
             Currency outputCurrency = isToken0 ? key.currency1 : key.currency0;
             SwapSimulation memory sim = _simulateSwap(
                 key, isToken0, numeraireBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1
             );
-            console.log("sim.success", sim.success);
-            console.log("sim.amountOut", sim.amountOut);
             uint256 poolManagerOutputBalance = IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager));
             if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
-                console.log("here");
                 (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
                     _executeSwap(key, isToken0, numeraireBuybackAmountIn);
                 isToken0
@@ -180,22 +177,15 @@ contract RehypeDopplerHook is BaseDopplerHook {
                     : key.currency0.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOutResult);
                 balance0 = isToken0 ? balance0 - numeraireBuybackAmountInUsed : balance0;
                 balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountInUsed;
-                console.log("here");
             }
         }
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
 
         Position storage position = getPosition[poolId];
-        console.log("rebalancing");
         (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut, uint160 postSwapSqrtPrice) =
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
-        console.log("shouldSwap", shouldSwap);
-        console.log("swapAmountIn", swapAmountIn);
-        console.log("swapAmountOut", swapAmountOut);
-        console.log("postSwapSqrtPrice", postSwapSqrtPrice);
         if (shouldSwap && swapAmountIn > 0) {
-            console.log("here???");
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
             if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > swapAmountOut) {
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
@@ -209,6 +199,9 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 balance1 = zeroForOne ? balance1 + remainder1 : balance1 - (amount1Added + swapAmountIn) + remainder1;
             }
         }
+
+        console.log("balance0", balance0);
+        console.log("balance1", balance1);
 
         getHookFees[poolId].beneficiaryFees0 += uint128(balance0);
         getHookFees[poolId].beneficiaryFees1 += uint128(balance1);
@@ -343,7 +336,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
 
         if (liquidityDelta == 0) {
-            return (amount0, amount1);
+            return (0, 0);
         }
 
         (BalanceDelta balanceDelta, BalanceDelta feeDelta) = poolManager.modifyLiquidity(

@@ -8,13 +8,14 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
-import { RehypeDopplerHook, FeeDistributionMustAddUpToWAD } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { FeeDistributionMustAddUpToWAD, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { FeeDistributionInfo, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
-import { PoolInfo, FeeDistributionInfo, HookFees } from "src/types/RehypeTypes.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
-}
+
+    }
 
 contract RehypeDopplerHookTest is Test {
     RehypeDopplerHook internal dopplerHook;
@@ -41,6 +42,7 @@ contract RehypeDopplerHookTest is Test {
     /* -------------------------------------------------------------------------------- */
 
     function test_onInitialization_StoresPoolInfo(bool isTokenZero, PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
         address asset = Currency.unwrap(isTokenZero ? poolKey.currency0 : poolKey.currency1);
         address numeraire = Currency.unwrap(isTokenZero ? poolKey.currency1 : poolKey.currency0);
         address buybackDst = makeAddr("buybackDst");
@@ -74,12 +76,8 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedBuybackDst, buybackDst);
 
         // Check fee distribution info
-        (
-            uint256 storedAssetBuyback,
-            uint256 storedNumeraireBuyback,
-            uint256 storedBeneficiary,
-            uint256 storedLp
-        ) = dopplerHook.getFeeDistributionInfo(poolId);
+        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
+            dopplerHook.getFeeDistributionInfo(poolId);
         assertEq(storedAssetBuyback, assetBuybackPercentWad);
         assertEq(storedNumeraireBuyback, numeraireBuybackPercentWad);
         assertEq(storedBeneficiary, beneficiaryPercentWad);
@@ -167,7 +165,7 @@ contract RehypeDopplerHookTest is Test {
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
-        uint24 customFee = 10000; // 1%
+        uint24 customFee = 10_000; // 1%
 
         // All fees go to beneficiary for simple testing
         bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0);
@@ -211,12 +209,8 @@ contract RehypeDopplerHookTest is Test {
         vm.prank(initializer);
         dopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
 
-        (
-            uint256 storedAssetBuyback,
-            uint256 storedNumeraireBuyback,
-            uint256 storedBeneficiary,
-            uint256 storedLp
-        ) = dopplerHook.getFeeDistributionInfo(poolId);
+        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
+            dopplerHook.getFeeDistributionInfo(poolId);
 
         assertEq(storedAssetBuyback, 0.5e18);
         assertEq(storedNumeraireBuyback, 0);
@@ -327,7 +321,7 @@ contract RehypeDopplerHookTest is Test {
         // Note: This will revert or return zeros depending on implementation
         // For now, we just verify the hook fees are zero
         PoolId poolId = poolKey.toId();
-        (,,,uint128 beneficiaryFees0, uint128 beneficiaryFees1) = dopplerHook.getHookFees(poolId);
+        (,,, uint128 beneficiaryFees0, uint128 beneficiaryFees1) = dopplerHook.getHookFees(poolId);
 
         assertEq(beneficiaryFees0, 0);
         assertEq(beneficiaryFees1, 0);

@@ -148,11 +148,13 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         BalanceDelta delta1 =
             swapRouter.swap(poolKey, swapParamsIn, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
+        int256 amountToSwapBack = isToken0
+            ? -int256(uint256(uint128(delta1.amount0())) / 2)
+            : -int256(uint256(uint128(delta1.amount1())) / 2);
+
         IPoolManager.SwapParams memory swapParamsOut = IPoolManager.SwapParams({
             zeroForOne: isToken0,
-            amountSpecified: isToken0
-                ? int256(uint256(uint128(-delta1.amount0())) / 2)
-                : int256(uint256(uint128(-delta1.amount1())) / 2),
+            amountSpecified: amountToSwapBack,
             sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
@@ -328,8 +330,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             swapRouter.swap(poolKey, swapParams1, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         int256 amountToSwapBack = isToken0
-            ? int256(uint256(uint128(-delta1.amount0())) / 2)
-            : int256(uint256(uint128(-delta1.amount1())) / 2);
+            ? -int256(uint256(uint128(delta1.amount0())) / 2)
+            : -int256(uint256(uint128(delta1.amount1())) / 2);
 
         IPoolManager.SwapParams memory swapParams2 = IPoolManager.SwapParams({
             zeroForOne: isToken0,
@@ -346,6 +348,13 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(initializer));
             uint256 initializerBalance1Before =
                 TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(initializer));
+
+            console.log(
+                "rehypebalance0", TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(rehypeDopplerHook))
+            );
+            console.log(
+                "rehypebalance1", TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(rehypeDopplerHook))
+            );
 
             BalanceDelta fees = rehypeDopplerHook.collectFees(address(asset));
 
