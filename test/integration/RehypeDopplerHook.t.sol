@@ -279,7 +279,6 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     }
 
     function test_bidirectionalSwaps_GenerateFeesOnBothTokens() public {
-        vm.skip(true);
         bytes32 salt = bytes32(uint256(11));
         (bool isToken0, address asset) = _createToken(salt);
 
