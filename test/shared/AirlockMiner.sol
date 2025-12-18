@@ -20,7 +20,7 @@ import { DERC20 } from "src/tokens/DERC20.sol";
 
 uint160 constant DOPPLER_HOOK_INITIALIZER_FLAGS = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-        | Hooks.AFTER_SWAP_FLAG
+        | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
 );
 
 struct MineDopplerHookInitializerParams {
