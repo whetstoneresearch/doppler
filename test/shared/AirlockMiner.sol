@@ -24,21 +24,16 @@ uint160 constant DOPPLER_HOOK_INITIALIZER_FLAGS = uint160(
 );
 
 struct MineDopplerHookInitializerParams {
-    address airlock;
-    address poolManager;
     address deployer;
     address sender;
 }
 
 function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory params) view returns (bytes32, address) {
-    bytes32 initHash = keccak256(
-        abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(params.airlock, params.poolManager))
-    );
-
     bytes32 salt = bytes32((uint256(uint160(params.sender)) << 96));
 
     for (uint96 seed; seed < type(uint96).max; seed++) {
-        salt = salt | bytes12(seed);
+        salt = bytes32((uint256(uint160(params.sender)) << 96)) | bytes32(uint256(seed));
+
         address initializer = computeCreate3Address(salt, params.deployer);
         if (
             uint160(initializer) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_INITIALIZER_FLAGS && initializer.code.length == 0
