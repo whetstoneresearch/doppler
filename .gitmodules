@@ -19,3 +19,6 @@
 [submodule "lib/universal-router"]
 	path = lib/universal-router
 	url = https://github.com/Uniswap/universal-router
+[submodule "lib/view-quoter-v4"]
+	path = lib/view-quoter-v4
+	url = https://github.com/Jun1on/view-quoter-v4
