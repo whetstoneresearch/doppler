@@ -32,6 +32,7 @@ contract SwapRestrictorDopplerHookTest is Test {
         address[] calldata approved,
         uint256 maxAmount
     ) public {
+        vm.assume(Currency.unwrap(poolKey.currency0) != Currency.unwrap(poolKey.currency1));
         address asset = Currency.unwrap(isTokenZero ? poolKey.currency0 : poolKey.currency1);
         PoolId poolId = poolKey.toId();
 
