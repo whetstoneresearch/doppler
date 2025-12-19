@@ -143,6 +143,9 @@ interface IOpeningAuction {
     /// @notice Thrown when maximum number of unique ticks is exceeded
     error MaxTicksExceeded();
 
+    /// @notice Thrown when partial liquidity removal is attempted (only full removal allowed)
+    error PartialRemovalNotAllowed();
+
     /// @notice Thrown when isToken0 has already been set
     error IsToken0AlreadySet();
 
