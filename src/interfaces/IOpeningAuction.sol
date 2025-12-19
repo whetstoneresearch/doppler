@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 /// @notice Phase of the opening auction
 enum AuctionPhase {
@@ -121,6 +121,9 @@ interface IOpeningAuction {
 
     /// @notice Thrown when caller is not the initializer
     error SenderNotInitializer();
+
+    /// @notice Thrown when caller is not the pool manager
+    error SenderNotPoolManager();
 
     /// @notice Thrown when the pool is already initialized
     error AlreadyInitialized();

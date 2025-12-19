@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -178,7 +178,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Only pool manager can send ETH
     receive() external payable {
-        if (msg.sender != address(poolManager)) revert SenderNotInitializer();
+        if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
     }
 
     // ============ External Functions ============
@@ -1091,20 +1091,24 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     }
 
     /// @notice Unlock callback for pool manager operations (settlement swap)
+    /// @dev Protected by nonReentrant on settleAuction + msg.sender check
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        if (msg.sender != address(poolManager)) revert SenderNotInitializer();
+        if (msg.sender != address(poolManager)) revert SenderNotPoolManager();
 
         uint256 amountToSell = abi.decode(data, (uint256));
 
-        // Execute the swap
+        // TOCTOU fix: Use minAcceptableTick as price limit instead of extreme values
+        // This ensures the settlement swap cannot execute at a worse price than validated
+        // in settleAuction() even if liquidity changes between validation and execution
+        uint160 sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(minAcceptableTick);
+
+        // Execute the swap with price limit based on minAcceptableTick
         BalanceDelta delta = poolManager.swap(
             poolKey,
             IPoolManager.SwapParams({
                 zeroForOne: isToken0,
                 amountSpecified: -int256(amountToSell),
-                sqrtPriceLimitX96: isToken0
-                    ? TickMath.MIN_SQRT_PRICE + 1
-                    : TickMath.MAX_SQRT_PRICE - 1
+                sqrtPriceLimitX96: sqrtPriceLimitX96
             }),
             ""
         );
