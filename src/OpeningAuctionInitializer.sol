@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.26;
 
 import { IPoolManager, PoolKey, IHooks } from "@v4-core/PoolManager.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { alignTickTowardZero, alignTick } from "src/libraries/TickLibrary.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { OpeningAuction } from "src/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
@@ -61,6 +62,15 @@ error DopplerNotActive();
 /// @param dopplerTickSpacing The tick spacing configured for Doppler
 error IncompatibleTickSpacing(int24 auctionTickSpacing, int24 dopplerTickSpacing);
 
+/// @notice Thrown when asset has already been initialized
+error AssetAlreadyInitialized();
+
+/// @notice Thrown when isToken0 in dopplerData doesn't match derived value
+error IsToken0Mismatch();
+
+/// @notice Thrown when exitLiquidity target is not a valid Doppler hook
+error InvalidExitTarget();
+
 /// @notice Emitted when an opening auction transitions to Doppler
 event AuctionCompleted(
     address indexed asset,
@@ -68,6 +78,9 @@ event AuctionCompleted(
     uint256 tokensSold,
     uint256 proceeds
 );
+
+/// @notice Emitted when proceeds are forwarded to airlock
+event ProceedsForwarded(address indexed asset, address indexed numeraire, uint256 amount);
 
 /// @title OpeningAuctionDeployer
 /// @notice Deploys OpeningAuction hooks using CREATE2
@@ -107,7 +120,7 @@ interface IDopplerDeployer {
 /// @notice Initializes an Opening Auction that transitions to a Doppler Dutch auction
 /// @author Whetstone Research
 /// @custom:security-contact security@whetstone.cc
-contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
+contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, ReentrancyGuard {
     using CurrencyLibrary for Currency;
     using SafeTransferLib for address;
 
@@ -122,6 +135,9 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
 
     /// @notice State for each asset's opening auction
     mapping(address asset => OpeningAuctionState state) public getState;
+
+    /// @notice Reverse mapping from Doppler hook to asset address
+    mapping(address dopplerHook => address asset) public dopplerHookToAsset;
 
     /// @param airlock_ Address of the Airlock contract
     /// @param poolManager_ Address of the Uniswap V4 PoolManager
@@ -146,6 +162,11 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
         bytes32 salt,
         bytes calldata data
     ) external onlyAirlock returns (address) {
+        // Prevent re-initialization of the same asset
+        if (getState[asset].status != OpeningAuctionStatus.Uninitialized) {
+            revert AssetAlreadyInitialized();
+        }
+
         OpeningAuctionInitData memory initData = abi.decode(data, (OpeningAuctionInitData));
         OpeningAuctionConfig memory config = initData.auctionConfig;
 
@@ -163,6 +184,12 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
         // Validate token order matches what we expect
         if (isToken0 && asset > numeraire) revert InvalidTokenOrder();
         if (!isToken0 && asset < numeraire) revert InvalidTokenOrder();
+
+        // Validate isToken0 in dopplerData matches derived value
+        bool dopplerIsToken0 = _extractDopplerIsToken0(initData.dopplerData);
+        if (dopplerIsToken0 != isToken0) {
+            revert IsToken0Mismatch();
+        }
 
         // Calculate token split: auction gets incentiveShare + sale tokens
         // Doppler gets the rest
@@ -225,7 +252,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
     /// @dev Can be called by anyone after auction duration or when early exit conditions are met
     /// @dev This function settles the auction (if not already settled) and deploys Doppler
     /// @param asset The asset token address
-    function completeAuction(address asset) external {
+    function completeAuction(address asset) external nonReentrant {
         OpeningAuctionState storage state = getState[asset];
 
         if (state.status != OpeningAuctionStatus.AuctionActive) revert AuctionNotActive();
@@ -256,12 +283,25 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
 
         // Calculate tokens for Doppler (unsold from auction minus incentives already distributed)
         address assetToken = state.isToken0 ? token0 : token1;
+        address numeraireToken = state.isToken0 ? token1 : token0;
         uint256 unsoldTokens = state.isToken0 ? balance0 : balance1;
+        uint256 numeraireBalance = state.isToken0 ? balance1 : balance0;
 
-        // Decode and modify Doppler data to use clearing tick as starting tick
+        // Forward proceeds (numeraire) to airlock
+        if (numeraireBalance > 0) {
+            numeraireToken.safeTransfer(address(airlock), numeraireBalance);
+            emit ProceedsForwarded(asset, numeraireToken, numeraireBalance);
+        }
+
+        // Align clearing tick to Doppler's tick spacing
+        // The clearing tick from the auction may not be aligned to Doppler's tick spacing
+        int24 dopplerTickSpacing = _extractDopplerTickSpacing(state.dopplerInitData);
+        int24 alignedClearingTick = alignTick(state.isToken0, clearingTick, dopplerTickSpacing);
+
+        // Decode and modify Doppler data to use aligned clearing tick as starting tick
         bytes memory modifiedDopplerData = _modifyDopplerStartingTick(
             state.dopplerInitData,
-            clearingTick
+            alignedClearingTick
         );
 
         // Deploy Doppler hook
@@ -269,11 +309,13 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
         Doppler doppler = dopplerDeployer.deploy(unsoldTokens, dopplerSalt, modifiedDopplerData);
         state.dopplerHook = address(doppler);
 
+        // Store reverse mapping for exitLiquidity validation
+        dopplerHookToAsset[address(doppler)] = asset;
+
         // Create Doppler pool key
         // Use Doppler's tick spacing (from dopplerData), not the auction's tick spacing
         // The auction may use wider tick spacing for coarser price discovery,
         // but Doppler requires tick spacing <= 30
-        int24 dopplerTickSpacing = _extractDopplerTickSpacing(state.dopplerInitData);
         PoolKey memory dopplerPoolKey = PoolKey({
             currency0: state.openingAuctionPoolKey.currency0,
             currency1: state.openingAuctionPoolKey.currency1,
@@ -287,12 +329,12 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
             assetToken.safeTransfer(address(doppler), unsoldTokens);
         }
 
-        // Initialize Doppler pool at clearing tick
-        poolManager.initialize(dopplerPoolKey, TickMath.getSqrtPriceAtTick(clearingTick));
+        // Initialize Doppler pool at aligned clearing tick
+        poolManager.initialize(dopplerPoolKey, TickMath.getSqrtPriceAtTick(alignedClearingTick));
 
         state.status = OpeningAuctionStatus.DopplerActive;
 
-        emit AuctionCompleted(asset, clearingTick, tokensSold, proceeds);
+        emit AuctionCompleted(asset, alignedClearingTick, tokensSold, proceeds);
     }
 
     /// @inheritdoc IPoolInitializer
@@ -311,14 +353,20 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
             uint128 balance1
         )
     {
-        // Find the asset for this target
-        // Target could be either the auction hook or doppler hook
-        // We need to iterate through states to find it
-        // For simplicity, assume target is passed correctly
+        // Validate target is a known Doppler hook
+        address asset = dopplerHookToAsset[target];
+        if (asset == address(0)) {
+            revert InvalidExitTarget();
+        }
 
-        // Try to find the asset by checking if target matches any known hook
-        // This is a simplified implementation - in production you might want
-        // a reverse mapping
+        // Validate state is DopplerActive
+        OpeningAuctionState storage state = getState[asset];
+        if (state.status != OpeningAuctionStatus.DopplerActive) {
+            revert DopplerNotActive();
+        }
+
+        // Update status to Exited
+        state.status = OpeningAuctionStatus.Exited;
 
         // Delegate to Doppler's migrate
         return Doppler(payable(target)).migrate(address(airlock));
@@ -343,6 +391,16 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock {
     /// @return tickSpacing The tick spacing configured for Doppler
     function _extractDopplerTickSpacing(bytes memory dopplerData) internal pure returns (int24 tickSpacing) {
         (,,,,,,,,,,, tickSpacing) = abi.decode(
+            dopplerData,
+            (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
+        );
+    }
+
+    /// @notice Extract isToken0 from Doppler init data
+    /// @param dopplerData The encoded Doppler initialization data
+    /// @return isToken0 Whether the asset is token0
+    function _extractDopplerIsToken0(bytes memory dopplerData) internal pure returns (bool isToken0) {
+        (,,,,,,,, isToken0,,,) = abi.decode(
             dopplerData,
             (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
