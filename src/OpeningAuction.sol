@@ -590,7 +590,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             });
 
             // Track position key for removal lookups
-            bytes32 positionKey = keccak256(abi.encodePacked(sender, params.tickLower, params.tickUpper, params.salt));
+            // Use owner (not sender) to prevent collision when multiple users go through same router
+            bytes32 positionKey = keccak256(abi.encodePacked(owner, params.tickLower, params.tickUpper, params.salt));
             positionKeyToId[positionKey] = positionId;
 
             ownerPositions[owner].push(positionId);
@@ -623,7 +624,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         address sender,
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata params,
-        bytes calldata
+        bytes calldata hookData
     ) internal view override returns (bytes4) {
         // Allow self to remove liquidity
         if (sender == address(this)) {
@@ -631,7 +632,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
 
         if (phase == AuctionPhase.Active) {
-            bytes32 positionKey = keccak256(abi.encodePacked(sender, params.tickLower, params.tickUpper, params.salt));
+            // Require owner address in hookData to match position key from creation
+            if (hookData.length < 20) revert HookDataMissingOwner();
+            address owner = abi.decode(hookData, (address));
+
+            // Use owner (not sender) to match position key created during add
+            bytes32 positionKey = keccak256(abi.encodePacked(owner, params.tickLower, params.tickUpper, params.salt));
             uint256 positionId = positionKeyToId[positionKey];
 
             if (positionId == 0) revert PositionNotFound();
@@ -644,6 +650,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             AuctionPosition memory pos = _positions[positionId];
             uint128 liquidityToRemove = uint128(uint256(-params.liquidityDelta));
             if (liquidityToRemove != pos.liquidity) revert PartialRemovalNotAllowed();
+        } else if (phase == AuctionPhase.Closed) {
+            // Block removals during settlement to prevent race condition with cached denominator
+            revert AuctionNotActive();
         }
 
         return BaseHook.beforeRemoveLiquidity.selector;
@@ -656,7 +665,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         IPoolManager.ModifyLiquidityParams calldata params,
         BalanceDelta,
         BalanceDelta,
-        bytes calldata
+        bytes calldata hookData
     ) internal override returns (bytes4, BalanceDelta) {
         // Skip harvesting for self-initiated removals (e.g., during migration)
         if (sender == address(this)) {
@@ -668,8 +677,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // This ensures any pending time is properly accounted for
             _updateTickAccumulator(params.tickLower);
 
+            // Decode owner from hookData to match position key from creation
+            address owner = abi.decode(hookData, (address));
+
             // Look up position to harvest its earned time
-            bytes32 positionKey = keccak256(abi.encodePacked(sender, params.tickLower, params.tickUpper, params.salt));
+            // Use owner (not sender) to match position key created during add
+            bytes32 positionKey = keccak256(abi.encodePacked(owner, params.tickLower, params.tickUpper, params.salt));
             uint256 positionId = positionKeyToId[positionKey];
 
             if (positionId != 0) {
@@ -769,21 +782,29 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Update tick accumulator for MasterChef-style rewards accounting
     /// @dev Must be called BEFORE liquidity changes at a tick
+    /// @dev Time is capped at auctionEndTime to prevent accrual after auction ends
     /// @param tick The tick to update
     function _updateTickAccumulator(int24 tick) internal {
         TickTimeState storage tickState = tickTimeStates[tick];
+
+        // Cap effective time at auctionEndTime to prevent post-auction accrual
+        uint256 effectiveTime = block.timestamp > auctionEndTime ? auctionEndTime : block.timestamp;
+
+        // If already finalized (lastUpdateTime >= auctionEndTime), no more updates needed
+        if (tickState.lastUpdateTime >= auctionEndTime) return;
+
         uint128 liquidity = liquidityAtTick[tick];
 
         // Only accumulate if tick is in range and has liquidity
         if (tickState.isInRange && liquidity > 0 && tickState.lastUpdateTime > 0) {
-            uint256 elapsed = block.timestamp - tickState.lastUpdateTime;
+            uint256 elapsed = effectiveTime - tickState.lastUpdateTime;
             if (elapsed > 0) {
                 // Accumulate time per unit of liquidity (Q128 fixed point)
                 tickState.accumulatedTimePerLiquidityX128 += (elapsed << 128) / liquidity;
             }
         }
 
-        tickState.lastUpdateTime = block.timestamp;
+        tickState.lastUpdateTime = effectiveTime;
     }
 
     /// @notice Harvest a position's earned time before removal
