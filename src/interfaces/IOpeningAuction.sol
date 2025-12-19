@@ -143,6 +143,12 @@ interface IOpeningAuction {
     /// @notice Thrown when maximum number of unique ticks is exceeded
     error MaxTicksExceeded();
 
+    /// @notice Thrown when isToken0 has already been set
+    error IsToken0AlreadySet();
+
+    /// @notice Thrown when isToken0 has not been set before initialization
+    error IsToken0NotSet();
+
     /// @notice Get the current auction phase
     function phase() external view returns (AuctionPhase);
 
