@@ -638,6 +638,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
             // Check on-demand if tick would be filled (O(1) - no position updates needed)
             if (_wouldBeFilled(params.tickLower)) revert PositionIsLocked();
+
+            // Disallow partial removals - must remove full position liquidity
+            // This prevents incentive accounting corruption where pos.liquidity isn't decremented
+            AuctionPosition memory pos = _positions[positionId];
+            uint128 liquidityToRemove = uint128(uint256(-params.liquidityDelta));
+            if (liquidityToRemove != pos.liquidity) revert PartialRemovalNotAllowed();
         }
 
         return BaseHook.beforeRemoveLiquidity.selector;
