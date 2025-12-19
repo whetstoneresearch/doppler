@@ -67,6 +67,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice True if the asset being sold is token0
     bool public isToken0;
 
+    /// @notice True if isToken0 has been configured (guard against misconfiguration)
+    bool public isToken0Set;
+
     // ============ Auction Timing ============
 
     /// @notice Auction start timestamp
@@ -478,13 +481,13 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     ) internal override returns (bytes4) {
         if (sender != initializer) revert SenderNotInitializer();
         if (isInitialized) revert AlreadyInitialized();
+        if (!isToken0Set) revert IsToken0NotSet();
 
         isInitialized = true;
         poolKey = key;
 
-        // Determine if asset is token0 based on ordering with numeraire
-        // This should match what the initializer expects
-        isToken0 = true; // Will be set properly by initializer
+        // NOTE: isToken0 is already set by setIsToken0() called before pool.initialize()
+        // Do NOT overwrite it here - that was a bug!
 
         // Get initial tick
         currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
@@ -1130,9 +1133,14 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
     }
 
-    /// @notice Set isToken0 flag - called by initializer
+    /// @notice Set isToken0 flag - called by initializer (ONCE, before pool.initialize)
+    /// @param _isToken0 True if the asset being sold is token0, false if token1
     function setIsToken0(bool _isToken0) external {
         if (msg.sender != initializer) revert SenderNotInitializer();
+        if (isInitialized) revert AlreadyInitialized();
+        if (isToken0Set) revert IsToken0AlreadySet();
+
         isToken0 = _isToken0;
+        isToken0Set = true;
     }
 }
