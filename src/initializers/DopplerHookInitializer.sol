@@ -20,7 +20,8 @@ import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.so
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { Curve, adjustCurves } from "src/libraries/Multicurve.sol";
+import { MulticurveLibrary } from "src/libraries/MulticurveLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -307,7 +308,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
-        positions = calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+        positions =
+            MulticurveLibrary.calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
@@ -348,7 +350,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
         sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
-        Position[] memory positions = calculatePositions(
+        Position[] memory positions = MulticurveLibrary.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, positions);
@@ -467,7 +469,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     function getPositions(address asset) public view returns (Position[] memory) {
         PoolState memory state = getState[asset];
         address token0 = Currency.unwrap(state.poolKey.currency0);
-        Position[] memory positions = calculatePositions(
+        Position[] memory positions = MulticurveLibrary.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         return positions;
