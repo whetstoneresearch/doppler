@@ -71,9 +71,6 @@ interface IOpeningAuction {
     /// @notice Emitted when a position becomes unlocked (exits range)
     event PositionUnlocked(uint256 indexed positionId);
 
-    /// @notice Emitted when a position is rolled to a new tick
-    event PositionRolled(uint256 indexed positionId, int24 newTickLower);
-
     /// @notice Emitted when the auction settles
     event AuctionSettled(int24 clearingTick, uint256 tokensSold, uint256 proceeds);
 

@@ -704,6 +704,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 // Harvest earned time BEFORE decrementing liquidityAtTick
                 // This preserves the position's earned rewards even after removal
                 _harvestPosition(positionId);
+
+                emit BidWithdrawn(positionId);
             }
 
             // Decrement liquidity tracking (liquidityDelta is negative for removals)
@@ -734,11 +736,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
-
-    // NOTE: afterSwap hook removed - it was dead code because:
-    // 1. External swaps are blocked by beforeSwap with SwapsNotAllowedDuringAuction
-    // 2. Settlement swaps initiated by this hook via unlockCallback don't trigger afterSwap
-    // The currentTick is correctly set in settleAuction() via poolManager.getSlot0()
 
     /// @inheritdoc BaseHook
     function _beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata)
