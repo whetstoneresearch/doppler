@@ -92,14 +92,15 @@ contract RehypeDopplerHook is BaseDopplerHook {
             lpPercentWad: lpPercentWad
         });
 
-        getHookFees[poolId] =
-            HookFees({ customFee: customFee, fees0: 0, fees1: 0, beneficiaryFees0: 0, beneficiaryFees1: 0 });
+        getHookFees[poolId].customFee = customFee;
 
         // Initialize position
-        Position storage position = getPosition[poolId];
-        position.tickLower = TickMath.minUsableTick(key.tickSpacing);
-        position.tickUpper = TickMath.maxUsableTick(key.tickSpacing);
-        position.salt = _fullRangeSalt(poolId);
+        getPosition[poolId] = Position({
+            tickLower: TickMath.minUsableTick(key.tickSpacing),
+            tickUpper: TickMath.maxUsableTick(key.tickSpacing),
+            liquidity: 0,
+            salt: _fullRangeSalt(poolId)
+        });
     }
 
     /// @inheritdoc BaseDopplerHook
