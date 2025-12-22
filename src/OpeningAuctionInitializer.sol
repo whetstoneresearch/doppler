@@ -406,11 +406,13 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         );
     }
 
-    /// @notice Modify Doppler init data to use a new starting tick
+    /// @notice Modify Doppler init data to use a new starting tick and adjust timing
+    /// @dev Also updates startingTime/endingTime to ensure Doppler can be initialized
+    ///      even if the original timing has passed during the auction
     function _modifyDopplerStartingTick(
         bytes memory dopplerData,
         int24 newStartingTick
-    ) internal pure returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         // Decode Doppler data
         (
             uint256 minimumProceeds,
@@ -430,12 +432,24 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
 
-        // Re-encode with new starting tick
+        // Calculate original duration to preserve the intended sale duration
+        uint256 originalDuration = endingTime - startingTime;
+
+        // If the original startingTime has passed, shift timing forward
+        // Add 1 second buffer to ensure startingTime > block.timestamp check passes
+        uint256 newStartingTime = startingTime;
+        uint256 newEndingTime = endingTime;
+        if (block.timestamp >= startingTime) {
+            newStartingTime = block.timestamp + 1;
+            newEndingTime = newStartingTime + originalDuration;
+        }
+
+        // Re-encode with new starting tick and adjusted timing
         return abi.encode(
             minimumProceeds,
             maximumProceeds,
-            startingTime,
-            endingTime,
+            newStartingTime,
+            newEndingTime,
             newStartingTick, // Use clearing tick as starting tick
             endingTick,
             epochLength,
