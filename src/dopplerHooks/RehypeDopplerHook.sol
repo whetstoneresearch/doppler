@@ -508,22 +508,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
         });
     }
 
-    /**
-     * @dev Internal helper to reconstruct pool key from pool ID
-     * @param poolId The pool ID
-     * @return key The reconstructed key
-     */
-    function _getPoolKey(PoolId poolId) internal view returns (PoolKey memory key) {
-        PoolInfo memory info = getPoolInfo[poolId];
-        Position memory position = getPosition[poolId];
-
-        key.currency0 = Currency.wrap(info.asset < info.numeraire ? info.asset : info.numeraire);
-        key.currency1 = Currency.wrap(info.asset < info.numeraire ? info.numeraire : info.asset);
-        key.tickSpacing = int24(
-            (position.tickUpper - position.tickLower) / (TickMath.maxUsableTick(1) - TickMath.minUsableTick(1))
-        );
-    }
-
     function _collectSwapFees(
         IPoolManager.SwapParams memory params,
         BalanceDelta delta,
