@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 
 contract PositionTrackingTest is OpeningAuctionBaseTest {
