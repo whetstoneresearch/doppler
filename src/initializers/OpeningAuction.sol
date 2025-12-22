@@ -415,11 +415,26 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         token0 = Currency.unwrap(poolKey.currency0);
         token1 = Currency.unwrap(poolKey.currency1);
 
-        // Get balances
-        balance0 = uint128(poolKey.currency0.balanceOfSelf());
-        balance1 = uint128(poolKey.currency1.balanceOfSelf());
+        // Get balances, excluding incentive tokens that are reserved for LP claims
+        // incentiveTokensTotal is denominated in the asset token (isToken0 ? token0 : token1)
+        uint256 rawBalance0 = poolKey.currency0.balanceOfSelf();
+        uint256 rawBalance1 = poolKey.currency1.balanceOfSelf();
 
-        // Transfer everything to recipient
+        // Reserve incentive tokens for LP claims - they stay in this contract
+        uint256 reservedIncentives = incentiveTokensTotal;
+        if (isToken0) {
+            // Asset is token0, reserve incentives from token0 balance
+            uint256 transferable0 = rawBalance0 > reservedIncentives ? rawBalance0 - reservedIncentives : 0;
+            balance0 = uint128(transferable0);
+            balance1 = uint128(rawBalance1);
+        } else {
+            // Asset is token1, reserve incentives from token1 balance
+            balance0 = uint128(rawBalance0);
+            uint256 transferable1 = rawBalance1 > reservedIncentives ? rawBalance1 - reservedIncentives : 0;
+            balance1 = uint128(transferable1);
+        }
+
+        // Transfer to recipient (excluding reserved incentives)
         if (balance0 > 0) {
             token0.safeTransfer(recipient, balance0);
         }
