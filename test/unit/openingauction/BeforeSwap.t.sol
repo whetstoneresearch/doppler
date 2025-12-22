@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
