@@ -57,11 +57,11 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /**
      * @param initializer Address of the DopplerHookInitializer contract
-     * @param _poolManager Address of the Uniswap V4 Pool Manager
+     * @param poolManager_ Address of the Uniswap V4 Pool Manager
      */
-    constructor(address initializer, IPoolManager _poolManager) BaseDopplerHook(initializer) {
-        poolManager = _poolManager;
-        quoter = new Quoter(_poolManager);
+    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHook(initializer) {
+        poolManager = poolManager_;
+        quoter = new Quoter(poolManager_);
     }
 
     /// @inheritdoc BaseDopplerHook
