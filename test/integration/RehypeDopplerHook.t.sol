@@ -138,7 +138,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         swapRouter.swap(poolKey, swapParamsOut, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
-        (uint24 customFee, uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1) =
+        (uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint24 customFee) =
             rehypeDopplerHook.getHookFees(poolId);
 
         assertEq(customFee, 3000, "Custom fee should be 3000 (0.3%)");
@@ -254,7 +254,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         vm.prank(address(initializer));
         rehypeDopplerHook.setCustomFee(poolId, newFee);
 
-        (uint24 customFee,,,,) = rehypeDopplerHook.getHookFees(poolId);
+        (,,,, uint24 customFee) = rehypeDopplerHook.getHookFees(poolId);
         assertEq(customFee, newFee, "Custom fee should be updated");
     }
 
@@ -389,7 +389,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
-        (uint24 customFee, uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1) =
+        (uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint24 customFee) =
             rehypeDopplerHook.getHookFees(poolId);
 
         assertEq(customFee, 0, "Custom fee should be 0");

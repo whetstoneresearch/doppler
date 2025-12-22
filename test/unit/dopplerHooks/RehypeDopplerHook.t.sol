@@ -84,7 +84,7 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedLp, lpPercentWad);
 
         // Check hook fees
-        (uint24 storedCustomFee, uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1) =
+        (uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint24 storedCustomFee) =
             dopplerHook.getHookFees(poolId);
         assertEq(storedCustomFee, customFee);
         assertEq(fees0, 0);
@@ -261,7 +261,7 @@ contract RehypeDopplerHookTest is Test {
         vm.prank(initializer);
         dopplerHook.setCustomFee(poolId, newFee);
 
-        (uint24 storedCustomFee,,,,) = dopplerHook.getHookFees(poolId);
+        (,,,, uint24 storedCustomFee) = dopplerHook.getHookFees(poolId);
         assertEq(storedCustomFee, newFee);
     }
 
