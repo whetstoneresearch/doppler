@@ -22,9 +22,6 @@ import { WAD } from "src/types/Wad.sol";
 /// @notice Thrown when the fee distribution does not add up to WAD (1e18)
 error FeeDistributionMustAddUpToWAD();
 
-/// @notice Thrown when caller is not authorized
-error Unauthorized();
-
 // Constants
 uint256 constant MAX_SWAP_FEE = 1e6;
 uint128 constant EPSILON = 1e6;
