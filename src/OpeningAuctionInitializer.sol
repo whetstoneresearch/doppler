@@ -9,7 +9,7 @@ import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { alignTickTowardZero, alignTick } from "src/libraries/TickLibrary.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";

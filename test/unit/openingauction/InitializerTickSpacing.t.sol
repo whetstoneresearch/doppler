@@ -8,7 +8,7 @@ import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,

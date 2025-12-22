@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { PoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation for testing

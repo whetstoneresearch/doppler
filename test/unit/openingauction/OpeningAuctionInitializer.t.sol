@@ -14,7 +14,7 @@ import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.s
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,

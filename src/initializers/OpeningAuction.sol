@@ -463,7 +463,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             afterAddLiquidity: true,
             afterRemoveLiquidity: true,
             beforeSwap: true,
-            afterSwap: true,
+            afterSwap: false,
             beforeDonate: true,
             afterDonate: false,
             beforeSwapReturnDelta: false,
@@ -720,27 +720,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
-    /// @inheritdoc BaseHook
-    function _afterSwap(
-        address,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata,
-        BalanceDelta,
-        bytes calldata
-    ) internal override returns (bytes4, int128) {
-        // Update current tick
-        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
-        int24 newTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-
-        if (newTick != currentTick) {
-            currentTick = newTick;
-        }
-
-        // Note: Tracking of tokens sold and proceeds is done in unlockCallback
-        // because afterSwap is not called when the hook itself initiates the swap
-
-        return (BaseHook.afterSwap.selector, 0);
-    }
+    // NOTE: afterSwap hook removed - it was dead code because:
+    // 1. External swaps are blocked by beforeSwap with SwapsNotAllowedDuringAuction
+    // 2. Settlement swaps initiated by this hook via unlockCallback don't trigger afterSwap
+    // The currentTick is correctly set in settleAuction() via poolManager.getSlot0()
 
     /// @inheritdoc BaseHook
     function _beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata)

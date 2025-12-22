@@ -6,7 +6,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
-import { OpeningAuction } from "src/OpeningAuction.sol";
+import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { IOpeningAuction, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 
 contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
