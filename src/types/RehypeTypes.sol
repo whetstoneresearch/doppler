@@ -15,20 +15,20 @@ struct FeeDistributionInfo {
 }
 
 struct HookFees {
-    uint24 customFee;
     uint128 fees0;
     uint128 fees1;
     uint128 beneficiaryFees0;
     uint128 beneficiaryFees1;
+    uint24 customFee;
 }
 
 struct SwapSimulation {
-    bool success;
     uint256 amountIn;
     uint256 amountOut;
     uint256 fees0;
     uint256 fees1;
-    uint160 sqrtPriceX96;
     uint256 excess0;
     uint256 excess1;
+    uint160 sqrtPriceX96;
+    bool success;
 }
