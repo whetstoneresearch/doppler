@@ -509,24 +509,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
     }
 
     /**
-     * @notice Updates the custom fee for a pool
-     * @param poolId The pool ID to update
-     * @param customFee The new custom fee (in units of 1e6)
-     */
-    function setCustomFee(PoolId poolId, uint24 customFee) external onlyInitializer {
-        getHookFees[poolId].customFee = customFee;
-    }
-
-    /**
-     * @notice Updates the buyback destination for a pool
-     * @param poolId The pool ID to update
-     * @param buybackDst The new buyback destination address
-     */
-    function setBuybackDestination(PoolId poolId, address buybackDst) external onlyInitializer {
-        getPoolInfo[poolId].buybackDst = buybackDst;
-    }
-
-    /**
      * @dev Internal helper to reconstruct pool key from pool ID
      * @param poolId The pool ID
      * @return key The reconstructed key
