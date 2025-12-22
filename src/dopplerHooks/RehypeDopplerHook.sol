@@ -12,7 +12,6 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { IERC20 } from "lib/universal-router/lib/v4-periphery/lib/v4-core/lib/forge-std/src/interfaces/IERC20.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
@@ -162,7 +161,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
             SwapSimulation memory sim = _simulateSwap(
                 key, isToken0, numeraireBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1
             );
-            uint256 poolManagerOutputBalance = IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager));
+            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
             if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
                 (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
                     _executeSwap(key, isToken0, numeraireBuybackAmountIn);
@@ -181,7 +180,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
         if (shouldSwap && swapAmountIn > 0) {
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
-            if (IERC20(Currency.unwrap(outputCurrency)).balanceOf(address(poolManager)) > swapAmountOut) {
+            if (outputCurrency.balanceOf(address(poolManager)) > swapAmountOut) {
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
                 lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
                 lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
