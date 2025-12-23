@@ -454,24 +454,23 @@ contract RehypeDopplerHook is BaseDopplerHook {
     }
 
     /**
-     * @notice Collects accumulated beneficiary fees for a pool
-     * @param asset The asset to collect fees from
-     * @return fees The collected fees as a BalanceDelta
+     * @notice Collects accumulated beneficiary fees for a pool and transfers them to the associated beneficiary
+     * @param asset Asset to collect fees from
+     * @return fees Collected fees as a BalanceDelta
      */
     function collectFees(address asset) external returns (BalanceDelta fees) {
-        (address numeraire,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
         HookFees memory hookFees = getHookFees[poolId];
+        address beneficiary = getPoolInfo[poolId].buybackDst;
 
         fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
-        bool isToken0 = Currency.wrap(asset) == poolKey.currency0;
 
         if (hookFees.beneficiaryFees0 > 0) {
-            Currency.wrap(asset).transfer(INITIALIZER, isToken0 ? hookFees.beneficiaryFees0 : hookFees.beneficiaryFees1);
+            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
         }
         if (hookFees.beneficiaryFees1 > 0) {
-            Currency.wrap(numeraire)
-                .transfer(INITIALIZER, isToken0 ? hookFees.beneficiaryFees1 : hookFees.beneficiaryFees0);
+            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
         }
 
         getHookFees[poolId].beneficiaryFees0 = 0;
