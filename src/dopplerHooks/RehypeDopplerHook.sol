@@ -258,7 +258,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 } else {
                     if (low == guess) {
                         if (high <= guess + 1) break;
-                        low = guess;
                     } else {
                         low = guess;
                     }
