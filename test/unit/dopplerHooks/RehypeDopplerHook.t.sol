@@ -240,69 +240,6 @@ contract RehypeDopplerHookTest is Test {
     }
 
     /* ----------------------------------------------------------------------------- */
-    /*                              setCustomFee()                                   */
-    /* ----------------------------------------------------------------------------- */
-
-    function test_setCustomFee_UpdatesFee(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-
-        bytes memory data = abi.encode(numeraire, address(0), uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-
-        vm.prank(initializer);
-        dopplerHook.onInitialization(asset, poolKey, data);
-
-        PoolId poolId = poolKey.toId();
-
-        // Update custom fee
-        uint24 newFee = 5000;
-        vm.prank(initializer);
-        dopplerHook.setCustomFee(poolId, newFee);
-
-        (,,,, uint24 storedCustomFee) = dopplerHook.getHookFees(poolId);
-        assertEq(storedCustomFee, newFee);
-    }
-
-    function test_setCustomFee_RevertsWhenSenderNotInitializer(PoolKey memory poolKey) public {
-        vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.setCustomFee(poolKey.toId(), 5000);
-    }
-
-    /* ----------------------------------------------------------------------------- */
-    /*                          setBuybackDestination()                              */
-    /* ----------------------------------------------------------------------------- */
-
-    function test_setBuybackDestination_UpdatesDestination(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address buybackDst = makeAddr("buybackDst");
-
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-
-        vm.prank(initializer);
-        dopplerHook.onInitialization(asset, poolKey, data);
-
-        PoolId poolId = poolKey.toId();
-
-        // Update buyback destination
-        address newBuybackDst = makeAddr("newBuybackDst");
-        vm.prank(initializer);
-        dopplerHook.setBuybackDestination(poolId, newBuybackDst);
-
-        (,, address storedBuybackDst) = dopplerHook.getPoolInfo(poolId);
-        assertEq(storedBuybackDst, newBuybackDst);
-    }
-
-    function test_setBuybackDestination_RevertsWhenSenderNotInitializer(PoolKey memory poolKey) public {
-        vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.setBuybackDestination(poolKey.toId(), address(0));
-    }
-
-    /* ----------------------------------------------------------------------------- */
     /*                              collectFees()                                    */
     /* ----------------------------------------------------------------------------- */
 

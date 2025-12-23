@@ -246,30 +246,6 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertEq(lpPercentWad, 0, "LP should be 0%");
     }
 
-    function test_setCustomFee_UpdatesFee() public {
-        bytes32 salt = bytes32(uint256(8));
-        (bool isToken0, address asset) = _createToken(salt);
-
-        uint24 newFee = 5000; // 0.5%
-        vm.prank(address(initializer));
-        rehypeDopplerHook.setCustomFee(poolId, newFee);
-
-        (,,,, uint24 customFee) = rehypeDopplerHook.getHookFees(poolId);
-        assertEq(customFee, newFee, "Custom fee should be updated");
-    }
-
-    function test_setBuybackDestination_UpdatesDestination() public {
-        bytes32 salt = bytes32(uint256(9));
-        (bool isToken0, address asset) = _createToken(salt);
-
-        address newBuybackDst = makeAddr("NewBuybackDst");
-        vm.prank(address(initializer));
-        rehypeDopplerHook.setBuybackDestination(poolId, newBuybackDst);
-
-        (,, address storedBuybackDst) = rehypeDopplerHook.getPoolInfo(poolId);
-        assertEq(storedBuybackDst, newBuybackDst, "Buyback destination should be updated");
-    }
-
     function test_multipleSwaps_AccumulatesFees() public {
         bytes32 salt = bytes32(uint256(10));
         (bool isToken0, address asset) = _createToken(salt);
