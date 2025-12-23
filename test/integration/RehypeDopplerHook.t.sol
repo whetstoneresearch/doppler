@@ -305,7 +305,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertTrue(beneficiaryFees1 > 0, "Beneficiary fees1 should be > 0");
     }
 
-    function test_collectFees_TransfersToInitializer() public {
+    function test_collectFees_TransfersToBeneficiary() public {
         bytes32 salt = bytes32(uint256(12));
         (bool isToken0, address asset) = _createToken(salt);
 
@@ -333,23 +333,25 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         (,,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before) = rehypeDopplerHook.getHookFees(poolId);
 
         if (beneficiaryFees0Before > 0 || beneficiaryFees1Before > 0) {
-            uint256 initializerBalance0Before =
-                TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(initializer));
-            uint256 initializerBalance1Before =
-                TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(initializer));
-
-            console.log(
-                "rehypebalance0", TestERC20(Currency.unwrap(poolKey.currency0)).balanceOf(address(rehypeDopplerHook))
-            );
-            console.log(
-                "rehypebalance1", TestERC20(Currency.unwrap(poolKey.currency1)).balanceOf(address(rehypeDopplerHook))
-            );
+            uint256 beneficiaryBalanceBefore0 = poolKey.currency0.balanceOf(buybackDst);
+            uint256 beneficiaryBalanceBefore1 = poolKey.currency1.balanceOf(buybackDst);
 
             BalanceDelta fees = rehypeDopplerHook.collectFees(address(asset));
 
-            (,,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After) = rehypeDopplerHook.getHookFees(poolId);
-            assertEq(beneficiaryFees0After, 0, "Beneficiary fees0 should be 0 after collection");
-            assertEq(beneficiaryFees1After, 0, "Beneficiary fees1 should be 0 after collection");
+            assertEq(
+                poolKey.currency0.balanceOf(buybackDst) - beneficiaryBalanceBefore0,
+                uint128(fees.amount0()),
+                "Beneficiary should receive fees0"
+            );
+            assertEq(
+                poolKey.currency1.balanceOf(buybackDst) - beneficiaryBalanceBefore1,
+                uint128(fees.amount1()),
+                "Beneficiary should receive fees1"
+            );
+
+            (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,) = rehypeDopplerHook.getHookFees(poolId);
+            assertEq(beneficiaryFees0After, 0, "Fees0 should be reset");
+            assertEq(beneficiaryFees1After, 0, "Fees1 should be reset");
         }
     }
 
