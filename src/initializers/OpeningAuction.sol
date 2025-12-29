@@ -381,7 +381,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             }
         }
 
+        AuctionPhase oldPhase = phase;
         phase = AuctionPhase.Closed;
+        emit PhaseChanged(oldPhase, AuctionPhase.Closed);
 
         // Finalize all tick time states at auction end
         // Time is based on being "in range" DURING the auction, not final settlement
@@ -396,7 +398,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
         clearingTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
 
+        AuctionPhase closedPhase = phase;
         phase = AuctionPhase.Settled;
+        emit PhaseChanged(closedPhase, AuctionPhase.Settled);
 
         emit AuctionSettled(clearingTick, totalTokensSold, totalProceeds);
     }
@@ -548,7 +552,17 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         currentTick = tick;
         auctionStartTime = block.timestamp;
         auctionEndTime = block.timestamp + auctionDuration;
+        
+        AuctionPhase oldPhase = phase;
         phase = AuctionPhase.Active;
+        emit PhaseChanged(oldPhase, AuctionPhase.Active);
+        
+        emit AuctionStarted(
+            auctionStartTime,
+            auctionEndTime,
+            totalAuctionTokens,
+            incentiveTokensTotal
+        );
 
         // Initialize estimated clearing tick to the pool's starting price (no positions in range initially)
         // For isToken0=true: pool starts at MAX_TICK, price moves down as tokens are sold
@@ -643,6 +657,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // (because _insertTick uses liquidityAtTick==0 to detect new ticks)
             _insertTick(params.tickLower);
             liquidityAtTick[params.tickLower] += liquidity;
+            
+            emit LiquidityAddedToTick(params.tickLower, liquidity, liquidityAtTick[params.tickLower]);
 
             // Update estimated clearing tick and tick time states (efficient - only updates affected ticks)
             _updateClearingTickAndTimeStates();
@@ -739,6 +755,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Decrement liquidity tracking (liquidityDelta is negative for removals)
             uint128 liquidityRemoved = uint128(uint256(-params.liquidityDelta));
             liquidityAtTick[params.tickLower] -= liquidityRemoved;
+            
+            emit LiquidityRemovedFromTick(params.tickLower, liquidityRemoved, liquidityAtTick[params.tickLower]);
 
             // Remove tick from activeTicks when liquidity reaches 0
             // This prevents griefing attacks where attackers bloat the array with empty ticks
@@ -948,6 +966,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
             // Update reward debt to current accumulator (prevents double-counting if partial removal)
             pos.rewardDebtX128 = tickAccumulatorX128;
+            
+            emit TimeHarvested(positionId, earnedTimeX128);
         }
     }
 
@@ -1111,6 +1131,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             TickTimeState storage tickState = tickTimeStates[nextTick];
             tickState.lastUpdateTime = block.timestamp;
             tickState.isInRange = true;
+            
+            emit TickEnteredRange(nextTick, liquidityAtTick[nextTick]);
 
             iterTick = nextTick + 1;
         }
@@ -1151,6 +1173,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Finalize accumulator before changing state
             _updateTickAccumulator(nextTick);
             tickState.isInRange = false;
+            
+            emit TickExitedRange(nextTick, liquidityAtTick[nextTick]);
 
             iterTick = nextTick + 1;
         }
