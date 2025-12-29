@@ -55,7 +55,7 @@ const chains: {[chainId: number]: ChainDetails } = {
   },
   421614: {
     name: 'Arbitrum Sepolia',
-    explorerUrl: 'https://sepolia.arbiscan.io/',
+    explorerUrl: 'https://sepolia.arbiscan.io',
     isTestnet: true,
   },
   143: {
@@ -71,6 +71,11 @@ type Transaction = {
   transactionType: 'CREATE' | 'CREATE2' | 'CALL';
   contractAddress: `0x${string}`;
   arguments: `0x${string}`[];
+  additionalContracts: {
+    transactionType: 'CREATE' | 'CREATE2';
+    contractName: null | string;
+    address: `0x${string}`;
+  }[];
 }
 
 type Broadcast = {
@@ -160,8 +165,7 @@ async function generateHistoryLogs(): Promise<void> {
     }
 
     const transactions = broadcast.transactions
-      .filter((transaction) => (transaction.transactionType === 'CREATE'
-        || transaction.transactionType === 'CREATE2')
+      .filter((transaction) => (transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
         && transaction.hash !== null && transaction.contractName !== null && transaction.contractName !== 'AirlockMultisig')
       .map(transaction => ({
         contractName: transaction.contractName,
@@ -173,6 +177,67 @@ async function generateHistoryLogs(): Promise<void> {
       }));
 
     deployments[broadcast.chain].push(...transactions);
+  }
+
+  // Foundry now supports multichain broadcasts but these files must be handled differently
+  const multiBroadcastFiles = await readdir('./broadcast/multi', {
+    recursive: true,
+  });  
+
+  const additionalJsonFiles = multiBroadcastFiles.filter((file) => file.endsWith('.json') && !file.includes('dry'));
+
+  for (const file of additionalJsonFiles) {
+    const filePath = `./broadcast/multi/${file}`;
+    const raw = Bun.file(filePath);
+    const multi: {
+      deployments: Broadcast[];
+    } = await raw.json();
+
+    for (const broadcast of multi.deployments) {
+      if (broadcast.chain === 31337 || broadcast.chain === undefined) {
+        continue;
+      }
+
+     for (const transaction of broadcast.transactions) {
+        if ((
+          transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
+          && transaction.hash !== null && transaction.contractName !== null
+        ) {
+          if (deployments[broadcast.chain] === undefined) {
+            deployments[broadcast.chain] = [];
+          }
+
+          deployments[broadcast.chain].push({
+            contractName: transaction.contractName,
+            contractAddress: transaction.contractAddress,
+            hash: transaction.hash,
+            arguments: transaction.arguments,
+            commit: broadcast.commit as `0x${string}`,
+            timestamp: broadcast.timestamp,
+          });
+        }
+
+        // A bit tricky but we also need to check if contracts were deployed as additional contracts
+        for (const additional of transaction.additionalContracts) {
+          if ((additional.transactionType === 'CREATE' || additional.transactionType === 'CREATE2')
+            && additional.contractName !== null
+          ) {
+            if (deployments[broadcast.chain] === undefined) {
+              deployments[broadcast.chain] = [];
+            }
+
+            deployments[broadcast.chain].push({
+              contractName: additional.contractName,
+              contractAddress: additional.address,
+              hash: transaction.hash,
+              arguments: [],
+              commit: broadcast.commit as `0x${string}`,
+              timestamp: broadcast.timestamp,
+            });
+          }
+        }
+      }
+    }
   }
 
   // Now we're going to generate the history logs for each chain

@@ -9,12 +9,14 @@ fs_permissions = [
   { access = "read", path = "./lib" },
   { access = "read", path = "./script" },
   { access = "write", path = "./deployments" },
+  { access = "read-write", path = "./deployments.config.toml" },
 ]
 optimizer_runs = 0
 bytecode_hash = "none"
 optimizer = true
-gas_limit = "8000000000"
+# gas_limit = "8000000000"
 create2_deployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
+gas_limit = "18446744073709551615"
 
 [fuzz]
 max_test_rejects = 10000000

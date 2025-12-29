@@ -5,9 +5,9 @@ import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 import { ICreateX } from "script/ICreateX.sol";
-import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
+import { CloneERC20VotesFactory } from "src/tokens/CloneERC20VotesFactory.sol";
 
-contract DeployCloneERC20FactoryScript is Script, Config {
+contract DeployCloneERC20VotesFactoryScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -25,11 +25,11 @@ contract DeployCloneERC20FactoryScript is Script, Config {
         bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xbeef));
 
         vm.startBroadcast();
-        address cloneERC20Factory = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(CloneERC20Factory).creationCode, abi.encode(airlock)));
+        address cloneERC20VotesFactory = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(CloneERC20VotesFactory).creationCode, abi.encode(airlock)));
 
-        console.log("CloneERC20Factory deployed to:", cloneERC20Factory);
-        config.set("clone_erc20_factory", cloneERC20Factory);
+        console.log("CloneERC20VotesFactory deployed to:", cloneERC20VotesFactory);
+        config.set("clone_erc20_votes_factory", cloneERC20VotesFactory);
         vm.stopBroadcast();
     }
 }

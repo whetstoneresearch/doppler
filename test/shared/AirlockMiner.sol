@@ -14,64 +14,63 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 
-// mask to slice out the bottom 14 bit of the address
-uint160 constant FLAG_MASK = 0x3FFF;
-
-// Maximum number of iterations to find a salt, avoid infinite loops
-uint256 constant MAX_LOOP = 100_000;
-
-uint160 constant DOPPLER_HOOK_FLAGS = uint160(
-    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
-);
-
-uint160 constant MIGRATOR_HOOK_FLAGS =
-    uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
+/* ----------------------------------------------------------------------------------- */
+/*                                DopplerHookInitializer                               */
+/* ----------------------------------------------------------------------------------- */
 
 uint160 constant DOPPLER_HOOK_INITIALIZER_FLAGS = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-        | Hooks.AFTER_SWAP_FLAG
+        | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
 );
 
-struct MineV4Params {
-    address airlock;
-    address poolManager;
-    uint256 initialSupply;
-    uint256 numTokensToSell;
-    address numeraire;
-    ITokenFactory tokenFactory;
-    bytes tokenFactoryData;
-    UniswapV4Initializer poolInitializer;
-    bytes poolInitializerData;
+struct MineDopplerHookInitializerParams {
+    address deployer;
+    address sender;
 }
+
+function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory params) view returns (bytes32, address) {
+    bytes32 salt = bytes32((uint256(uint160(params.sender)) << 96));
+
+    for (uint96 seed; seed < type(uint96).max; seed++) {
+        salt = bytes32((uint256(uint160(params.sender)) << 96)) | bytes32(uint256(seed));
+
+        address initializer = computeCreate3Address(salt, params.deployer);
+        if (
+            uint160(initializer) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_INITIALIZER_FLAGS && initializer.code.length == 0
+        ) {
+            return (salt, initializer);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
+
+function computeCreate3Address(bytes32 salt, address deployer) pure returns (address computedAddress) {
+    assembly ("memory-safe") {
+        let ptr := mload(0x40)
+        mstore(0x00, deployer)
+        mstore8(0x0b, 0xff)
+        mstore(0x20, salt)
+        mstore(0x40, hex"21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f")
+        mstore(0x14, keccak256(0x0b, 0x55))
+        mstore(0x40, ptr)
+        mstore(0x00, 0xd694)
+        mstore8(0x34, 0x01)
+        computedAddress := keccak256(0x1e, 0x17)
+    }
+}
+
+/* ---------------------------------------------------------------------------------- */
+/*                                UniswapV4MigratorHook                               */
+/* ---------------------------------------------------------------------------------- */
+
+uint160 constant MIGRATOR_HOOK_FLAGS =
+    uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
 
 struct MineV4MigratorHookParams {
     address poolManager;
     address migrator;
     address hookDeployer;
-}
-
-struct MineDopplerHookMulticurveInitializerParams {
-    address airlock;
-    address poolManager;
-    address deployer;
-}
-
-function mineDopplerHookMulticurveInitializer(MineDopplerHookMulticurveInitializerParams memory params)
-    view
-    returns (bytes32, address)
-{
-    bytes32 initHash = keccak256(
-        abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(params.airlock, params.poolManager))
-    );
-
-    for (uint256 salt; salt < 200_000; salt++) {
-        address initializer = computeCreate2Address(bytes32(salt), initHash, address(params.deployer));
-        if (uint160(initializer) & FLAG_MASK == MIGRATOR_HOOK_FLAGS && initializer.code.length == 0) {
-            return (bytes32(salt), initializer);
-        }
-    }
-    revert("AirlockMiner: could not find salt");
 }
 
 function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
@@ -81,12 +80,16 @@ function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns
 
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), migratorHookInitHash, address(params.hookDeployer));
-        if (uint160(hook) & FLAG_MASK == MIGRATOR_HOOK_FLAGS && hook.code.length == 0) {
+        if (uint160(hook) & Hooks.ALL_HOOK_MASK == MIGRATOR_HOOK_FLAGS && hook.code.length == 0) {
             return (bytes32(salt), hook);
         }
     }
     revert("AirlockMiner: could not find salt");
 }
+
+/* ----------------------------------------------------------------------------------------------- */
+/*                                UniswapV4MulticurveInitializerHook                               */
+/* ----------------------------------------------------------------------------------------------- */
 
 function mineV4MulticurveHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 multicurveHookInitHash = keccak256(
@@ -102,7 +105,7 @@ function mineV4MulticurveHook(MineV4MigratorHookParams memory params) view retur
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
         if (
-            uint160(hook) & FLAG_MASK
+            uint160(hook) & Hooks.ALL_HOOK_MASK
                     == uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
                             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
@@ -113,6 +116,10 @@ function mineV4MulticurveHook(MineV4MigratorHookParams memory params) view retur
     }
     revert("AirlockMiner: could not find salt");
 }
+
+/* -------------------------------------------------------------------------------------------------------- */
+/*                                UniswapV4ScheduledMulticurveInitializerHook                               */
+/* -------------------------------------------------------------------------------------------------------- */
 
 function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 multicurveHookInitHash = keccak256(
@@ -128,7 +135,7 @@ function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) v
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
         if (
-            uint160(hook) & FLAG_MASK
+            uint160(hook) & Hooks.ALL_HOOK_MASK
                     == uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
                             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
@@ -138,6 +145,27 @@ function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) v
         }
     }
     revert("AirlockMiner: could not find salt");
+}
+
+/* -------------------------------------------------------------------- */
+/*                                Doppler                               */
+/* -------------------------------------------------------------------- */
+
+uint160 constant DOPPLER_HOOK_FLAGS = uint160(
+    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+        | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
+);
+
+struct MineV4Params {
+    address airlock;
+    address poolManager;
+    uint256 initialSupply;
+    uint256 numTokensToSell;
+    address numeraire;
+    ITokenFactory tokenFactory;
+    bytes tokenFactoryData;
+    UniswapV4Initializer poolInitializer;
+    bytes poolInitializerData;
 }
 
 function mineV4(MineV4Params memory params) view returns (bytes32, address, address) {
@@ -216,7 +244,7 @@ function mineV4(MineV4Params memory params) view returns (bytes32, address, addr
         address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
 
         if (
-            uint160(hook) & FLAG_MASK == DOPPLER_HOOK_FLAGS && hook.code.length == 0
+            uint160(hook) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_FLAGS && hook.code.length == 0
                 && ((isToken0 && asset < params.numeraire) || (!isToken0 && asset > params.numeraire))
         ) {
             return (bytes32(salt), hook, asset);
@@ -229,26 +257,3 @@ function mineV4(MineV4Params memory params) view returns (bytes32, address, addr
 function computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer) pure returns (address) {
     return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
 }
-
-// UNCOMMENT AT YOUR OWN RISK
-// CAUSES COMPILE TIME YUL EXCEPTION
-// contract AirlockMinerTest is Test {
-
-//     function test_mine_works() public view {
-//         (bytes32 salt, address hook, address token) = mineV4(
-//             address(airlock),
-//             address(manager),
-//             1e27,
-//             1e27,
-//             address(0),
-//             ITokenFactory(address(0xfac)),
-//             abi.encode("Test", "TST", 1e27, 0, new address[](0), new uint256[](0)),
-//             initializer,
-//             abi.encode(address(0x44444), 0, 0, 0, 0, 0, int24(0), int24(0), 0, int24(0), false, 0)
-//         );
-
-//         console.log("salt: %s", uint256(salt));
-//         console.log("hook: %s", hook);
-//         console.log("token: %s", token);
-//     }
-// }
