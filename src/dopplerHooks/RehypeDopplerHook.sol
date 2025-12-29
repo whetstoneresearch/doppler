@@ -123,7 +123,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 balance1 = getHookFees[poolId].fees1;
 
         if (balance0 <= EPSILON && balance1 <= EPSILON) {
-            return (Currency.wrap(address(0)), 0);
+            return (feeCurrency, hookDelta);
         }
 
         address asset = getPoolInfo[poolId].asset;
