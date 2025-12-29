@@ -33,6 +33,27 @@ contract OpeningAuctionImplementation is OpeningAuction {
     ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
+
+    // Test helper getters for bitmap state
+    function getHasActiveTicks() external view returns (bool) {
+        return hasActiveTicks;
+    }
+
+    function getActiveTickCount() external view returns (uint256) {
+        return activeTickCount;
+    }
+
+    function getMinActiveTick() external view returns (int24) {
+        return minActiveTick;
+    }
+
+    function getMaxActiveTick() external view returns (int24) {
+        return maxActiveTick;
+    }
+
+    function isTickActive(int24 tick) external view returns (bool) {
+        return _isTickActive(tick);
+    }
 }
 
 contract OpeningAuctionBaseTest is Test, Deployers {

@@ -37,14 +37,40 @@ contract OpeningAuctionImpl is OpeningAuction {
 
     function validateHookAddress(BaseHook) internal pure override { }
 
-    /// @notice Expose activeTicks for testing
+    /// @notice Expose activeTicks for testing - walks the bitmap to return all active ticks
     function getActiveTicks() external view returns (int24[] memory) {
-        return activeTicks;
+        if (!hasActiveTicks) return new int24[](0);
+        
+        // First pass: count active ticks
+        uint256 count = activeTickCount;
+        int24[] memory ticks = new int24[](count);
+        
+        // Second pass: collect ticks by walking bitmap
+        uint256 idx = 0;
+        int24 iterTick = minActiveTick;
+        while (iterTick <= maxActiveTick && idx < count) {
+            (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+            if (!found || nextTick > maxActiveTick) break;
+            ticks[idx++] = nextTick;
+            iterTick = nextTick + 1;
+        }
+        
+        return ticks;
     }
 
     /// @notice Get the number of active ticks
     function getActiveTicksLength() external view returns (uint256) {
-        return activeTicks.length;
+        return activeTickCount;
+    }
+    
+    /// @notice Expose hasActiveTicks for testing
+    function getHasActiveTicks() external view returns (bool) {
+        return hasActiveTicks;
+    }
+    
+    /// @notice Expose min/max active ticks for testing
+    function getActiveTickBounds() external view returns (int24 minTick, int24 maxTick) {
+        return (minActiveTick, maxActiveTick);
     }
 }
 
