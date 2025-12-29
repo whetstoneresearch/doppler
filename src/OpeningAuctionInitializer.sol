@@ -124,7 +124,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     using CurrencyLibrary for Currency;
     using SafeTransferLib for address;
 
-    /// @notice Address of the Uniswap V4 PoolManager
+    /// @notice Address of the PoolManager
     IPoolManager public immutable poolManager;
 
     /// @notice Address of the OpeningAuctionDeployer contract
@@ -140,7 +140,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     mapping(address dopplerHook => address asset) public dopplerHookToAsset;
 
     /// @param airlock_ Address of the Airlock contract
-    /// @param poolManager_ Address of the Uniswap V4 PoolManager
+    /// @param poolManager_ Address of the PoolManager
     /// @param auctionDeployer_ Address of the OpeningAuctionDeployer contract
     /// @param dopplerDeployer_ Address of the DopplerDeployer contract
     constructor(

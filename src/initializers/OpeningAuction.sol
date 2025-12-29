@@ -24,6 +24,7 @@ import {
     OpeningAuctionConfig
 } from "src/interfaces/IOpeningAuction.sol";
 import { QuoterMath } from "src/libraries/QuoterMath.sol";
+import { BitMath } from "@v3-core/libraries/BitMath.sol";
 
 /// @dev Precision multiplier
 uint256 constant WAD = 1e18;
@@ -33,7 +34,7 @@ uint256 constant BPS = 10_000;
 
 
 /// @title OpeningAuction
-/// @notice A Uniswap V4 hook implementing a marginal price batch auction before Doppler
+/// @notice A hook implementing a marginal price batch auction before Doppler
 /// @author Whetstone Research
 /// @custom:security-contact security@whetstone.cc
 contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
@@ -129,9 +130,21 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Time tracking state per tick (for efficient incentive calculation)
     mapping(int24 tick => TickTimeState) public tickTimeStates;
 
-    /// @notice List of ticks with positions (for incentive calculation)
-    /// @dev Used only for iterating ticks during incentive finalization, not for clearing tick
-    int24[] internal activeTicks;
+    /// @notice Bitmap of active ticks (ticks with liquidity positions)
+    /// @dev Uses int16 word position, uint8 bit position
+    mapping(int16 => uint256) internal tickBitmap;
+
+    /// @notice Minimum active tick (for bounded iteration)
+    int24 internal minActiveTick;
+
+    /// @notice Maximum active tick (for bounded iteration)
+    int24 internal maxActiveTick;
+
+    /// @notice Whether any active ticks exist
+    bool internal hasActiveTicks;
+
+    /// @notice Count of active ticks (for view functions)
+    uint256 internal activeTickCount;
 
     /// @notice Estimated clearing tick if auction settled now
     int24 public estimatedClearingTick;
@@ -149,7 +162,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     // ============ Constructor ============
 
     /// @notice Creates a new OpeningAuction hook
-    /// @param poolManager_ The Uniswap V4 pool manager
+    /// @param poolManager_ The pool manager
     /// @param initializer_ The initializer contract address
     /// @param totalAuctionTokens_ Total tokens for the auction
     /// @param config Configuration for the auction
@@ -292,16 +305,23 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     }
 
     /// @notice Compute total weighted time across all ticks (for view functions before settlement)
-    /// @dev This is O(n) but only used in view functions before settlement
+    /// @dev Walks the bitmap to iterate all active ticks
     function _computeTotalWeightedTimeX128() internal view returns (uint256) {
         uint256 total = 0;
-        for (uint256 i = 0; i < activeTicks.length; i++) {
-            int24 tick = activeTicks[i];
-            uint128 liquidity = liquidityAtTick[tick];
 
-            if (liquidity > 0) {
-                uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(tick);
-                total += tickAccumulatorX128 * uint256(liquidity);
+        if (hasActiveTicks) {
+            int24 iterTick = minActiveTick;
+            while (iterTick <= maxActiveTick) {
+                (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+                if (!found || nextTick > maxActiveTick) break;
+
+                uint128 liquidity = liquidityAtTick[nextTick];
+                if (liquidity > 0) {
+                    uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
+                    total += tickAccumulatorX128 * uint256(liquidity);
+                }
+
+                iterTick = nextTick + 1;
             }
         }
 
@@ -315,16 +335,24 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @dev Returns sum of tick times (not weighted by liquidity)
     function totalAccumulatedTime() public view returns (uint256) {
         uint256 total = 0;
-        for (uint256 i = 0; i < activeTicks.length; i++) {
-            int24 tick = activeTicks[i];
-            uint128 liquidity = liquidityAtTick[tick];
 
-            if (liquidity > 0) {
-                // Convert Q128 accumulator back to seconds: accumulator * liquidity >> 128
-                uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(tick);
-                total += (tickAccumulatorX128 * uint256(liquidity)) >> 128;
+        if (hasActiveTicks) {
+            int24 iterTick = minActiveTick;
+            while (iterTick <= maxActiveTick) {
+                (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+                if (!found || nextTick > maxActiveTick) break;
+
+                uint128 liquidity = liquidityAtTick[nextTick];
+                if (liquidity > 0) {
+                    // Convert Q128 accumulator back to seconds: accumulator * liquidity >> 128
+                    uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
+                    total += (tickAccumulatorX128 * uint256(liquidity)) >> 128;
+                }
+
+                iterTick = nextTick + 1;
             }
         }
+
         return total;
     }
 
@@ -338,7 +366,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         // Only perform price validation and swap if there are bids (active ticks with liquidity)
         // If no bids exist, auction settles with 0 tokens sold (no liquidity to absorb them)
-        bool hasBids = activeTicks.length > 0;
+        bool hasBids = hasActiveTicks;
 
         if (tokensToSell > 0 && hasBids) {
             int24 expectedClearingTick = _calculateEstimatedClearingTick();
@@ -754,6 +782,99 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return tickLower <= tick && tick < tickUpper;
     }
 
+    // ============ Bitmap Helper Functions ============
+
+    /// @notice Computes the position in the bitmap where the bit for a tick lives
+    /// @param tick The tick for which to compute the position
+    /// @return wordPos The key in the mapping containing the word in which the bit is stored
+    /// @return bitPos The bit position in the word where the flag is stored
+    function _position(int24 tick) internal pure returns (int16 wordPos, uint8 bitPos) {
+        wordPos = int16(tick >> 8);
+        bitPos = uint8(uint24(tick) % 256);
+    }
+
+    /// @notice Flips the bit for a given tick in the bitmap
+    /// @param tick The tick to flip
+    function _flipTick(int24 tick) internal {
+        (int16 wordPos, uint8 bitPos) = _position(tick);
+        uint256 mask = 1 << bitPos;
+        tickBitmap[wordPos] ^= mask;
+    }
+
+    /// @notice Check if a tick is set in the bitmap
+    /// @param tick The tick to check
+    /// @return True if the tick is active (has liquidity)
+    function _isTickActive(int24 tick) internal view returns (bool) {
+        (int16 wordPos, uint8 bitPos) = _position(tick);
+        return (tickBitmap[wordPos] & (1 << bitPos)) != 0;
+    }
+
+    /// @notice Returns the next initialized tick in the bitmap
+    /// @param tick The starting tick
+    /// @param lte Whether to search left (less than or equal) or right (greater than)
+    /// @return next The next initialized tick (or tick +/- 256 if none found in word)
+    /// @return initialized Whether a tick was found
+    function _nextInitializedTickWithinOneWord(int24 tick, bool lte)
+        internal
+        view
+        returns (int24 next, bool initialized)
+    {
+        unchecked {
+            if (lte) {
+                (int16 wordPos, uint8 bitPos) = _position(tick);
+                // all the 1s at or to the right of the current bitPos
+                uint256 mask = (1 << bitPos) - 1 + (1 << bitPos);
+                uint256 masked = tickBitmap[wordPos] & mask;
+
+                initialized = masked != 0;
+                next = initialized
+                    ? tick - int24(uint24(bitPos - BitMath.mostSignificantBit(masked)))
+                    : tick - int24(uint24(bitPos));
+            } else {
+                // start from the word of the next tick
+                (int16 wordPos, uint8 bitPos) = _position(tick + 1);
+                // all the 1s at or to the left of the bitPos
+                uint256 mask = ~((1 << bitPos) - 1);
+                uint256 masked = tickBitmap[wordPos] & mask;
+
+                initialized = masked != 0;
+                next = initialized
+                    ? tick + 1 + int24(uint24(BitMath.leastSignificantBit(masked) - bitPos))
+                    : tick + 1 + int24(uint24(type(uint8).max - bitPos));
+            }
+        }
+    }
+
+    /// @notice Find the next initialized tick, searching across multiple words if needed
+    /// @param tick The starting tick
+    /// @param lte Whether to search left (less than or equal) or right (greater than)
+    /// @param boundTick The boundary tick to stop searching at
+    /// @return next The next initialized tick, or boundTick if none found
+    /// @return found Whether an initialized tick was found before the bound
+    function _nextInitializedTick(int24 tick, bool lte, int24 boundTick)
+        internal
+        view
+        returns (int24 next, bool found)
+    {
+        next = tick;
+        while (true) {
+            (int24 nextTick, bool initialized) = _nextInitializedTickWithinOneWord(next, lte);
+
+            if (initialized) {
+                return (nextTick, true);
+            }
+
+            // Check if we've passed the bound
+            if (lte) {
+                if (nextTick <= boundTick) return (boundTick, false);
+                next = nextTick - 1; // Move to previous word
+            } else {
+                if (nextTick >= boundTick) return (boundTick, false);
+                next = nextTick; // Already moved to next word boundary
+            }
+        }
+    }
+
     /// @notice Check if a tick would be filled given the estimated clearing tick
     /// @dev During active auction, "in range" means the position would be utilized by settlement
     /// @dev A position is utilized when the clearing price enters or passes through its range
@@ -830,105 +951,49 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
     }
 
-    /// @notice Insert a tick into the sorted activeTicks array
-    /// @dev For isToken0=true, ticks are sorted descending (highest first)
-    ///      For isToken0=false, ticks are sorted ascending (lowest first)
+    /// @notice Insert a tick into the bitmap
+    /// @dev O(1) operation - just flips a bit
     function _insertTick(int24 tick) internal {
-        uint256 len = activeTicks.length;
-
-        // O(1) existence check - if tick has liquidity, it's already in the array
+        // O(1) existence check - if tick has liquidity, it's already in the bitmap
         if (liquidityAtTick[tick] > 0) return;
 
-        // Binary search for insertion point - O(log n)
-        uint256 insertIdx = _findInsertionIndex(tick, len);
+        // Flip the bit to set it
+        _flipTick(tick);
+        activeTickCount++;
 
-        // Shift elements and insert - O(n), unavoidable with dynamic arrays
-        activeTicks.push(tick);
-        for (uint256 i = len; i > insertIdx; i--) {
-            activeTicks[i] = activeTicks[i - 1];
+        // Update min/max bounds
+        if (!hasActiveTicks) {
+            minActiveTick = tick;
+            maxActiveTick = tick;
+            hasActiveTicks = true;
+        } else {
+            if (tick < minActiveTick) minActiveTick = tick;
+            if (tick > maxActiveTick) maxActiveTick = tick;
         }
-        activeTicks[insertIdx] = tick;
     }
 
-    /// @notice Remove a tick from the sorted activeTicks array
-    /// @dev Called when liquidityAtTick reaches 0 to prevent griefing attacks
-    ///      where attackers bloat the array with empty ticks
+    /// @notice Remove a tick from the bitmap
+    /// @dev O(1) operation - just flips a bit
     function _removeTick(int24 tick) internal {
-        uint256 len = activeTicks.length;
-        if (len == 0) return;
+        if (!_isTickActive(tick)) return;
 
-        // Binary search to find the tick's index
-        uint256 idx = _findTickIndex(tick, len);
+        // Flip the bit to unset it
+        _flipTick(tick);
+        activeTickCount--;
 
-        // If tick not found or doesn't match, nothing to remove
-        if (idx >= len || activeTicks[idx] != tick) return;
-
-        // Shift all elements after idx left by one
-        for (uint256 i = idx; i < len - 1; i++) {
-            activeTicks[i] = activeTicks[i + 1];
+        // Update min/max bounds if needed
+        if (activeTickCount == 0) {
+            hasActiveTicks = false;
+            // min/max become stale but that's fine - hasActiveTicks guards them
+        } else if (tick == minActiveTick) {
+            // Find new minimum by walking right
+            (int24 newMin, bool found) = _nextInitializedTick(tick, false, maxActiveTick + 1);
+            if (found) minActiveTick = newMin;
+        } else if (tick == maxActiveTick) {
+            // Find new maximum by walking left
+            (int24 newMax, bool found) = _nextInitializedTick(tick, true, minActiveTick - 1);
+            if (found) maxActiveTick = newMax;
         }
-        activeTicks.pop();
-    }
-
-    /// @notice Binary search to find a tick's exact index in the sorted array
-    /// @dev Returns the index where tick is located, or where it would be if not found
-    function _findTickIndex(int24 tick, uint256 len) internal view returns (uint256) {
-        if (len == 0) return 0;
-
-        // Cache isToken0 to avoid repeated SLOAD and reduce stack depth
-        bool _isToken0 = isToken0;
-        uint256 low = 0;
-        uint256 high = len;
-
-        while (low < high) {
-            uint256 mid = (low + high) / 2;
-            int24 midTick = activeTicks[mid];
-
-            if (midTick == tick) {
-                return mid;
-            }
-
-            // Descending (isToken0=true): tick is before mid if tick > midTick
-            // Ascending (isToken0=false): tick is before mid if tick < midTick
-            if (_isToken0 ? tick > midTick : tick < midTick) {
-                high = mid;
-            } else {
-                low = mid + 1;
-            }
-        }
-
-        return low;
-    }
-
-    /// @notice Binary search to find insertion index maintaining sort order
-    /// @dev For isToken0: descending (high to low), else ascending (low to high)
-    function _findInsertionIndex(int24 tick, uint256 len) internal view returns (uint256) {
-        if (len == 0) return 0;
-
-        uint256 low = 0;
-        uint256 high = len;
-
-        while (low < high) {
-            uint256 mid = (low + high) / 2;
-            int24 midTick = activeTicks[mid];
-
-            bool shouldInsertBefore;
-            if (isToken0) {
-                // Descending: insert before if tick > midTick
-                shouldInsertBefore = tick > midTick;
-            } else {
-                // Ascending: insert before if tick < midTick
-                shouldInsertBefore = tick < midTick;
-            }
-
-            if (shouldInsertBefore) {
-                high = mid;
-            } else {
-                low = mid + 1;
-            }
-        }
-
-        return low;
     }
 
     /// @notice Calculate the estimated clearing tick using view-only quoter
@@ -976,99 +1041,146 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Update time states for ticks that transitioned in/out of range
     /// @param oldClearingTick Previous clearing tick
     /// @param newClearingTick New clearing tick
-    /// @dev Uses binary search to find boundaries, only updates ticks that changed state
-    ///      Complexity: O(log n + k) where k = number of ticks that changed state
+    /// @dev Walks ticks using bitmap between old and new boundaries
+    ///      Since ticks can only enter range (not exit) due to locking, we walk forward
     function _updateTickTimeStates(int24 oldClearingTick, int24 newClearingTick) internal {
-        uint256 len = activeTicks.length;
-        if (len == 0) return;
+        if (!hasActiveTicks) return;
 
-        // Find boundary indices using binary search
-        // Boundary = index of first tick that is NOT filled
-        uint256 oldBoundary = _findBoundaryIndex(oldClearingTick);
-        uint256 newBoundary = _findBoundaryIndex(newClearingTick);
+        // Determine which ticks changed state based on clearing tick movement
+        // For isToken0=true: clearing tick moves DOWN, ticks enter range when clearingTick < tickUpper
+        // For isToken0=false: clearing tick moves UP, ticks enter range when clearingTick >= tickLower
 
-        if (oldBoundary == newBoundary) return; // No ticks changed state
+        int24 tickSpacing = poolKey.tickSpacing;
 
-        if (newBoundary > oldBoundary) {
-            // Clearing tick moved favorably - more ticks are now filled
-            // Ticks in range [oldBoundary, newBoundary) are entering the filled zone
-            for (uint256 i = oldBoundary; i < newBoundary; i++) {
-                int24 tick = activeTicks[i];
-                TickTimeState storage tickState = tickTimeStates[tick];
-                // Tick entering range - update timestamp and start tracking
-                tickState.lastUpdateTime = block.timestamp;
-                tickState.isInRange = true;
+        if (isToken0) {
+            // Price moves down (clearing tick decreases)
+            // Ticks enter range when: clearingTick < tick + tickSpacing
+            // Walk from ticks that just entered range (near the new clearing tick)
+            if (newClearingTick < oldClearingTick) {
+                // More ticks are now filled - walk ticks that entered range
+                _walkTicksEnteringRange(oldClearingTick, newClearingTick, tickSpacing);
+            } else if (newClearingTick > oldClearingTick) {
+                // Fewer ticks are now filled - walk ticks that exited range
+                _walkTicksExitingRange(oldClearingTick, newClearingTick, tickSpacing);
             }
         } else {
-            // Clearing tick moved unfavorably - fewer ticks are now filled
-            // Ticks in range [newBoundary, oldBoundary) are exiting the filled zone
-            for (uint256 i = newBoundary; i < oldBoundary; i++) {
-                int24 tick = activeTicks[i];
-                TickTimeState storage tickState = tickTimeStates[tick];
-                // Tick exiting range - finalize accumulator before changing state
-                _updateTickAccumulator(tick);
-                tickState.isInRange = false;
+            // Price moves up (clearing tick increases)
+            // Ticks enter range when: clearingTick >= tickLower
+            if (newClearingTick > oldClearingTick) {
+                // More ticks are now filled - walk ticks that entered range
+                _walkTicksEnteringRange(oldClearingTick, newClearingTick, tickSpacing);
+            } else if (newClearingTick < oldClearingTick) {
+                // Fewer ticks are now filled - walk ticks that exited range
+                _walkTicksExitingRange(oldClearingTick, newClearingTick, tickSpacing);
             }
         }
     }
 
-    /// @notice Binary search to find the boundary index where ticks transition from filled to not filled
-    /// @param clearingTick The clearing tick to use for the boundary calculation
-    /// @return The index of the first tick that would NOT be filled (or length if all are filled)
-    /// @dev activeTicks is sorted so filled ticks come first:
-    ///      - isToken0=true: descending order, filled if clearingTick < tick + tickSpacing
-    ///      - isToken0=false: ascending order, filled if clearingTick >= tick
-    function _findBoundaryIndex(int24 clearingTick) internal view returns (uint256) {
-        uint256 len = activeTicks.length;
-        if (len == 0) return 0;
+    /// @notice Walk ticks that are entering the filled range and update their time states
+    /// @param oldClearingTick Previous clearing tick
+    /// @param newClearingTick New clearing tick  
+    /// @param tickSpacing The pool's tick spacing
+    function _walkTicksEnteringRange(int24 oldClearingTick, int24 newClearingTick, int24 tickSpacing) internal {
+        // Find the range of ticks that just entered
+        int24 startTick;
+        int24 endTick;
 
-        uint256 low = 0;
-        uint256 high = len;
-        int24 tickSpacing = poolKey.tickSpacing;
-
-        while (low < high) {
-            uint256 mid = (low + high) / 2;
-            int24 tick = activeTicks[mid];
-
-            bool filled;
-            if (isToken0) {
-                // Descending order: filled if clearingTick < tick + tickSpacing
-                filled = clearingTick < tick + tickSpacing;
-            } else {
-                // Ascending order: filled if clearingTick >= tick
-                filled = clearingTick >= tick;
-            }
-
-            if (filled) {
-                // This tick is filled, boundary must be further right
-                low = mid + 1;
-            } else {
-                // This tick is not filled, boundary is here or to the left
-                high = mid;
-            }
+        if (isToken0) {
+            // Descending: ticks enter when clearingTick drops below tickUpper (tick + tickSpacing)
+            // Walk ticks where: newClearingTick < tick + tickSpacing <= oldClearingTick
+            // i.e., tick in [newClearingTick - tickSpacing + 1, oldClearingTick - tickSpacing]
+            startTick = newClearingTick - tickSpacing + 1;
+            endTick = oldClearingTick - tickSpacing;
+        } else {
+            // Ascending: ticks enter when clearingTick rises to >= tickLower
+            // Walk ticks where: oldClearingTick < tick <= newClearingTick
+            startTick = oldClearingTick + 1;
+            endTick = newClearingTick;
         }
 
-        return low;
+        // Clamp to active tick bounds
+        if (startTick < minActiveTick) startTick = minActiveTick;
+        if (endTick > maxActiveTick) endTick = maxActiveTick;
+
+        // Walk through the bitmap
+        int24 iterTick = startTick;
+        while (iterTick <= endTick) {
+            (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, endTick + 1);
+            if (!found || nextTick > endTick) break;
+
+            TickTimeState storage tickState = tickTimeStates[nextTick];
+            tickState.lastUpdateTime = block.timestamp;
+            tickState.isInRange = true;
+
+            iterTick = nextTick + 1;
+        }
+    }
+
+    /// @notice Walk ticks that are exiting the filled range and update their time states
+    /// @param oldClearingTick Previous clearing tick
+    /// @param newClearingTick New clearing tick
+    /// @param tickSpacing The pool's tick spacing
+    function _walkTicksExitingRange(int24 oldClearingTick, int24 newClearingTick, int24 tickSpacing) internal {
+        // Find the range of ticks that just exited
+        int24 startTick;
+        int24 endTick;
+
+        if (isToken0) {
+            // Descending: ticks exit when clearingTick rises above tickUpper
+            // Walk ticks where: oldClearingTick < tick + tickSpacing <= newClearingTick
+            startTick = oldClearingTick - tickSpacing + 1;
+            endTick = newClearingTick - tickSpacing;
+        } else {
+            // Ascending: ticks exit when clearingTick drops below tickLower
+            // Walk ticks where: newClearingTick < tick <= oldClearingTick
+            startTick = newClearingTick + 1;
+            endTick = oldClearingTick;
+        }
+
+        // Clamp to active tick bounds
+        if (startTick < minActiveTick) startTick = minActiveTick;
+        if (endTick > maxActiveTick) endTick = maxActiveTick;
+
+        // Walk through the bitmap
+        int24 iterTick = startTick;
+        while (iterTick <= endTick) {
+            (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, endTick + 1);
+            if (!found || nextTick > endTick) break;
+
+            TickTimeState storage tickState = tickTimeStates[nextTick];
+            // Finalize accumulator before changing state
+            _updateTickAccumulator(nextTick);
+            tickState.isInRange = false;
+
+            iterTick = nextTick + 1;
+        }
     }
 
     /// @notice Finalize all tick accumulators at auction end and cache total weighted time
+    /// @dev Walks the bitmap to iterate all active ticks
     function _finalizeAllTickTimes() internal {
         uint256 totalWeightedTime = 0;
 
-        for (uint256 i = 0; i < activeTicks.length; i++) {
-            int24 tick = activeTicks[i];
+        if (hasActiveTicks) {
+            // Walk through all active ticks using the bitmap
+            int24 iterTick = minActiveTick;
+            while (iterTick <= maxActiveTick) {
+                (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+                if (!found || nextTick > maxActiveTick) break;
 
-            // Finalize each tick's accumulator
-            _updateTickAccumulator(tick);
+                // Finalize each tick's accumulator
+                _updateTickAccumulator(nextTick);
 
-            // Compute this tick's contribution to total weighted time
-            // totalWeightedTime = sum of (accumulatedTimePerLiquidity * liquidity) for all ticks
-            TickTimeState storage tickState = tickTimeStates[tick];
-            uint128 liquidity = liquidityAtTick[tick];
+                // Compute this tick's contribution to total weighted time
+                TickTimeState storage tickState = tickTimeStates[nextTick];
+                uint128 liquidity = liquidityAtTick[nextTick];
 
-            if (liquidity > 0) {
-                // accumulatedTimePerLiquidityX128 * liquidity gives us weighted time in Q128
-                totalWeightedTime += tickState.accumulatedTimePerLiquidityX128 * uint256(liquidity);
+                if (liquidity > 0) {
+                    // accumulatedTimePerLiquidityX128 * liquidity gives us weighted time in Q128
+                    totalWeightedTime += tickState.accumulatedTimePerLiquidityX128 * uint256(liquidity);
+                }
+
+                iterTick = nextTick + 1;
             }
         }
 
@@ -1131,7 +1243,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     }
 
     /// @notice Settle balance deltas with pool manager
-    /// @dev V4 delta convention: negative = we paid/sold, positive = we received
+    /// @dev Delta convention: negative = we paid/sold, positive = we received
     function _settleDeltas(BalanceDelta delta) internal {
         int128 amount0 = delta.amount0();
         int128 amount1 = delta.amount1();
