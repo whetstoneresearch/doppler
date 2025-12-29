@@ -83,6 +83,32 @@ interface IOpeningAuction {
     /// @notice Emitted when unclaimed incentive tokens are recovered
     event IncentivesRecovered(address indexed recipient, uint256 amount);
 
+    /// @notice Emitted when the auction starts (pool initialized)
+    event AuctionStarted(
+        uint256 auctionStartTime,
+        uint256 auctionEndTime,
+        uint256 totalAuctionTokens,
+        uint256 incentiveTokensTotal
+    );
+
+    /// @notice Emitted when the auction phase changes
+    event PhaseChanged(AuctionPhase indexed oldPhase, AuctionPhase indexed newPhase);
+
+    /// @notice Emitted when a tick enters the estimated clearing range
+    event TickEnteredRange(int24 indexed tick, uint128 liquidity);
+
+    /// @notice Emitted when a tick exits the estimated clearing range
+    event TickExitedRange(int24 indexed tick, uint128 liquidity);
+
+    /// @notice Emitted when liquidity is added to a tick
+    event LiquidityAddedToTick(int24 indexed tick, uint128 liquidityAdded, uint128 totalLiquidity);
+
+    /// @notice Emitted when liquidity is removed from a tick
+    event LiquidityRemovedFromTick(int24 indexed tick, uint128 liquidityRemoved, uint128 remainingLiquidity);
+
+    /// @notice Emitted when a position's time is harvested (during removal)
+    event TimeHarvested(uint256 indexed positionId, uint256 harvestedTimeX128);
+
     /// @notice Thrown when auction is not in the active phase
     error AuctionNotActive();
 
