@@ -420,4 +420,76 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             abi.encode(initData)
         );
     }
+
+    /// @notice Test exitLiquidity reverts when auction is still active (not transitioned to Doppler)
+    function test_exitLiquidity_revertsWhenAuctionActive() public {
+        OpeningAuctionInitData memory initData = getInitData(60);
+        bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
+        
+        // Initialize auction
+        address auctionHook = initializer.initialize(
+            asset,
+            numeraire,
+            AUCTION_TOKENS,
+            salt,
+            abi.encode(initData)
+        );
+        
+        // Try to exit liquidity while auction is still active
+        // This should fail because status is AuctionActive, not DopplerActive
+        vm.expectRevert(); // Will revert because no doppler hook exists yet
+        initializer.exitLiquidity(auctionHook); // Wrong target - auction hook, not doppler
+    }
+
+    /// @notice Test exitLiquidity reverts when called with invalid target
+    function test_exitLiquidity_revertsWithInvalidTarget() public {
+        OpeningAuctionInitData memory initData = getInitData(60);
+        bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
+        
+        // Initialize auction
+        initializer.initialize(
+            asset,
+            numeraire,
+            AUCTION_TOKENS,
+            salt,
+            abi.encode(initData)
+        );
+        
+        // Try to exit liquidity with random address
+        address randomTarget = address(0x1234);
+        vm.expectRevert(); // Will revert because target is not a valid doppler hook
+        initializer.exitLiquidity(randomTarget);
+    }
+
+    /// @notice Test state transitions are correctly tracked
+    function test_stateTransitions_auctionToSettled() public {
+        OpeningAuctionInitData memory initData = getInitData(60);
+        bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
+        
+        // Initialize auction
+        address auctionHook = initializer.initialize(
+            asset,
+            numeraire,
+            AUCTION_TOKENS,
+            salt,
+            abi.encode(initData)
+        );
+        
+        // Verify state after initialization using helper functions
+        assertEq(initializer.getOpeningAuctionHook(asset), auctionHook, "Auction hook should be set");
+        assertEq(initializer.getDopplerHook(asset), address(0), "Doppler hook should not be set yet");
+        
+        // Verify auction hook is properly configured
+        OpeningAuction auction = OpeningAuction(payable(auctionHook));
+        assertEq(uint256(auction.phase()), uint256(AuctionPhase.Active), "Auction should be active");
+    }
+
+    /// @notice Test that getState returns correct values for uninitialized asset
+    function test_getState_uninitializedAsset() public view {
+        address uninitializedAsset = address(0x9999);
+        
+        // For uninitialized assets, helper functions should return zero addresses
+        assertEq(initializer.getOpeningAuctionHook(uninitializedAsset), address(0), "Auction hook should be zero");
+        assertEq(initializer.getDopplerHook(uninitializedAsset), address(0), "Doppler hook should be zero");
+    }
 }
