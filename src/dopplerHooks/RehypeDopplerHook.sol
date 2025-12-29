@@ -6,8 +6,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BalanceDelta, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -144,12 +143,14 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, WAD);
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
 
+        address recipient = getPoolInfo[poolId].buybackDst;
+
         if (assetBuybackAmountIn > 0) {
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
                 _executeSwap(key, !isToken0, assetBuybackAmountIn);
             isToken0
-                ? key.currency0.transfer(getPoolInfo[poolId].buybackDst, assetBuybackAmountOut)
-                : key.currency1.transfer(getPoolInfo[poolId].buybackDst, assetBuybackAmountOut);
+                ? key.currency0.transfer(recipient, assetBuybackAmountOut)
+                : key.currency1.transfer(recipient, assetBuybackAmountOut);
             balance0 = isToken0 ? balance0 : balance0 - assetBuybackAmountInUsed;
             balance1 = isToken0 ? balance1 - assetBuybackAmountInUsed : balance1;
         }
@@ -164,8 +165,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
                     _executeSwap(key, isToken0, numeraireBuybackAmountIn);
                 isToken0
-                    ? key.currency1.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOutResult)
-                    : key.currency0.transfer(getPoolInfo[poolId].buybackDst, numeraireBuybackAmountOutResult);
+                    ? key.currency1.transfer(recipient, numeraireBuybackAmountOutResult)
+                    : key.currency0.transfer(recipient, numeraireBuybackAmountOutResult);
                 balance0 = isToken0 ? balance0 - numeraireBuybackAmountInUsed : balance0;
                 balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountInUsed;
             }
