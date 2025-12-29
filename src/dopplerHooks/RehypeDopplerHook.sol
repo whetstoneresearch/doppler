@@ -467,13 +467,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         if (hookFees.beneficiaryFees0 > 0) {
             poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
+            getHookFees[poolId].beneficiaryFees0 = 0;
         }
         if (hookFees.beneficiaryFees1 > 0) {
             poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
+            getHookFees[poolId].beneficiaryFees1 = 0;
         }
-
-        getHookFees[poolId].beneficiaryFees0 = 0;
-        getHookFees[poolId].beneficiaryFees1 = 0;
 
         return fees;
     }
