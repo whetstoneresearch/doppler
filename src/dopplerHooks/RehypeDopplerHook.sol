@@ -309,7 +309,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 amount1,
         uint160 sqrtPriceX96
     ) internal returns (uint256 amount0Added, uint256 amount1Added) {
-        uint128 liquidityDelta = 0;
+        uint128 liquidityDelta;
+
         if (amount0 >= 1 && amount1 >= 1) {
             liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
                 sqrtPriceX96,
