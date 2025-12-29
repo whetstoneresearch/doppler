@@ -82,6 +82,32 @@ event AuctionCompleted(
 /// @notice Emitted when proceeds are forwarded to airlock
 event ProceedsForwarded(address indexed asset, address indexed numeraire, uint256 amount);
 
+/// @notice Emitted when an opening auction is initialized
+event AuctionInitialized(
+    address indexed asset,
+    address indexed numeraire,
+    address openingAuctionHook,
+    uint256 auctionTokens,
+    uint256 auctionDuration,
+    int24 minAcceptableTick,
+    int24 tickSpacing
+);
+
+/// @notice Emitted when Doppler is deployed after auction completion
+event DopplerDeployed(
+    address indexed asset,
+    address indexed dopplerHook,
+    int24 alignedClearingTick,
+    uint256 unsoldTokens
+);
+
+/// @notice Emitted when auction status changes
+event StatusChanged(
+    address indexed asset,
+    OpeningAuctionStatus indexed oldStatus,
+    OpeningAuctionStatus indexed newStatus
+);
+
 /// @title OpeningAuctionDeployer
 /// @notice Deploys OpeningAuction hooks using CREATE2
 contract OpeningAuctionDeployer {
@@ -244,6 +270,16 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         });
 
         emit Create(address(auctionHook), asset, numeraire);
+        
+        emit AuctionInitialized(
+            asset,
+            numeraire,
+            address(auctionHook),
+            auctionTokens,
+            config.auctionDuration,
+            config.minAcceptableTick,
+            config.tickSpacing
+        );
 
         return address(auctionHook);
     }
@@ -332,7 +368,11 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         // Initialize Doppler pool at aligned clearing tick
         poolManager.initialize(dopplerPoolKey, TickMath.getSqrtPriceAtTick(alignedClearingTick));
 
+        emit DopplerDeployed(asset, address(doppler), alignedClearingTick, unsoldTokens);
+
+        OpeningAuctionStatus oldStatus = state.status;
         state.status = OpeningAuctionStatus.DopplerActive;
+        emit StatusChanged(asset, oldStatus, OpeningAuctionStatus.DopplerActive);
 
         emit AuctionCompleted(asset, alignedClearingTick, tokensSold, proceeds);
     }
@@ -366,7 +406,9 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         }
 
         // Update status to Exited
+        OpeningAuctionStatus oldStatus = state.status;
         state.status = OpeningAuctionStatus.Exited;
+        emit StatusChanged(asset, oldStatus, OpeningAuctionStatus.Exited);
 
         // Delegate to Doppler's migrate
         return Doppler(payable(target)).migrate(address(airlock));
