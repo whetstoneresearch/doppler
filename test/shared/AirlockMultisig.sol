@@ -8,7 +8,7 @@ import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.
 /// @notice A very basic Airlock-oriented multisig for testing purposes, do not use in production :)
 contract AirlockMultisig {
     Airlock public immutable airlock;
-    DopplerHookInitializer dopplerHookInitializer;
+    DopplerHookInitializer public immutable dopplerHookInitializer;
     mapping(address => bool) public isSigner;
 
     modifier onlySigner() {
