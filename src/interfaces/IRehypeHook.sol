@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { PoolId } from "@v4-core/types/PoolId.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
 
 interface IRehypeHook {
-    function setFeesForPool(
-        PoolId poolId,
-        uint24 customFee
-    ) external;
+    function setFeesForPool(PoolId poolId, uint24 customFee) external;
 
     function setFeeDistributionForPool(
         PoolId poolId,
@@ -22,7 +19,5 @@ interface IRehypeHook {
         uint256 lpPercentWad
     ) external;
 
-    function collectFees(
-        PoolId poolId
-    ) external returns (BalanceDelta fees);
+    function collectFees(PoolId poolId) external returns (BalanceDelta fees);
 }

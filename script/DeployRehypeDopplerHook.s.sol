@@ -24,10 +24,8 @@ abstract contract DeployRehypeDopplerHookScript is Script {
         require(block.chainid == _scriptData.chainId, "Incorrect chainId");
 
         vm.startBroadcast();
-        RehypeDopplerHook rehypeDopplerHook = new RehypeDopplerHook(
-            _scriptData.dopplerHookInitializer,
-            IPoolManager(_scriptData.poolManager)
-        );
+        RehypeDopplerHook rehypeDopplerHook =
+            new RehypeDopplerHook(_scriptData.dopplerHookInitializer, IPoolManager(_scriptData.poolManager));
         vm.stopBroadcast();
 
         console.log("RehypeDopplerHook deployed to:", address(rehypeDopplerHook));
