@@ -199,6 +199,18 @@ contract RehypeDopplerHook is BaseDopplerHook {
         return (feeCurrency, hookDelta);
     }
 
+    /**
+     * @dev Calculates the optimal swap to rebalance fees for LP reinvestment
+     * @param key Uniswap V4 pool key
+     * @param lpAmount0 Available amount in currency0
+     * @param lpAmount1 Available amount in currency1
+     * @param sqrtPriceX96 Current square root price of the pool
+     * @return shouldSwap Whether a swap should be executed
+     * @return zeroForOne Direction of the swap
+     * @return amountIn Amount to swap in
+     * @return amountOut Amount to receive from the swap
+     * @return newSqrtPriceX96 New square root price after the swap
+     */
     function _rebalanceFees(
         PoolKey memory key,
         uint256 lpAmount0,
@@ -273,6 +285,15 @@ contract RehypeDopplerHook is BaseDopplerHook {
         return (false, zeroForOne, 0, 0, sqrtPriceX96);
     }
 
+    /**
+     * @dev Executes a swap on the pool
+     * @param key Uniswap V4 pool key
+     * @param zeroForOne Direction of the swap
+     * @param amountIn Amount to swap in
+     * @return sqrtPriceX96 New square root price after the swap
+     * @return uintOut Amount received from the swap
+     * @return uintIn Amount swapped in
+     */
     function _executeSwap(
         PoolKey memory key,
         bool zeroForOne,
@@ -303,6 +324,16 @@ contract RehypeDopplerHook is BaseDopplerHook {
         return (sqrtPriceX96, uintOut, uintIn);
     }
 
+    /**
+     * @dev Adds full range liquidity to the pool
+     * @param key Uniswap V4 pool key
+     * @param position Position data
+     * @param amount0 Amount of currency0 to add
+     * @param amount1 Amount of currency1 to add
+     * @param sqrtPriceX96 Current square root price of the pool
+     * @return amount0Added Actual amount of currency0 added
+     * @return amount1Added Actual amount of currency1 added
+     */
     function _addFullRangeLiquidity(
         PoolKey memory key,
         Position storage position,
@@ -349,11 +380,21 @@ contract RehypeDopplerHook is BaseDopplerHook {
         amount1Added = uint256(uint128(-realizedDelta.amount1()));
     }
 
+    /**
+     * @dev Settles a BalanceDelta by paying the required amounts to the pool manager
+     * @param key Uniswap V4 pool key
+     * @param delta BalanceDelta to settle
+     */
     function _settleDelta(PoolKey memory key, BalanceDelta delta) internal {
         if (delta.amount0() < 0) _pay(key.currency0, uint256(uint128(-delta.amount0())));
         if (delta.amount1() < 0) _pay(key.currency1, uint256(uint128(-delta.amount1())));
     }
 
+    /**
+     * @dev Collects amounts from the pool manager based on a BalanceDelta
+     * @param key Uniswap V4 pool key
+     * @param delta BalanceDelta to collect
+     */
     function _collectDelta(PoolKey memory key, BalanceDelta delta) internal {
         if (delta.amount0() > 0) {
             poolManager.take(key.currency0, address(this), uint128(delta.amount0()));
@@ -363,6 +404,11 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
     }
 
+    /**
+     * @dev Pays the specified amount of currency to the pool manager
+     * @param currency Currency to pay
+     * @param amount Amount to pay
+     */
     function _pay(Currency currency, uint256 amount) internal {
         if (amount == 0) return;
         poolManager.sync(currency);
@@ -374,6 +420,15 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
     }
 
+    /**
+     * @dev Simulates a swap on the pool
+     * @param key Uniswap V4 pool key
+     * @param zeroForOne Direction of the swap
+     * @param guess Amount to swap in
+     * @param fees0 Available fees in currency0
+     * @param fees1 Available fees in currency1
+     * @return simulation Result of the swap simulation
+     */
     function _simulateSwap(
         PoolKey memory key,
         bool zeroForOne,
@@ -425,6 +480,14 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
     }
 
+    /**
+     * @dev Calculates excess amounts for LP reinvestment
+     * @param fees0 Available fees in currency0
+     * @param fees1 Available fees in currency1
+     * @param sqrtPriceX96 Current square root price of the pool
+     * @return excess0 Excess amount in currency0
+     * @return excess1 Excess amount in currency1
+     */
     function _calculateExcess(
         uint256 fees0,
         uint256 fees1,
@@ -442,14 +505,30 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
     }
 
+    /**
+     * @dev Generates a salt for a full range liquidity position
+     * @param poolId Uniswap V4 poolId
+     * @return salt Generated salt
+     */
     function _fullRangeSalt(PoolId poolId) internal view returns (bytes32) {
         return keccak256(abi.encodePacked(address(this), PoolId.unwrap(poolId)));
     }
 
+    /**
+     * @dev Determines the greater of two amounts
+     * @param excess0 First amount
+     * @param excess1 Second amount
+     * @return Greater amount
+     */
     function _score(uint256 excess0, uint256 excess1) internal pure returns (uint256) {
         return excess0 > excess1 ? excess0 : excess1;
     }
 
+    /**
+     * @dev Returns the absolute value of an amount
+     * @param value Amount to convert
+     * @return Absolute value
+     */
     function _abs(int256 value) internal pure returns (uint256) {
         return value < 0 ? uint256(-value) : uint256(value);
     }
@@ -481,7 +560,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /**
      * @notice Updates the fee distribution for a pool
-     * @param poolId The pool ID to update
+     * @param poolId Uniswap V4 poolId
      * @param assetBuybackPercentWad Percentage for asset buyback (in WAD)
      * @param numeraireBuybackPercentWad Percentage for numeraire buyback (in WAD)
      * @param beneficiaryPercentWad Percentage for beneficiary (in WAD)
@@ -507,6 +586,15 @@ contract RehypeDopplerHook is BaseDopplerHook {
         });
     }
 
+    /**
+     * @dev Collects swap fees from a swap and updates hook fee tracking
+     * @param params Parameters of the swap
+     * @param delta BalanceDelta of the swap
+     * @param key Uniswap V4 pool key
+     * @param poolId Uniswap V4 poolId (to save gas)
+     * @return feeCurrency Currency in which the fee was collected
+     * @return feeDelta Amount of fee collected in feeCurrency
+     */
     function _collectSwapFees(
         IPoolManager.SwapParams memory params,
         BalanceDelta delta,
