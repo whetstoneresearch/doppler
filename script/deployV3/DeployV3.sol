@@ -7,6 +7,7 @@ import { Airlock } from "src/Airlock.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
 import { IUniswapV3Factory, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
@@ -52,7 +53,9 @@ abstract contract DeployV3Script is Script {
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
 
-        AirlockMultisig airlockMultisig = new AirlockMultisig(airlock, signers);
+        // TODO: Deploy dopplerHookInitializer and update the address(0) with the deployed address
+        AirlockMultisig airlockMultisig =
+            new AirlockMultisig(airlock, DopplerHookInitializer(payable(address(0))), signers);
 
         vm.stopBroadcast();
     }
