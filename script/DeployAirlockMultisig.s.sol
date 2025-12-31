@@ -24,7 +24,7 @@ abstract contract DeployAirlockMultisigScript is Script {
         require(_scriptData.chainId == block.chainid, "Incorrect chainId");
         AirlockMultisig multisig = new AirlockMultisig(
             Airlock(payable(_scriptData.airlock)),
-            DopplerHookInitializer(_scriptData.dopplerHookInitializer),
+            DopplerHookInitializer(payable(_scriptData.dopplerHookInitializer)),
             _scriptData.signers
         );
         vm.stopBroadcast();
