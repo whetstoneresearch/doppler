@@ -28,8 +28,10 @@ interface IDopplerHook {
      * @param sender Address of the swap sender
      * @param key Key of the Uniswap V4 pool where the swap is executed
      * @param params Swap parameters as defined in IPoolManager
+     * @param delta Amount owed to the caller (positive) or owed to the pool (negative)
      * @param data Extra data to pass to the hook
-     * @return Hook's delta in unspecified currency (Positive: the hook is owed/took currency, negative: the hook owes/sent currency)
+     * @return feeCurrency Currency being charged (unspecified currency derived from the swap)
+     * @return hookDelta Positive amount if the hook is owed currency, false otherwise
      */
     function onSwap(
         address sender,
@@ -37,7 +39,7 @@ interface IDopplerHook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta delta,
         bytes calldata data
-    ) external returns (Currency, int128);
+    ) external returns (Currency feeCurrency, int128 hookDelta);
 
     /**
      * @notice Called when the pool graduates
