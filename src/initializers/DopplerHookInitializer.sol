@@ -9,7 +9,6 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -21,7 +20,8 @@ import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.so
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { Curve, adjustCurves } from "src/libraries/Multicurve.sol";
+import { MulticurveLibrary } from "src/libraries/MulticurveLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -308,7 +308,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
-        positions = calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+        positions =
+            MulticurveLibrary.calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
@@ -349,7 +350,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
         sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
-        Position[] memory positions = calculatePositions(
+        Position[] memory positions = MulticurveLibrary.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, positions);
@@ -468,7 +469,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     function getPositions(address asset) public view returns (Position[] memory) {
         PoolState memory state = getState[asset];
         address token0 = Currency.unwrap(state.poolKey.currency0);
-        Position[] memory positions = calculatePositions(
+        Position[] memory positions = MulticurveLibrary.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         return positions;
@@ -545,11 +546,23 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         address asset = getAsset[key.toId()];
         PoolState memory state = getState[asset];
         address dopplerHook = state.dopplerHook;
+
+        int128 delta;
+
         if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
-            IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+            Currency feeCurrency;
+            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+
+            if (delta != 0) {
+                poolManager.take(feeCurrency, address(this), uint128(delta));
+                poolManager.sync(feeCurrency);
+                feeCurrency.transfer(address(poolManager), uint128(delta));
+                poolManager.settleFor(dopplerHook);
+            }
         }
+
         emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
-        return (BaseHook.afterSwap.selector, 0);
+        return (BaseHook.afterSwap.selector, delta);
     }
 
     /// @inheritdoc BaseHook
@@ -566,7 +579,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
+            afterSwapReturnDelta: true,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });

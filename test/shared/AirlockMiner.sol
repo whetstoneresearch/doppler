@@ -45,6 +45,37 @@ function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory para
     revert("AirlockMiner: could not find salt");
 }
 
+struct MineDopplerHookInitializerCreate2Params {
+    address deployer;
+    address airlock;
+    address poolManager;
+}
+
+function mineDopplerHookInitializerCreate2(MineDopplerHookInitializerCreate2Params memory params)
+    view
+    returns (bytes32, address)
+{
+    for (uint256 salt; salt < 100_000; salt++) {
+        address initializer = computeCreate2Address(
+            bytes32(salt),
+            keccak256(
+                abi.encodePacked(
+                    type(DopplerHookInitializer).creationCode, abi.encode(params.airlock, params.poolManager)
+                )
+            ),
+            params.deployer
+        );
+
+        if (
+            uint160(initializer) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_INITIALIZER_FLAGS && initializer.code.length == 0
+        ) {
+            return (bytes32(salt), initializer);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
+
 function computeCreate3Address(bytes32 salt, address deployer) pure returns (address computedAddress) {
     assembly ("memory-safe") {
         let ptr := mload(0x40)

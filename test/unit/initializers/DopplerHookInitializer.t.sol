@@ -57,7 +57,7 @@ contract MockDopplerHook is IDopplerHook {
         IPoolManager.SwapParams calldata,
         BalanceDelta,
         bytes calldata
-    ) external { }
+    ) external returns (Currency, int128) { }
     function onGraduation(address, PoolKey calldata, bytes calldata) external { }
 }
 
@@ -84,6 +84,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
                             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
                 ))
         );

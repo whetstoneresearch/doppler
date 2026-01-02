@@ -50,9 +50,10 @@ contract SwapRestrictorDopplerHook is BaseDopplerHook {
         IPoolManager.SwapParams calldata params,
         BalanceDelta balanceDelta,
         bytes calldata
-    ) internal override {
+    ) internal override returns (Currency, int128) {
         bool isToken0 = isAssetToken0[key.toId()];
 
+        // This condition checks if the asset token is being bought
         if (params.zeroForOne != isToken0) {
             uint256 amountRequested = isToken0 ? uint128(balanceDelta.amount0()) : uint128(balanceDelta.amount1());
             PoolId poolId = key.toId();
@@ -63,5 +64,7 @@ contract SwapRestrictorDopplerHook is BaseDopplerHook {
             amountLeftOf[poolId][sender] -= amountRequested;
             emit UpdatedAmountLeft(poolId, sender, amountLeftOf[poolId][sender]);
         }
+
+        return (Currency.wrap(address(0)), 0);
     }
 }
