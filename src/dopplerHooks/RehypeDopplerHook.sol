@@ -13,6 +13,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { Position } from "src/types/Position.sol";
 import { FeeDistributionInfo, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
@@ -20,6 +21,9 @@ import { WAD } from "src/types/Wad.sol";
 
 /// @notice Thrown when the fee distribution does not add up to WAD (1e18)
 error FeeDistributionMustAddUpToWAD();
+
+/// @notice Thrown when the sender is not a beneficiary of the pool
+error SenderNotBeneficiary();
 
 // Constants
 uint256 constant MAX_SWAP_FEE = 1e6;
@@ -577,6 +581,47 @@ contract RehypeDopplerHook is BaseDopplerHook {
             assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad == WAD,
             FeeDistributionMustAddUpToWAD()
         );
+
+        getFeeDistributionInfo[poolId] = FeeDistributionInfo({
+            assetBuybackPercentWad: assetBuybackPercentWad,
+            numeraireBuybackPercentWad: numeraireBuybackPercentWad,
+            beneficiaryPercentWad: beneficiaryPercentWad,
+            lpPercentWad: lpPercentWad
+        });
+    }
+
+    /**
+     * @notice Updates the fee distribution for a pool, callable by any beneficiary
+     * @param poolId Uniswap V4 poolId
+     * @param assetBuybackPercentWad Percentage for asset buyback (in WAD)
+     * @param numeraireBuybackPercentWad Percentage for numeraire buyback (in WAD)
+     * @param beneficiaryPercentWad Percentage for beneficiary (in WAD)
+     * @param lpPercentWad Percentage for LP reinvestment (in WAD)
+     */
+    function setFeeDistributionByBeneficiary(
+        PoolId poolId,
+        uint256 assetBuybackPercentWad,
+        uint256 numeraireBuybackPercentWad,
+        uint256 beneficiaryPercentWad,
+        uint256 lpPercentWad
+    ) external {
+        require(
+            assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad == WAD,
+            FeeDistributionMustAddUpToWAD()
+        );
+
+        // Get asset from pool info and verify sender is a beneficiary
+        address asset = getPoolInfo[poolId].asset;
+        BeneficiaryData[] memory beneficiaries = DopplerHookInitializer(payable(INITIALIZER)).getBeneficiaries(asset);
+
+        bool isBeneficiary = false;
+        for (uint256 i = 0; i < beneficiaries.length; i++) {
+            if (beneficiaries[i].beneficiary == msg.sender) {
+                isBeneficiary = true;
+                break;
+            }
+        }
+        require(isBeneficiary, SenderNotBeneficiary());
 
         getFeeDistributionInfo[poolId] = FeeDistributionInfo({
             assetBuybackPercentWad: assetBuybackPercentWad,
