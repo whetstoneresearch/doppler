@@ -237,6 +237,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
         // Settle the auction with no bids
         auction.settleAuction();
 
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         // Verify auction is settled and no time was accumulated
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled), "Auction should be settled");
         assertEq(auction.cachedTotalWeightedTimeX128(), 0, "No time should be accumulated with no bids");
@@ -319,6 +322,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
         // The settlement will either succeed (if clearing >= minAcceptable) or revert
         // If it succeeds with 0 tokens sold due to price, recovery should work
         try auction.settleAuction() {
+            vm.prank(creator);
+            auction.migrate(address(this));
+
             // If settlement succeeded, check if any time was earned
             if (auction.cachedTotalWeightedTimeX128() == 0) {
                 // No time earned - recovery should succeed
@@ -355,6 +361,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         uint256 expectedAmount = auction.incentiveTokensTotal();
 
         vm.expectEmit(true, true, false, true);
@@ -371,6 +380,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
 
         address recipient = address(0xbeef);
         uint256 expectedIncentives = auction.incentiveTokensTotal();
@@ -402,6 +414,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
         // Settle auction
         auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
 
         // Verify that time was accumulated
         assertGt(auction.cachedTotalWeightedTimeX128(), 0, "Weighted time should be accumulated");
@@ -435,6 +450,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
         // Settle auction
         auction.settleAuction();
 
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         // Verify position earned time and has incentives
         assertGt(auction.cachedTotalWeightedTimeX128(), 0, "Weighted time should be accumulated");
         uint256 aliceIncentives = auction.calculateIncentives(alicePos);
@@ -463,6 +481,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
 
         // Non-initializer tries to recover
         vm.prank(alice);
@@ -496,6 +517,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
 
         // First recovery succeeds
         vm.prank(creator);
@@ -550,6 +574,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         // Verify no incentives to recover
         assertEq(auction.incentiveTokensTotal(), 0, "Should have no incentive tokens");
 
@@ -584,6 +611,9 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
         // Settle auction
         auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
 
         // Record total incentive tokens available
         uint256 totalIncentives = auction.incentiveTokensTotal();
