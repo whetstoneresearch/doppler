@@ -110,7 +110,7 @@ contract DeployDopplerHookInitializerBaseSepoliaScript is Script {
     function run() public {
         address airlock = 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e;
         address poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
-        bytes32 salt = 0x0000000000000000000000000000000000000000000000000000000000008026;
+        bytes32 salt = 0x00000000000000000000000000000000000000000000000000000000000014bc;
 
         vm.startBroadcast();
         DopplerHookInitializer dopplerHookInitializer =
