@@ -72,6 +72,13 @@ event Swap(
     bytes hookData
 );
 
+/**
+ * @notice Emitted when a user delegates their pool authority to another address
+ * @param user Address of the user delegating their authority
+ * @param authority Address of the delegated authority
+ */
+event DelegateAuthority(address indexed user, address indexed authority);
+
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
 error OnlyInitializer();
 
@@ -368,6 +375,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
      * @param delegatedAuthority Address to delgate to
      */
     function delegateAuthority(address delegatedAuthority) external {
+        emit DelegateAuthority(msg.sender, delegatedAuthority);
         getAuthority[msg.sender] = delegatedAuthority;
     }
 
