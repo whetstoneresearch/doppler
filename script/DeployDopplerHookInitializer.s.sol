@@ -14,19 +14,6 @@ import {
     mineDopplerHookInitializerCreate2
 } from "test/shared/AirlockMiner.sol";
 
-contract ComputeDopplerHookInitializerSaltScript is Script, Config {
-    function run() public {
-        address createX = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
-        address sender = address(0xaCE07c3c1D3b556D42633211f0Da71dc6F6d1c42);
-
-        (bytes32 salt, address deployedTo) =
-            mineDopplerHookInitializer(MineDopplerHookInitializerParams({ sender: sender, deployer: createX }));
-
-        console.log("Computed salt:");
-        console.logBytes32(salt);
-    }
-}
-
 // FIXME: We cannot use this script because the DopplerHookInitializer contract has a linked library
 contract DeployDopplerHookInitializerMultichainScript is Script, Config {
     function run() public {
@@ -50,13 +37,14 @@ contract DeployDopplerHookInitializerMultichainScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         bytes32 salt = 0xace07c3c1d3b556d42633211f0da71dc6f6d1c420000000000000000000014dd;
+        address expectedDeployedTo = 0x09EAB7b5F42895ad4d254E0DFb4455AD2fBFa544;
 
         vm.startBroadcast();
         address dopplerHookInitializer = ICreateX(createX)
             .deployCreate3(
                 salt, abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(airlock, poolManager))
             );
-
+        require(dopplerHookInitializer == expectedDeployedTo, "Unexpected deployed address");
         console.log("DopplerHookInitializer deployed to:", dopplerHookInitializer);
         config.set("doppler_hook_initializer", dopplerHookInitializer);
         vm.stopBroadcast();
@@ -75,14 +63,22 @@ contract DeployDopplerHookInitializerScript is Script, Config {
         address createX = config.get("create_x").toAddress();
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
-        bytes32 salt = 0xace07c3c1d3b556d42633211f0da71dc6f6d1c420000000000000000000014dd;
+        console.log("msg.sender:", msg.sender);
+
+        (bytes32 salt, address expectedDeployedTo) = mineDopplerHookInitializer(
+            MineDopplerHookInitializerParams({ sender: 0xaCE07c3c1D3b556D42633211f0Da71dc6F6d1c42, deployer: createX })
+        );
+
+        console.log("Computed salt:");
+        console.logBytes32(salt);
+        console.log("Expected deployed to:", expectedDeployedTo);
 
         vm.startBroadcast();
         address dopplerHookInitializer = ICreateX(createX)
             .deployCreate3(
                 salt, abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(airlock, poolManager))
             );
-
+        require(dopplerHookInitializer == expectedDeployedTo, "Unexpected deployed address");
         console.log("DopplerHookInitializer deployed to:", dopplerHookInitializer);
         config.set("doppler_hook_initializer", dopplerHookInitializer);
         vm.stopBroadcast();
@@ -90,19 +86,16 @@ contract DeployDopplerHookInitializerScript is Script, Config {
 }
 
 contract MineDopplerHookInitializerSalt is Script {
-    function run() public {
-        address airlock = 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e;
-        address poolManager = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
-        address create2Factory = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+    function run() public view {
+        address createX = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
+        address sender = 0xaCE07c3c1D3b556D42633211f0Da71dc6F6d1c42;
 
-        (bytes32 salt, address deployedTo) = mineDopplerHookInitializerCreate2(
-            MineDopplerHookInitializerCreate2Params({
-                deployer: create2Factory, airlock: airlock, poolManager: poolManager
-            })
-        );
+        (bytes32 salt, address deployedTo) =
+            mineDopplerHookInitializer(MineDopplerHookInitializerParams({ sender: sender, deployer: createX }));
 
-        console.log("Salt");
+        console.log("Computed salt:");
         console.logBytes32(salt);
+        console.log("Expected deployed to:", deployedTo);
     }
 }
 
