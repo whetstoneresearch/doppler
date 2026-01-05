@@ -20,8 +20,7 @@ import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.so
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve, adjustCurves } from "src/libraries/Multicurve.sol";
-import { MulticurveLibrary } from "src/libraries/MulticurveLibrary.sol";
+import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -264,63 +263,45 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         uint256 totalTokensOnBondingCurve,
         InitData memory initData
     ) private returns (PoolKey memory poolKey, Position[] memory positions) {
-        (
-            Curve[] memory curves,
-            int24 farTick,
-            address dopplerHook,
-            int24 tickSpacing,
-            uint24 fee,
-            BeneficiaryData[] memory beneficiaries,
-            bytes memory graduationDopplerHookCalldata
-        ) = (
-            initData.curves,
-            initData.farTick,
-            initData.dopplerHook,
-            initData.tickSpacing,
-            initData.fee,
-            initData.beneficiaries,
-            initData.graduationDopplerHookCalldata
-        );
-
         poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: IHooks(address(this)),
-            fee: dopplerHook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
-            tickSpacing: tickSpacing
+            fee: initData.dopplerHook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : initData.fee,
+            tickSpacing: initData.tickSpacing
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
         (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary) =
-            adjustCurves(curves, 0, tickSpacing, isToken0);
+            Multicurve.adjustCurves(initData.curves, 0, initData.tickSpacing, isToken0);
 
         int24 startTick;
 
         if (isToken0) {
             startTick = lowerTickBoundary;
-            require(farTick > startTick && farTick <= upperTickBoundary, UnreachableFarTick());
+            require(initData.farTick > startTick && initData.farTick <= upperTickBoundary, UnreachableFarTick());
         } else {
             startTick = upperTickBoundary;
-            farTick = -farTick;
-            require(farTick < startTick && farTick >= lowerTickBoundary, UnreachableFarTick());
+            initData.farTick = -initData.farTick;
+            require(initData.farTick < startTick && initData.farTick >= lowerTickBoundary, UnreachableFarTick());
         }
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         positions =
-            MulticurveLibrary.calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+            Multicurve.calculatePositions(adjustedCurves, initData.tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
-            beneficiaries: beneficiaries,
+            beneficiaries: initData.beneficiaries,
             adjustedCurves: adjustedCurves,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            dopplerHook: dopplerHook,
-            graduationDopplerHookCalldata: graduationDopplerHookCalldata,
-            status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
+            dopplerHook: initData.dopplerHook,
+            graduationDopplerHookCalldata: initData.graduationDopplerHookCalldata,
+            status: initData.beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
-            farTick: farTick
+            farTick: initData.farTick
         });
 
         getState[asset] = state;
@@ -350,7 +331,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
         sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
-        Position[] memory positions = MulticurveLibrary.calculatePositions(
+        Position[] memory positions = Multicurve.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, positions);
@@ -469,7 +450,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     function getPositions(address asset) public view returns (Position[] memory) {
         PoolState memory state = getState[asset];
         address token0 = Currency.unwrap(state.poolKey.currency0);
-        Position[] memory positions = MulticurveLibrary.calculatePositions(
+        Position[] memory positions = Multicurve.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         return positions;
