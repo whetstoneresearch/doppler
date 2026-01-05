@@ -116,34 +116,9 @@ library Multicurve {
         uint256 numTokensToSell,
         uint256 otherCurrencySupply,
         bool isToken0
-    ) internal pure returns (Position[] memory positions) {
-        int24 lowerTickBoundary = TickMath.MAX_TICK;
-        int24 upperTickBoundary = TickMath.MIN_TICK;
-
-        {
-            uint256 totalShares;
-            uint256 length = curves.length;
-            bool _isToken0 = isToken0; // Copy to local variable to avoid stack too deep
-
-            for (uint256 i; i < length; i++) {
-                Curve memory curve = curves[i];
-                totalShares += curve.shares;
-
-                // Calculate the boundaries
-                if (lowerTickBoundary > curve.tickLower) lowerTickBoundary = curve.tickLower;
-                if (upperTickBoundary < curve.tickUpper) upperTickBoundary = curve.tickUpper;
-
-                // Calculate the positions for this curve
-                uint256 curveSupply = FixedPointMathLib.mulDiv(numTokensToSell, curve.shares, WAD);
-                Position[] memory newPositions = calculateLogNormalDistribution(
-                    i, curve.tickLower, curve.tickUpper, tickSpacing, _isToken0, curve.numPositions, curveSupply
-                );
-
-                positions = concat(positions, newPositions);
-            }
-
-            require(totalShares == WAD, InvalidTotalShares());
-        }
+    ) internal pure returns (Position[] memory) {
+        (Position[] memory positions, int24 lowerTickBoundary, int24 upperTickBoundary) =
+            _calculatePositions(curves, tickSpacing, numTokensToSell, isToken0);
 
         // If there's any supply of the other currency, we can compute the head position using the inverse logic of the tail
         if (otherCurrencySupply > 0) {
@@ -161,6 +136,41 @@ library Multicurve {
                 positions[positions.length - 1] = headPosition;
             }
         }
+
+        return positions;
+    }
+
+    function _calculatePositions(
+        Curve[] memory curves,
+        int24 tickSpacing,
+        uint256 numTokensToSell,
+        bool isToken0
+    ) private pure returns (Position[] memory positions, int24 lowerTickBoundary, int24 upperTickBoundary) {
+        uint256 length = curves.length;
+
+        lowerTickBoundary = TickMath.MAX_TICK;
+        upperTickBoundary = TickMath.MIN_TICK;
+
+        uint256 totalShares;
+
+        for (uint256 i; i < length; i++) {
+            Curve memory curve = curves[i];
+            totalShares += curve.shares;
+
+            // Calculate the boundaries
+            if (lowerTickBoundary > curve.tickLower) lowerTickBoundary = curve.tickLower;
+            if (upperTickBoundary < curve.tickUpper) upperTickBoundary = curve.tickUpper;
+
+            // Calculate the positions for this curve
+            uint256 curveSupply = FixedPointMathLib.mulDiv(numTokensToSell, curve.shares, WAD);
+            Position[] memory newPositions = calculateLogNormalDistribution(
+                i, curve.tickLower, curve.tickUpper, tickSpacing, isToken0, curve.numPositions, curveSupply
+            );
+
+            positions = concat(positions, newPositions);
+        }
+
+        require(totalShares == WAD, InvalidTotalShares());
     }
 
     /**
