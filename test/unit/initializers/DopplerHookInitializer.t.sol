@@ -24,6 +24,7 @@ import {
     BeneficiaryData,
     CannotMigrateInsufficientTick,
     CannotMigratePoolNoProvidedDopplerHook,
+    DelegateAuthority,
     DopplerHookInitializer,
     DopplerHookNotEnabled,
     Graduate,
@@ -388,6 +389,8 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
     /* --------------------------------------------------------------------------------- */
 
     function test_delegateAuthority(address user, address delegation) public {
+        vm.expectEmit();
+        emit DelegateAuthority(user, delegation);
         vm.prank(user);
         initializer.delegateAuthority(delegation);
         assertEq(initializer.getAuthority(user), delegation, "Incorrect delegated authority");
