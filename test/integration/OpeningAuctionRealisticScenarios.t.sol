@@ -730,6 +730,9 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         console2.log("=== Claim All Incentives Test ===");
         console2.log("Incentive pool:", auction.incentiveTokensTotal() / 1e18);
 

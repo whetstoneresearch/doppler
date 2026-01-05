@@ -111,6 +111,11 @@ contract OpeningAuctionHandler is Test {
     /// @notice Track whether auction has been settled
     bool public ghost_isSettled;
 
+    /// @notice Track whether auction has been migrated
+    bool public ghost_isMigrated;
+
+    /// @notice Initializer address for migrate calls
+    address public initializer;
     /// @notice Track claimable amounts at settlement (frozen values)
     mapping(uint256 => uint256) public ghost_claimableAtSettlement;
 
@@ -136,13 +141,15 @@ contract OpeningAuctionHandler is Test {
         IPoolManager manager_,
         PoolModifyLiquidityTest modifyLiquidityRouter_,
         PoolKey memory poolKey_,
-        bool isToken0_
+        bool isToken0_,
+        address initializer_
     ) {
         hook = hook_;
         manager = manager_;
         modifyLiquidityRouter = modifyLiquidityRouter_;
         poolKey = poolKey_;
         isToken0 = isToken0_;
+        initializer = initializer_;
 
         token0 = TestERC20(Currency.unwrap(poolKey_.currency0));
         token1 = TestERC20(Currency.unwrap(poolKey_.currency1));
@@ -284,6 +291,15 @@ contract OpeningAuctionHandler is Test {
         if (pos.hasClaimedIncentives) return;
 
         uint256 incentiveAmount = hook.calculateIncentives(positionId);
+
+        if (!hook.isMigrated()) {
+            vm.prank(initializer);
+            try hook.migrate(address(this)) {
+                ghost_isMigrated = true;
+            } catch {
+                return;
+            }
+        }
 
         try hook.claimIncentives(positionId) {
             ghost_totalIncentivesClaimed += incentiveAmount;
@@ -456,7 +472,7 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        handler = new OpeningAuctionHandler(hook, manager, modifyLiquidityRouter, key, isToken0);
+        handler = new OpeningAuctionHandler(hook, manager, modifyLiquidityRouter, key, isToken0, initializer);
         vm.label(address(handler), "Handler");
 
         bytes4[] memory selectors = new bytes4[](6);

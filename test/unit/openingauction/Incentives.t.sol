@@ -32,9 +32,20 @@ contract IncentivesTest is OpeningAuctionBaseTest {
         hook.claimIncentives(1);
     }
 
+    function test_claimIncentives_RevertsWhenNotMigrated() public {
+        _warpToAuctionEnd();
+        hook.settleAuction();
+
+        vm.expectRevert(IOpeningAuction.AuctionNotMigrated.selector);
+        hook.claimIncentives(1);
+    }
+
     function test_claimIncentives_RevertsWhenPositionNotFound() public {
         _warpToAuctionEnd();
         hook.settleAuction();
+
+        vm.prank(initializer);
+        hook.migrate(address(this));
 
         vm.expectRevert(IOpeningAuction.PositionNotFound.selector);
         hook.claimIncentives(999);

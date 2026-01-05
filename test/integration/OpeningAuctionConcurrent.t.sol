@@ -292,6 +292,11 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         hook1.settleAuction();
         hook2.settleAuction();
 
+        vm.startPrank(creator);
+        hook1.migrate(address(this));
+        hook2.migrate(address(this));
+        vm.stopPrank();
+
         // Claim incentives - get balances before/after since claimIncentives returns void
         uint256 aliceBalBefore = TestERC20(TOKEN_A).balanceOf(alice);
         vm.prank(alice);
@@ -338,6 +343,12 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         hook1.settleAuction();
         hook2.settleAuction();
         hook3.settleAuction();
+
+        vm.startPrank(creator);
+        hook1.migrate(address(this));
+        hook2.migrate(address(this));
+        hook3.migrate(address(this));
+        vm.stopPrank();
 
         // Alice claims from all three - track balances before/after
         uint256 balA_before = TestERC20(TOKEN_A).balanceOf(alice);

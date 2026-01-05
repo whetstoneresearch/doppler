@@ -118,6 +118,9 @@ interface IOpeningAuction {
     /// @notice Thrown when auction has not been settled
     error AuctionNotSettled();
 
+    /// @notice Thrown when auction has not been migrated yet
+    error AuctionNotMigrated();
+
     /// @notice Thrown when bidding period has closed (auction ended but not yet settled)
     error BiddingClosed();
 
@@ -165,9 +168,6 @@ interface IOpeningAuction {
 
     /// @notice Thrown when no incentives available to recover
     error NoIncentivesToRecover();
-
-    /// @notice Thrown when maximum number of unique ticks is exceeded
-    error MaxTicksExceeded();
 
     /// @notice Thrown when partial liquidity removal is attempted (only full removal allowed)
     error PartialRemovalNotAllowed();

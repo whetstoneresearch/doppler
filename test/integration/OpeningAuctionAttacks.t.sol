@@ -215,6 +215,9 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         vm.warp(hook.auctionEndTime() + 1);
         hook.settleAuction();
 
+        vm.prank(creator);
+        hook.migrate(address(this));
+
         // Get incentive token (asset token) balance before claims
         // Asset is token0 if isToken0 is true, otherwise token1
         address incentiveToken = hook.isToken0() ? address(token0) : address(token1);

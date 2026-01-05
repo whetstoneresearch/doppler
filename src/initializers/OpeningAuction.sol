@@ -108,6 +108,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Tokens reserved for LP incentives
     uint256 public incentiveTokensTotal;
 
+    /// @notice True once migrate() has been called
+    bool public isMigrated;
+
     // ============ Position Tracking ============
 
     /// @notice Next position ID to assign
@@ -121,6 +124,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Map position key to position ID
     mapping(bytes32 positionKey => uint256 positionId) public positionKeyToId;
+
+    /// @notice Position IDs per tick (for lock/unlock events)
+    mapping(int24 tick => uint256[] positionIds) internal tickPositions;
+
+    /// @notice Index of position ID within tickPositions[tick]
+    mapping(uint256 positionId => uint256 index) internal positionIndexInTick;
 
     // ============ Tick-Level Tracking (Efficient) ============
 
@@ -408,6 +417,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @inheritdoc IOpeningAuction
     function claimIncentives(uint256 positionId) external nonReentrant {
         if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
+        if (!isMigrated) revert AuctionNotMigrated();
 
         AuctionPosition storage pos = _positions[positionId];
         if (pos.owner == address(0)) revert PositionNotFound();
@@ -440,6 +450,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     {
         if (msg.sender != initializer) revert SenderNotInitializer();
         if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
+
+        isMigrated = true;
 
         // Get current price
         (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
@@ -483,6 +495,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     function recoverIncentives(address recipient) external {
         if (msg.sender != initializer) revert SenderNotInitializer();
         if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
+        if (!isMigrated) revert AuctionNotMigrated();
 
         // Can only recover if no positions earned any time (totalWeightedTime == 0)
         // This handles the edge case where incentive tokens would otherwise be locked
@@ -636,6 +649,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Create position ID
             uint256 positionId = nextPositionId++;
 
+            bool wasInRange = tickTimeStates[params.tickLower].isInRange;
+
             // Store position with reward debt (MasterChef-style)
             _positions[positionId] = AuctionPosition({
                 owner: owner,
@@ -652,6 +667,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             positionKeyToId[positionKey] = positionId;
 
             ownerPositions[owner].push(positionId);
+
+            // Track positions by tick for lock/unlock events
+            positionIndexInTick[positionId] = tickPositions[params.tickLower].length;
+            tickPositions[params.tickLower].push(positionId);
 
             // Insert tick into activeTicks BEFORE updating liquidity
             // (because _insertTick uses liquidityAtTick==0 to detect new ticks)
@@ -670,6 +689,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             if (tickInRange && !newTickState.isInRange) {
                 newTickState.isInRange = true;
                 newTickState.lastUpdateTime = block.timestamp;
+            }
+
+            if (tickInRange && wasInRange) {
+                emit PositionLocked(positionId);
             }
 
             emit BidPlaced(positionId, owner, params.tickLower, liquidity);
@@ -749,6 +772,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 // This preserves the position's earned rewards even after removal
                 _harvestPosition(positionId);
 
+                _removePositionFromTick(params.tickLower, positionId);
+
                 emit BidWithdrawn(positionId);
             }
 
@@ -776,7 +801,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         bytes calldata
     ) internal view override returns (bytes4, BeforeSwapDelta, uint24) {
         // Only allow swaps from this contract (for settlement)
-        if (sender != address(this) && phase == AuctionPhase.Active) {
+        if (sender != address(this)) {
             revert SwapsNotAllowedDuringAuction();
         }
 
@@ -971,6 +996,25 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
     }
 
+    /// @notice Remove a position from tickPositions tracking
+    function _removePositionFromTick(int24 tick, uint256 positionId) internal {
+        uint256[] storage positions = tickPositions[tick];
+        if (positions.length == 0) return;
+
+        uint256 index = positionIndexInTick[positionId];
+        if (index >= positions.length || positions[index] != positionId) return;
+
+        uint256 lastIndex = positions.length - 1;
+        if (index != lastIndex) {
+            uint256 swappedId = positions[lastIndex];
+            positions[index] = swappedId;
+            positionIndexInTick[swappedId] = index;
+        }
+
+        positions.pop();
+        delete positionIndexInTick[positionId];
+    }
+
     /// @notice Insert a tick into the bitmap
     /// @dev O(1) operation - just flips a bit
     function _insertTick(int24 tick) internal {
@@ -1133,6 +1177,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             tickState.isInRange = true;
             
             emit TickEnteredRange(nextTick, liquidityAtTick[nextTick]);
+            uint256[] storage positions = tickPositions[nextTick];
+            for (uint256 i = 0; i < positions.length; i++) {
+                emit PositionLocked(positions[i]);
+            }
 
             iterTick = nextTick + 1;
         }
@@ -1175,6 +1223,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             tickState.isInRange = false;
             
             emit TickExitedRange(nextTick, liquidityAtTick[nextTick]);
+            uint256[] storage positions = tickPositions[nextTick];
+            for (uint256 i = 0; i < positions.length; i++) {
+                emit PositionUnlocked(positions[i]);
+            }
 
             iterTick = nextTick + 1;
         }

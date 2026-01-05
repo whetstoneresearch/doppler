@@ -470,6 +470,10 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        // Migrate before claiming incentives
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         // Get the position owner (it's the modifyLiquidityRouter)
         AuctionPosition memory pos = auction.positions(posId);
 

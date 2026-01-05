@@ -624,6 +624,9 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        vm.prank(creator);
+        auction.migrate(address(this));
+
         console2.log("Clearing tick:", int256(auction.clearingTick()));
         console2.log("\n=== Claiming Incentives ===");
 

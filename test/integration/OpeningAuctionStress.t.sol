@@ -274,6 +274,8 @@ contract OpeningAuctionStressTest is Test, Deployers {
         // Settle auction
         vm.warp(hook.auctionEndTime() + 1);
         hook.settleAuction();
+
+        hook.migrate(address(this));
         
         // All bidders claim incentives
         for (uint256 i = 0; i < numBidders; i++) {
