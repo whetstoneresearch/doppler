@@ -123,7 +123,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
     function getDefaultConfig() internal view returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: auctionDuration,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: incentiveShareBps,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -262,7 +263,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
         
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: auctionDuration,
-            minAcceptableTick: highMinAcceptableTick,
+            minAcceptableTickToken0: highMinAcceptableTick,
+            minAcceptableTickToken1: highMinAcceptableTick,
             incentiveShareBps: incentiveShareBps,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -290,7 +292,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: auctionDuration,
-            minAcceptableTick: veryLowMinTick,
+            minAcceptableTickToken0: veryLowMinTick,
+            minAcceptableTickToken1: veryLowMinTick,
             incentiveShareBps: incentiveShareBps,
             tickSpacing: tickSpacing,
             fee: 3000,

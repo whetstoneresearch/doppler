@@ -3,7 +3,9 @@ pragma solidity ^0.8.24;
 
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { AuctionPhase, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
+import { IPoolManager } from "@v4-core/PoolManager.sol";
 
 contract PositionTrackingTest is OpeningAuctionBaseTest {
     function test_afterAddLiquidity_TracksPositionCorrectly() public {
@@ -56,6 +58,36 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
         assertEq(pos.owner, alice);
     }
 
+    function test_afterAddLiquidity_EmitsPositionLockedWhenAlreadyInRange() public {
+        int24 tickLower = -3000;
+        uint128 amount = 2000 ether;
+
+        uint256 firstPos = _addBid(alice, tickLower, amount);
+        assertTrue(hook.isInRange(firstPos), "First position should be in range");
+
+        vm.prank(bob);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        vm.prank(bob);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        uint256 positionId = hook.nextPositionId();
+        vm.expectEmit(true, true, true, true, address(hook));
+        emit IOpeningAuction.PositionLocked(positionId);
+
+        vm.startPrank(bob);
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + key.tickSpacing,
+                liquidityDelta: int256(uint256(amount)),
+                salt: bytes32(positionId)
+            }),
+            abi.encode(bob)
+        );
+        vm.stopPrank();
+    }
+
     function test_position_InitiallyNotLocked_WhenOutOfRange() public {
         // Place a bid far from current tick (which is at MAX_TICK)
         int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
@@ -80,7 +112,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
         // With tick-based tracking, accumulated time is computed dynamically
         // It will be > 0 if the tick is currently in range
         // For a position far from clearing tick, it should start at 0
-        uint256 accTime = hook.getPositionAccumulatedTime(positionId);
+        hook.getPositionAccumulatedTime(positionId);
         // accTime depends on whether tick is in range - skip strict assertion
     }
 

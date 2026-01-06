@@ -119,7 +119,8 @@ contract OpeningAuctionBaseTest is Test, Deployers {
     function getDefaultConfig() public pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: DEFAULT_AUCTION_DURATION,
-            minAcceptableTick: DEFAULT_MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: DEFAULT_MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: DEFAULT_MIN_ACCEPTABLE_TICK,
             incentiveShareBps: DEFAULT_INCENTIVE_SHARE_BPS,
             tickSpacing: DEFAULT_TICK_SPACING,
             fee: DEFAULT_FEE,

@@ -56,8 +56,11 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Duration of the auction in seconds
     uint256 public auctionDuration;
 
-    /// @notice Minimum acceptable tick for bids
-    int24 public minAcceptableTick;
+    /// @notice Minimum acceptable tick for bids when selling token0
+    int24 public minAcceptableTickToken0;
+
+    /// @notice Minimum acceptable tick for bids when selling token1
+    int24 public minAcceptableTickToken1;
 
     /// @notice Share of tokens for LP incentives (basis points)
     uint256 public incentiveShareBps;
@@ -185,7 +188,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         totalAuctionTokens = totalAuctionTokens_;
 
         auctionDuration = config.auctionDuration;
-        minAcceptableTick = config.minAcceptableTick;
+        minAcceptableTickToken0 = config.minAcceptableTickToken0;
+        minAcceptableTickToken1 = config.minAcceptableTickToken1;
         incentiveShareBps = config.incentiveShareBps;
         minLiquidity = config.minLiquidity;
 
@@ -208,6 +212,11 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @inheritdoc IOpeningAuction
     function positions(uint256 positionId) external view returns (AuctionPosition memory) {
         return _positions[positionId];
+    }
+
+    /// @notice Get the minimum acceptable tick for the active auction direction
+    function minAcceptableTick() public view returns (int24) {
+        return _minAcceptableTick();
     }
 
     /// @inheritdoc IOpeningAuction
@@ -302,7 +311,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             if (liquidity > 0) {
                 uint256 endTime = (phase == AuctionPhase.Settled || phase == AuctionPhase.Closed)
                     ? auctionEndTime
-                    : block.timestamp;
+                    : (block.timestamp > auctionEndTime ? auctionEndTime : block.timestamp);
                 if (endTime > tickState.lastUpdateTime) {
                     uint256 elapsed = endTime - tickState.lastUpdateTime;
                     accumulatorX128 += (elapsed << 128) / liquidity;
@@ -338,6 +347,11 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         total += totalHarvestedTimeX128;
 
         return total;
+    }
+
+    /// @notice Get the minimum acceptable tick for the current auction direction
+    function _minAcceptableTick() internal view returns (int24) {
+        return isToken0 ? minAcceptableTickToken0 : minAcceptableTickToken1;
     }
 
     /// @notice Get total accumulated time across all ticks (for external queries)
@@ -381,13 +395,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             int24 expectedClearingTick = _calculateEstimatedClearingTick();
 
             // Validate expected clearing tick is not worse than minimum acceptable price
-            // For isToken0=true (selling token0): clearing tick should be >= minAcceptableTick
-            // For isToken0=false (selling token1): clearing tick should be <= minAcceptableTick
-            if (isToken0) {
-                if (expectedClearingTick < minAcceptableTick) revert SettlementPriceTooLow();
-            } else {
-                if (expectedClearingTick > minAcceptableTick) revert SettlementPriceTooLow();
-            }
+            if (expectedClearingTick < _minAcceptableTick()) revert SettlementPriceTooLow();
         }
 
         AuctionPhase oldPhase = phase;
@@ -605,11 +613,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             }
 
             // Validate tick is above minimum acceptable price
-            if (isToken0) {
-                if (params.tickLower < minAcceptableTick) revert BidBelowMinimumPrice();
-            } else {
-                if (params.tickUpper > minAcceptableTick) revert BidBelowMinimumPrice();
-            }
+            if (params.tickLower < _minAcceptableTick()) revert BidBelowMinimumPrice();
 
             // Validate minimum liquidity to prevent dust bid griefing
             // This prevents attackers from creating many tiny positions to bloat activeTicks
@@ -623,7 +627,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @inheritdoc BaseHook
     function _afterAddLiquidity(
-        address sender,
+        address,
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata params,
         BalanceDelta,
@@ -680,7 +684,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             emit LiquidityAddedToTick(params.tickLower, liquidity, liquidityAtTick[params.tickLower]);
 
             // Update estimated clearing tick and tick time states (efficient - only updates affected ticks)
-            _updateClearingTickAndTimeStates();
+            bool clearingTickChanged = _updateClearingTickAndTimeStates();
 
             // Explicitly check if the newly added tick is now in range and update its state
             // This handles the case where the tick IS the new clearing tick
@@ -691,7 +695,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 newTickState.lastUpdateTime = block.timestamp;
             }
 
-            if (tickInRange && wasInRange) {
+            if (tickInRange && (wasInRange || !clearingTickChanged)) {
                 emit PositionLocked(positionId);
             }
 
@@ -773,6 +777,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 _harvestPosition(positionId);
 
                 _removePositionFromTick(params.tickLower, positionId);
+
+                _positions[positionId].liquidity = 0;
 
                 emit BidWithdrawn(positionId);
             }
@@ -998,20 +1004,20 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Remove a position from tickPositions tracking
     function _removePositionFromTick(int24 tick, uint256 positionId) internal {
-        uint256[] storage positions = tickPositions[tick];
-        if (positions.length == 0) return;
+        uint256[] storage tickPositionIds = tickPositions[tick];
+        if (tickPositionIds.length == 0) return;
 
         uint256 index = positionIndexInTick[positionId];
-        if (index >= positions.length || positions[index] != positionId) return;
+        if (index >= tickPositionIds.length || tickPositionIds[index] != positionId) return;
 
-        uint256 lastIndex = positions.length - 1;
+        uint256 lastIndex = tickPositionIds.length - 1;
         if (index != lastIndex) {
-            uint256 swappedId = positions[lastIndex];
-            positions[index] = swappedId;
+            uint256 swappedId = tickPositionIds[lastIndex];
+            tickPositionIds[index] = swappedId;
             positionIndexInTick[swappedId] = index;
         }
 
-        positions.pop();
+        tickPositionIds.pop();
         delete positionIndexInTick[positionId];
     }
 
@@ -1086,11 +1092,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Update the estimated clearing tick and tick time states
     /// @dev Only updates ticks that transition in/out of range - O(k) where k = changed ticks
-    function _updateClearingTickAndTimeStates() internal {
+    /// @return changed True if the clearing tick moved
+    function _updateClearingTickAndTimeStates() internal returns (bool changed) {
         int24 oldClearingTick = estimatedClearingTick;
         int24 newClearingTick = _calculateEstimatedClearingTick();
 
-        if (newClearingTick == oldClearingTick) return;
+        if (newClearingTick == oldClearingTick) return false;
 
         // Update estimatedClearingTick BEFORE calling _updateTickTimeStates
         // so that _wouldBeFilled uses the NEW clearing tick
@@ -1100,6 +1107,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         _updateTickTimeStates(oldClearingTick, newClearingTick);
 
         emit EstimatedClearingTickUpdated(newClearingTick);
+        return true;
     }
 
     /// @notice Update time states for ticks that transitioned in/out of range
@@ -1177,9 +1185,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             tickState.isInRange = true;
             
             emit TickEnteredRange(nextTick, liquidityAtTick[nextTick]);
-            uint256[] storage positions = tickPositions[nextTick];
-            for (uint256 i = 0; i < positions.length; i++) {
-                emit PositionLocked(positions[i]);
+            uint256[] storage tickPositionIds = tickPositions[nextTick];
+            for (uint256 i = 0; i < tickPositionIds.length; i++) {
+                emit PositionLocked(tickPositionIds[i]);
             }
 
             iterTick = nextTick + 1;
@@ -1223,9 +1231,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             tickState.isInRange = false;
             
             emit TickExitedRange(nextTick, liquidityAtTick[nextTick]);
-            uint256[] storage positions = tickPositions[nextTick];
-            for (uint256 i = 0; i < positions.length; i++) {
-                emit PositionUnlocked(positions[i]);
+            uint256[] storage tickPositionIds = tickPositions[nextTick];
+            for (uint256 i = 0; i < tickPositionIds.length; i++) {
+                emit PositionUnlocked(tickPositionIds[i]);
             }
 
             iterTick = nextTick + 1;
@@ -1280,12 +1288,15 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         uint256 amountToSell = abi.decode(data, (uint256));
 
-        // TOCTOU fix: Use minAcceptableTick as price limit instead of extreme values
+        // TOCTOU fix: Use a directional price limit and post-swap floor check
         // This ensures the settlement swap cannot execute at a worse price than validated
         // in settleAuction() even if liquidity changes between validation and execution
-        uint160 sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(minAcceptableTick);
+        int24 minTick = _minAcceptableTick();
+        uint160 sqrtPriceLimitX96 = isToken0
+            ? TickMath.getSqrtPriceAtTick(minTick)
+            : TickMath.MAX_SQRT_PRICE - 1;
 
-        // Execute the swap with price limit based on minAcceptableTick
+        // Execute the swap with a directional price limit
         BalanceDelta delta = poolManager.swap(
             poolKey,
             IPoolManager.SwapParams({
@@ -1295,6 +1306,13 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             }),
             ""
         );
+
+        // Enforce price floor after swap for isToken0=false (price moves up)
+        if (!isToken0) {
+            (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+            int24 finalTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+            if (finalTick < minTick) revert SettlementPriceTooLow();
+        }
 
         // Track tokens sold and proceeds
         if (isToken0) {

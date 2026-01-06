@@ -14,7 +14,7 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
+import { OpeningAuctionConfig, AuctionPhase, AuctionPosition, IOpeningAuction, TickTimeState } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
@@ -27,6 +27,23 @@ contract OpeningAuctionDynamicImpl is OpeningAuction {
     ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
+
+    function setTickTimeState(
+        int24 tick,
+        bool inRange,
+        uint256 lastUpdateTime,
+        uint256 accumulatedTimePerLiquidityX128
+    ) external {
+        tickTimeStates[tick] = TickTimeState({
+            lastUpdateTime: lastUpdateTime,
+            accumulatedTimePerLiquidityX128: accumulatedTimePerLiquidityX128,
+            isInRange: inRange
+        });
+    }
+
+    function setEstimatedClearingTick(int24 tick) external {
+        estimatedClearingTick = tick;
+    }
 }
 
 /// @notice Tests for dynamic range tracking and time-based incentives
@@ -108,7 +125,8 @@ contract DynamicRangeTrackingTest is Test, Deployers {
     function _createAuction(uint256 auctionTokens) internal {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -271,6 +289,28 @@ contract DynamicRangeTrackingTest is Test, Deployers {
 
         // Alice should now be able to remove her position
         _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
+    }
+
+    /// @notice Test that view-based time accrual stops after auction end even before settlement
+    function test_viewAccumulation_StopsAfterAuctionEnd() public {
+        _createAuction(AUCTION_TOKENS);
+
+        // Place a bid that will be in range
+        int24 aliceTickLower = 0;
+        uint128 aliceLiquidity = 2000 ether;
+        uint256 alicePos = _addBid(alice, aliceTickLower, aliceLiquidity);
+
+        assertTrue(auction.isInRange(alicePos), "Position should be in range");
+
+        // Move past auction end without settling
+        vm.warp(auction.auctionEndTime() + 1);
+        uint256 earnedAtEnd = auction.getPositionAccumulatedTime(alicePos);
+
+        // Advance time further - accrued time should not increase after auction end
+        vm.warp(auction.auctionEndTime() + 1 hours);
+        uint256 earnedAfterDelay = auction.getPositionAccumulatedTime(alicePos);
+
+        assertEq(earnedAfterDelay, earnedAtEnd, "Earned time should stop after auction end");
     }
 
     // ============ Test: Time Tracking for Partial In-Range ============
@@ -444,5 +484,39 @@ contract DynamicRangeTrackingTest is Test, Deployers {
 
         // Both should have non-zero incentives if they accumulated time
         // Note: The exact amounts depend on whether positions were "touched" during settlement
+    }
+
+    /// @notice Test removed positions do not accrue time if the tick re-enters range
+    function test_removedPosition_NoAccrualAfterReentry() public {
+        _createAuction(AUCTION_TOKENS);
+
+        int24 sharedTick = -3000;
+        uint128 sharedLiquidity = 10_000 ether;
+        uint256 alicePos = _addBid(alice, sharedTick, sharedLiquidity);
+        uint256 bobPos = _addBid(bob, sharedTick, sharedLiquidity);
+
+        auction.setEstimatedClearingTick(TickMath.MAX_TICK);
+        assertFalse(auction.isInRange(alicePos), "Shared tick should start out of range");
+
+        uint256 timeBeforeRemove = auction.getPositionAccumulatedTime(alicePos);
+
+        // Remove Alice's position while out of range
+        _removeBid(alice, sharedTick, sharedLiquidity, alicePos);
+
+        AuctionPosition memory removedPos = auction.positions(alicePos);
+        assertEq(removedPos.liquidity, 0, "Removed position should zero liquidity");
+
+        // Simulate the tick re-entering range after removal
+        auction.setTickTimeState(sharedTick, true, block.timestamp, 0);
+
+        uint256 timeAfterReentry = auction.getPositionAccumulatedTime(alicePos);
+        assertEq(timeAfterReentry, timeBeforeRemove, "Removed position should not accrue after reentry");
+
+        vm.warp(block.timestamp + 1 days);
+        uint256 timeAfterMore = auction.getPositionAccumulatedTime(alicePos);
+        assertEq(timeAfterMore, timeBeforeRemove, "Removed position should stay constant");
+
+        uint256 bobTimeAfterMore = auction.getPositionAccumulatedTime(bobPos);
+        assertGt(bobTimeAfterMore, 0, "Remaining position should accrue time");
     }
 }

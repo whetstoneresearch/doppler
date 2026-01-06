@@ -618,7 +618,7 @@ contract BitmapUnitTest is Test {
         assertEq(next, -500); // Returns bound
     }
 
-    function test_nextInitializedTick_NoTicksInRange() public {
+    function test_nextInitializedTick_NoTicksInRange() public view {
         // No ticks set at all
         (int24 next, bool found) = harness.nextInitializedTick(0, false, 10000);
         assertFalse(found);

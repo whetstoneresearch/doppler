@@ -37,14 +37,16 @@ struct TickTimeState {
 
 /// @notice Configuration for the opening auction
 /// @param auctionDuration Duration in seconds
-/// @param minAcceptableTick Minimum tick for bids (price floor)
+/// @param minAcceptableTickToken0 Minimum tick for bids when selling token0 (price floor)
+/// @param minAcceptableTickToken1 Minimum tick for bids when selling token1 (price floor)
 /// @param incentiveShareBps Percentage of tokens for LP incentives (basis points)
 /// @param tickSpacing Tick spacing for the pool
 /// @param fee Fee for the pool
 /// @param minLiquidity Minimum liquidity per position (prevents dust bid griefing)
 struct OpeningAuctionConfig {
     uint256 auctionDuration;
-    int24 minAcceptableTick;
+    int24 minAcceptableTickToken0;
+    int24 minAcceptableTickToken1;
     uint256 incentiveShareBps;
     int24 tickSpacing;
     uint24 fee;

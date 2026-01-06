@@ -20,7 +20,8 @@ contract TickBitmapTest is OpeningAuctionBaseTest {
     function getBitmapTestConfig() internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: 1 days,
-            minAcceptableTick: -887_220, // Very low min tick to allow all bids
+            minAcceptableTickToken0: -887_220, // Very low min tick to allow all bids
+            minAcceptableTickToken1: -887_220,
             incentiveShareBps: 1000, // 10%
             tickSpacing: 60,
             fee: 3000,

@@ -130,7 +130,8 @@ contract DopplerTransitionTest is Test, Deployers {
     function deployAuction(uint256 incentiveShareBps) internal returns (OpeningAuction) {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: incentiveShareBps,
             tickSpacing: 60,
             fee: 3000,
@@ -233,8 +234,6 @@ contract DopplerTransitionTest is Test, Deployers {
     function test_claimIncentives_worksAfterMigrate() public {
         // Deploy auction with 10% incentives
         auction = deployAuction(INCENTIVE_SHARE_BPS);
-        
-        uint256 expectedIncentives = (AUCTION_TOKENS * INCENTIVE_SHARE_BPS) / 10_000;
 
         // Alice places a bid that will be in range
         int24 tickLower = 0;
@@ -330,21 +329,6 @@ contract DopplerTransitionTest is Test, Deployers {
         uint256 pastStartingTime = block.timestamp - 1 hours;
         uint256 pastEndingTime = pastStartingTime + 7 days;
         
-        bytes memory dopplerData = abi.encode(
-            uint256(0),           // minimumProceeds
-            uint256(1e30),        // maximumProceeds
-            pastStartingTime,     // startingTime (IN THE PAST!)
-            pastEndingTime,       // endingTime
-            int24(0),             // startingTick
-            int24(-100_000),      // endingTick
-            uint256(1 hours),     // epochLength
-            int24(60),            // gamma
-            true,                 // isToken0
-            uint256(5),           // numPDSlugs
-            uint24(3000),         // lpFee
-            int24(60)             // tickSpacing
-        );
-        
         // Verify the original duration
         uint256 originalDuration = pastEndingTime - pastStartingTime;
         assertEq(originalDuration, 7 days, "Original duration should be 7 days");
@@ -374,10 +358,9 @@ contract DopplerTransitionTest is Test, Deployers {
 
     /// @notice Test that timing is NOT adjusted when startingTime is still in the future
     /// @dev Ensures we don't unnecessarily modify valid timing
-    function test_modifyDopplerStartingTick_preservesFutureTiming() public {
+    function test_modifyDopplerStartingTick_preservesFutureTiming() public view {
         // Create Doppler data with startingTime in the future
         uint256 futureStartingTime = block.timestamp + 1 days;
-        uint256 futureEndingTime = futureStartingTime + 7 days;
         
         // The function should NOT modify timing if startingTime > block.timestamp
         // This is the expected behavior - preserve original timing when valid
@@ -405,7 +388,6 @@ contract DopplerTransitionTest is Test, Deployers {
         
         uint256 originalStartingTime = baseTime;
         uint256 originalDuration = 7 days;
-        uint256 originalEndingTime = originalStartingTime + originalDuration;
         
         // Warp forward by delay amount (simulating auction taking longer than expected)
         vm.warp(baseTime + delaySeconds);
