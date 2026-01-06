@@ -66,7 +66,8 @@ contract OpeningAuctionStressTest is Test, Deployers {
         // Setup config
         config = OpeningAuctionConfig({
             auctionDuration: 1 days,
-            minAcceptableTick: -34020,
+            minAcceptableTickToken0: -34020,
+            minAcceptableTickToken1: -34020,
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
@@ -150,7 +151,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
             TestERC20(token1).transfer(bidder, 100_000 ether);
             
             // Place bid at ticks well above minAcceptableTick
-            int24 tickLower = config.minAcceptableTick + int24(int256(i + 10)) * config.tickSpacing;
+            int24 tickLower = config.minAcceptableTickToken0 + int24(int256(i + 10)) * config.tickSpacing;
             _addBid(bidder, tickLower, liquidityPerBid);
         }
         
@@ -168,7 +169,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
     function test_stress_concentratedBids() public {
         uint256 numBids = 50;
         uint128 liquidityPerBid = 200e18; // Much higher liquidity to absorb auction tokens
-        int24 targetTick = config.minAcceptableTick + config.tickSpacing * 50; // Much higher tick
+        int24 targetTick = config.minAcceptableTickToken0 + config.tickSpacing * 50; // Much higher tick
         
         for (uint256 i = 0; i < numBids; i++) {
             address bidder = address(uint160(0x2000 + i));
@@ -204,7 +205,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
             TestERC20(token0).transfer(bidder, 100_000 ether);
             TestERC20(token1).transfer(bidder, 100_000 ether);
             
-            int24 tickLower = config.minAcceptableTick + int24(int256(i + 10)) * config.tickSpacing;
+            int24 tickLower = config.minAcceptableTickToken0 + int24(int256(i + 10)) * config.tickSpacing;
             _addBid(bidder, tickLower, 100e18);
         }
         
@@ -225,7 +226,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
     function test_stress_rapidBidChurn() public {
         uint256 numCycles = 10;
         uint128 liquidity = 1e18;
-        int24 tickLower = config.minAcceptableTick + config.tickSpacing * 3;
+        int24 tickLower = config.minAcceptableTickToken0 + config.tickSpacing * 3;
         
         address bidder = address(0x4000);
         TestERC20(token0).transfer(bidder, 1_000_000 ether);
@@ -267,7 +268,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
             TestERC20(token0).transfer(bidder, 100_000 ether);
             TestERC20(token1).transfer(bidder, 100_000 ether);
             
-            int24 tickLower = config.minAcceptableTick + int24(int256(i + 10)) * config.tickSpacing;
+            int24 tickLower = config.minAcceptableTickToken0 + int24(int256(i + 10)) * config.tickSpacing;
             _addBid(bidder, tickLower, liquidityPerBid);
         }
         

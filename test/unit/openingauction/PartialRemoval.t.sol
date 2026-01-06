@@ -104,7 +104,8 @@ contract PartialRemovalTest is Test, Deployers {
     function _createAuction() internal {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -200,7 +201,6 @@ contract PartialRemovalTest is Test, Deployers {
         _removeBid(bob, bobTickLower, bobLiquidity, bobPos);
 
         // Verify position is gone (liquidity is 0)
-        AuctionPosition memory pos = auction.positions(bobPos);
         // Note: Position struct still exists but liquidity tracking should be updated
         assertEq(auction.liquidityAtTick(bobTickLower), 0, "Tick liquidity should be 0 after full removal");
     }

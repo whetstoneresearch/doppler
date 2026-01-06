@@ -31,7 +31,8 @@ contract ConstructorTest is Test {
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: 1 days,
-            minAcceptableTick: -99_960, // Aligned to tick spacing 60
+            minAcceptableTickToken0: -99_960, // Aligned to tick spacing 60
+            minAcceptableTickToken1: -99_960,
             incentiveShareBps: 1000, // 10%
             tickSpacing: 60,
             fee: 3000,
@@ -51,7 +52,7 @@ contract ConstructorTest is Test {
         );
 
         assertEq(auction.auctionDuration(), config.auctionDuration);
-        assertEq(auction.minAcceptableTick(), config.minAcceptableTick);
+        assertEq(auction.minAcceptableTick(), config.minAcceptableTickToken0);
         assertEq(auction.incentiveShareBps(), config.incentiveShareBps);
         assertEq(auction.totalAuctionTokens(), totalTokens);
         assertEq(auction.initializer(), initializer);

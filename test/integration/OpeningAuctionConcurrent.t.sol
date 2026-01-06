@@ -33,7 +33,7 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
     address bob = address(0xb0b);
 
     // Auction parameters
-    uint256 constant AUCTION_TOKENS = 1000e18;
+    uint256 constant AUCTION_TOKENS = 100e18;
     uint256 constant AUCTION_DURATION = 1 days;
 
     // Multiple auctions
@@ -84,9 +84,11 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
     }
 
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
+        int24 minTick = alignTickTowardZero(TickMath.MIN_TICK, 60);
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: minTick,
+            minAcceptableTickToken1: minTick,
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
@@ -168,16 +170,18 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
         // Alice bids on both - need enough liquidity at high ticks for settlement
+        int24 baseTick = 0;
+        uint128 liquidityPerBid = 1_000_000 ether;
         for (uint256 i = 0; i < 40; i++) {
-            _addBid(hook1, key1, alice, config.minAcceptableTick + config.tickSpacing * int24(int256(20 + i)), 100e18);
+            _addBid(hook1, key1, alice, baseTick - config.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
         }
         for (uint256 i = 0; i < 40; i++) {
-            _addBid(hook2, key2, alice, config.minAcceptableTick + config.tickSpacing * int24(int256(20 + i)), 100e18);
+            _addBid(hook2, key2, alice, baseTick - config.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
         }
 
         // Bob bids only on first
         for (uint256 i = 0; i < 20; i++) {
-            _addBid(hook1, key1, bob, config.minAcceptableTick + config.tickSpacing * int24(int256(60 + i)), 100e18);
+            _addBid(hook1, key1, bob, baseTick - config.tickSpacing * int24(int256(60 + i)), liquidityPerBid);
         }
 
         // Warp and settle both
@@ -206,17 +210,19 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
         // Bidders participate in multiple auctions - need many bids with high liquidity
+        int24 baseTick = 0;
+        uint128 liquidityPerBid = 1_000_000 ether;
         for (uint256 i = 0; i < 40; i++) {
-            _addBid(hook1, key1, alice, config.minAcceptableTick + config.tickSpacing * int24(int256(20 + i)), 100e18);
-            _addBid(hook2, key2, alice, config.minAcceptableTick + config.tickSpacing * int24(int256(20 + i)), 100e18);
-            _addBid(hook3, key3, bob, config.minAcceptableTick + config.tickSpacing * int24(int256(20 + i)), 100e18);
-            _addBid(hook4, key4, bob, config.minAcceptableTick + config.tickSpacing * int24(int256(20 + i)), 100e18);
+            _addBid(hook1, key1, alice, baseTick - config.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
+            _addBid(hook2, key2, alice, baseTick - config.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
+            _addBid(hook3, key3, bob, baseTick - config.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
+            _addBid(hook4, key4, bob, baseTick - config.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
         }
 
         // Cross-participation
         for (uint256 i = 0; i < 20; i++) {
-            _addBid(hook1, key1, bob, config.minAcceptableTick + config.tickSpacing * int24(int256(60 + i)), 100e18);
-            _addBid(hook3, key3, alice, config.minAcceptableTick + config.tickSpacing * int24(int256(60 + i)), 100e18);
+            _addBid(hook1, key1, bob, baseTick - config.tickSpacing * int24(int256(60 + i)), liquidityPerBid);
+            _addBid(hook3, key3, alice, baseTick - config.tickSpacing * int24(int256(60 + i)), liquidityPerBid);
         }
 
         // Warp and settle all
@@ -248,14 +254,16 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         (OpeningAuctionImpl hook2, PoolKey memory key2) = _deployAuction(TOKEN_B, 0x2002);
 
         // Add bids to both - need enough liquidity
+        int24 baseTick = 0;
+        uint128 liquidityPerBid = 1_000_000 ether;
         for (uint256 i = 0; i < 60; i++) {
-            _addBid(hook1, key1, alice, config1.minAcceptableTick + config1.tickSpacing * int24(int256(20 + i)), 100e18);
-            _addBid(hook2, key2, alice, config2.minAcceptableTick + config2.tickSpacing * int24(int256(20 + i)), 100e18);
+            _addBid(hook1, key1, alice, baseTick - config1.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
+            _addBid(hook2, key2, alice, baseTick - config2.tickSpacing * int24(int256(20 + i)), liquidityPerBid);
         }
 
         // First auction ends first
         vm.warp(hook1.auctionEndTime() + 1);
-        assertEq(uint8(hook1.phase()), uint8(AuctionPhase.Closed));
+        assertEq(uint8(hook1.phase()), uint8(AuctionPhase.Active));
         assertEq(uint8(hook2.phase()), uint8(AuctionPhase.Active)); // Still active
 
         // Settle first
@@ -263,7 +271,7 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         assertEq(uint8(hook1.phase()), uint8(AuctionPhase.Settled));
 
         // Add more bids to second (still active)
-        _addBid(hook2, key2, bob, config2.minAcceptableTick + config2.tickSpacing * 25, 150e18);
+        _addBid(hook2, key2, bob, baseTick - config2.tickSpacing * 25, 1_500_000 ether);
 
         // Second auction ends
         vm.warp(hook2.auctionEndTime() + 1);
@@ -280,10 +288,10 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
         // Alice bids on auction 1 with more liquidity
-        uint256 alicePos1 = _addBid(hook1, key1, alice, config.minAcceptableTick + config.tickSpacing * 20, 1000e18);
+        uint256 alicePos1 = _addBid(hook1, key1, alice, 0, 1_000_000 ether);
 
         // Bob bids on auction 2 with less liquidity
-        uint256 bobPos2 = _addBid(hook2, key2, bob, config.minAcceptableTick + config.tickSpacing * 20, 100 ether);
+        uint256 bobPos2 = _addBid(hook2, key2, bob, 0, 200_000 ether);
 
         // Both warp through auction period
         vm.warp(hook1.auctionEndTime() + 1);
@@ -330,12 +338,10 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         (OpeningAuctionImpl hook2, PoolKey memory key2) = _deployAuction(TOKEN_B, 0x4002);
         (OpeningAuctionImpl hook3, PoolKey memory key3) = _deployAuction(TOKEN_C, 0x4003);
 
-        OpeningAuctionConfig memory config = getDefaultConfig();
-
         // Alice bids on all three
-        uint256 pos1 = _addBid(hook1, key1, alice, config.minAcceptableTick + config.tickSpacing * 20, 100 ether);
-        uint256 pos2 = _addBid(hook2, key2, alice, config.minAcceptableTick + config.tickSpacing * 20, 100 ether);
-        uint256 pos3 = _addBid(hook3, key3, alice, config.minAcceptableTick + config.tickSpacing * 20, 100 ether);
+        uint256 pos1 = _addBid(hook1, key1, alice, 0, 1_000_000 ether);
+        uint256 pos2 = _addBid(hook2, key2, alice, 0, 1_000_000 ether);
+        uint256 pos3 = _addBid(hook3, key3, alice, 0, 1_000_000 ether);
 
         // Warp and settle all
         vm.warp(hook1.auctionEndTime() + 1);
@@ -385,9 +391,10 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
         // Add bids
-        _addBid(hook1, key1, alice, config.minAcceptableTick + config.tickSpacing * 20, 100 ether);
-        _addBid(hook2, key2, alice, config.minAcceptableTick + config.tickSpacing * 30, 100 ether);
-        _addBid(hook3, key3, alice, config.minAcceptableTick + config.tickSpacing * 40, 100 ether);
+        int24 baseTick = 0;
+        _addBid(hook1, key1, alice, baseTick - config.tickSpacing * 20, 1_000_000 ether);
+        _addBid(hook2, key2, alice, baseTick - config.tickSpacing * 30, 1_000_000 ether);
+        _addBid(hook3, key3, alice, baseTick - config.tickSpacing * 40, 1_000_000 ether);
 
         // Warp past all end times
         vm.warp(hook1.auctionEndTime() + 1);

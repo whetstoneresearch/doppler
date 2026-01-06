@@ -89,7 +89,8 @@ event AuctionInitialized(
     address openingAuctionHook,
     uint256 auctionTokens,
     uint256 auctionDuration,
-    int24 minAcceptableTick,
+    int24 minAcceptableTickToken0,
+    int24 minAcceptableTickToken1,
     int24 tickSpacing
 );
 
@@ -205,11 +206,8 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         }
 
         // Determine token ordering
+        if (asset == numeraire) revert InvalidTokenOrder();
         bool isToken0 = asset < numeraire;
-
-        // Validate token order matches what we expect
-        if (isToken0 && asset > numeraire) revert InvalidTokenOrder();
-        if (!isToken0 && asset < numeraire) revert InvalidTokenOrder();
 
         // Validate isToken0 in dopplerData matches derived value
         bool dopplerIsToken0 = _extractDopplerIsToken0(initData.dopplerData);
@@ -277,7 +275,8 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             address(auctionHook),
             auctionTokens,
             config.auctionDuration,
-            config.minAcceptableTick,
+            config.minAcceptableTickToken0,
+            config.minAcceptableTickToken1,
             config.tickSpacing
         );
 
