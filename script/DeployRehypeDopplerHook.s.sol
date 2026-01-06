@@ -21,6 +21,7 @@ contract DeployRehypeHookScript is Script, Config {
     function deployToChain(uint256 chainId) internal {
         vm.selectFork(forkOf[chainId]);
 
+        // TODO: Remove this to deploy to production
         if (config.get("is_testnet").toBool() == false) {
             return;
         }
