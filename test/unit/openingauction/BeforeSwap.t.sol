@@ -46,9 +46,10 @@ contract BeforeSwapTest is OpeningAuctionBaseTest {
         _warpToAuctionEnd();
         hook.settleAuction();
 
-        // After settlement, swaps should be allowed
+        // Swaps are still restricted to the hook itself
         vm.prank(address(manager));
-        (bytes4 selector,,) = hook.beforeSwap(
+        vm.expectRevert(IOpeningAuction.SwapsNotAllowedDuringAuction.selector);
+        hook.beforeSwap(
             alice,
             key,
             IPoolManager.SwapParams({
@@ -58,7 +59,5 @@ contract BeforeSwapTest is OpeningAuctionBaseTest {
             }),
             ""
         );
-
-        assertEq(selector, BaseHook.beforeSwap.selector);
     }
 }

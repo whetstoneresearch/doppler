@@ -205,7 +205,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function test_realisticAuction_ManyBiddersHighLiquidity() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000, // 10% for incentives
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -238,7 +239,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
 
         console2.log("\n=== Initial Bids ===");
         for (uint256 i = 0; i < NUM_BIDDERS; i++) {
-            uint256 posId = _addBid(bidders[i], bidTicks[i], liquidityPerBidder);
+            _addBid(bidders[i], bidTicks[i], liquidityPerBidder);
             console2.log("Bidder placed at tick:", int256(bidTicks[i]));
         }
 
@@ -275,7 +276,6 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         uint256 filledCount = 0;
         for (uint256 i = 0; i < NUM_BIDDERS; i++) {
             uint256 posId = i + 1;
-            AuctionPosition memory pos = auction.positions(posId);
             uint256 incentives = auction.calculateIncentives(posId);
             totalIncentives += incentives;
             if (auction.isInRange(posId)) filledCount++;
@@ -295,7 +295,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function test_multipleBidders_DifferentStrategies() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -331,11 +332,6 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("Clearing tick:", int256(auction.clearingTick()));
 
         // Check results
-        AuctionPosition memory aliceFinal = auction.positions(alicePos);
-        AuctionPosition memory bobFinal = auction.positions(bobPos);
-        AuctionPosition memory carolFinal = auction.positions(carolPos);
-        AuctionPosition memory daveFinal = auction.positions(davePos);
-
         console2.log("\nAlice (tick 0): filled =", auction.isInRange(alicePos));
         console2.log("Bob (tick -12000): filled =", auction.isInRange(bobPos));
         console2.log("Carol (tick -24000): filled =", auction.isInRange(carolPos));
@@ -356,7 +352,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -459,7 +456,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function test_liquidityDistribution_SmallVsLargeBidders() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -471,8 +469,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("=== Small vs Large Bidders ===");
 
         // 2 whale bidders with 200 ETH each at prime ticks
-        uint256 whale1 = _addBid(bidders[0], 0, 200_000 ether);
-        uint256 whale2 = _addBid(bidders[1], -600, 200_000 ether);
+        _addBid(bidders[0], 0, 200_000 ether);
+        _addBid(bidders[1], -600, 200_000 ether);
         console2.log("Whale 1: 200K liquidity at tick 0");
         console2.log("Whale 2: 200K liquidity at tick -600");
 
@@ -498,7 +496,6 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("\n--- Whales ---");
         for (uint256 i = 0; i < 2; i++) {
             uint256 posId = i + 1;
-            AuctionPosition memory pos = auction.positions(posId);
             uint256 incentives = auction.calculateIncentives(posId);
             if (auction.isInRange(posId)) filledCount++;
             totalIncentivesDistributed += incentives;
@@ -509,7 +506,6 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("\n--- Small Bidders ---");
         for (uint256 i = 0; i < 8; i++) {
             uint256 posId = i + 3;
-            AuctionPosition memory pos = auction.positions(posId);
             uint256 incentives = auction.calculateIncentives(posId);
             if (auction.isInRange(posId)) filledCount++;
             totalIncentivesDistributed += incentives;
@@ -530,7 +526,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function test_earlyVsLateBidders() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: 3 days, // Shorter auction
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -567,11 +564,6 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("\n=== Final Results ===");
         console2.log("Clearing tick:", int256(auction.clearingTick()));
 
-        AuctionPosition memory aliceFinal = auction.positions(alicePos);
-        AuctionPosition memory bobFinal = auction.positions(bobPos);
-        AuctionPosition memory carolFinal = auction.positions(carolPos);
-        AuctionPosition memory daveFinal = auction.positions(davePos);
-
         console2.log("\nAlice (early, tick 0):");
         console2.log("  Filled:", auction.isInRange(alicePos));
         console2.log("  Incentives:", auction.calculateIncentives(alicePos));
@@ -596,7 +588,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function test_incentiveClaiming_AllBiddersClaim() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -669,7 +662,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function test_sameTick_AllBiddersCompete() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,

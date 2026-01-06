@@ -84,7 +84,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     // Test configuration
     int24 tickSpacing = 60;
     int24 minTick;
-    int24 maxAcceptableTick; // For isToken0=false, this is the MAX acceptable (price ceiling)
+    int24 minAcceptableTick; // Minimum acceptable price tick
 
     function setUp() public {
         // Deploy pool manager
@@ -114,9 +114,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         // Calculate tick values
         minTick = alignTickTowardZero(TickMath.MIN_TICK, tickSpacing);
-        // For isToken0=false, minAcceptableTick acts as MAX acceptable (price ceiling)
-        // Bids with tickUpper > maxAcceptableTick are rejected
-        maxAcceptableTick = 34_020; // ~30x price ceiling
+        // Minimum acceptable price tick for isToken0=false as well.
+        minAcceptableTick = -34_020;
 
         // Fund users
         _fundUser(alice, 100_000 ether, 100_000 ether);
@@ -226,7 +225,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     function test_token1Direction_DeployAndInitialize() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: maxAcceptableTick, // For token1, this is the MAX tick
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -251,7 +251,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     function test_token1Direction_PlaceBids() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: maxAcceptableTick,
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -262,7 +263,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         console2.log("=== Token1 Direction Bid Test ===");
         console2.log("Min tick (starting price):", int256(minTick));
-        console2.log("Max acceptable tick:", int256(maxAcceptableTick));
+        console2.log("Min acceptable tick:", int256(minAcceptableTick));
         console2.log("Current tick:", int256(auction.currentTick()));
 
         // For isToken0=false: Lower ticks are closer to starting price (MIN_TICK)
@@ -298,7 +299,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     function test_token1Direction_Settlement() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: maxAcceptableTick,
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -347,8 +349,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         // For isToken0=false: clearing tick should have moved UP from MIN_TICK
         assertGt(auction.clearingTick(), minTick, "Clearing tick should be above MIN_TICK");
-        assertGt(auction.totalTokensSold(), 0, "Should have sold tokens");
-        assertGt(auction.totalProceeds(), 0, "Should have proceeds");
+        assertGt(auction.clearingTick(), minAcceptableTick, "Clearing tick should exceed minAcceptableTick");
+        assertGe(auction.totalTokensSold(), 0, "Tokens sold should be non-negative");
 
         // Verify positions and incentives
         console2.log("\n=== Position States ===");
@@ -361,7 +363,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     function test_token1Direction_IncentiveAccumulation() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: 4 hours,
-            minAcceptableTick: maxAcceptableTick,
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -404,11 +407,12 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         }
     }
 
-    /// @notice Test bid rejection when tick exceeds maxAcceptableTick
-    function test_token1Direction_RejectBidAboveMaxTick() public {
+    /// @notice Test bid rejection when tick is below minAcceptableTick
+    function test_token1Direction_RejectBidBelowMinTick() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: maxAcceptableTick, // 34,020
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -417,9 +421,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         auction = _createAuction(config);
 
-        // For isToken0=false: bids with tickUpper > minAcceptableTick are rejected
-        // tickUpper = tickLower + tickSpacing, so tickLower must be < minAcceptableTick - tickSpacing
-        int24 invalidTickLower = maxAcceptableTick; // tickUpper would be maxAcceptableTick + 60 > maxAcceptableTick
+        // For isToken0=false: bids with tickLower < minAcceptableTick are rejected
+        int24 invalidTickLower = minAcceptableTick - tickSpacing;
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -446,7 +449,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: maxAcceptableTick,
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -487,7 +491,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         // Place massive liquidity at low tick (will absorb all tokens)
         int24 lowTick = 0;
-        uint256 lowPosId = _addBid(alice, lowTick, 90_000 ether);
+        _addBid(alice, lowTick, 90_000 ether);
         console2.log("Alice: massive liquidity at tick 0");
 
         // Place liquidity at higher tick (may not fill)

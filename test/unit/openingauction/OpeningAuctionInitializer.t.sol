@@ -24,6 +24,7 @@ import {
     OpeningAuctionStatus,
     IDopplerDeployer,
     AssetAlreadyInitialized,
+    InvalidTokenOrder,
     IsToken0Mismatch
 } from "src/OpeningAuctionInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
@@ -217,7 +218,8 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     function getDefaultAuctionConfig() internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
@@ -378,6 +380,22 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             numeraire,
             AUCTION_TOKENS,
             salt2,
+            abi.encode(initData)
+        );
+    }
+
+    /// @notice Test that initialize reverts when asset and numeraire are the same
+    function test_initialize_revertsWhenAssetEqualsNumeraire() public {
+        OpeningAuctionConfig memory config = getDefaultAuctionConfig();
+        OpeningAuctionInitData memory initData = getInitData(60);
+        bytes32 salt = mineHookSalt(AUCTION_TOKENS, config);
+
+        vm.expectRevert(InvalidTokenOrder.selector);
+        initializer.initialize(
+            asset,
+            asset,
+            AUCTION_TOKENS,
+            salt,
             abi.encode(initData)
         );
     }

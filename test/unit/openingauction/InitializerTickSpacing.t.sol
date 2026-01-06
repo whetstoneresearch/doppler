@@ -150,7 +150,8 @@ contract InitializerTickSpacingTest is Test, Deployers {
     function getAuctionConfig(int24 tickSpacing) internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -99_960,
+            minAcceptableTickToken0: -99_960,
+            minAcceptableTickToken1: -99_960,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,

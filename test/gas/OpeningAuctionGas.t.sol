@@ -23,7 +23,8 @@ contract OpeningAuctionGas is OpeningAuctionBaseTest {
     function getGasTestConfig() public pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: 7 days,
-            minAcceptableTick: -887_220, // Very low min tick to allow all bids
+            minAcceptableTickToken0: -887_220, // Very low min tick to allow all bids
+            minAcceptableTickToken1: -887_220,
             incentiveShareBps: 1000, // 10%
             tickSpacing: 60,
             fee: 3000,

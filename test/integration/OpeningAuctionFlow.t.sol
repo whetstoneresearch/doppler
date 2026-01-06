@@ -112,7 +112,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020, // ~0.033 price floor (e.g., 10k USD min raise at 3k ETH for 100 tokens)
+            minAcceptableTickToken0: -34_020, // ~0.033 price floor (e.g., 10k USD min raise at 3k ETH for 100 tokens)
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000, // 10%
             tickSpacing: 60,
             fee: 3000,
@@ -226,7 +227,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Active));
 
         // Place bid from alice using router with hookData
-        int24 tickLower = config.minAcceptableTick + config.tickSpacing * 10;
+        int24 tickLower = config.minAcceptableTickToken0 + config.tickSpacing * 10;
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -288,7 +289,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
         vm.stopPrank();
 
         // Alice places bid at higher price using router
-        int24 aliceTickLower = config.minAcceptableTick + config.tickSpacing * 20;
+        int24 aliceTickLower = config.minAcceptableTickToken0 + config.tickSpacing * 20;
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -306,7 +307,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
         vm.stopPrank();
 
         // Bob places bid at lower price using router
-        int24 bobTickLower = config.minAcceptableTick + config.tickSpacing * 10;
+        int24 bobTickLower = config.minAcceptableTickToken0 + config.tickSpacing * 10;
         vm.startPrank(bob);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -463,7 +464,6 @@ contract OpeningAuctionFlowTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
 
         // Capture balances before settlement
-        uint256 hookAssetBefore = TestERC20(asset).balanceOf(address(auction));
         uint256 hookNumeraireBefore = TestERC20(numeraire).balanceOf(address(auction));
 
         // Settle auction - this should now work with the fixed _settleDeltas

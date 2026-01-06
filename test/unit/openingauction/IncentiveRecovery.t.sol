@@ -215,7 +215,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
     function getDefaultConfig() internal view returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -277,7 +278,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
         // This means only very high price bids would be acceptable
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: 0, // High price floor - only tick >= 0 acceptable
+            minAcceptableTickToken0: 0, // High price floor - only tick >= 0 acceptable
+            minAcceptableTickToken1: 0,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -536,7 +538,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
         // Create auction with 0 incentive share
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 0, // No incentives
             tickSpacing: tickSpacing,
             fee: 3000,

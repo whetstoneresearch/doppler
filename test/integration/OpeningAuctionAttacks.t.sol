@@ -90,7 +90,8 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
@@ -157,7 +158,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         // Normal bidders place bids with enough liquidity to settle
         for (uint256 i = 0; i < 50; i++) {
             address bidder = i % 2 == 0 ? alice : bob;
-            _addBid(bidder, config.minAcceptableTick + config.tickSpacing * int24(int256(10 + i)), 100e18);
+            _addBid(bidder, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 100e18);
         }
 
         // Get estimated clearing tick before attack
@@ -191,7 +192,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Auction should settle successfully with reasonable clearing tick
         assertEq(uint8(hook.phase()), uint8(AuctionPhase.Settled));
-        assertGe(hook.clearingTick(), config.minAcceptableTick);
+        assertGe(hook.clearingTick(), config.minAcceptableTickToken0);
     }
 
     /// @notice Test that flash loan cannot steal incentive tokens
@@ -201,7 +202,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Normal bidders place bids early with enough liquidity to settle
         for (uint256 i = 0; i < 50; i++) {
-            _addBid(alice, config.minAcceptableTick + config.tickSpacing * int24(int256(10 + i)), 100e18);
+            _addBid(alice, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 100e18);
         }
         uint256 alicePosId = 1; // First position
 
@@ -209,7 +210,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         vm.warp(hook.auctionEndTime() - 10);
 
         // Attacker adds massive bid right at the end to try to claim most incentives
-        uint256 attackerPosId = _addBid(attacker, config.minAcceptableTick + config.tickSpacing * 10, 1_000_000 ether);
+        uint256 attackerPosId = _addBid(attacker, config.minAcceptableTickToken0 + config.tickSpacing * 10, 1_000_000 ether);
 
         // Warp and settle
         vm.warp(hook.auctionEndTime() + 1);
@@ -245,17 +246,18 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
     /// @notice Test protection against flash loan used to avoid position locking
     function test_attack_FlashLoanAvoidLocking() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minAcceptableTickToken0 = alignTickTowardZero(TickMath.MIN_TICK, config.tickSpacing);
         _deployAuction(config);
 
         // Add many initial bids with enough liquidity at higher ticks
         for (uint256 i = 0; i < 75; i++) {
-            _addBid(alice, config.minAcceptableTick + config.tickSpacing * int24(int256(10 + i)), 150e18);
+            _addBid(alice, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 150e18);
         }
 
         // Attacker adds bid near estimated clearing range
         vm.warp(hook.auctionEndTime() - 3600); // 1 hour before end
 
-        int24 nearClearingTick = config.minAcceptableTick + config.tickSpacing * 45;
+        int24 nearClearingTick = config.minAcceptableTickToken0 + config.tickSpacing * 45;
         uint256 attackerPosId = _addBid(attacker, nearClearingTick, 100e18);
 
         // Check if position is locked
@@ -290,12 +292,13 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
     /// @notice Test that settlement cannot be manipulated by sandwich attack
     function test_attack_SettlementSandwich() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minAcceptableTickToken0 = alignTickTowardZero(TickMath.MIN_TICK, config.tickSpacing);
         _deployAuction(config);
 
         // Normal bidders with enough liquidity
         for (uint256 i = 0; i < 50; i++) {
             address bidder = i % 2 == 0 ? alice : bob;
-            _addBid(bidder, config.minAcceptableTick + config.tickSpacing * int24(int256(10 + i)), 100e18);
+            _addBid(bidder, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 100e18);
         }
 
         vm.warp(hook.auctionEndTime() + 1);
@@ -309,7 +312,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        // Should revert because auction is closed (error is wrapped by pool manager)
+        uint256 attackerPosId = hook.nextPositionId();
         vm.expectRevert();
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
@@ -317,7 +320,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 tickLower: 0,
                 tickUpper: config.tickSpacing,
                 liquidityDelta: int256(uint256(1_000_000 ether)),
-                salt: bytes32(hook.nextPositionId())
+                salt: bytes32(attackerPosId)
             }),
             abi.encode(attacker)
         );
@@ -335,37 +338,51 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
     /// @notice Test that minAcceptableTick prevents price manipulation attacks
     function test_attack_PriceManipulationBelowMinTick() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
-        config.minAcceptableTick = -20_000; // Higher min acceptable tick
+        config.minAcceptableTickToken0 = -20_000; // Higher min acceptable tick
         // Align minAcceptableTick to tickSpacing
-        config.minAcceptableTick = (config.minAcceptableTick / config.tickSpacing) * config.tickSpacing;
+        config.minAcceptableTickToken0 = (config.minAcceptableTickToken0 / config.tickSpacing) * config.tickSpacing;
         _deployAuction(config);
 
         // Attacker places only low-price bids to try to get tokens cheap
         // Place bid at a valid tick that's still below minAcceptableTick
-        int24 lowTick = config.minAcceptableTick - config.tickSpacing * 10;
-        _addBid(attacker, lowTick, 1_000_000e18);
+        int24 lowTick = config.minAcceptableTickToken0 - config.tickSpacing * 10;
+        vm.startPrank(attacker);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        uint256 attackerPosId = hook.nextPositionId();
+        vm.expectRevert();
+        modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: lowTick,
+                tickUpper: lowTick + poolKey.tickSpacing,
+                liquidityDelta: int256(uint256(1_000_000e18)),
+                salt: bytes32(attackerPosId)
+            }),
+            abi.encode(attacker)
+        );
+        vm.stopPrank();
 
         vm.warp(hook.auctionEndTime() + 1);
-
-        // Settlement should fail because clearing tick would be below minAcceptableTick
-        // The error may be wrapped by the pool manager, so we just expect any revert
-        vm.expectRevert();
         hook.settleAuction();
+        assertEq(uint8(hook.phase()), uint8(AuctionPhase.Settled));
+        assertGe(hook.clearingTick(), config.minAcceptableTickToken0);
     }
 
     /// @notice Test that late large bid doesn't disproportionately affect outcome
     function test_attack_LastBlockManipulation() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minAcceptableTickToken0 = alignTickTowardZero(TickMath.MIN_TICK, config.tickSpacing);
         _deployAuction(config);
 
         // Normal bidders with enough liquidity throughout auction
         for (uint256 i = 0; i < 50; i++) {
-            _addBid(alice, config.minAcceptableTick + config.tickSpacing * int24(int256(10 + i)), 200e18);
+            _addBid(alice, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 200e18);
         }
 
         vm.warp(hook.auctionEndTime() / 2);
         for (uint256 i = 0; i < 30; i++) {
-            _addBid(bob, config.minAcceptableTick + config.tickSpacing * int24(int256(60 + i)), 200e18);
+            _addBid(bob, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(60 + i)), 200e18);
         }
 
         // Get clearing tick estimate mid-auction
@@ -373,7 +390,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Last second massive bid from attacker at high price
         vm.warp(hook.auctionEndTime() - 1);
-        _addBid(attacker, config.minAcceptableTick + config.tickSpacing * 100, 10_000 ether);
+        _addBid(attacker, config.minAcceptableTickToken0 + config.tickSpacing * 100, 10_000 ether);
 
         int24 finalEstimate = hook.estimatedClearingTick();
 
@@ -395,7 +412,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         OpeningAuctionConfig memory config = getDefaultConfig();
         _deployAuction(config);
 
-        _addBid(alice, config.minAcceptableTick + config.tickSpacing * 30, 100_000 ether);
+        _addBid(alice, config.minAcceptableTickToken0 + config.tickSpacing * 30, 100_000 ether);
 
         vm.warp(hook.auctionEndTime() + 1);
 
@@ -410,12 +427,13 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
     /// @notice Test that attacker cannot manipulate TOCTOU between quote and settlement
     function test_attack_TOCTOUManipulation() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minAcceptableTickToken0 = alignTickTowardZero(TickMath.MIN_TICK, config.tickSpacing);
         _deployAuction(config);
 
         // Add bids with enough liquidity
         for (uint256 i = 0; i < 75; i++) {
             address bidder = i % 2 == 0 ? alice : bob;
-            _addBid(bidder, config.minAcceptableTick + config.tickSpacing * int24(int256(10 + i)), 200e18);
+            _addBid(bidder, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 200e18);
         }
 
         vm.warp(hook.auctionEndTime() + 1);
@@ -429,7 +447,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         hook.settleAuction();
 
         // Verify settlement occurred at or above min acceptable tick
-        assertGe(hook.clearingTick(), config.minAcceptableTick);
+        assertGe(hook.clearingTick(), config.minAcceptableTickToken0);
 
         emit log_named_int("Quoted clearing tick", quotedClearingTick);
         emit log_named_int("Actual clearing tick", hook.clearingTick());

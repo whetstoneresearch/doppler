@@ -214,7 +214,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: highMinAcceptableTick,
+            minAcceptableTickToken0: -887_220,
+            minAcceptableTickToken1: highMinAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -253,7 +254,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     function test_settlementSuccess_NoBids() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -292,7 +294,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: veryHighMinTick,
+            minAcceptableTickToken0: veryHighMinTick,
+            minAcceptableTickToken1: veryHighMinTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -325,7 +328,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     function test_settlementFailure_AuctionNotEnded() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -346,7 +350,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     function test_settlementFailure_AlreadySettled() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -367,8 +372,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         auction.settleAuction();
     }
 
-    /// @notice Test SettlementPriceTooLow for isToken0=false direction
-    /// @dev For isToken0=false, revert when clearingTick > minAcceptableTick (price ceiling exceeded)
+    /// @notice Test settlement with isToken0=false and high minAcceptableTick floor
+    /// @dev Bid validation enforces tickLower >= minAcceptableTick, so settlement should succeed
     function test_settlementFailure_PriceTooHigh_isToken0False() public {
         // For isToken0=false tests, we need asset to be token1
         // Redeploy with swapped tokens
@@ -385,12 +390,13 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         asset = newAsset;
         numeraire = newNumeraire;
 
-        // Set a LOW maxAcceptableTick - clearing tick must stay below this
-        int24 lowMaxAcceptableTick = 1000; // Price ceiling
+        // Set a HIGH minAcceptableTick - clearing tick must reach this floor
+        int24 highMinAcceptableTick = 10_020; // Aligned to tickSpacing
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: lowMaxAcceptableTick, // For isToken0=false, this is MAX acceptable
+            minAcceptableTickToken0: highMinAcceptableTick,
+            minAcceptableTickToken1: highMinAcceptableTick,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -430,13 +436,11 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         vm.stopPrank();
 
         console2.log("=== SettlementPriceTooLow Test (isToken0=false) ===");
-        console2.log("minAcceptableTick (max for token1):", int256(lowMaxAcceptableTick));
+        console2.log("minAcceptableTick:", int256(highMinAcceptableTick));
         assertFalse(auction.isToken0(), "Should be isToken0=false");
 
-        // Place minimal bid at a valid tick (tickUpper <= minAcceptableTick)
-        // tickUpper = tickLower + tickSpacing, so tickLower must be <= minAcceptableTick - tickSpacing
-        // Also must be aligned to tickSpacing
-        int24 validTick = ((lowMaxAcceptableTick - tickSpacing) / tickSpacing) * tickSpacing;
+        // Place minimal bid at a valid tick (tickLower >= minAcceptableTick)
+        int24 validTick = highMinAcceptableTick;
         
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -456,13 +460,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         console2.log("Placed minimal bid at tick:", int256(validTick));
         console2.log("Estimated clearing tick:", int256(auction.estimatedClearingTick()));
 
-        // With minimal liquidity, clearing tick will exceed maxAcceptableTick
-        // when trying to sell 100 ether tokens (price goes too high)
-
         vm.warp(auction.auctionEndTime() + 1);
 
-        // Should revert because clearingTick > minAcceptableTick (for isToken0=false)
-        vm.expectRevert(abi.encodeWithSignature("SettlementPriceTooLow()"));
         auction.settleAuction();
     }
 
@@ -470,7 +469,8 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     function test_recoverIncentives_WhenNoBidsEarnedTime() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020,
+            minAcceptableTickToken0: -34_020,
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -493,6 +493,9 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         // Recover incentives (must be called by initializer)
         address initializerAddr = auction.initializer();
         address recipient = address(0xdead);
+
+        vm.prank(initializerAddr);
+        auction.migrate(initializerAddr);
 
         vm.prank(initializerAddr);
         auction.recoverIncentives(recipient);

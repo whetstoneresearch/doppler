@@ -54,7 +54,7 @@ contract IncentivesTest is OpeningAuctionBaseTest {
     // Note: Tests for claimIncentives with actual positions are moved to integration
     // tests because they require settlement with proper swap setup.
 
-    function test_incentiveTokensTotal_IsCorrectlyCalculated() public {
+    function test_incentiveTokensTotal_IsCorrectlyCalculated() public view {
         // Default is 10% of auction tokens
         uint256 expectedIncentives = (DEFAULT_AUCTION_TOKENS * DEFAULT_INCENTIVE_SHARE_BPS) / 10_000;
         assertEq(hook.incentiveTokensTotal(), expectedIncentives);

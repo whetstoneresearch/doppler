@@ -215,7 +215,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_SmallCapLaunch_30BpsIncentives() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS, // 6% of sale = 0.3% of supply
             tickSpacing: TICK_SPACING,
             fee: FEE,
@@ -330,7 +331,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_ManyBiddersOutOfRange() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
@@ -415,7 +417,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_PartialTimeInRange() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
@@ -499,7 +502,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_MixedBidderSizes() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
@@ -570,7 +574,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_LastMinuteBidding() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
@@ -660,7 +665,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_VeryShortTimeInRange() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: 1 days, // Short auction for this test
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
@@ -710,7 +716,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function test_realisticScenario_ClaimAllIncentives() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken0: MIN_ACCEPTABLE_TICK,
+            minAcceptableTickToken1: MIN_ACCEPTABLE_TICK,
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,

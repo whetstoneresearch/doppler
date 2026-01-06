@@ -226,7 +226,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
     function test_settlement_WithSpreadPositions() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -248,11 +249,9 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         // These are at tick 0 which is way below MAX_TICK, so they'll fill when price drops
         int24 highTick1 = 0;
         int24 highTick2 = highTick1 - tickSpacing;
-        int24 highTick3 = highTick2 - tickSpacing;
 
         // Tier 2: Medium tick positions - MAY fill depending on volume
         int24 medTick1 = -30000;
-        int24 medTick2 = -30060;
 
         // Tier 3: Low tick positions (close to min) - UNLIKELY to fill
         int24 lowTick1 = minAcceptableTick + tickSpacing * 5;
@@ -354,7 +353,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
     function test_settlement_IncentiveTimeAccumulation() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: 4 hours, // Shorter auction for easier testing
-            minAcceptableTick: -34_020, // ~0.033 price floor
+            minAcceptableTickToken0: -34_020, // ~0.033 price floor
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -406,7 +406,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
     function test_settlement_OutOfRangePositions() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020, // ~0.033 price floor
+            minAcceptableTickToken0: -34_020, // ~0.033 price floor
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -453,7 +454,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
     function test_settlement_ClaimIncentives() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: -34_020, // ~0.033 price floor
+            minAcceptableTickToken0: -34_020, // ~0.033 price floor
+            minAcceptableTickToken1: -34_020,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -509,7 +511,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTick: minAcceptableTick,
+            minAcceptableTickToken0: minAcceptableTick,
+            minAcceptableTickToken1: minAcceptableTick,
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -574,11 +577,6 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         console2.log("Clearing tick:", int256(auction.clearingTick()));
         console2.log("Tokens sold:", auction.totalTokensSold());
         console2.log("Total accumulated time:", auction.totalAccumulatedTime());
-
-        // Log position states
-        AuctionPosition memory alicePos = auction.positions(highPosId);
-        AuctionPosition memory bobPos = auction.positions(medPosId);
-        AuctionPosition memory carolPos = auction.positions(lowPosId);
 
         console2.log("\nAlice (tick 0): isInRange =", auction.isInRange(highPosId));
         console2.log("  accumulatedTime:", auction.getPositionAccumulatedTime(highPosId));
