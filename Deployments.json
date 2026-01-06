@@ -126,6 +126,7 @@
     "MulticurveLibrary": "0x32238a39ba5af060efbfada59979b639e0945fe0",
     "NoOpGovernanceFactory": "0x7bd798fafc99a3b17e261f8308a8c11b56935ea1",
     "NoOpMigrator": "0xf11066abbd329ac4bba39455340539322c222eb0",
+    "RehypeDopplerHook": "0x636a756cee08775cc18780f52dd90b634f18ad37",
     "StreamableFeesLocker": "0x3345e557c5c0b474be1eb4693264008b8562aa9c",
     "TeamGovernanceFactory": "0x8af3001ed75f86f4dd910577eca9c5db7cea765c",
     "TokenFactory": "0x9d8fd79b2a59c5d91ccbd79c3aeb4de56451bb02",
