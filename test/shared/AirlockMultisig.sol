@@ -3,10 +3,12 @@ pragma solidity ^0.8.24;
 
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 
 /// @notice A very basic Airlock-oriented multisig for testing purposes, do not use in production :)
 contract AirlockMultisig {
     Airlock public immutable airlock;
+    DopplerHookInitializer public immutable dopplerHookInitializer;
     mapping(address => bool) public isSigner;
 
     modifier onlySigner() {
@@ -14,8 +16,9 @@ contract AirlockMultisig {
         _;
     }
 
-    constructor(Airlock airlock_, address[] memory signers) {
+    constructor(Airlock airlock_, DopplerHookInitializer _dopplerHookInitializer, address[] memory signers) {
         airlock = airlock_;
+        dopplerHookInitializer = _dopplerHookInitializer;
 
         for (uint256 i; i < signers.length; ++i) {
             require(signers[i] != address(0), "Signer cannot be zero address");
@@ -38,8 +41,22 @@ contract AirlockMultisig {
         airlock.setModuleState(modules, states);
     }
 
-    function setModuleState(address[] calldata modules, ModuleState[] calldata states) external onlySigner {
+    function setModuleStates(address[] calldata modules, ModuleState[] calldata states) external onlySigner {
         airlock.setModuleState(modules, states);
+    }
+
+    function setDopplerHookState(address module, uint256 flag) external onlySigner {
+        address[] memory modules = new address[](1);
+        modules[0] = module;
+
+        uint256[] memory flags = new uint256[](1);
+        flags[0] = flag;
+
+        dopplerHookInitializer.setDopplerHookState(modules, flags);
+    }
+
+    function setDopplerHookStates(address[] calldata modules, uint256[] calldata flags) external onlySigner {
+        dopplerHookInitializer.setDopplerHookState(modules, flags);
     }
 
     function transferOwnership(address newOwner) external onlySigner {
