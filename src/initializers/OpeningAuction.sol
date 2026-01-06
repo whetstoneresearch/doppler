@@ -637,8 +637,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         // Track position during active auction
         if (phase == AuctionPhase.Active) {
             // Require owner address in hookData - no fallback to sender (which is typically a router)
-            if (hookData.length < 20) revert HookDataMissingOwner();
-            address owner = abi.decode(hookData, (address));
+            address owner = _decodeOwner(hookData);
 
             // Get liquidity (params.liquidityDelta is positive for adds)
             uint128 liquidity = uint128(uint256(params.liquidityDelta));
@@ -719,8 +718,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         if (phase == AuctionPhase.Active) {
             // Require owner address in hookData to match position key from creation
-            if (hookData.length < 20) revert HookDataMissingOwner();
-            address owner = abi.decode(hookData, (address));
+            address owner = _decodeOwner(hookData);
 
             // Use owner (not sender) to match position key created during add
             bytes32 positionKey = keccak256(abi.encodePacked(owner, params.tickLower, params.tickUpper, params.salt));
@@ -764,7 +762,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             _updateTickAccumulator(params.tickLower);
 
             // Decode owner from hookData to match position key from creation
-            address owner = abi.decode(hookData, (address));
+            address owner = _decodeOwner(hookData);
 
             // Look up position to harvest its earned time
             // Use owner (not sender) to match position key created during add
@@ -825,6 +823,21 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     }
 
     // ============ Internal Functions ============
+
+    /// @notice Decode owner address from hookData (accepts 20-byte packed or ABI-encoded address)
+    function _decodeOwner(bytes calldata hookData) internal pure returns (address owner) {
+        if (hookData.length == 20) {
+            // Packed address (abi.encodePacked)
+            assembly {
+                owner := shr(96, calldataload(hookData.offset))
+            }
+        } else if (hookData.length >= 32) {
+            // ABI-encoded address (abi.encode)
+            owner = abi.decode(hookData, (address));
+        } else {
+            revert HookDataMissingOwner();
+        }
+    }
 
     /// @notice Check if a tick range contains the current tick
     function _isTickInRange(int24 tickLower, int24 tickUpper, int24 tick) internal pure returns (bool) {
