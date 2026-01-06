@@ -33,7 +33,7 @@ function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory para
 
     for (uint96 seed; seed < type(uint96).max; seed++) {
         salt = bytes32((uint256(uint160(params.sender)) << 96)) | bytes32(uint256(seed));
-        bytes32 guardedSalt = _efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
 
         address initializer = computeCreate3Address(guardedSalt, params.deployer);
         if (
@@ -46,7 +46,7 @@ function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory para
     revert("AirlockMiner: could not find salt");
 }
 
-function _efficientHash(bytes32 a, bytes32 b) pure returns (bytes32 hash) {
+function efficientHash(bytes32 a, bytes32 b) pure returns (bytes32 hash) {
     assembly ("memory-safe") {
         mstore(0x00, a)
         mstore(0x20, b)
