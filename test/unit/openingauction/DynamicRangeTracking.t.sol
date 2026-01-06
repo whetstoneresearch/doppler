@@ -16,6 +16,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition, IOpeningAuction, TickTimeState } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { QuoterMath } from "src/libraries/QuoterMath.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 contract OpeningAuctionDynamicImpl is OpeningAuction {
@@ -202,6 +203,27 @@ contract DynamicRangeTrackingTest is Test, Deployers {
             abi.encode(user)
         );
         vm.stopPrank();
+    }
+
+    function _quoteClearingTick() internal view returns (int24) {
+        uint256 tokensToSell = AUCTION_TOKENS - auction.incentiveTokensTotal();
+        if (tokensToSell == 0) {
+            return auction.isToken0() ? TickMath.MAX_TICK : TickMath.MIN_TICK;
+        }
+
+        (,, uint160 sqrtPriceAfterX96,) = QuoterMath.quote(
+            manager,
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: auction.isToken0(),
+                amountSpecified: -int256(tokensToSell),
+                sqrtPriceLimitX96: auction.isToken0()
+                    ? TickMath.MIN_SQRT_PRICE + 1
+                    : TickMath.MAX_SQRT_PRICE - 1
+            })
+        );
+
+        return TickMath.getTickAtSqrtPrice(sqrtPriceAfterX96);
     }
 
     // ============ Test: In-Range Positions Cannot Be Removed ============
@@ -441,6 +463,30 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         assertGe(clearingAfterSecond, clearingAfterFirst, "Clearing tick should move up");
     }
 
+    /// @notice Removing out-of-range liquidity should not desync estimated clearing tick
+    function test_estimatedClearingTick_AccurateAfterOutOfRangeRemoval() public {
+        _createAuction(AUCTION_TOKENS);
+
+        int24 highTickLower = 0;
+        uint128 highLiquidity = 2000 ether;
+        _addBid(alice, highTickLower, highLiquidity);
+
+        int24 lowTickLower = -6000;
+        uint128 lowLiquidity = 500 ether;
+        uint256 lowPos = _addBid(bob, lowTickLower, lowLiquidity);
+        assertFalse(auction.isInRange(lowPos), "Low tick should be out of range");
+
+        int24 expectedBefore = _quoteClearingTick();
+        assertEq(auction.estimatedClearingTick(), expectedBefore, "Estimate should match quote");
+
+        // Out-of-range removals do not affect the clearing price, so no recalculation is needed.
+        _removeBid(bob, lowTickLower, lowLiquidity, lowPos);
+
+        int24 expectedAfter = _quoteClearingTick();
+        assertEq(auction.estimatedClearingTick(), expectedAfter, "Estimate should remain accurate");
+    }
+
+
     // ============ Test: Settlement Incentives With Time Tracking ============
 
     /// @notice Test that incentives are properly calculated based on time in range
@@ -518,5 +564,102 @@ contract DynamicRangeTrackingTest is Test, Deployers {
 
         uint256 bobTimeAfterMore = auction.getPositionAccumulatedTime(bobPos);
         assertGt(bobTimeAfterMore, 0, "Remaining position should accrue time");
+    }
+
+    // ============ Test: Settlement With Mixed Positions ============
+
+    /// @notice Test a realistic settlement where some positions are filled and others are not
+    function test_settlement_SellsTokens_MixedPositions() public {
+        _createAuction(AUCTION_TOKENS);
+
+        // Alice places a high bid that should absorb all tokens
+        int24 aliceTickLower = 0;
+        uint128 aliceLiquidity = 2000 ether;
+        uint256 alicePos = _addBid(alice, aliceTickLower, aliceLiquidity);
+
+        // Bob places a lower bid that should remain out of range
+        int24 bobTickLower = -6000;
+        uint128 bobLiquidity = 500 ether;
+        uint256 bobPos = _addBid(bob, bobTickLower, bobLiquidity);
+
+        assertTrue(auction.isInRange(alicePos), "Alice should be in range");
+        assertFalse(auction.isInRange(bobPos), "Bob should be out of range");
+
+        // Settle after auction end
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+
+        uint256 expectedSold = AUCTION_TOKENS - auction.incentiveTokensTotal();
+        assertEq(auction.totalTokensSold(), expectedSold, "Should sell all non-incentive tokens");
+        assertGt(auction.totalProceeds(), 0, "Should collect proceeds");
+    }
+
+    // ============ Test: Incentives After Going Out Of Range ============
+
+    /// @notice Test incentives are earned before going out of range and can be claimed after settlement
+    function test_incentives_AfterOutOfRangeClaimable() public {
+        _createAuction(AUCTION_TOKENS);
+
+        int24 aliceTickLower = -3000;
+        uint128 aliceLiquidity = 2000 ether;
+        uint256 alicePos = _addBid(alice, aliceTickLower, aliceLiquidity);
+
+        // Alice accrues time while in range
+        vm.warp(block.timestamp + 3 days);
+
+        int24 bobTickLower = 0;
+        uint128 bobLiquidity = 2000 ether;
+        uint256 bobPos = _addBid(bob, bobTickLower, bobLiquidity);
+
+        // Finish auction and settle
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        // Migrate to enable claims
+        vm.prank(creator);
+        auction.migrate(address(this));
+
+        uint256 aliceBefore = TestERC20(token0).balanceOf(alice);
+        uint256 bobBefore = TestERC20(token0).balanceOf(bob);
+
+        vm.prank(alice);
+        auction.claimIncentives(alicePos);
+
+        vm.prank(bob);
+        auction.claimIncentives(bobPos);
+
+        uint256 aliceIncentives = TestERC20(token0).balanceOf(alice) - aliceBefore;
+        uint256 bobIncentives = TestERC20(token0).balanceOf(bob) - bobBefore;
+
+        assertGt(aliceIncentives, 0, "Alice should receive incentives");
+        assertGt(bobIncentives, aliceIncentives, "Bob should receive more incentives");
+        assertLe(aliceIncentives + bobIncentives, auction.incentiveTokensTotal(), "Should not exceed pool");
+    }
+
+    // ============ Test: Out-Of-Range Never Earns ============
+
+    /// @notice Test positions that never enter range receive zero incentives
+    function test_outOfRange_NeverEarnsIncentives() public {
+        _createAuction(AUCTION_TOKENS);
+
+        // Bob's high bid absorbs all tokens
+        int24 bobTickLower = 0;
+        uint128 bobLiquidity = 2000 ether;
+        _addBid(bob, bobTickLower, bobLiquidity);
+
+        // Carol bids far lower and should remain out of range
+        int24 carolTickLower = -60_000;
+        uint128 carolLiquidity = 500 ether;
+        uint256 carolPos = _addBid(carol, carolTickLower, carolLiquidity);
+
+        assertFalse(auction.isInRange(carolPos), "Carol should be out of range");
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        uint256 carolIncentives = auction.calculateIncentives(carolPos);
+        assertEq(carolIncentives, 0, "Out-of-range position should earn zero incentives");
     }
 }
