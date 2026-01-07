@@ -85,7 +85,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     // Test configuration
     int24 tickSpacing = 60;
     int24 minTick;
-    int24 minAcceptableTick; // Minimum acceptable price tick
+    int24 minAcceptableTick; // Minimum acceptable price tick (tick(token0/token1))
 
     function setUp() public {
         // Deploy pool manager
@@ -266,7 +266,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         console2.log("=== Token1 Direction Bid Test ===");
         console2.log("Min tick (starting price):", int256(minTick));
-        console2.log("Min acceptable tick:", int256(minAcceptableTick));
+        console2.log("Min acceptable tick:", int256(auction.minAcceptableTick()));
         console2.log("Current tick:", int256(auction.currentTick()));
 
         // For isToken0=false: Lower ticks are closer to starting price (MIN_TICK)
@@ -352,7 +352,11 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         // For isToken0=false: clearing tick should have moved UP from MIN_TICK
         assertGt(auction.clearingTick(), minTick, "Clearing tick should be above MIN_TICK");
-        assertGt(auction.clearingTick(), minAcceptableTick, "Clearing tick should exceed minAcceptableTick");
+        assertLe(
+            auction.clearingTick(),
+            auction.minAcceptableTick(),
+            "Clearing tick should not exceed minAcceptableTick"
+        );
         assertGe(auction.totalTokensSold(), 0, "Tokens sold should be non-negative");
 
         // Verify positions and incentives
@@ -410,7 +414,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         }
     }
 
-    /// @notice Test bid rejection when tick is below minAcceptableTick
+    /// @notice Test bid rejection when tick is above minAcceptableTick
     function test_token1Direction_RejectBidBelowMinTick() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
@@ -424,8 +428,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
         auction = _createAuction(config);
 
-        // For isToken0=false: bids with tickLower < minAcceptableTick are rejected
-        int24 invalidTickLower = minAcceptableTick - tickSpacing;
+        int24 limitTick = auction.minAcceptableTick();
+        int24 invalidTickLower = limitTick + tickSpacing;
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);

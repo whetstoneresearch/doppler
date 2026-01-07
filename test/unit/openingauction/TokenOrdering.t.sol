@@ -315,8 +315,8 @@ contract TokenOrderingTest is Test, Deployers {
         assertEq(uint8(hook.phase()), uint8(AuctionPhase.Active), "should be active");
         assertEq(hook.estimatedClearingTick(), TickMath.MIN_TICK, "clearing tick should start at MIN_TICK for isToken0=false");
 
-        // For isToken0=false, bid validation requires tickLower >= minAcceptableTick
-        int24 bidTick = MIN_ACCEPTABLE_TICK + TICK_SPACING;
+        int24 limitTick = hook.minAcceptableTick();
+        int24 bidTick = limitTick - TICK_SPACING;
 
         vm.startPrank(alice);
         TestERC20(numeraire).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -383,8 +383,8 @@ contract TokenOrderingTest is Test, Deployers {
         vm.prank(initializer);
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
 
-        // For isToken0=false, the bid validation checks tickLower >= minAcceptableTick
-        int24 validTickLower = MIN_ACCEPTABLE_TICK + TICK_SPACING;
+        int24 limitTick = hook.minAcceptableTick();
+        int24 validTickLower = limitTick - TICK_SPACING;
 
         vm.startPrank(alice);
         TestERC20(numeraire).approve(address(modifyLiquidityRouter), type(uint256).max);

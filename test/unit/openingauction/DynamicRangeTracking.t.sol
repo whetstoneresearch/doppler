@@ -216,15 +216,20 @@ contract DynamicRangeTrackingTest is Test, Deployers {
             return auction.isToken0() ? TickMath.MAX_TICK : TickMath.MIN_TICK;
         }
 
+        uint160 sqrtPriceLimitX96 = TickMath.getSqrtPriceAtTick(auction.minAcceptableTick());
+        if (sqrtPriceLimitX96 <= TickMath.MIN_SQRT_PRICE) {
+            sqrtPriceLimitX96 = TickMath.MIN_SQRT_PRICE + 1;
+        } else if (sqrtPriceLimitX96 >= TickMath.MAX_SQRT_PRICE) {
+            sqrtPriceLimitX96 = TickMath.MAX_SQRT_PRICE - 1;
+        }
+
         (,, uint160 sqrtPriceAfterX96,) = QuoterMath.quote(
             manager,
             poolKey,
             IPoolManager.SwapParams({
                 zeroForOne: auction.isToken0(),
                 amountSpecified: -int256(tokensToSell),
-                sqrtPriceLimitX96: auction.isToken0()
-                    ? TickMath.MIN_SQRT_PRICE + 1
-                    : TickMath.MAX_SQRT_PRICE - 1
+                sqrtPriceLimitX96: sqrtPriceLimitX96
             })
         );
 
