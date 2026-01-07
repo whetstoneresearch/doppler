@@ -1,80 +1,47 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { ChainIds } from "script/ChainIds.sol";
-import { Airlock } from "src/Airlock.sol";
-import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
+import { console } from "forge-std/console.sol";
+import { ICreateX } from "script/ICreateX.sol";
+import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
+import { computeCreate3Address, computeGuardedSalt } from "test/shared/AirlockMiner.sol";
 
-struct ScriptData {
-    uint256 chainId;
-    address airlock;
-    address dopplerHookInitializer;
-    address[] signers;
-}
-
-abstract contract DeployAirlockMultisigScript is Script {
-    ScriptData internal _scriptData;
-
-    function setUp() public virtual;
-
+contract DeployAirlockMultisigTestnetScript is Script, Config {
     function run() public {
+        _loadConfigAndForks("./deployments.config.toml", true);
+
+        for (uint256 i; i < chainIds.length; i++) {
+            uint256 chainId = chainIds[i];
+            deployToTestnetChain(chainId);
+        }
+    }
+
+    function deployToTestnetChain(uint256 chainId) internal {
+        vm.selectFork(forkOf[chainId]);
+
+        // We only deploy this multisig on testnets
+        if (config.get("is_testnet").toBool() == false) {
+            return;
+        }
+
+        address createX = config.get("create_x").toAddress();
+
         vm.startBroadcast();
-        require(_scriptData.chainId == block.chainid, "Incorrect chainId");
-        AirlockMultisig multisig = new AirlockMultisig(
-            Airlock(payable(_scriptData.airlock)),
-            DopplerHookInitializer(payable(_scriptData.dopplerHookInitializer)),
-            _scriptData.signers
-        );
+
+        bytes32 salt = bytes32(uint256(uint160(msg.sender)) << 96 | 0xdeadbeef);
+        address expectedAddress = computeCreate3Address(computeGuardedSalt(salt, msg.sender), address(createX));
+
+        address[] memory signers = new address[](2);
+        signers[0] = msg.sender;
+        signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
+
+        address airlockMultisigTestnet = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(AirlockMultisigTestnet).creationCode, abi.encode(signers)));
+        require(airlockMultisigTestnet == expectedAddress, "Unexpected deployed address");
+        console.log("AirlockMultisigTestnet deployed to:", airlockMultisigTestnet);
+        config.set("airlock_multisig_testnet", airlockMultisigTestnet);
         vm.stopBroadcast();
-    }
-}
-
-/// @dev forge script DeployAirlockMultisigBaseSepoliaScript --private-key $PRIVATE_KEY --verify --rpc-url $BASE_SEPOLIA_RPC_URL --slow --broadcast
-contract DeployAirlockMultisigBaseSepoliaScript is DeployAirlockMultisigScript {
-    function setUp() public override {
-        address[] memory signers = new address[](2);
-        signers[0] = msg.sender;
-        signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
-
-        _scriptData = ScriptData({
-            chainId: ChainIds.BASE_SEPOLIA,
-            airlock: 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e,
-            signers: signers,
-            dopplerHookInitializer: 0x98CD6478DeBe443069dB863Abb9626d94de9A544
-        });
-    }
-}
-
-/// @dev forge script DeployAirlockMultisigUnichainSepoliaScript --private-key $PRIVATE_KEY --verify --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --slow --broadcast
-contract DeployAirlockMultisigUnichainSepoliaScript is DeployAirlockMultisigScript {
-    function setUp() public override {
-        address[] memory signers = new address[](2);
-        signers[0] = msg.sender;
-        signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
-
-        _scriptData = ScriptData({
-            chainId: ChainIds.UNICHAIN_SEPOLIA,
-            airlock: address(0),
-            signers: signers,
-            dopplerHookInitializer: address(0)
-        });
-    }
-}
-
-/// @dev forge script DeployAirlockMultisigMonadTestnetScript --private-key $PRIVATE_KEY --verify --rpc-url $MONAD_TESTNET_RPC_URL --slow --broadcast
-contract DeployAirlockMultisigMonadTestnetScript is DeployAirlockMultisigScript {
-    function setUp() public override {
-        address[] memory signers = new address[](2);
-        signers[0] = msg.sender;
-        signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
-
-        _scriptData = ScriptData({
-            chainId: ChainIds.MONAD_TESTNET,
-            airlock: 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B,
-            signers: signers,
-            dopplerHookInitializer: address(0)
-        });
     }
 }
