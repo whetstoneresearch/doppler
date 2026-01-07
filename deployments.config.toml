@@ -37,6 +37,16 @@ airlock = "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 uniswap_v4_pool_manager = "0x188d586ddcf52439676ca21a244753fa19f9ea8e"
 
+[4326]
+endpoint_url = "${MEGAETH_MAINNET_RPC_URL}"
+
+[4326.bool]
+is_testnet = false
+
+[4326.address]
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+
 [84532]
 endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
 
@@ -48,7 +58,7 @@ create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x3411306ce66c9469bff1535ba955503c4bde1c6e"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
-airlock_multisig = "0x852a09c89463d236eea2f097623574f23e225769"
+airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
 uniswap_v4_pool_manager = "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408"
 
 [1301]
@@ -62,7 +72,7 @@ create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0x0d2f38d807bfad5c18e430516e10ab560d300caf"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
-airlock_multisig = "0x40bcb4dda3bcf7dba30c5d10c31ee2791ed9ddca"
+airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
 uniswap_v4_pool_manager = "0x00b036b58a818b1bc34d502d3fe730db729e62ac"
 
 [10143]
@@ -76,5 +86,16 @@ create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock = "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
-airlock_multisig = "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299"
+airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
 uniswap_v4_pool_manager = "0xe93882f395B0b24180855c68Ab19B2d78573ceBc"
+
+[6343]
+endpoint_url = "${MEGAETH_TESTNET_RPC_URL}"
+
+[6343.bool]
+is_testnet = true
+
+[6343.address]
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
