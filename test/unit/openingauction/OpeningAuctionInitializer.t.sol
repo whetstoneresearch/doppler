@@ -250,8 +250,46 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         bool isToken0 = asset < numeraire;
         return OpeningAuctionInitData({
             auctionConfig: getDefaultAuctionConfig(),
+            shareToAuctionBps: 10_000,
             dopplerData: getDopplerData(dopplerTickSpacing, isToken0)
         });
+    }
+
+    function test_initialize_splitsTokens_correctly() public {
+        OpeningAuctionInitData memory initData = getInitData(60);
+        initData.shareToAuctionBps = 2500; // 25%
+
+        bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
+        uint256 airlockBalanceBefore = TestERC20(asset).balanceOf(address(this));
+
+        address auctionHookAddr = initializer.initialize(
+            asset,
+            numeraire,
+            AUCTION_TOKENS,
+            salt,
+            abi.encode(initData)
+        );
+
+        (
+            ,
+            ,
+            ,
+            uint256 auctionTokens,
+            uint256 dopplerTokens,
+            ,
+            ,
+            ,
+            ,
+            ,
+            
+        ) = initializer.getState(asset);
+        uint256 expectedAuctionTokens = (AUCTION_TOKENS * 2500) / 10_000;
+        uint256 expectedDopplerTokens = AUCTION_TOKENS - expectedAuctionTokens;
+
+        assertEq(auctionTokens, expectedAuctionTokens);
+        assertEq(dopplerTokens, expectedDopplerTokens);
+        assertEq(TestERC20(asset).balanceOf(auctionHookAddr), AUCTION_TOKENS);
+        assertEq(TestERC20(asset).balanceOf(address(this)), airlockBalanceBefore - AUCTION_TOKENS);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -424,6 +462,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: getDefaultAuctionConfig(),
+            shareToAuctionBps: 10_000,
             dopplerData: wrongDopplerData
         });
         

@@ -69,6 +69,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     // Users
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
+    uint256 bidNonce;
     address creator = address(0xc4ea70);
 
     // Contracts
@@ -187,7 +188,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
 
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + tickSpacing;
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -199,23 +200,24 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = auction.getPositionId(user, tickLower, tickUpper, salt);
     }
 
-    /// @notice Test SettlementPriceTooLow revert for isToken0=true
-    /// @dev When clearing tick < minAcceptableTick, settlement should revert
-    function test_settlementFailure_PriceTooLow_isToken0True() public {
+    /// @notice Test settlement partial fill for isToken0=true when bids are insufficient
+    function test_settlementPartialFill_PriceTooLow_isToken0True() public {
         // Set a HIGH minAcceptableTick - only bids at very high price are acceptable
         int24 highMinAcceptableTick = 0; // Require clearing tick >= 0
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
-            minAcceptableTickToken0: -887_220,
-            minAcceptableTickToken1: highMinAcceptableTick,
+            minAcceptableTickToken0: highMinAcceptableTick,
+            minAcceptableTickToken1: -887_220,
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
@@ -244,9 +246,10 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         // Warp to auction end
         vm.warp(auction.auctionEndTime() + 1);
 
-        // Settlement should fail because clearing tick < minAcceptableTick
-        vm.expectRevert(abi.encodeWithSignature("SettlementPriceTooLow()"));
         auction.settleAuction();
+        uint256 tokensToSell = AUCTION_TOKENS - auction.incentiveTokensTotal();
+        assertLt(auction.totalTokensSold(), tokensToSell);
+        assertEq(auction.clearingTick(), highMinAcceptableTick);
     }
 
     /// @notice Test settlement with NO bids (empty activeTicks array)
@@ -279,6 +282,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled), "Should be settled");
         assertEq(auction.totalTokensSold(), 0, "Should have sold 0 tokens");
         assertEq(auction.totalProceeds(), 0, "Should have 0 proceeds");
+        assertEq(auction.clearingTick(), config.minAcceptableTickToken0, "Should use minAcceptableTick");
 
         console2.log("Phase after settlement:", uint8(auction.phase()));
         console2.log("Tokens sold:", auction.totalTokensSold());
@@ -319,9 +323,10 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
 
         vm.warp(auction.auctionEndTime() + 1);
 
-        // Should revert because clearing tick < minAcceptableTick
-        vm.expectRevert(abi.encodeWithSignature("SettlementPriceTooLow()"));
         auction.settleAuction();
+        uint256 tokensToSell = AUCTION_TOKENS - auction.incentiveTokensTotal();
+        assertLt(auction.totalTokensSold(), tokensToSell);
+        assertEq(auction.clearingTick(), veryHighMinTick);
     }
 
     /// @notice Test that settlement cannot happen before auction ends
@@ -463,6 +468,9 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
 
         auction.settleAuction();
+        uint256 tokensToSell = AUCTION_TOKENS - auction.incentiveTokensTotal();
+        assertLt(auction.totalTokensSold(), tokensToSell);
+        assertEq(auction.clearingTick(), highMinAcceptableTick);
     }
 
     /// @notice Test incentive recovery when no positions earned time

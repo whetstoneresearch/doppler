@@ -71,6 +71,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     address bob = address(0xb0b);
     address carol = address(0xca401);
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
 
     // Contracts
     OpeningAuctionToken1Deployer auctionDeployer;
@@ -202,7 +203,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + tickSpacing;
 
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -214,11 +215,13 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = auction.getPositionId(user, tickLower, tickUpper, salt);
     }
 
     /// @notice Test basic deployment with isToken0=false

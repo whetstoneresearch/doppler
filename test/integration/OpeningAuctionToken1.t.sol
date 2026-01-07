@@ -82,6 +82,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
 
     // Contracts
     OpeningAuctionDeployerToken1Impl auctionDeployer;
@@ -301,20 +302,21 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
         
-        uint256 positionId = auction.nextPositionId();
+        bytes32 bidSalt = keccak256(abi.encode(alice, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
                 tickUpper: tickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(1e18)),
-                salt: bytes32(positionId)
+                salt: bidSalt
             }),
             abi.encode(alice)
         );
         vm.stopPrank();
 
         // Verify position was created
+        uint256 positionId = auction.getPositionId(alice, tickLower, tickLower + config.tickSpacing, bidSalt);
         AuctionPosition memory pos = auction.positions(positionId);
         assertEq(pos.owner, alice);
         assertEq(pos.tickLower, tickLower);
@@ -418,14 +420,14 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-        uint256 alicePosId = auction.nextPositionId();
+        bytes32 aliceSalt = keccak256(abi.encode(alice, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: aliceTickLower,
                 tickUpper: aliceTickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(1e18)),
-                salt: bytes32(alicePosId)
+                salt: aliceSalt
             }),
             abi.encode(alice)
         );
@@ -436,18 +438,21 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(bob);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-        uint256 bobPosId = auction.nextPositionId();
+        bytes32 bobSalt = keccak256(abi.encode(bob, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: bobTickLower,
                 tickUpper: bobTickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(2e18)),
-                salt: bytes32(bobPosId)
+                salt: bobSalt
             }),
             abi.encode(bob)
         );
         vm.stopPrank();
+
+        uint256 alicePosId = auction.getPositionId(alice, aliceTickLower, aliceTickLower + config.tickSpacing, aliceSalt);
+        uint256 bobPosId = auction.getPositionId(bob, bobTickLower, bobTickLower + config.tickSpacing, bobSalt);
 
         // Verify both positions
         AuctionPosition memory alicePos = auction.positions(alicePosId);
@@ -507,13 +512,14 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        bytes32 aliceSalt = keccak256(abi.encode(alice, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: aliceTickLower,
                 tickUpper: aliceTickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(100_000 ether)),
-                salt: bytes32(auction.nextPositionId())
+                salt: aliceSalt
             }),
             abi.encode(alice)
         );
@@ -523,13 +529,14 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(bob);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        bytes32 bobSalt = keccak256(abi.encode(bob, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: bobTickLower,
                 tickUpper: bobTickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(100_000 ether)),
-                salt: bytes32(auction.nextPositionId())
+                salt: bobSalt
             }),
             abi.encode(bob)
         );
@@ -632,14 +639,14 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-        uint256 alicePosId = auction.nextPositionId();
+        bytes32 aliceSalt = keccak256(abi.encode(alice, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: aliceTickLower,
                 tickUpper: aliceTickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(50_000 ether)),
-                salt: bytes32(alicePosId)
+                salt: aliceSalt
             }),
             abi.encode(alice)
         );
@@ -650,18 +657,21 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(bob);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-        uint256 bobPosId = auction.nextPositionId();
+        bytes32 bobSalt = keccak256(abi.encode(bob, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: bobTickLower,
                 tickUpper: bobTickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(50_000 ether)),
-                salt: bytes32(bobPosId)
+                salt: bobSalt
             }),
             abi.encode(bob)
         );
         vm.stopPrank();
+
+        uint256 alicePosId = auction.getPositionId(alice, aliceTickLower, aliceTickLower + config.tickSpacing, aliceSalt);
+        uint256 bobPosId = auction.getPositionId(bob, bobTickLower, bobTickLower + config.tickSpacing, bobSalt);
 
         console2.log("=== Bids Placed ===");
         console2.log("Alice bid at tick:", int256(aliceTickLower));
@@ -753,18 +763,20 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-        uint256 posId = auction.nextPositionId();
+        bytes32 bidSalt = keccak256(abi.encode(alice, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: lowTickBid,
                 tickUpper: lowTickBid + config.tickSpacing,
                 liquidityDelta: int256(uint256(100_000 ether)),
-                salt: bytes32(posId)
+                salt: bidSalt
             }),
             abi.encode(alice)
         );
         vm.stopPrank();
+
+        uint256 posId = auction.getPositionId(alice, lowTickBid, lowTickBid + config.tickSpacing, bidSalt);
 
         // Get estimated clearing tick after bid
         int24 estimatedClearing = auction.estimatedClearingTick();

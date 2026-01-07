@@ -63,6 +63,8 @@ contract DynamicRangeTrackingTest is Test, Deployers {
     address bob = address(0xb0b);
     address carol = address(0xca401);
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
+    mapping(uint256 => bytes32) internal positionSalts;
 
     // Contracts
     OpeningAuctionDynamicImpl auction;
@@ -169,7 +171,7 @@ contract DynamicRangeTrackingTest is Test, Deployers {
 
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + tickSpacing;
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -181,11 +183,14 @@ contract DynamicRangeTrackingTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = auction.getPositionId(user, tickLower, tickUpper, salt);
+        positionSalts[positionId] = salt;
     }
 
     function _removeBid(address user, int24 tickLower, uint128 liquidity, uint256 positionId) internal {
@@ -198,7 +203,7 @@ contract DynamicRangeTrackingTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: -int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: positionSalts[positionId]
             }),
             abi.encode(user)
         );

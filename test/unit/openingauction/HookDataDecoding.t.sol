@@ -10,6 +10,8 @@ import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 
 contract HookDataDecodingTest is OpeningAuctionBaseTest {
+    mapping(uint256 => bytes32) internal positionSalts;
+
     function setUp() public override {
         // Deploy pool manager
         manager = new PoolManager(address(this));
@@ -44,7 +46,7 @@ contract HookDataDecodingTest is OpeningAuctionBaseTest {
 
     function _addBidPacked(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + key.tickSpacing;
-        positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -56,11 +58,14 @@ contract HookDataDecodingTest is OpeningAuctionBaseTest {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encodePacked(user)
         );
         vm.stopPrank();
+
+        positionId = hook.getPositionId(user, tickLower, tickUpper, salt);
+        positionSalts[positionId] = salt;
     }
 
     function _removeBidPacked(address user, int24 tickLower, uint128 liquidity, uint256 positionId) internal {
@@ -73,7 +78,7 @@ contract HookDataDecodingTest is OpeningAuctionBaseTest {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: -int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: positionSalts[positionId]
             }),
             abi.encodePacked(user)
         );
