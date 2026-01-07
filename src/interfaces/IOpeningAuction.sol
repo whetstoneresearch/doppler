@@ -37,8 +37,8 @@ struct TickTimeState {
 
 /// @notice Configuration for the opening auction
 /// @param auctionDuration Duration in seconds
-/// @param minAcceptableTickToken0 Minimum tick for bids when selling token0 (price floor)
-/// @param minAcceptableTickToken1 Minimum tick for bids when selling token1 (price floor)
+/// @param minAcceptableTickToken0 Minimum acceptable price tick for token0 auctions (token1/token0)
+/// @param minAcceptableTickToken1 Minimum acceptable price tick for token1 auctions, expressed as tick(token0/token1)
 /// @param incentiveShareBps Percentage of tokens for LP incentives (basis points)
 /// @param tickSpacing Tick spacing for the pool
 /// @param fee Fee for the pool
@@ -188,6 +188,21 @@ interface IOpeningAuction {
 
     /// @notice Thrown when isToken0 has not been set before initialization
     error IsToken0NotSet();
+
+    /// @notice Thrown when auctionDuration is zero
+    error InvalidAuctionDuration();
+
+    /// @notice Thrown when incentiveShareBps exceeds the basis points denominator
+    error InvalidIncentiveShareBps();
+
+    /// @notice Thrown when tickSpacing is invalid
+    error InvalidTickSpacing();
+
+    /// @notice Thrown when minLiquidity is zero
+    error InvalidMinLiquidity();
+
+    /// @notice Thrown when minAcceptableTick is out of bounds or misaligned
+    error InvalidMinAcceptableTick();
 
     /// @notice Get the current auction phase
     function phase() external view returns (AuctionPhase);
