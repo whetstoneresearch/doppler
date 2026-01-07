@@ -46,6 +46,8 @@ is_testnet = false
 [4326.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock_multisig = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
+airlock = "0xDe3599a2eC440B296373a983C85C365DA55d9dFA"
 
 [84532]
 endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
@@ -99,3 +101,4 @@ is_testnet = true
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
+airlock = "0xDe3599a2eC440B296373a983C85C365DA55d9dFA"
