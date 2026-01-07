@@ -49,10 +49,10 @@ contract OpeningAuctionImpl is OpeningAuction {
         uint256 idx = 0;
         int24 iterTick = minActiveTick;
         while (iterTick <= maxActiveTick && idx < count) {
-            (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
-            if (!found || nextTick > maxActiveTick) break;
-            ticks[idx++] = nextTick;
-            iterTick = nextTick + 1;
+            (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+            if (!found || nextCompressed > maxActiveTick) break;
+            ticks[idx++] = _decompressTick(nextCompressed);
+            iterTick = nextCompressed + 1;
         }
         
         return ticks;
@@ -70,7 +70,8 @@ contract OpeningAuctionImpl is OpeningAuction {
     
     /// @notice Expose min/max active ticks for testing
     function getActiveTickBounds() external view returns (int24 minTick, int24 maxTick) {
-        return (minActiveTick, maxActiveTick);
+        if (!hasActiveTicks) return (0, 0);
+        return (_decompressTick(minActiveTick), _decompressTick(maxActiveTick));
     }
 }
 
@@ -418,7 +419,7 @@ contract OpeningAuctionHandler is Test {
 /// @notice Invariant tests for OpeningAuction incentives mechanism
 /// @dev Tests the following invariants:
 ///      1. Conservation: Sum of all claimed incentives ≤ incentiveTokensTotal
-///      2. Monotonic Accumulators: accumulatedTimePerLiquidityX128 never decreases
+///      2. Monotonic Accumulators: accumulatedSecondsX128 never decreases
 ///      3. Monotonic Earned Time: Position earned time never decreases (until claimed)
 ///      4. Settlement Finality: After settlement, claimable amounts are frozen
 ///      5. No Double Claim: Cannot claim same position twice
@@ -563,7 +564,7 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
         assertLe(totalClaimed, totalIncentives, "Conservation: claimed > total incentives");
     }
 
-    /// @notice INVARIANT 2: Monotonic Accumulators - accumulatedTimePerLiquidityX128 never decreases
+    /// @notice INVARIANT 2: Monotonic Accumulators - accumulatedSecondsX128 never decreases
     /// @dev Tick accumulators should only increase over time
     function invariant_monotonic_accumulators() public view {
         int24[] memory activeTicks = hook.getActiveTicks();
