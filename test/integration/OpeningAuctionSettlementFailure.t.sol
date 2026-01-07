@@ -54,8 +54,8 @@ contract OpeningAuctionFailureDeployer is OpeningAuctionDeployer {
 }
 
 /// @title OpeningAuctionSettlementFailureTest
-/// @notice Tests for settlement failure scenarios
-/// @dev Tests SettlementPriceTooLow revert and no-bids edge case
+/// @notice Tests for settlement edge cases
+/// @dev Tests partial fill at price limit and no-bids edge case
 contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     // Tokens
     address constant TOKEN_A = address(0x8888);
@@ -282,16 +282,23 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled), "Should be settled");
         assertEq(auction.totalTokensSold(), 0, "Should have sold 0 tokens");
         assertEq(auction.totalProceeds(), 0, "Should have 0 proceeds");
-        assertEq(auction.clearingTick(), config.minAcceptableTickToken0, "Should use minAcceptableTick");
+        assertEq(auction.clearingTick(), auction.minAcceptableTick(), "Should use minAcceptableTick");
+
+        vm.prank(creator);
+        (uint160 sqrtPriceX96,,,,,,) = auction.migrate(creator);
+        assertEq(
+            sqrtPriceX96,
+            TickMath.getSqrtPriceAtTick(auction.clearingTick()),
+            "sqrtPrice should match clearingTick"
+        );
 
         console2.log("Phase after settlement:", uint8(auction.phase()));
         console2.log("Tokens sold:", auction.totalTokensSold());
         console2.log("Clearing tick:", int256(auction.clearingTick()));
     }
 
-    /// @notice Test settlement with bids but all below minAcceptableTick
-    /// @dev This shouldn't happen because bids below minAcceptableTick are rejected
-    /// @dev But if no bids reach the min threshold, settlement should fail
+    /// @notice Test settlement with insufficient liquidity at the price limit
+    /// @dev Bids below the limit are rejected; settlement should partially fill to the limit
     function test_settlementFailure_InsufficientLiquidity() public {
         // Very high minAcceptableTick - hard to satisfy
         int24 veryHighMinTick = 60_000;
@@ -378,7 +385,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     }
 
     /// @notice Test settlement with isToken0=false and high minAcceptableTick floor
-    /// @dev Bid validation enforces tickLower >= minAcceptableTick, so settlement should succeed
+    /// @dev Bid validation enforces tickLower <= minAcceptableTick, so settlement should succeed
     function test_settlementFailure_PriceTooHigh_isToken0False() public {
         // For isToken0=false tests, we need asset to be token1
         // Redeploy with swapped tokens
@@ -396,7 +403,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         numeraire = newNumeraire;
 
         // Set a HIGH minAcceptableTick - clearing tick must reach this floor
-        int24 highMinAcceptableTick = 10_020; // Aligned to tickSpacing
+        int24 highMinAcceptableTick = 0; // tick(token0/token1), ceiling is 0 in pool space
 
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
@@ -441,11 +448,11 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         vm.stopPrank();
 
         console2.log("=== SettlementPriceTooLow Test (isToken0=false) ===");
-        console2.log("minAcceptableTick:", int256(highMinAcceptableTick));
+        console2.log("minAcceptableTick:", int256(auction.minAcceptableTick()));
         assertFalse(auction.isToken0(), "Should be isToken0=false");
 
-        // Place minimal bid at a valid tick (tickLower >= minAcceptableTick)
-        int24 validTick = highMinAcceptableTick;
+        int24 limitTick = auction.minAcceptableTick();
+        int24 validTick = limitTick - tickSpacing;
         
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -470,7 +477,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         auction.settleAuction();
         uint256 tokensToSell = AUCTION_TOKENS - auction.incentiveTokensTotal();
         assertLt(auction.totalTokensSold(), tokensToSell);
-        assertEq(auction.clearingTick(), highMinAcceptableTick);
+        assertEq(auction.clearingTick(), limitTick);
     }
 
     /// @notice Test incentive recovery when no positions earned time

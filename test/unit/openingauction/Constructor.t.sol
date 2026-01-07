@@ -51,6 +51,9 @@ contract ConstructorTest is Test {
             config
         );
 
+        vm.prank(initializer);
+        auction.setIsToken0(true);
+
         assertEq(auction.auctionDuration(), config.auctionDuration);
         assertEq(auction.minAcceptableTick(), config.minAcceptableTickToken0);
         assertEq(auction.incentiveShareBps(), config.incentiveShareBps);
@@ -99,5 +102,53 @@ contract ConstructorTest is Test {
         );
 
         assertEq(auction.nextPositionId(), 1);
+    }
+
+    function test_constructor_RevertsInvalidAuctionDuration() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.auctionDuration = 0;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidAuctionDuration()"));
+        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+    }
+
+    function test_constructor_RevertsInvalidIncentiveShareBps() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.incentiveShareBps = 10_001;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidIncentiveShareBps()"));
+        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+    }
+
+    function test_constructor_RevertsInvalidTickSpacing() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.tickSpacing = 0;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidTickSpacing()"));
+        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+    }
+
+    function test_constructor_RevertsInvalidMinLiquidity() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minLiquidity = 0;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidMinLiquidity()"));
+        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+    }
+
+    function test_constructor_RevertsMisalignedMinAcceptableTick() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minAcceptableTickToken0 = -99_961;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidMinAcceptableTick()"));
+        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+    }
+
+    function test_constructor_RevertsMisalignedMinAcceptableTickToken1() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.minAcceptableTickToken1 = -99_961;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidMinAcceptableTick()"));
+        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
     }
 }
