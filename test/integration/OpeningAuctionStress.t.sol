@@ -37,6 +37,8 @@ contract OpeningAuctionStressTest is Test, Deployers {
     uint256 constant AUCTION_TOKENS = 100 ether;
 
     StressTestOpeningAuction hook;
+    uint256 bidNonce;
+    mapping(uint256 => bytes32) internal positionSalts;
     // modifyLiquidityRouter inherited from Deployers
     PoolKey poolKey;
     
@@ -119,7 +121,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
 
     /// @notice Helper to add a bid
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
-        positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
         
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -131,11 +133,14 @@ contract OpeningAuctionStressTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickLower + config.tickSpacing,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = hook.getPositionId(user, tickLower, tickLower + config.tickSpacing, salt);
+        positionSalts[positionId] = salt;
     }
 
     /// @notice Test with 50 unique bidders at different ticks
@@ -245,7 +250,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
                         tickLower: tickLower,
                         tickUpper: tickLower + config.tickSpacing,
                         liquidityDelta: -int256(uint256(liquidity)),
-                        salt: bytes32(positionId)
+                        salt: positionSalts[positionId]
                     }),
                     abi.encode(bidder)
                 );

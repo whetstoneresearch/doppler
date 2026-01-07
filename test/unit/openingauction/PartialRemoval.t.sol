@@ -46,6 +46,8 @@ contract PartialRemovalTest is Test, Deployers {
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
+    mapping(uint256 => bytes32) internal positionSalts;
 
     // Contracts
     OpeningAuctionPartialRemovalImpl auction;
@@ -142,7 +144,7 @@ contract PartialRemovalTest is Test, Deployers {
 
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + tickSpacing;
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -154,11 +156,14 @@ contract PartialRemovalTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = auction.getPositionId(user, tickLower, tickUpper, salt);
+        positionSalts[positionId] = salt;
     }
 
     function _removeBid(address user, int24 tickLower, uint128 liquidity, uint256 positionId) internal {
@@ -171,7 +176,7 @@ contract PartialRemovalTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: -int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: positionSalts[positionId]
             }),
             abi.encode(user)
         );
@@ -377,13 +382,12 @@ contract PartialRemovalTest is Test, Deployers {
 
         uint256 bobPos = _addBid(bob, outOfRangeTick, bobLiquidity);
 
-        // Carol needs a different salt, so we use the next position ID
         address carol = address(0xca401);
         TestERC20(numeraire).transfer(carol, 10_000_000 ether);
         TestERC20(token0).transfer(carol, 10_000_000 ether);
 
         int24 tickUpper = outOfRangeTick + tickSpacing;
-        uint256 carolPos = auction.nextPositionId();
+        bytes32 carolSalt = keccak256(abi.encode(carol, bidNonce++));
 
         vm.startPrank(carol);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -394,11 +398,14 @@ contract PartialRemovalTest is Test, Deployers {
                 tickLower: outOfRangeTick,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(carolLiquidity)),
-                salt: bytes32(carolPos)
+                salt: carolSalt
             }),
             abi.encode(carol)
         );
         vm.stopPrank();
+
+        uint256 carolPos = auction.getPositionId(carol, outOfRangeTick, tickUpper, carolSalt);
+        positionSalts[carolPos] = carolSalt;
 
         // Both should be out of range
         assertFalse(auction.isInRange(bobPos), "Bob should be out of range");
@@ -425,7 +432,7 @@ contract PartialRemovalTest is Test, Deployers {
                 tickLower: outOfRangeTick,
                 tickUpper: tickUpper,
                 liquidityDelta: -int256(uint256(carolLiquidity)),
-                salt: bytes32(carolPos)
+                salt: positionSalts[carolPos]
             }),
             abi.encode(carol)
         );

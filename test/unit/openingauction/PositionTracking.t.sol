@@ -71,6 +71,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
         uint256 positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(bob, bidNonce++));
         vm.expectEmit(true, true, true, true, address(hook));
         emit IOpeningAuction.PositionLocked(positionId);
 
@@ -81,7 +82,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
                 tickLower: tickLower,
                 tickUpper: tickLower + key.tickSpacing,
                 liquidityDelta: int256(uint256(amount)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(bob)
         );

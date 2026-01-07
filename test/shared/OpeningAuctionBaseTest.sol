@@ -84,6 +84,7 @@ contract OpeningAuctionBaseTest is Test, Deployers {
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
     address initializer = address(0xbeef);
+    uint256 bidNonce;
 
     /// @notice Get the hook flags for OpeningAuction
     function getHookFlags() internal pure returns (uint160) {
@@ -213,9 +214,7 @@ contract OpeningAuctionBaseTest is Test, Deployers {
     /// @return positionId The ID of the created position
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + key.tickSpacing;
-
-        // Get the next position ID before adding
-        positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         // Approve the router to spend tokens
@@ -229,11 +228,13 @@ contract OpeningAuctionBaseTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId) // Use position ID as salt for uniqueness
+                salt: salt
             }),
             abi.encode(user) // Pass owner in hookData
         );
         vm.stopPrank();
+
+        positionId = hook.getPositionId(user, tickLower, tickUpper, salt);
     }
 
     /// @notice Helper to warp to auction end

@@ -75,6 +75,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
     address bob = address(0xb0b);
     address carol = address(0xca401);
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
 
     // Contracts
     OpeningAuctionEdgeCaseDeployer auctionDeployer;
@@ -207,7 +208,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
     }
 
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -219,11 +220,13 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickLower + tickSpacing,
                 liquidityDelta: int128(liquidity),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = auction.getPositionId(user, tickLower, tickLower + tickSpacing, salt);
     }
 
     // ============ BOUNDARY TESTS ============
@@ -256,9 +259,9 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
         assertGe(actualClearingTick, minAcceptableTick, "Clearing tick should be >= minAcceptableTick");
     }
 
-    /// @notice Test settlement fails when clearing tick would be below minAcceptableTick
-    function test_SettlementFailsWhenClearingBelowMinAcceptable() public {
-        // Use a higher minAcceptableTick so insufficient liquidity causes settlement to fail
+    /// @notice Test settlement partial fill when clearing tick would be below minAcceptableTick
+    function test_SettlementPartialFillWhenClearingBelowMinAcceptable() public {
+        // Use a higher minAcceptableTick so insufficient liquidity causes partial fill
         int24 highMinAcceptableTick = 0; // Require clearing tick >= 0
         
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
@@ -280,9 +283,10 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
 
         vm.warp(block.timestamp + auctionDuration + 1);
 
-        // Settlement should fail because clearing tick < minAcceptableTick
-        vm.expectRevert(abi.encodeWithSignature("SettlementPriceTooLow()"));
         auction.settleAuction();
+        uint256 tokensToSell = auction.totalAuctionTokens() - auction.incentiveTokensTotal();
+        assertLt(auction.totalTokensSold(), tokensToSell);
+        assertEq(auction.clearingTick(), highMinAcceptableTick);
     }
 
     /// @notice Test bid placement at MIN_TICK boundary (aligned to tick spacing)
@@ -462,15 +466,13 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
         auction = _createAuction();
 
         // First bid from alice
-        uint256 firstPositionId = auction.nextPositionId();
-        _addBid(alice, 0, 25_000 ether);
+        uint256 firstPositionId = _addBid(alice, 0, 25_000 ether);
 
         AuctionPosition memory pos1 = auction.positions(firstPositionId);
         assertEq(pos1.liquidity, 25_000 ether, "First position should have 25k ether liquidity");
 
         // Second bid from alice at SAME tick - should create NEW position
-        uint256 secondPositionId = auction.nextPositionId();
-        _addBid(alice, 0, 15_000 ether);
+        uint256 secondPositionId = _addBid(alice, 0, 15_000 ether);
 
         // Verify two separate positions exist
         AuctionPosition memory pos2 = auction.positions(secondPositionId);

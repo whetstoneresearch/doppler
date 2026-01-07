@@ -73,6 +73,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
 
     // Contracts
     OpeningAuctionRecoveryDeployer auctionDeployer;
@@ -193,7 +194,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + tickSpacing;
 
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -205,11 +206,13 @@ contract IncentiveRecoveryTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(user)
         );
         vm.stopPrank();
+
+        positionId = auction.getPositionId(user, tickLower, tickUpper, salt);
     }
 
     function getDefaultConfig() internal view returns (OpeningAuctionConfig memory) {
@@ -268,12 +271,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
         assertEq(auction.incentiveTokensTotal(), 0, "incentiveTokensTotal should be zeroed after recovery");
     }
 
-    /// @notice Test that recovery succeeds when bids are placed but settlement fails price check
-    /// @dev If bids are placed but the estimated clearing tick would be below minAcceptableTick,
-    ///      the settlement swap doesn't execute and no time is earned.
-    ///      NOTE: This test documents a specific edge case where bids exist but can't be filled
-    ///      due to insufficient price. In practice, this scenario results in 0 tokens sold.
-    function test_recoverIncentives_SucceedsWhenSettlementPriceTooLow() public {
+    /// @notice Test that recovery fails when bids earned time
+    function test_recoverIncentives_FailsWhenTimeEarned() public {
         // Create auction with a very high minAcceptableTick (restrictive price floor)
         // This means only very high price bids would be acceptable
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
@@ -321,38 +320,15 @@ contract IncentiveRecoveryTest is Test, Deployers {
         // Warp to auction end
         vm.warp(auction.auctionEndTime() + 1);
 
-        // The settlement will either succeed (if clearing >= minAcceptable) or revert
-        // If it succeeds with 0 tokens sold due to price, recovery should work
-        try auction.settleAuction() {
-            vm.prank(creator);
-            auction.migrate(address(this));
+        auction.settleAuction();
 
-            // If settlement succeeded, check if any time was earned
-            if (auction.cachedTotalWeightedTimeX128() == 0) {
-                // No time earned - recovery should succeed
-                uint256 expectedIncentives = auction.incentiveTokensTotal();
-                uint256 creatorBalanceBefore = TestERC20(asset).balanceOf(creator);
+        vm.prank(creator);
+        auction.migrate(address(this));
 
-                vm.prank(creator);
-                auction.recoverIncentives(creator);
-
-                uint256 creatorBalanceAfter = TestERC20(asset).balanceOf(creator);
-                assertEq(
-                    creatorBalanceAfter - creatorBalanceBefore,
-                    expectedIncentives,
-                    "Creator should receive all incentive tokens"
-                );
-            } else {
-                // Positions earned time, recovery should fail
-                vm.prank(creator);
-                vm.expectRevert(IOpeningAuction.IncentivesStillClaimable.selector);
-                auction.recoverIncentives(creator);
-            }
-        } catch {
-            // Settlement reverted (SettlementPriceTooLow) - this is also valid
-            // In this case auction is still Active, recovery would fail with AuctionNotSettled
-            assertTrue(true, "Settlement reverted due to price constraint");
-        }
+        assertGt(auction.cachedTotalWeightedTimeX128(), 0);
+        vm.prank(creator);
+        vm.expectRevert(IOpeningAuction.IncentivesStillClaimable.selector);
+        auction.recoverIncentives(creator);
     }
 
     /// @notice Test recovery emits the IncentivesRecovered event
@@ -393,6 +369,37 @@ contract IncentiveRecoveryTest is Test, Deployers {
         auction.recoverIncentives(recipient);
 
         assertEq(TestERC20(asset).balanceOf(recipient), expectedIncentives, "Recipient should receive tokens");
+    }
+
+    function test_sweepUnclaimedIncentives_AfterDeadline() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        auction = _createAuction(config);
+
+        int24 bidTick = minAcceptableTick + tickSpacing * 10;
+        uint256 alicePos = _addBid(alice, bidTick, 50_000 ether);
+        uint256 bobPos = _addBid(bob, bidTick + tickSpacing, 50_000 ether);
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
+
+        vm.prank(alice);
+        auction.claimIncentives(alicePos);
+
+        vm.warp(auction.incentivesClaimDeadline() + 1);
+
+        uint256 creatorBalanceBefore = TestERC20(asset).balanceOf(creator);
+        vm.prank(creator);
+        auction.sweepUnclaimedIncentives(creator);
+        uint256 creatorBalanceAfter = TestERC20(asset).balanceOf(creator);
+
+        assertGt(creatorBalanceAfter - creatorBalanceBefore, 0);
+
+        vm.prank(bob);
+        vm.expectRevert(IOpeningAuction.ClaimWindowEnded.selector);
+        auction.claimIncentives(bobPos);
     }
 
     // ============ Recovery Failure Scenarios ============

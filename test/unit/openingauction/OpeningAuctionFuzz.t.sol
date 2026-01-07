@@ -547,7 +547,7 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
     /// @notice Helper to add a bid from a specific address
     function _addBidFrom(address bidder, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + key.tickSpacing;
-        positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(bidder, bidNonce++));
 
         vm.startPrank(bidder);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -559,10 +559,12 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(bidder)
         );
         vm.stopPrank();
+
+        positionId = hook.getPositionId(bidder, tickLower, tickUpper, salt);
     }
 }
