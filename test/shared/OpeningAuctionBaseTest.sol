@@ -44,11 +44,13 @@ contract OpeningAuctionImplementation is OpeningAuction {
     }
 
     function getMinActiveTick() external view returns (int24) {
-        return minActiveTick;
+        if (!hasActiveTicks) return 0;
+        return _decompressTick(minActiveTick);
     }
 
     function getMaxActiveTick() external view returns (int24) {
-        return maxActiveTick;
+        if (!hasActiveTicks) return 0;
+        return _decompressTick(maxActiveTick);
     }
 
     function isTickActive(int24 tick) external view returns (bool) {

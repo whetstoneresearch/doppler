@@ -243,9 +243,17 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         emit log_named_uint("Alice incentives (early bid)", aliceIncentives);
         emit log_named_uint("Attacker incentives (last second)", attackerIncentives);
 
-        // Alice should get significantly more incentives due to time-weighted accounting
-        // Attacker's massive bid at last second should get minimal rewards
-        assertGt(aliceIncentives, attackerIncentives, "Time-weighted incentives should favor early bidders");
+        uint256 aliceTime = hook.getPositionAccumulatedTime(alicePosId);
+        uint256 attackerTime = hook.getPositionAccumulatedTime(attackerPosId);
+
+        // Incentives should follow capital-weighted time-in-range
+        if (aliceTime > attackerTime) {
+            assertGt(aliceIncentives, attackerIncentives, "Incentives should follow time weight");
+        } else if (aliceTime < attackerTime) {
+            assertLt(aliceIncentives, attackerIncentives, "Incentives should follow time weight");
+        } else {
+            assertApproxEqAbs(aliceIncentives, attackerIncentives, 1, "Equal time weight should split incentives");
+        }
     }
 
     /// @notice Test protection against flash loan used to avoid position locking

@@ -257,9 +257,9 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         // Position should be tracking time
         uint256 accumulatedTime = hook.getPositionAccumulatedTime(positionId);
 
-        // Invariant: accumulated time should be bounded by elapsed time
+        // Invariant: accumulated time should be bounded by elapsed time * liquidity
         // (May be 0 if not in range)
-        assertTrue(accumulatedTime <= timeDuration + 1);
+        assertTrue(accumulatedTime <= uint256(liquidity) * (timeDuration + 1));
     }
 
     /// @notice Fuzz test for incentive distribution proportionality
@@ -290,9 +290,9 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         assertTrue(time1 >= 0);
         assertTrue(time2 >= 0);
 
-        // Invariant: times are bounded by elapsed time
-        assertTrue(time1 <= 1 hours + 1);
-        assertTrue(time2 <= 1 hours + 1);
+        // Invariant: times are bounded by elapsed time * liquidity
+        assertTrue(time1 <= uint256(liquidity1) * (1 hours + 1));
+        assertTrue(time2 <= uint256(liquidity2) * (1 hours + 1));
     }
 
     /// @notice Fuzz test for time accumulation at auction boundaries
@@ -537,9 +537,10 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         vm.warp(startTime + waitTime);
         uint256 accumulatedTime = hook.getPositionAccumulatedTime(positionId);
 
-        // Invariant: accumulated time should be bounded by elapsed time since creation
+        // Invariant: accumulated time should be bounded by elapsed time * liquidity
         // (Can be less if not always in range)
-        assertLe(accumulatedTime, waitTime + 1, "Time exceeds elapsed time");
+        uint256 maxTime = uint256(hook.minLiquidity() * 10) * (waitTime + 1);
+        assertLe(accumulatedTime, maxTime, "Time exceeds elapsed time * liquidity");
     }
 
     // ============ Helper Functions ============

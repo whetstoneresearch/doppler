@@ -143,13 +143,13 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     mapping(int24 tick => TickTimeState) public tickTimeStates;
 
     /// @notice Bitmap of active ticks (ticks with liquidity positions)
-    /// @dev Uses int16 word position, uint8 bit position
+    /// @dev Uses compressed ticks (tick / tickSpacing) to reduce scan range
     mapping(int16 => uint256) internal tickBitmap;
 
-    /// @notice Minimum active tick (for bounded iteration)
+    /// @notice Minimum active compressed tick (for bounded iteration)
     int24 internal minActiveTick;
 
-    /// @notice Maximum active tick (for bounded iteration)
+    /// @notice Maximum active compressed tick (for bounded iteration)
     int24 internal maxActiveTick;
 
     /// @notice Whether any active ticks exist
@@ -271,15 +271,13 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return isInRange(positionId);
     }
 
-    /// @notice Get a position's earned time in seconds (backwards-compatible)
+    /// @notice Get a position's earned time (liquidity-weighted seconds)
     /// @param positionId The position to check
-    /// @return earnedSeconds The position's earned time in seconds (proportional to liquidity share)
+    /// @return earnedSeconds The position's earned time in liquidity-weighted seconds
     function getPositionAccumulatedTime(uint256 positionId) public view returns (uint256 earnedSeconds) {
         uint256 earnedTimeX128 = _getPositionEarnedTimeX128(positionId);
         // earnedTimeX128 = (tickAccum - debt) * posLiquidity
-        //                = (elapsed * 2^128 / tickLiquidity) * posLiquidity
-        // So: earnedTimeX128 >> 128 = elapsed * posLiquidity / tickLiquidity
-        // This gives the position's proportional share of elapsed time
+        // tickAccum is elapsed seconds in Q128, so >> 128 = elapsed * posLiquidity
         earnedSeconds = earnedTimeX128 >> 128;
     }
 
@@ -334,19 +332,16 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @dev Used for view functions to get accurate values before settlement
     function _getCurrentTickAccumulatorX128(int24 tick) internal view returns (uint256) {
         TickTimeState memory tickState = tickTimeStates[tick];
-        uint256 accumulatorX128 = tickState.accumulatedTimePerLiquidityX128;
+        uint256 accumulatorX128 = tickState.accumulatedSecondsX128;
 
         // If tick is in range and auction not settled, add pending time
         if (tickState.isInRange && tickState.lastUpdateTime > 0) {
-            uint128 liquidity = liquidityAtTick[tick];
-            if (liquidity > 0) {
-                uint256 endTime = (phase == AuctionPhase.Settled || phase == AuctionPhase.Closed)
-                    ? auctionEndTime
-                    : (block.timestamp > auctionEndTime ? auctionEndTime : block.timestamp);
-                if (endTime > tickState.lastUpdateTime) {
-                    uint256 elapsed = endTime - tickState.lastUpdateTime;
-                    accumulatorX128 += (elapsed << 128) / liquidity;
-                }
+            uint256 endTime = (phase == AuctionPhase.Settled || phase == AuctionPhase.Closed)
+                ? auctionEndTime
+                : (block.timestamp > auctionEndTime ? auctionEndTime : block.timestamp);
+            if (endTime > tickState.lastUpdateTime) {
+                uint256 elapsed = endTime - tickState.lastUpdateTime;
+                accumulatorX128 += (elapsed << 128);
             }
         }
 
@@ -361,9 +356,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (hasActiveTicks) {
             int24 iterTick = minActiveTick;
             while (iterTick <= maxActiveTick) {
-                (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
-                if (!found || nextTick > maxActiveTick) break;
+                (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+                if (!found || nextCompressed > maxActiveTick) break;
 
+                int24 nextTick = _decompressTick(nextCompressed);
                 uint128 liquidity = liquidityAtTick[nextTick];
                 if (liquidity > 0) {
                     uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
@@ -374,7 +370,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                     }
                 }
 
-                iterTick = nextTick + 1;
+                iterTick = nextCompressed + 1;
             }
         }
 
@@ -406,24 +402,25 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     }
 
     /// @notice Get total accumulated time across all ticks (for external queries)
-    /// @dev Returns sum of tick times (not weighted by liquidity)
+    /// @dev Returns sum of liquidity-weighted seconds across ticks
     function totalAccumulatedTime() public view returns (uint256) {
         uint256 total = 0;
 
         if (hasActiveTicks) {
             int24 iterTick = minActiveTick;
             while (iterTick <= maxActiveTick) {
-                (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
-                if (!found || nextTick > maxActiveTick) break;
+                (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+                if (!found || nextCompressed > maxActiveTick) break;
 
+                int24 nextTick = _decompressTick(nextCompressed);
                 uint128 liquidity = liquidityAtTick[nextTick];
                 if (liquidity > 0) {
-                    // Convert Q128 accumulator back to seconds: accumulator * liquidity >> 128
+                    // Convert Q128 accumulator back to liquidity-weighted seconds
                     uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
                     total += (tickAccumulatorX128 * uint256(liquidity)) >> 128;
                 }
 
-                iterTick = nextTick + 1;
+                iterTick = nextCompressed + 1;
             }
         }
 
@@ -732,7 +729,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             _updateTickAccumulator(params.tickLower);
 
             // Snapshot the current accumulator value for MasterChef-style reward debt
-            uint256 rewardDebt = tickTimeStates[params.tickLower].accumulatedTimePerLiquidityX128;
+            uint256 rewardDebt = tickTimeStates[params.tickLower].accumulatedSecondsX128;
 
             // Create position ID
             uint256 positionId = nextPositionId++;
@@ -754,6 +751,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Track position key for removal lookups
             // Use owner (not sender) to prevent collision when multiple users go through same router
             bytes32 positionKey = keccak256(abi.encodePacked(owner, params.tickLower, params.tickUpper, params.salt));
+            uint256 existingId = positionKeyToId[positionKey];
+            if (existingId != 0 && _positions[existingId].liquidity != 0) {
+                revert PositionAlreadyExists(positionKey);
+            }
             positionKeyToId[positionKey] = positionId;
 
             ownerPositions[owner].push(positionId);
@@ -869,6 +870,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 _removePositionFromTick(params.tickLower, positionId);
 
                 pos.liquidity = 0;
+                delete positionKeyToId[positionKey];
 
                 emit BidWithdrawn(positionId);
             }
@@ -936,10 +938,43 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return tickLower <= tick && tick < tickUpper;
     }
 
+    /// @notice Floor a tick to the nearest multiple of spacing (toward negative infinity)
+    function _floorToSpacing(int24 tick, int24 spacing) internal pure returns (int24) {
+        int24 compressed = tick / spacing;
+        if (tick < 0 && tick % spacing != 0) {
+            compressed--;
+        }
+        return compressed * spacing;
+    }
+
+    /// @notice Ceil a tick to the nearest multiple of spacing (toward positive infinity)
+    function _ceilToSpacing(int24 tick, int24 spacing) internal pure returns (int24) {
+        int24 compressed = tick / spacing;
+        if (tick > 0 && tick % spacing != 0) {
+            compressed++;
+        }
+        return compressed * spacing;
+    }
+
+    /// @notice Compress a tick by tick spacing (rounding toward negative infinity)
+    function _compressTick(int24 tick) internal view returns (int24) {
+        int24 spacing = poolKey.tickSpacing;
+        int24 compressed = tick / spacing;
+        if (tick < 0 && tick % spacing != 0) {
+            compressed--;
+        }
+        return compressed;
+    }
+
+    /// @notice Decompress a tick by tick spacing
+    function _decompressTick(int24 compressedTick) internal view returns (int24) {
+        return compressedTick * poolKey.tickSpacing;
+    }
+
     // ============ Bitmap Helper Functions ============
 
-    /// @notice Computes the position in the bitmap where the bit for a tick lives
-    /// @param tick The tick for which to compute the position
+    /// @notice Computes the position in the bitmap where the bit for a compressed tick lives
+    /// @param tick The compressed tick for which to compute the position
     /// @return wordPos The key in the mapping containing the word in which the bit is stored
     /// @return bitPos The bit position in the word where the flag is stored
     function _position(int24 tick) internal pure returns (int16 wordPos, uint8 bitPos) {
@@ -947,26 +982,36 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         bitPos = uint8(uint24(tick) % 256);
     }
 
-    /// @notice Flips the bit for a given tick in the bitmap
-    /// @param tick The tick to flip
-    function _flipTick(int24 tick) internal {
+    /// @notice Flips the bit for a given compressed tick in the bitmap
+    function _flipTickCompressed(int24 tick) internal {
         (int16 wordPos, uint8 bitPos) = _position(tick);
         uint256 mask = 1 << bitPos;
         tickBitmap[wordPos] ^= mask;
+    }
+
+    /// @notice Flips the bit for a given tick in the bitmap
+    /// @param tick The tick to flip
+    function _flipTick(int24 tick) internal {
+        _flipTickCompressed(_compressTick(tick));
+    }
+
+    /// @notice Check if a compressed tick is set in the bitmap
+    function _isCompressedTickActive(int24 tick) internal view returns (bool) {
+        (int16 wordPos, uint8 bitPos) = _position(tick);
+        return (tickBitmap[wordPos] & (1 << bitPos)) != 0;
     }
 
     /// @notice Check if a tick is set in the bitmap
     /// @param tick The tick to check
     /// @return True if the tick is active (has liquidity)
     function _isTickActive(int24 tick) internal view returns (bool) {
-        (int16 wordPos, uint8 bitPos) = _position(tick);
-        return (tickBitmap[wordPos] & (1 << bitPos)) != 0;
+        return _isCompressedTickActive(_compressTick(tick));
     }
 
-    /// @notice Returns the next initialized tick in the bitmap
-    /// @param tick The starting tick
+    /// @notice Returns the next initialized compressed tick in the bitmap
+    /// @param tick The starting compressed tick
     /// @param lte Whether to search left (less than or equal) or right (greater than)
-    /// @return next The next initialized tick (or tick +/- 256 if none found in word)
+    /// @return next The next initialized compressed tick (or tick +/- 256 if none found in word)
     /// @return initialized Whether a tick was found
     function _nextInitializedTickWithinOneWord(int24 tick, bool lte)
         internal
@@ -999,11 +1044,11 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
     }
 
-    /// @notice Find the next initialized tick, searching across multiple words if needed
-    /// @param tick The starting tick
+    /// @notice Find the next initialized compressed tick, searching across multiple words if needed
+    /// @param tick The starting compressed tick
     /// @param lte Whether to search left (less than or equal) or right (greater than)
-    /// @param boundTick The boundary tick to stop searching at
-    /// @return next The next initialized tick, or boundTick if none found
+    /// @param boundTick The boundary compressed tick to stop searching at
+    /// @return next The next initialized compressed tick, or boundTick if none found
     /// @return found Whether an initialized tick was found before the bound
     function _nextInitializedTick(int24 tick, bool lte, int24 boundTick)
         internal
@@ -1063,14 +1108,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         // If already finalized (lastUpdateTime >= auctionEndTime), no more updates needed
         if (tickState.lastUpdateTime >= auctionEndTime) return;
 
-        uint128 liquidity = liquidityAtTick[tick];
-
-        // Only accumulate if tick is in range and has liquidity
-        if (tickState.isInRange && liquidity > 0 && tickState.lastUpdateTime > 0) {
+        // Only accumulate if tick is in range
+        if (tickState.isInRange && tickState.lastUpdateTime > 0) {
             uint256 elapsed = effectiveTime - tickState.lastUpdateTime;
             if (elapsed > 0) {
-                // Accumulate time per unit of liquidity (Q128 fixed point)
-                tickState.accumulatedTimePerLiquidityX128 += (elapsed << 128) / liquidity;
+                // Accumulate seconds in range (Q128 fixed point)
+                tickState.accumulatedSecondsX128 += (elapsed << 128);
             }
         }
 
@@ -1086,7 +1129,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         // Calculate earned time for this position (same logic as _getPositionEarnedTimeX128)
         TickTimeState storage tickState = tickTimeStates[pos.tickLower];
-        uint256 tickAccumulatorX128 = tickState.accumulatedTimePerLiquidityX128;
+        uint256 tickAccumulatorX128 = tickState.accumulatedSecondsX128;
 
         uint256 earnedTimeX128 = 0;
         if (tickAccumulatorX128 > pos.rewardDebtX128) {
@@ -1133,40 +1176,42 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (liquidityAtTick[tick] > 0) return;
 
         // Flip the bit to set it
-        _flipTick(tick);
+        int24 compressed = _compressTick(tick);
+        _flipTickCompressed(compressed);
         activeTickCount++;
 
         // Update min/max bounds
         if (!hasActiveTicks) {
-            minActiveTick = tick;
-            maxActiveTick = tick;
+            minActiveTick = compressed;
+            maxActiveTick = compressed;
             hasActiveTicks = true;
         } else {
-            if (tick < minActiveTick) minActiveTick = tick;
-            if (tick > maxActiveTick) maxActiveTick = tick;
+            if (compressed < minActiveTick) minActiveTick = compressed;
+            if (compressed > maxActiveTick) maxActiveTick = compressed;
         }
     }
 
     /// @notice Remove a tick from the bitmap
     /// @dev O(1) operation - just flips a bit
     function _removeTick(int24 tick) internal {
-        if (!_isTickActive(tick)) return;
+        int24 compressed = _compressTick(tick);
+        if (!_isCompressedTickActive(compressed)) return;
 
         // Flip the bit to unset it
-        _flipTick(tick);
+        _flipTickCompressed(compressed);
         activeTickCount--;
 
         // Update min/max bounds if needed
         if (activeTickCount == 0) {
             hasActiveTicks = false;
             // min/max become stale but that's fine - hasActiveTicks guards them
-        } else if (tick == minActiveTick) {
+        } else if (compressed == minActiveTick) {
             // Find new minimum by walking right
-            (int24 newMin, bool found) = _nextInitializedTick(tick, false, maxActiveTick + 1);
+            (int24 newMin, bool found) = _nextInitializedTick(compressed, false, maxActiveTick + 1);
             if (found) minActiveTick = newMin;
-        } else if (tick == maxActiveTick) {
+        } else if (compressed == maxActiveTick) {
             // Find new maximum by walking left
-            (int24 newMax, bool found) = _nextInitializedTick(tick, true, minActiveTick - 1);
+            (int24 newMax, bool found) = _nextInitializedTick(compressed, true, minActiveTick - 1);
             if (found) maxActiveTick = newMax;
         }
     }
@@ -1200,6 +1245,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     function _updateClearingTickAndTimeStates() internal returns (bool changed) {
         int24 oldClearingTick = estimatedClearingTick;
         int24 newClearingTick = _calculateEstimatedClearingTick();
+        newClearingTick = _floorToSpacing(newClearingTick, poolKey.tickSpacing);
 
         if (newClearingTick == oldClearingTick) return false;
 
@@ -1274,27 +1320,32 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             endTick = newClearingTick;
         }
 
-        // Clamp to active tick bounds
-        if (startTick < minActiveTick) startTick = minActiveTick;
-        if (endTick > maxActiveTick) endTick = maxActiveTick;
+        int24 startAligned = _ceilToSpacing(startTick, tickSpacing);
+        int24 endAligned = _floorToSpacing(endTick, tickSpacing);
+        if (startAligned > endAligned) return;
+
+        int24 startCompressed = _compressTick(startAligned);
+        int24 endCompressed = _compressTick(endAligned);
+
+        // Clamp to active tick bounds (compressed)
+        if (startCompressed < minActiveTick) startCompressed = minActiveTick;
+        if (endCompressed > maxActiveTick) endCompressed = maxActiveTick;
+        if (startCompressed > endCompressed) return;
 
         // Walk through the bitmap
-        int24 iterTick = startTick;
-        while (iterTick <= endTick) {
-            (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, endTick + 1);
-            if (!found || nextTick > endTick) break;
+        int24 iterTick = startCompressed;
+        while (iterTick <= endCompressed) {
+            (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, endCompressed + 1);
+            if (!found || nextCompressed > endCompressed) break;
 
+            int24 nextTick = _decompressTick(nextCompressed);
             TickTimeState storage tickState = tickTimeStates[nextTick];
             tickState.lastUpdateTime = block.timestamp;
             tickState.isInRange = true;
             
             emit TickEnteredRange(nextTick, liquidityAtTick[nextTick]);
-            uint256[] storage tickPositionIds = tickPositions[nextTick];
-            for (uint256 i = 0; i < tickPositionIds.length; i++) {
-                emit PositionLocked(tickPositionIds[i]);
-            }
 
-            iterTick = nextTick + 1;
+            iterTick = nextCompressed + 1;
         }
     }
 
@@ -1319,28 +1370,33 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             endTick = oldClearingTick;
         }
 
-        // Clamp to active tick bounds
-        if (startTick < minActiveTick) startTick = minActiveTick;
-        if (endTick > maxActiveTick) endTick = maxActiveTick;
+        int24 startAligned = _ceilToSpacing(startTick, tickSpacing);
+        int24 endAligned = _floorToSpacing(endTick, tickSpacing);
+        if (startAligned > endAligned) return;
+
+        int24 startCompressed = _compressTick(startAligned);
+        int24 endCompressed = _compressTick(endAligned);
+
+        // Clamp to active tick bounds (compressed)
+        if (startCompressed < minActiveTick) startCompressed = minActiveTick;
+        if (endCompressed > maxActiveTick) endCompressed = maxActiveTick;
+        if (startCompressed > endCompressed) return;
 
         // Walk through the bitmap
-        int24 iterTick = startTick;
-        while (iterTick <= endTick) {
-            (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, endTick + 1);
-            if (!found || nextTick > endTick) break;
+        int24 iterTick = startCompressed;
+        while (iterTick <= endCompressed) {
+            (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, endCompressed + 1);
+            if (!found || nextCompressed > endCompressed) break;
 
+            int24 nextTick = _decompressTick(nextCompressed);
             TickTimeState storage tickState = tickTimeStates[nextTick];
             // Finalize accumulator before changing state
             _updateTickAccumulator(nextTick);
             tickState.isInRange = false;
             
             emit TickExitedRange(nextTick, liquidityAtTick[nextTick]);
-            uint256[] storage tickPositionIds = tickPositions[nextTick];
-            for (uint256 i = 0; i < tickPositionIds.length; i++) {
-                emit PositionUnlocked(tickPositionIds[i]);
-            }
 
-            iterTick = nextTick + 1;
+            iterTick = nextCompressed + 1;
         }
     }
 
@@ -1353,9 +1409,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Walk through all active ticks using the bitmap
             int24 iterTick = minActiveTick;
             while (iterTick <= maxActiveTick) {
-                (int24 nextTick, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
-                if (!found || nextTick > maxActiveTick) break;
+                (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+                if (!found || nextCompressed > maxActiveTick) break;
 
+                int24 nextTick = _decompressTick(nextCompressed);
                 // Finalize each tick's accumulator
                 _updateTickAccumulator(nextTick);
 
@@ -1364,14 +1421,14 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 uint128 liquidity = liquidityAtTick[nextTick];
 
                 if (liquidity > 0) {
-                    uint256 gross = tickState.accumulatedTimePerLiquidityX128 * uint256(liquidity);
+                    uint256 gross = tickState.accumulatedSecondsX128 * uint256(liquidity);
                     uint256 debtSum = tickRewardDebtSumX128[nextTick];
                     if (gross > debtSum) {
                         totalWeightedTime += (gross - debtSum);
                     }
                 }
 
-                iterTick = nextTick + 1;
+                iterTick = nextCompressed + 1;
             }
         }
 

@@ -14,7 +14,7 @@ enum AuctionPhase {
 /// @param tickLower Lower tick of the single-tick position
 /// @param tickUpper Upper tick (tickLower + tickSpacing)
 /// @param liquidity Amount of liquidity
-/// @param rewardDebtX128 Snapshot of tick's accumulatedTimePerLiquidityX128 at position creation (MasterChef-style)
+/// @param rewardDebtX128 Snapshot of tick's accumulatedSecondsX128 at position creation (MasterChef-style)
 /// @param hasClaimedIncentives True if incentives already claimed
 struct AuctionPosition {
     address owner;
@@ -27,11 +27,11 @@ struct AuctionPosition {
 
 /// @notice Time tracking state for a tick level (MasterChef-style accounting)
 /// @param lastUpdateTime Last time the accumulator was updated
-/// @param accumulatedTimePerLiquidityX128 Accumulated time per unit of liquidity (Q128)
+/// @param accumulatedSecondsX128 Accumulated in-range time (Q128 seconds)
 /// @param isInRange Whether tick is currently in "would be filled" zone
 struct TickTimeState {
     uint256 lastUpdateTime;
-    uint256 accumulatedTimePerLiquidityX128;
+    uint256 accumulatedSecondsX128;
     bool isInRange;
 }
 
@@ -119,6 +119,9 @@ interface IOpeningAuction {
 
     /// @notice Thrown when auction has not been settled
     error AuctionNotSettled();
+
+    /// @notice Thrown when a position key is reused while still active
+    error PositionAlreadyExists(bytes32 positionKey);
 
     /// @notice Thrown when auction has not been migrated yet
     error AuctionNotMigrated();
