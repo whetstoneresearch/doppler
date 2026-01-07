@@ -80,6 +80,7 @@ type Transaction = {
   contractName: string;
   transactionType: 'CREATE' | 'CREATE2' | 'CALL';
   contractAddress: `0x${string}`;
+  function?: string;
   arguments: `0x${string}`[];
   additionalContracts: {
     transactionType: 'CREATE' | 'CREATE2';
@@ -154,9 +155,9 @@ async function generateHistoryLogs(): Promise<void> {
     recursive: true,
   });
 
-  // Then we keep only the .json files and filter out the dry runs
+  // Then we keep only the .json files and filter out the dry runs and multi broadcasts
   const jsonFiles = broadcastFiles.filter((file) => file.endsWith('.json')
-    && !file.includes('dry') && !file.includes('latest'));
+    && !file.includes('dry') && !file.includes('latest') && !file.startsWith('multi'));
 
   // Then we're going to iterate over each file to fetch the deployments
   const deployments: {[chainId: string]: Deployment[] } = {};
@@ -173,6 +174,8 @@ async function generateHistoryLogs(): Promise<void> {
     if (deployments[broadcast.chain] === undefined) {
       deployments[broadcast.chain] = [];
     }
+
+    console.log(filePath);
 
     const transactions = broadcast.transactions
       .filter((transaction) => (transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
@@ -192,9 +195,17 @@ async function generateHistoryLogs(): Promise<void> {
   // Foundry now supports multichain broadcasts but these files must be handled differently
   const multiBroadcastFiles = await readdir('./broadcast/multi', {
     recursive: true,
-  });  
+  });
 
-  const additionalJsonFiles = multiBroadcastFiles.filter((file) => file.endsWith('.json') && !file.includes('dry'));
+  // Filter to JSON files, excluding dry runs. For -latest dirs, only include if no timestamped version exists.
+  const additionalJsonFiles = multiBroadcastFiles
+    .filter((file) => file.endsWith('.json') && !file.includes('dry'))
+    .filter((file) => {
+      if (!file.includes('-latest')) return true;
+      // Check if a timestamped version exists for this script
+      const scriptName = file.split('-latest')[0];
+      return !multiBroadcastFiles.some((f) => f.startsWith(scriptName) && !f.includes('-latest') && f.endsWith('.json'));
+    });
 
   for (const file of additionalJsonFiles) {
     const filePath = `./broadcast/multi/${file}`;
@@ -207,6 +218,13 @@ async function generateHistoryLogs(): Promise<void> {
       if (broadcast.chain === 31337 || broadcast.chain === undefined) {
         continue;
       }
+
+      // Check if this broadcast has any contracts deployed via additionalContracts
+      const hasAdditionalContracts = broadcast.transactions.some(tx =>
+        tx.additionalContracts.some(ac =>
+          (ac.transactionType === 'CREATE' || ac.transactionType === 'CREATE2') && ac.contractName !== null
+        )
+      );
 
      for (const transaction of broadcast.transactions) {
         if ((
@@ -230,7 +248,7 @@ async function generateHistoryLogs(): Promise<void> {
         // A bit tricky but we also need to check if contracts were deployed as additional contracts
         for (const additional of transaction.additionalContracts) {
           if ((additional.transactionType === 'CREATE' || additional.transactionType === 'CREATE2')
-            && additional.contractName !== null
+            && additional.contractName !== null && transaction.hash !== null
           ) {
             if (deployments[broadcast.chain] === undefined) {
               deployments[broadcast.chain] = [];
@@ -245,6 +263,33 @@ async function generateHistoryLogs(): Promise<void> {
               timestamp: broadcast.timestamp,
             });
           }
+        }
+
+        // Handle CREATE3 deployments recorded via StdConfig.set(string,address) calls
+        // Only use this fallback if no contracts were deployed via additionalContracts
+        // These have function "set(string,address)" and arguments [contractName, deployedAddress]
+        if (!hasAdditionalContracts
+          && transaction.transactionType === 'CALL'
+          && transaction.function === 'set(string,address)'
+          && transaction.arguments?.length === 2
+          && transaction.hash !== null
+        ) {
+          const [contractName, deployedAddress] = transaction.arguments;
+          // Convert snake_case config name to PascalCase contract name (e.g., "airlock" -> "Airlock")
+          const formattedName = contractName.split('_').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+
+          if (deployments[broadcast.chain] === undefined) {
+            deployments[broadcast.chain] = [];
+          }
+
+          deployments[broadcast.chain].push({
+            contractName: formattedName,
+            contractAddress: deployedAddress,
+            hash: transaction.hash,
+            arguments: [],
+            commit: broadcast.commit as `0x${string}`,
+            timestamp: broadcast.timestamp,
+          });
         }
       }
     }
