@@ -5,10 +5,10 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 
+event AddSigner(address indexed newSigner);
+
 /// @notice A very basic Airlock-oriented multisig for testing purposes, do not use in production :)
 contract AirlockMultisig {
-    Airlock public immutable airlock;
-    DopplerHookInitializer public immutable dopplerHookInitializer;
     mapping(address => bool) public isSigner;
 
     modifier onlySigner() {
@@ -16,11 +16,8 @@ contract AirlockMultisig {
         _;
     }
 
-    constructor(Airlock airlock_, DopplerHookInitializer _dopplerHookInitializer, address[] memory signers) {
-        airlock = airlock_;
-        dopplerHookInitializer = _dopplerHookInitializer;
-
-        for (uint256 i; i < signers.length; ++i) {
+    constructor(address[] memory signers) {
+        for (uint256 i; i < signers.length; i++) {
             require(signers[i] != address(0), "Signer cannot be zero address");
             isSigner[signers[i]] = true;
         }
@@ -31,45 +28,65 @@ contract AirlockMultisig {
         require(success, "Execution failed");
     }
 
-    function setModuleState(address module, ModuleState state) external onlySigner {
+    function setModuleState(address payable airlock, address module, ModuleState state) external onlySigner {
         address[] memory modules = new address[](1);
         modules[0] = module;
 
         ModuleState[] memory states = new ModuleState[](1);
         states[0] = state;
 
-        airlock.setModuleState(modules, states);
+        Airlock(airlock).setModuleState(modules, states);
     }
 
-    function setModuleStates(address[] calldata modules, ModuleState[] calldata states) external onlySigner {
-        airlock.setModuleState(modules, states);
+    function setModuleState(
+        address payable airlock,
+        address[] calldata modules,
+        ModuleState[] calldata states
+    ) external onlySigner {
+        Airlock(airlock).setModuleState(modules, states);
     }
 
-    function setDopplerHookState(address module, uint256 flag) external onlySigner {
+    function setDopplerHookState(
+        address payable dopplerHookInitializer,
+        address module,
+        uint256 flag
+    ) external onlySigner {
         address[] memory modules = new address[](1);
         modules[0] = module;
 
         uint256[] memory flags = new uint256[](1);
         flags[0] = flag;
 
-        dopplerHookInitializer.setDopplerHookState(modules, flags);
+        DopplerHookInitializer(dopplerHookInitializer).setDopplerHookState(modules, flags);
     }
 
-    function setDopplerHookStates(address[] calldata modules, uint256[] calldata flags) external onlySigner {
-        dopplerHookInitializer.setDopplerHookState(modules, flags);
+    function setDopplerHookState(
+        address payable dopplerHookInitializer,
+        address[] calldata modules,
+        uint256[] calldata flags
+    ) external onlySigner {
+        DopplerHookInitializer(dopplerHookInitializer).setDopplerHookState(modules, flags);
     }
 
-    function transferOwnership(address newOwner) external onlySigner {
-        airlock.transferOwnership(newOwner);
+    function approveMigrator(address payable locker, address migrator) external onlySigner {
+        StreamableFeesLockerV2(locker).approveMigrator(migrator);
     }
 
-    function addSigner(address newSigner) external onlySigner {
+    function transferOwnership(address payable airlock, address newOwner) external onlySigner {
+        Airlock(airlock).transferOwnership(newOwner);
+    }
+
+    function addSigner(address newSigner) public onlySigner {
         require(newSigner != address(0), "New signer cannot be zero address");
         require(!isSigner[newSigner], "Already a signer");
         isSigner[newSigner] = true;
+        emit AddSigner(newSigner);
     }
 
-    function approveMigrator(address locker, address migrator) external onlySigner {
-        StreamableFeesLockerV2(payable(locker)).approveMigrator(migrator);
+    function addSigner(address[] calldata newSigners) external onlySigner {
+        for (uint256 i; i < newSigners.length; i++) {
+            addSigner(newSigners[i]);
+        }
     }
 }
+
