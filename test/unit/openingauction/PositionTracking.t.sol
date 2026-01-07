@@ -6,6 +6,9 @@ import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { AuctionPhase, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 
 contract PositionTrackingTest is OpeningAuctionBaseTest {
     function test_afterAddLiquidity_TracksPositionCorrectly() public {
@@ -125,5 +128,48 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
         AuctionPosition memory pos = hook.positions(positionId);
 
         assertFalse(pos.hasClaimedIncentives);
+    }
+
+    function test_afterAddLiquidity_RevertsOnSameSaltReuse() public {
+        int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
+        uint128 amount = hook.minLiquidity() * 10;
+        bytes32 salt = keccak256("same-salt");
+
+        vm.startPrank(alice);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + key.tickSpacing,
+                liquidityDelta: int256(uint256(amount)),
+                salt: salt
+            }),
+            abi.encode(alice)
+        );
+
+        bytes32 positionKey = keccak256(abi.encodePacked(alice, tickLower, tickLower + key.tickSpacing, salt));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.afterAddLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PositionAlreadyExists.selector, positionKey),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + key.tickSpacing,
+                liquidityDelta: int256(uint256(amount)),
+                salt: salt
+            }),
+            abi.encode(alice)
+        );
+        vm.stopPrank();
     }
 }

@@ -33,11 +33,11 @@ contract OpeningAuctionDynamicImpl is OpeningAuction {
         int24 tick,
         bool inRange,
         uint256 lastUpdateTime,
-        uint256 accumulatedTimePerLiquidityX128
+        uint256 accumulatedSecondsX128
     ) external {
         tickTimeStates[tick] = TickTimeState({
             lastUpdateTime: lastUpdateTime,
-            accumulatedTimePerLiquidityX128: accumulatedTimePerLiquidityX128,
+            accumulatedSecondsX128: accumulatedSecondsX128,
             isInRange: inRange
         });
     }
@@ -233,7 +233,16 @@ contract DynamicRangeTrackingTest is Test, Deployers {
             })
         );
 
-        return TickMath.getTickAtSqrtPrice(sqrtPriceAfterX96);
+        int24 quoted = TickMath.getTickAtSqrtPrice(sqrtPriceAfterX96);
+        return _floorToSpacing(quoted, tickSpacing);
+    }
+
+    function _floorToSpacing(int24 tick, int24 spacing) internal pure returns (int24) {
+        int24 compressed = tick / spacing;
+        if (tick < 0 && tick % spacing != 0) {
+            compressed--;
+        }
+        return compressed * spacing;
     }
 
     // ============ Test: In-Range Positions Cannot Be Removed ============
@@ -370,7 +379,14 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         // Alice should be out of range now with ~2 days of accumulated time
         assertFalse(auction.isInRange(alicePos), "Alice should be out of range");
         uint256 aliceAccumulatedTime = auction.getPositionAccumulatedTime(alicePos);
-        assertApproxEqAbs(aliceAccumulatedTime, 2 days, 10, "Alice should have ~2 days accumulated");
+        uint256 expectedAliceTime = uint256(aliceLiquidity) * 2 days;
+        uint256 aliceTolerance = uint256(aliceLiquidity) * 10;
+        assertApproxEqAbs(
+            aliceAccumulatedTime,
+            expectedAliceTime,
+            aliceTolerance,
+            "Alice should have ~2 days accumulated"
+        );
 
         // 1 more day passes (Alice still out of range)
         vm.warp(block.timestamp + 1 days);
@@ -392,7 +408,12 @@ contract DynamicRangeTrackingTest is Test, Deployers {
 
         // Alice should still have only ~2 days (not in range during the last day)
         aliceAccumulatedTime = auction.getPositionAccumulatedTime(alicePos);
-        assertApproxEqAbs(aliceAccumulatedTime, 2 days, 10, "Alice time should not increase while out of range");
+        assertApproxEqAbs(
+            aliceAccumulatedTime,
+            expectedAliceTime,
+            aliceTolerance,
+            "Alice time should not increase while out of range"
+        );
 
         // Bob might also be pushed out depending on clearing tick
         console2.log("Bob is in range:", auction.isInRange(bobPos));
@@ -426,7 +447,9 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         // Alice should be out of range now with ~1 day accumulated
         assertFalse(auction.isInRange(alicePos), "Alice should be out of range");
         uint256 aliceAccumulatedTime = auction.getPositionAccumulatedTime(alicePos);
-        assertApproxEqAbs(aliceAccumulatedTime, 1 days, 10, "Alice should have ~1 day");
+        uint256 expectedAliceTime = uint256(aliceLiquidity) * 1 days;
+        uint256 aliceTolerance = uint256(aliceLiquidity) * 10;
+        assertApproxEqAbs(aliceAccumulatedTime, expectedAliceTime, aliceTolerance, "Alice should have ~1 day");
 
         // Bob should be in range
         assertTrue(auction.isInRange(bobPos), "Bob should be in range");
@@ -646,6 +669,35 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         assertGt(aliceIncentives, 0, "Alice should receive incentives");
         assertGt(bobIncentives, aliceIncentives, "Bob should receive more incentives");
         assertLe(aliceIncentives + bobIncentives, auction.incentiveTokensTotal(), "Should not exceed pool");
+    }
+
+    /// @notice Splitting liquidity across ticks should not increase total incentives
+    function test_incentives_SplitAcrossTicksNoMultiplier() public {
+        _createAuction(AUCTION_TOKENS);
+
+        int24 tickSingle = -3000;
+        int24 tickSplitA = -2940;
+        int24 tickSplitB = -2880;
+        uint128 baseLiquidity = 1000 ether;
+
+        uint256 singlePos = _addBid(alice, tickSingle, baseLiquidity * 2);
+        uint256 splitPosA = _addBid(bob, tickSplitA, baseLiquidity);
+        uint256 splitPosB = _addBid(carol, tickSplitB, baseLiquidity);
+
+        uint256 timeX128 = uint256(3 days) << 128;
+        auction.setTickTimeState(tickSingle, true, block.timestamp, timeX128);
+        auction.setTickTimeState(tickSplitA, true, block.timestamp, timeX128);
+        auction.setTickTimeState(tickSplitB, true, block.timestamp, timeX128);
+
+        uint256 singleIncentives = auction.calculateIncentives(singlePos);
+        uint256 splitIncentives = auction.calculateIncentives(splitPosA) + auction.calculateIncentives(splitPosB);
+
+        assertApproxEqAbs(
+            singleIncentives,
+            splitIncentives,
+            1,
+            "Splitting liquidity should not boost incentives"
+        );
     }
 
     // ============ Test: Out-Of-Range Never Earns ============

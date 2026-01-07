@@ -14,6 +14,9 @@ contract BitmapHarness {
     /// @notice Track liquidity for insert/remove logic
     mapping(int24 => uint128) public liquidityAtTick;
 
+    /// @notice Tick spacing used for compression (defaults to 1 for identity behavior)
+    int24 public tickSpacing = 1;
+
     /// @notice Minimum active tick
     int24 public minActiveTick;
 
@@ -28,23 +31,46 @@ contract BitmapHarness {
 
     // ============ Exposed Bitmap Functions ============
 
+    function setTickSpacing(int24 spacing) external {
+        tickSpacing = spacing;
+    }
+
+    function _compressTick(int24 tick) internal view returns (int24) {
+        int24 compressed = tick / tickSpacing;
+        if (tick < 0 && tick % tickSpacing != 0) {
+            compressed--;
+        }
+        return compressed;
+    }
+
+    function _decompressTick(int24 compressed) internal view returns (int24) {
+        return compressed * tickSpacing;
+    }
+
     /// @notice Computes the position in the bitmap where the bit for a tick lives
     /// @dev Exact copy from OpeningAuction - uses V3-style Solidity implementation
-    function position(int24 tick) public pure returns (int16 wordPos, uint8 bitPos) {
-        wordPos = int16(tick >> 8);
-        bitPos = uint8(uint24(tick) % 256);
+    function position(int24 tick) public view returns (int16 wordPos, uint8 bitPos) {
+        int24 compressed = _compressTick(tick);
+        return _positionCompressed(compressed);
+    }
+
+    function _positionCompressed(int24 compressed) internal pure returns (int16 wordPos, uint8 bitPos) {
+        wordPos = int16(compressed >> 8);
+        bitPos = uint8(uint24(compressed) % 256);
     }
 
     /// @notice Flips the bit for a given tick in the bitmap
     function flipTick(int24 tick) public {
-        (int16 wordPos, uint8 bitPos) = position(tick);
+        int24 compressed = _compressTick(tick);
+        (int16 wordPos, uint8 bitPos) = _positionCompressed(compressed);
         uint256 mask = 1 << bitPos;
         tickBitmap[wordPos] ^= mask;
     }
 
     /// @notice Check if a tick is set in the bitmap
     function isTickActive(int24 tick) public view returns (bool) {
-        (int16 wordPos, uint8 bitPos) = position(tick);
+        int24 compressed = _compressTick(tick);
+        (int16 wordPos, uint8 bitPos) = _positionCompressed(compressed);
         return (tickBitmap[wordPos] & (1 << bitPos)) != 0;
     }
 
@@ -56,27 +82,30 @@ contract BitmapHarness {
         returns (int24 next, bool initialized)
     {
         unchecked {
+            int24 compressed = _compressTick(tick);
             if (lte) {
-                (int16 wordPos, uint8 bitPos) = position(tick);
+                (int16 wordPos, uint8 bitPos) = _positionCompressed(compressed);
                 // all the 1s at or to the right of the current bitPos
                 uint256 mask = (1 << bitPos) - 1 + (1 << bitPos);
                 uint256 masked = tickBitmap[wordPos] & mask;
 
                 initialized = masked != 0;
-                next = initialized
-                    ? tick - int24(uint24(bitPos - BitMath.mostSignificantBit(masked)))
-                    : tick - int24(uint24(bitPos));
+                int24 nextCompressed = initialized
+                    ? compressed - int24(uint24(bitPos - BitMath.mostSignificantBit(masked)))
+                    : compressed - int24(uint24(bitPos));
+                next = _decompressTick(nextCompressed);
             } else {
                 // start from the word of the next tick
-                (int16 wordPos, uint8 bitPos) = position(tick + 1);
+                (int16 wordPos, uint8 bitPos) = _positionCompressed(compressed + 1);
                 // all the 1s at or to the left of the bitPos
                 uint256 mask = ~((1 << bitPos) - 1);
                 uint256 masked = tickBitmap[wordPos] & mask;
 
                 initialized = masked != 0;
-                next = initialized
-                    ? tick + 1 + int24(uint24(BitMath.leastSignificantBit(masked) - bitPos))
-                    : tick + 1 + int24(uint24(type(uint8).max - bitPos));
+                int24 nextCompressed = initialized
+                    ? compressed + 1 + int24(uint24(BitMath.leastSignificantBit(masked) - bitPos))
+                    : compressed + 1 + int24(uint24(type(uint8).max - bitPos));
+                next = _decompressTick(nextCompressed);
             }
         }
     }
@@ -98,7 +127,7 @@ contract BitmapHarness {
             // Check if we've passed the bound
             if (lte) {
                 if (nextTick <= boundTick) return (boundTick, false);
-                next = nextTick - 1; // Move to previous word
+                next = nextTick - tickSpacing; // Move to previous word
             } else {
                 if (nextTick >= boundTick) return (boundTick, false);
                 next = nextTick; // Already moved to next word boundary
@@ -120,12 +149,13 @@ contract BitmapHarness {
 
         // Update min/max bounds
         if (!hasActiveTicks) {
-            minActiveTick = tick;
-            maxActiveTick = tick;
+            minActiveTick = _compressTick(tick);
+            maxActiveTick = _compressTick(tick);
             hasActiveTicks = true;
         } else {
-            if (tick < minActiveTick) minActiveTick = tick;
-            if (tick > maxActiveTick) maxActiveTick = tick;
+            int24 compressed = _compressTick(tick);
+            if (compressed < minActiveTick) minActiveTick = compressed;
+            if (compressed > maxActiveTick) maxActiveTick = compressed;
         }
     }
 
@@ -143,14 +173,22 @@ contract BitmapHarness {
         // Update min/max bounds if needed
         if (activeTickCount == 0) {
             hasActiveTicks = false;
-        } else if (tick == minActiveTick) {
+        } else if (_compressTick(tick) == minActiveTick) {
             // Find new minimum by walking right
-            (int24 newMin, bool found) = nextInitializedTick(tick, false, maxActiveTick + 1);
-            if (found) minActiveTick = newMin;
-        } else if (tick == maxActiveTick) {
+            (int24 newMin, bool found) = nextInitializedTick(
+                _decompressTick(minActiveTick),
+                false,
+                _decompressTick(maxActiveTick) + tickSpacing
+            );
+            if (found) minActiveTick = _compressTick(newMin);
+        } else if (_compressTick(tick) == maxActiveTick) {
             // Find new maximum by walking left
-            (int24 newMax, bool found) = nextInitializedTick(tick, true, minActiveTick - 1);
-            if (found) maxActiveTick = newMax;
+            (int24 newMax, bool found) = nextInitializedTick(
+                _decompressTick(maxActiveTick),
+                true,
+                _decompressTick(minActiveTick) - tickSpacing
+            );
+            if (found) maxActiveTick = _compressTick(newMax);
         }
     }
 
@@ -185,6 +223,17 @@ contract BitmapUnitTest is Test {
         (int16 wordPos, uint8 bitPos) = harness.position(0);
         assertEq(wordPos, 0, "tick 0 should be in word 0");
         assertEq(bitPos, 0, "tick 0 should be at bit 0");
+    }
+
+    function test_position_CompressedTickSpacing() public {
+        harness.setTickSpacing(60);
+        (int16 wordPos, uint8 bitPos) = harness.position(120);
+        assertEq(wordPos, 0, "compressed tick 2 should be in word 0");
+        assertEq(bitPos, 2, "compressed tick 2 should be at bit 2");
+
+        (wordPos, bitPos) = harness.position(180);
+        assertEq(wordPos, 0, "compressed tick 3 should be in word 0");
+        assertEq(bitPos, 3, "compressed tick 3 should be at bit 3");
     }
 
     function test_position_PositiveSmall() public view {
