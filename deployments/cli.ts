@@ -63,6 +63,16 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://monadscan.com',
     isTestnet: false,
   },
+  4326: {
+    name: 'MegaETH Mainnet',
+    explorerUrl: 'https://megaeth.blockscout.com',
+    isTestnet: false,
+  },
+  6343: {
+    name: 'MegaETH Testnet',
+    explorerUrl: 'https://megaeth-testnet-v2.blockscout.com',
+    isTestnet: true,
+  },
 };
 
 type Transaction = {
