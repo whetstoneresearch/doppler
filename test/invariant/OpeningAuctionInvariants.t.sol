@@ -125,6 +125,8 @@ contract OpeningAuctionHandler is Test {
     uint256 public ghost_warpCount;
     uint256 public ghost_settleCount;
     uint256 public ghost_claimCount;
+    uint256 internal bidNonce;
+    mapping(uint256 => bytes32) internal positionSalts;
 
     // ============ Actor Management ============
 
@@ -181,8 +183,7 @@ contract OpeningAuctionHandler is Test {
         // Fund and approve
         _fundActor(currentActor);
 
-        // Get position ID before adding
-        uint256 positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(currentActor, bidNonce++));
 
         // Try to add the bid
         vm.startPrank(currentActor);
@@ -192,12 +193,14 @@ contract OpeningAuctionHandler is Test {
                 tickLower: tickLower,
                 tickUpper: tickLower + poolKey.tickSpacing,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(currentActor)
         ) {
+            uint256 positionId = hook.getPositionId(currentActor, tickLower, tickLower + poolKey.tickSpacing, salt);
             ghost_allPositionIds.push(positionId);
             actorPositions[currentActor].push(positionId);
+            positionSalts[positionId] = salt;
         } catch {
             // Bid failed - expected for some random inputs
         }
@@ -232,7 +235,7 @@ contract OpeningAuctionHandler is Test {
                 tickLower: pos.tickLower,
                 tickUpper: pos.tickUpper,
                 liquidityDelta: -int256(uint256(pos.liquidity)),
-                salt: bytes32(positionId)
+                salt: positionSalts[positionId]
             }),
             abi.encode(currentActor)
         ) {

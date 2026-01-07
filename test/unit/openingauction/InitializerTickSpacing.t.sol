@@ -184,6 +184,7 @@ contract InitializerTickSpacingTest is Test, Deployers {
     ) internal view returns (OpeningAuctionInitData memory) {
         return OpeningAuctionInitData({
             auctionConfig: getAuctionConfig(auctionTickSpacing),
+            shareToAuctionBps: 10_000,
             dopplerData: getDopplerData(dopplerTickSpacing)
         });
     }

@@ -31,6 +31,7 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
     address creator = address(0xc4ea70);
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
+    uint256 bidNonce;
 
     // Auction parameters
     uint256 constant AUCTION_TOKENS = 100e18;
@@ -147,18 +148,20 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         TestERC20(Currency.unwrap(poolKey.currency0)).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(Currency.unwrap(poolKey.currency1)).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(bidder, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
                 tickUpper: tickLower + poolKey.tickSpacing,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(bidder)
         );
         vm.stopPrank();
+
+        positionId = hook.getPositionId(bidder, tickLower, tickLower + poolKey.tickSpacing, salt);
     }
 
     /// @notice Test two concurrent auctions for different assets

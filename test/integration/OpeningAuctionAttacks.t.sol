@@ -36,6 +36,8 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
     address attacker = address(0xbad);
+    uint256 bidNonce;
+    mapping(uint256 => bytes32) internal positionSalts;
 
     // Auction parameters
     uint256 constant AUCTION_TOKENS = 1000 ether;
@@ -134,18 +136,21 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        positionId = hook.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(bidder, bidNonce++));
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
                 tickUpper: tickLower + poolKey.tickSpacing,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId)
+                salt: salt
             }),
             abi.encode(bidder)
         );
         vm.stopPrank();
+
+        positionId = hook.getPositionId(bidder, tickLower, tickLower + poolKey.tickSpacing, salt);
+        positionSalts[positionId] = salt;
     }
 
     // ============ Flash Loan Attack Tests ============
@@ -179,7 +184,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                     tickLower: 0,
                     tickUpper: config.tickSpacing,
                     liquidityDelta: -int256(uint256(pos.liquidity)),
-                    salt: bytes32(attackerPosId)
+                    salt: positionSalts[attackerPosId]
                 }),
                 abi.encode(attacker)
             );
@@ -273,7 +278,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                     tickLower: nearClearingTick,
                     tickUpper: nearClearingTick + config.tickSpacing,
                     liquidityDelta: -int256(uint256(pos.liquidity)),
-                    salt: bytes32(attackerPosId)
+                    salt: positionSalts[attackerPosId]
                 }),
                 abi.encode(attacker)
             );
@@ -312,7 +317,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        uint256 attackerPosId = hook.nextPositionId();
+        bytes32 attackerSalt = keccak256(abi.encode(attacker, bidNonce++));
         vm.expectRevert();
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
@@ -320,7 +325,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 tickLower: 0,
                 tickUpper: config.tickSpacing,
                 liquidityDelta: int256(uint256(1_000_000 ether)),
-                salt: bytes32(attackerPosId)
+                salt: attackerSalt
             }),
             abi.encode(attacker)
         );
@@ -349,7 +354,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         vm.startPrank(attacker);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-        uint256 attackerPosId = hook.nextPositionId();
+        bytes32 attackerSalt = keccak256(abi.encode(attacker, bidNonce++));
         vm.expectRevert();
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
@@ -357,7 +362,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 tickLower: lowTick,
                 tickUpper: lowTick + poolKey.tickSpacing,
                 liquidityDelta: int256(uint256(1_000_000e18)),
-                salt: bytes32(attackerPosId)
+                salt: attackerSalt
             }),
             abi.encode(attacker)
         );

@@ -70,6 +70,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     uint256 constant NUM_BIDDERS = 10;
 
     address creator = address(0xc4ea70);
+    uint256 bidNonce;
 
     // Contracts
     OpeningAuctionExtendedDeployer auctionDeployer;
@@ -176,8 +177,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     function _addBid(address user, int24 tickLower, uint128 liquidity) internal returns (uint256 positionId) {
         int24 tickUpper = tickLower + tickSpacing;
 
-        // Get the next position ID before adding
-        positionId = auction.nextPositionId();
+        bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
         // Approve the router to spend tokens
@@ -191,12 +191,13 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidityDelta: int256(uint256(liquidity)),
-                salt: bytes32(positionId) // Use position ID as salt for uniqueness
+                salt: salt
             }),
             abi.encode(user) // Pass owner in hookData
         );
         vm.stopPrank();
 
+        positionId = auction.getPositionId(user, tickLower, tickUpper, salt);
         bidderPositions[user].push(positionId);
         return positionId;
     }
