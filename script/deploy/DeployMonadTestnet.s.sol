@@ -5,6 +5,7 @@ import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Script, console } from "forge-std/Script.sol";
+import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
@@ -18,7 +19,6 @@ import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineDopplerHookInitializerParams, mineDopplerHookInitializer } from "test/shared/AirlockMiner.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 contract DeployMonadTestnetScript is Script {
     function run() public {
@@ -35,9 +35,7 @@ contract DeployMonadTestnetScript is Script {
 
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
-        // TODO: Deploy dopplerHookInitializer and update the address(0) with the deployed address
-        AirlockMultisig airlockMultisig =
-            new AirlockMultisig(Airlock(payable(airlock)), DopplerHookInitializer(payable(address(0))), signers);
+        AirlockMultisigTestnet airlockMultisig = new AirlockMultisigTestnet(signers);
 
         UniswapV2Migrator uniswapV2LiquidityMigrator = new UniswapV2Migrator(
             airlock,

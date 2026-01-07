@@ -46,6 +46,10 @@ function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory para
     revert("AirlockMiner: could not find salt");
 }
 
+function computeGuardedSalt(bytes32 salt, address sender) pure returns (bytes32) {
+    return efficientHash({ a: bytes32(uint256(uint160(sender))), b: salt });
+}
+
 function efficientHash(bytes32 a, bytes32 b) pure returns (bytes32 hash) {
     assembly ("memory-safe") {
         mstore(0x00, a)
@@ -54,12 +58,12 @@ function efficientHash(bytes32 a, bytes32 b) pure returns (bytes32 hash) {
     }
 }
 
-function computeCreate3Address(bytes32 salt, address deployer) pure returns (address computedAddress) {
+function computeCreate3Address(bytes32 guardedSalt, address deployer) pure returns (address computedAddress) {
     assembly ("memory-safe") {
         let ptr := mload(0x40)
         mstore(0x00, deployer)
         mstore8(0x0b, 0xff)
-        mstore(0x20, salt)
+        mstore(0x20, guardedSalt)
         mstore(0x40, hex"21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f")
         mstore(0x14, keccak256(0x0b, 0x55))
         mstore(0x40, ptr)

@@ -7,6 +7,7 @@ import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { Script, console } from "forge-std/Script.sol";
+import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
@@ -23,7 +24,6 @@ import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
 import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 struct ScriptData {
     uint256 chainId;
@@ -189,10 +189,7 @@ abstract contract DeployScript is Script {
         // Deploy the Airlock Multisig and transfer ownership to it
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
-
-        // TODO: Deploy dopplerHookInitializer and update the address(0) with the deployed address
-        AirlockMultisig airlockMultisig =
-            new AirlockMultisig(airlock, DopplerHookInitializer(payable(address(0))), signers);
+        AirlockMultisigTestnet airlockMultisig = new AirlockMultisigTestnet(signers);
 
         // Transfer ownership to the actual protocol owner
         airlock.transferOwnership(address(airlockMultisig));
