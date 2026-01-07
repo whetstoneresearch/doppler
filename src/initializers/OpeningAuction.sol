@@ -59,7 +59,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Minimum acceptable tick for bids when selling token0
     int24 public minAcceptableTickToken0;
 
-    /// @notice Minimum acceptable tick for bids when selling token1
+    /// @notice Minimum acceptable tick for bids when selling token1 (tick(token0/token1))
     int24 public minAcceptableTickToken1;
 
     /// @notice Share of tokens for LP incentives (basis points)
@@ -196,6 +196,25 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config
     ) BaseHook(poolManager_) {
+        if (config.auctionDuration == 0) revert InvalidAuctionDuration();
+        if (config.incentiveShareBps > BPS) revert InvalidIncentiveShareBps();
+        if (config.tickSpacing <= 0) revert InvalidTickSpacing();
+        if (
+            config.tickSpacing < TickMath.MIN_TICK_SPACING
+                || config.tickSpacing > TickMath.MAX_TICK_SPACING
+        ) revert InvalidTickSpacing();
+        if (config.minLiquidity == 0) revert InvalidMinLiquidity();
+        if (
+            config.minAcceptableTickToken0 < TickMath.MIN_TICK
+                || config.minAcceptableTickToken0 > TickMath.MAX_TICK
+        ) revert InvalidMinAcceptableTick();
+        if (
+            config.minAcceptableTickToken1 < TickMath.MIN_TICK
+                || config.minAcceptableTickToken1 > TickMath.MAX_TICK
+        ) revert InvalidMinAcceptableTick();
+        if (config.minAcceptableTickToken0 % config.tickSpacing != 0) revert InvalidMinAcceptableTick();
+        if (config.minAcceptableTickToken1 % config.tickSpacing != 0) revert InvalidMinAcceptableTick();
+
         initializer = initializer_;
         totalAuctionTokens = totalAuctionTokens_;
 
@@ -226,9 +245,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return _positions[positionId];
     }
 
-    /// @notice Get the minimum acceptable tick for the active auction direction
+    /// @notice Get the pool-space price limit tick enforced by swaps
     function minAcceptableTick() public view returns (int24) {
-        return _minAcceptableTick();
+        return _auctionPriceLimitTick();
     }
 
     /// @inheritdoc IOpeningAuction
@@ -362,9 +381,28 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return total;
     }
 
-    /// @notice Get the minimum acceptable tick for the current auction direction
-    function _minAcceptableTick() internal view returns (int24) {
-        return isToken0 ? minAcceptableTickToken0 : minAcceptableTickToken1;
+    /// @notice Get the price limit tick enforced by swaps in pool tick space
+    function _auctionPriceLimitTick() internal view returns (int24) {
+        if (!isToken0Set) revert IsToken0NotSet();
+        return isToken0 ? minAcceptableTickToken0 : -minAcceptableTickToken1;
+    }
+
+    /// @notice Get sqrtPrice limit for auction quotes and settlement swaps
+    function _sqrtPriceLimitX96() internal view returns (uint160) {
+        uint160 limit = TickMath.getSqrtPriceAtTick(_auctionPriceLimitTick());
+        if (limit <= TickMath.MIN_SQRT_PRICE) {
+            return TickMath.MIN_SQRT_PRICE + 1;
+        }
+        if (limit >= TickMath.MAX_SQRT_PRICE) {
+            return TickMath.MAX_SQRT_PRICE - 1;
+        }
+        return limit;
+    }
+
+    /// @notice Check if a tick violates the configured price limit
+    function _tickViolatesPriceLimit(int24 tick) internal view returns (bool) {
+        int24 limit = _auctionPriceLimitTick();
+        return isToken0 ? (tick < limit) : (tick > limit);
     }
 
     /// @notice Get total accumulated time across all ticks (for external queries)
@@ -416,17 +454,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             _executeSettlementSwap(tokensToSell);
         }
 
-        // Get final tick (clearing tick)
-        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
-        int24 finalTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        int24 floorTick = _minAcceptableTick();
-
-        if (!hasBids || totalTokensSold == 0) {
-            clearingTick = floorTick;
-        } else if (finalTick < floorTick) {
-            clearingTick = floorTick;
-        } else {
+        if (tokensToSell > 0 && hasBids) {
+            (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+            int24 finalTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
             clearingTick = finalTick;
+        } else {
+            clearingTick = _auctionPriceLimitTick();
         }
 
         currentTick = clearingTick;
@@ -480,8 +513,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         isMigrated = true;
 
-        // Get current price
-        (sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+        sqrtPriceX96 = TickMath.getSqrtPriceAtTick(clearingTick);
 
         token0 = Currency.unwrap(poolKey.currency0);
         token1 = Currency.unwrap(poolKey.currency1);
@@ -660,8 +692,13 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 revert NotSingleTickPosition();
             }
 
-            // Validate tick is above minimum acceptable price
-            if (params.tickLower < _minAcceptableTick()) revert BidBelowMinimumPrice();
+            // Enforce floor (token0) or ceiling (token1) in pool tick space.
+            int24 limitTick = _auctionPriceLimitTick();
+            if (isToken0) {
+                if (params.tickLower < limitTick) revert BidBelowMinimumPrice();
+            } else {
+                if (params.tickLower > limitTick) revert BidBelowMinimumPrice();
+            }
 
             // Validate minimum liquidity to prevent dust bid griefing
             // This prevents attackers from creating many tiny positions to bloat activeTicks
@@ -1143,25 +1180,18 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
 
         // Use the view quoter to simulate the swap
+        uint160 sqrtPriceLimitX96 = _sqrtPriceLimitX96();
         (,, uint160 sqrtPriceAfterX96,) = QuoterMath.quote(
             poolManager,
             poolKey,
             IPoolManager.SwapParams({
                 zeroForOne: isToken0,
                 amountSpecified: -int256(tokensToSell), // negative = exact input
-                sqrtPriceLimitX96: _sqrtPriceLimitForAuctionQuote()
+                sqrtPriceLimitX96: sqrtPriceLimitX96
             })
         );
 
-        int24 tickAfter = TickMath.getTickAtSqrtPrice(sqrtPriceAfterX96);
-        if (isToken0) {
-            int24 floorTick = _minAcceptableTick();
-            if (tickAfter < floorTick) {
-                tickAfter = floorTick;
-            }
-        }
-
-        return tickAfter;
+        return TickMath.getTickAtSqrtPrice(sqrtPriceAfterX96);
     }
 
     /// @notice Update the estimated clearing tick and tick time states
@@ -1367,7 +1397,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             IPoolManager.SwapParams({
                 zeroForOne: isToken0,
                 amountSpecified: -int256(amountToSell),
-                sqrtPriceLimitX96: _sqrtPriceLimitForSettlementSwap()
+                sqrtPriceLimitX96: _sqrtPriceLimitX96()
             }),
             ""
         );
@@ -1390,6 +1420,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
 
         _settleDeltas(delta);
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
+        int24 finalTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+        if (_tickViolatesPriceLimit(finalTick)) revert SettlementPriceTooLow();
 
         return "";
     }
@@ -1421,33 +1455,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Pool owes us token1 - take it
             poolManager.take(poolKey.currency1, address(this), uint256(uint128(amount1)));
         }
-    }
-
-    function _sqrtPriceLimitForAuctionQuote() internal view returns (uint160) {
-        if (!isToken0) {
-            return TickMath.MAX_SQRT_PRICE - 1;
-        }
-
-        int24 floorTick = _minAcceptableTick();
-        uint160 limit = TickMath.getSqrtPriceAtTick(floorTick);
-        if (limit <= TickMath.MIN_SQRT_PRICE) {
-            limit = TickMath.MIN_SQRT_PRICE + 1;
-        }
-
-        return limit;
-    }
-
-    function _sqrtPriceLimitForSettlementSwap() internal view returns (uint160) {
-        if (!isToken0) {
-            return TickMath.MAX_SQRT_PRICE - 1;
-        }
-
-        uint160 limit = TickMath.getSqrtPriceAtTick(_minAcceptableTick());
-        if (limit <= TickMath.MIN_SQRT_PRICE) {
-            limit = TickMath.MIN_SQRT_PRICE + 1;
-        }
-
-        return limit;
     }
 
     /// @notice Set isToken0 flag - called by initializer (ONCE, before pool.initialize)
