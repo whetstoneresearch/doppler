@@ -41,7 +41,7 @@ contract DeployAirlockMultisigTestnetScript is Script, Config {
             .deployCreate3(salt, abi.encodePacked(type(AirlockMultisigTestnet).creationCode, abi.encode(signers)));
         require(airlockMultisigTestnet == expectedAddress, "Unexpected deployed address");
         console.log("AirlockMultisigTestnet deployed to:", airlockMultisigTestnet);
-        config.set("airlock_multisig_testnet", airlockMultisigTestnet);
+        config.set("airlock_multisig", airlockMultisigTestnet);
         vm.stopBroadcast();
     }
 }
