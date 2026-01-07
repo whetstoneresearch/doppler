@@ -8,7 +8,7 @@ import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.
 event AddSigner(address indexed newSigner);
 
 /// @notice A very basic Airlock-oriented multisig for testing purposes, do not use in production :)
-contract AirlockMultisig {
+contract AirlockMultisigTestnet {
     mapping(address => bool) public isSigner;
 
     modifier onlySigner() {
