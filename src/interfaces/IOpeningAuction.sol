@@ -165,6 +165,15 @@ interface IOpeningAuction {
     /// @notice Thrown when settlement clearing tick is worse than minimum acceptable
     error SettlementPriceTooLow();
 
+    /// @notice Thrown when incentive claim window has ended
+    error ClaimWindowEnded();
+
+    /// @notice Thrown when incentive claim window has not ended
+    error ClaimWindowNotEnded();
+
+    /// @notice Thrown when no unclaimed incentives remain
+    error NoUnclaimedIncentives();
+
     /// @notice Thrown when trying to recover incentives that are still claimable
     error IncentivesStillClaimable();
 
@@ -247,4 +256,8 @@ interface IOpeningAuction {
     /// @dev Only callable by initializer after settlement when incentives are unclaimable
     /// @param recipient Address to receive recovered tokens
     function recoverIncentives(address recipient) external;
+
+    /// @notice Sweep unclaimed incentives after the claim window closes
+    /// @param recipient Address to receive remaining incentives
+    function sweepUnclaimedIncentives(address recipient) external;
 }

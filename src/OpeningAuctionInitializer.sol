@@ -7,6 +7,7 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { alignTickTowardZero, alignTick } from "src/libraries/TickLibrary.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
@@ -27,6 +28,7 @@ enum OpeningAuctionStatus {
 /// @param dopplerData Encoded Doppler parameters (startingTick will be overwritten with clearing price)
 struct OpeningAuctionInitData {
     OpeningAuctionConfig auctionConfig;
+    uint256 shareToAuctionBps;
     bytes dopplerData;
 }
 
@@ -70,6 +72,12 @@ error IsToken0Mismatch();
 
 /// @notice Thrown when exitLiquidity target is not a valid Doppler hook
 error InvalidExitTarget();
+
+/// @notice Thrown when the auction share is invalid
+error InvalidShareToAuctionBps();
+
+/// @notice Thrown when auction allocation rounds to zero
+error AuctionAllocationTooSmall();
 
 /// @notice Emitted when an opening auction transitions to Doppler
 event AuctionCompleted(
@@ -151,6 +159,8 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     using CurrencyLibrary for Currency;
     using SafeTransferLib for address;
 
+    uint256 internal constant BPS = 10_000;
+
     /// @notice Address of the PoolManager
     IPoolManager public immutable poolManager;
 
@@ -215,10 +225,14 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             revert IsToken0Mismatch();
         }
 
-        // Calculate token split: auction gets incentiveShare + sale tokens
-        // Doppler gets the rest
-        uint256 auctionTokens = numTokensToSell; // All tokens initially go to auction for simplicity
-        uint256 dopplerTokens = 0; // Will receive unsold tokens after auction
+        uint256 shareToAuctionBps = initData.shareToAuctionBps;
+        if (shareToAuctionBps == 0 || shareToAuctionBps > BPS) {
+            revert InvalidShareToAuctionBps();
+        }
+
+        uint256 auctionTokens = FullMath.mulDiv(numTokensToSell, shareToAuctionBps, BPS);
+        uint256 dopplerTokens = numTokensToSell - auctionTokens;
+        if (auctionTokens == 0) revert AuctionAllocationTooSmall();
 
         // Deploy Opening Auction hook
         OpeningAuction auctionHook = auctionDeployer.deploy(
@@ -240,7 +254,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         });
 
         // Transfer tokens to auction hook
-        asset.safeTransferFrom(address(airlock), address(auctionHook), auctionTokens);
+        asset.safeTransferFrom(address(airlock), address(auctionHook), numTokensToSell);
 
         // Initialize the Opening Auction pool at extreme price boundary
         // isToken0=true: start at MAX_TICK (highest price for token0, price moves down)
