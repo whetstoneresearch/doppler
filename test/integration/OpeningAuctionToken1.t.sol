@@ -65,7 +65,7 @@ contract OpeningAuctionDeployerToken1Impl is OpeningAuctionDeployer {
 ///      - The asset token has a LARGER address than numeraire
 ///      - Pool starts at MIN_TICK (lowest price for token1)
 ///      - Price moves UP as tokens are sold (clearing tick increases)
-///      - Bids are validated with tickLower >= minAcceptableTick
+///      - Bids are validated with tickLower <= minAcceptableTick() (pool-space ceiling)
 ///      - "Filled" means clearing tick >= tickLower
 contract OpeningAuctionToken1FlowTest is Test, Deployers {
     // Token addresses - arranged so asset (TOKEN_HIGH) > numeraire (TOKEN_LOW)
@@ -125,7 +125,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
     }
 
     /// @notice Get default config for isToken0=false auction
-    /// @dev minAcceptableTickToken1 is the active price floor when selling token1.
+    /// @dev minAcceptableTickToken1 is tick(token0/token1) and enforced as a pool-space ceiling.
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
         return OpeningAuctionConfig({
             auctionDuration: AUCTION_DURATION,
@@ -262,8 +262,8 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
 
     /// @notice Test bid placement with reversed token ordering
     /// @dev For isToken0=false:
-    ///      - Bid validation: tickLower >= minAcceptableTick
-    ///      - Bids with tickLower < minAcceptableTick are rejected
+    ///      - Bid validation: tickLower <= minAcceptableTick()
+    ///      - Bids with tickLower > minAcceptableTick() are rejected
     function test_placeBid_Token1AsAsset() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
@@ -295,8 +295,8 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
         vm.stopPrank();
 
-        // For isToken0=false, bid validation checks: tickLower >= minAcceptableTick
-        int24 tickLower = config.minAcceptableTickToken1 + config.tickSpacing; // Above the floor
+        int24 limitTick = auction.minAcceptableTick();
+        int24 tickLower = limitTick - config.tickSpacing; // Better than the ceiling
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -327,7 +327,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
     }
 
     /// @notice Test that invalid bids are rejected for isToken0=false
-    /// @dev Bids with tickLower < minAcceptableTick should be rejected
+    /// @dev Bids with tickLower > minAcceptableTick should be rejected
     function test_placeBid_RejectsInvalidTickForToken1() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
@@ -359,8 +359,8 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
         vm.stopPrank();
 
-        // For isToken0=false: tickLower must be >= minAcceptableTick
-        int24 invalidTickLower = config.minAcceptableTickToken1 - config.tickSpacing;
+        int24 limitTick = auction.minAcceptableTick();
+        int24 invalidTickLower = limitTick + config.tickSpacing;
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -508,7 +508,8 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.stopPrank();
 
         // Place large bids close to the minimum acceptable tick to provide near-start liquidity
-        int24 aliceTickLower = config.minAcceptableTickToken1;
+        int24 limitTick = auction.minAcceptableTick();
+        int24 aliceTickLower = limitTick - config.tickSpacing;
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -525,7 +526,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         );
         vm.stopPrank();
 
-        int24 bobTickLower = config.minAcceptableTickToken1 + config.tickSpacing;
+        int24 bobTickLower = limitTick - (config.tickSpacing * 2);
         vm.startPrank(bob);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -572,8 +573,8 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             "clearing tick should have increased from MIN_TICK");
 
         // Clearing tick must be >= minAcceptableTick for isToken0=false
-        assertGe(auction.clearingTick(), config.minAcceptableTickToken1,
-            "clearing tick should be >= minAcceptableTick");
+        assertLe(auction.clearingTick(), auction.minAcceptableTick(),
+            "clearing tick should be <= minAcceptableTick");
 
         // Tokens sold can be zero if no active liquidity was reachable from the starting price
         assertGe(auction.totalTokensSold(), 0, "tokens sold should be non-negative");
@@ -702,7 +703,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         // Verify clearing tick behavior for isToken0=false
         // Price moved UP from MIN_TICK, so clearing tick > MIN_TICK
         assertGt(clearingTick, TickMath.MIN_TICK, "clearing tick should have moved up");
-        assertGe(clearingTick, config.minAcceptableTickToken1, "clearing tick >= minAcceptableTick");
+        assertLe(clearingTick, auction.minAcceptableTick(), "clearing tick <= minAcceptableTick");
 
         // ====== Step 5: Verify Incentive Calculations ======
         uint256 aliceIncentives = auction.calculateIncentives(alicePosId);
