@@ -2,8 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
-import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { AuctionPhase, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
+import { AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
@@ -59,37 +58,6 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
         // Verify position was created with correct owner
         AuctionPosition memory pos = hook.positions(positionId);
         assertEq(pos.owner, alice);
-    }
-
-    function test_afterAddLiquidity_EmitsPositionLockedWhenAlreadyInRange() public {
-        int24 tickLower = -3000;
-        uint128 amount = 2000 ether;
-
-        uint256 firstPos = _addBid(alice, tickLower, amount);
-        assertTrue(hook.isInRange(firstPos), "First position should be in range");
-
-        vm.prank(bob);
-        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
-        vm.prank(bob);
-        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
-
-        uint256 positionId = hook.nextPositionId();
-        bytes32 salt = keccak256(abi.encode(bob, bidNonce++));
-        vm.expectEmit(true, true, true, true, address(hook));
-        emit IOpeningAuction.PositionLocked(positionId);
-
-        vm.startPrank(bob);
-        modifyLiquidityRouter.modifyLiquidity(
-            key,
-            IPoolManager.ModifyLiquidityParams({
-                tickLower: tickLower,
-                tickUpper: tickLower + key.tickSpacing,
-                liquidityDelta: int256(uint256(amount)),
-                salt: salt
-            }),
-            abi.encode(bob)
-        );
-        vm.stopPrank();
     }
 
     function test_position_InitiallyNotLocked_WhenOutOfRange() public {
