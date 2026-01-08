@@ -128,12 +128,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Map position key to position ID
     mapping(bytes32 positionKey => uint256 positionId) public positionKeyToId;
 
-    /// @notice Position IDs per tick (for lock/unlock events)
-    mapping(int24 tick => uint256[] positionIds) internal tickPositions;
-
-    /// @notice Index of position ID within tickPositions[tick]
-    mapping(uint256 positionId => uint256 index) internal positionIndexInTick;
-
     // ============ Tick-Level Tracking (Efficient) ============
 
     /// @notice Liquidity at each tick level (for clearing tick estimation)
@@ -745,8 +739,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Create position ID
             uint256 positionId = nextPositionId++;
 
-            bool wasInRange = tickTimeStates[params.tickLower].isInRange;
-
             // Store position with reward debt (MasterChef-style)
             _positions[positionId] = AuctionPosition({
                 owner: owner,
@@ -770,10 +762,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
             ownerPositions[owner].push(positionId);
 
-            // Track positions by tick for lock/unlock events
-            positionIndexInTick[positionId] = tickPositions[params.tickLower].length;
-            tickPositions[params.tickLower].push(positionId);
-
             // Insert tick into activeTicks BEFORE updating liquidity
             // (because _insertTick uses liquidityAtTick==0 to detect new ticks)
             _insertTick(params.tickLower);
@@ -782,7 +770,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             emit LiquidityAddedToTick(params.tickLower, liquidity, liquidityAtTick[params.tickLower]);
 
             // Update estimated clearing tick and tick time states (efficient - only updates affected ticks)
-            bool clearingTickChanged = _updateClearingTickAndTimeStates();
+            _updateClearingTickAndTimeStates();
 
             // Explicitly check if the newly added tick is now in range and update its state
             // This handles the case where the tick IS the new clearing tick
@@ -791,10 +779,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             if (tickInRange && !newTickState.isInRange) {
                 newTickState.isInRange = true;
                 newTickState.lastUpdateTime = block.timestamp;
-            }
-
-            if (tickInRange && (wasInRange || !clearingTickChanged)) {
-                emit PositionLocked(positionId);
             }
 
             emit BidPlaced(positionId, owner, params.tickLower, liquidity);
@@ -877,8 +861,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
                 // Harvest earned time BEFORE decrementing liquidityAtTick
                 // This preserves the position's earned rewards even after removal
                 _harvestPosition(positionId);
-
-                _removePositionFromTick(params.tickLower, positionId);
 
                 pos.liquidity = 0;
                 delete positionKeyToId[positionKey];
@@ -1159,25 +1141,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             
             emit TimeHarvested(positionId, earnedTimeX128);
         }
-    }
-
-    /// @notice Remove a position from tickPositions tracking
-    function _removePositionFromTick(int24 tick, uint256 positionId) internal {
-        uint256[] storage tickPositionIds = tickPositions[tick];
-        if (tickPositionIds.length == 0) return;
-
-        uint256 index = positionIndexInTick[positionId];
-        if (index >= tickPositionIds.length || tickPositionIds[index] != positionId) return;
-
-        uint256 lastIndex = tickPositionIds.length - 1;
-        if (index != lastIndex) {
-            uint256 swappedId = tickPositionIds[lastIndex];
-            tickPositionIds[index] = swappedId;
-            positionIndexInTick[swappedId] = index;
-        }
-
-        tickPositionIds.pop();
-        delete positionIndexInTick[positionId];
     }
 
     /// @notice Insert a tick into the bitmap

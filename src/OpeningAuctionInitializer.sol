@@ -346,6 +346,11 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         // The clearing tick from the auction may not be aligned to Doppler's tick spacing
         int24 dopplerTickSpacing = _extractDopplerTickSpacing(state.dopplerInitData);
         int24 alignedClearingTick = alignTick(state.isToken0, clearingTick, dopplerTickSpacing);
+        int24 minAligned = alignTickTowardZero(TickMath.MIN_TICK, dopplerTickSpacing);
+        int24 maxAligned = alignTickTowardZero(TickMath.MAX_TICK, dopplerTickSpacing);
+
+        if (alignedClearingTick < minAligned) alignedClearingTick = minAligned;
+        if (alignedClearingTick > maxAligned) alignedClearingTick = maxAligned;
 
         // Decode and modify Doppler data to use aligned clearing tick as starting tick
         bytes memory modifiedDopplerData = _modifyDopplerStartingTick(
