@@ -20,6 +20,7 @@ import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 /// @title OpeningAuctionConcurrentTest
 /// @notice Tests for multiple concurrent auctions running simultaneously
 contract OpeningAuctionConcurrentTest is Test, Deployers {
+    uint160 constant FLAG_MASK = 0x3FFF;
     // Multiple token pairs
     address constant TOKEN_A = address(0x1111);
     address constant TOKEN_B = address(0x2222);
@@ -79,7 +80,6 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
             | Hooks.AFTER_ADD_LIQUIDITY_FLAG
             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
             | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.AFTER_SWAP_FLAG
             | Hooks.BEFORE_DONATE_FLAG
         );
     }
@@ -106,7 +106,8 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         (address token0, address token1) = asset < NUMERAIRE ? (asset, NUMERAIRE) : (NUMERAIRE, asset);
         bool isToken0 = asset < NUMERAIRE;
 
-        address hookAddress = address(uint160(uint256(keccak256(abi.encode(asset, hookSalt))) | getHookFlags()));
+        uint160 base = uint160(uint256(keccak256(abi.encode(asset, hookSalt))));
+        address hookAddress = address((base & ~FLAG_MASK) | getHookFlags());
 
         deployCodeTo(
             "OpeningAuctionConcurrent.t.sol:OpeningAuctionImpl",
