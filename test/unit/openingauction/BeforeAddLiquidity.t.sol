@@ -121,7 +121,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         assertEq(selector, BaseHook.beforeAddLiquidity.selector);
     }
 
-    function test_beforeAddLiquidity_AllowsExternalLiquidityAfterSettlement() public {
+    function test_beforeAddLiquidity_RevertsAfterSettlement() public {
         // Warp to after auction end
         _warpToAuctionEnd();
 
@@ -130,21 +130,20 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
 
         int24 tickLower = hook.minAcceptableTick();
 
-        // After settlement, multi-tick positions should also be allowed
+        // After settlement, adding liquidity should be disallowed for safety.
         vm.prank(address(manager));
-        bytes4 selector = hook.beforeAddLiquidity(
+        vm.expectRevert(IOpeningAuction.AuctionNotActive.selector);
+        hook.beforeAddLiquidity(
             alice,
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
-                tickUpper: tickLower + key.tickSpacing * 5, // Multi-tick ok after settlement
+                tickUpper: tickLower + key.tickSpacing,
                 liquidityDelta: 100e18,
                 salt: bytes32(0)
             }),
             ""
         );
-
-        assertEq(selector, BaseHook.beforeAddLiquidity.selector);
     }
 
     function test_beforeAddLiquidity_RevertsBiddingClosedAfterAuctionEnd() public {

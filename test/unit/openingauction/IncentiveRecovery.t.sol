@@ -133,7 +133,6 @@ contract IncentiveRecoveryTest is Test, Deployers {
             | Hooks.AFTER_ADD_LIQUIDITY_FLAG
             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
             | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.AFTER_SWAP_FLAG
             | Hooks.BEFORE_DONATE_FLAG
         );
     }
