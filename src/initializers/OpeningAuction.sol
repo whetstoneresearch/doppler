@@ -255,13 +255,25 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         AuctionPosition memory pos = _positions[positionId];
         if (pos.owner == address(0)) return false;
 
-        // During active auction, "in range" means "would be filled if settled now"
-        if (phase == AuctionPhase.Active) {
-            return _wouldBeFilled(pos.tickLower);
+        // "In range" for the auction means "would be touched by the settlement swap".
+        // While the auction is Active, we use the estimated clearing tick.
+        // After the auction is Settled, we use the actual clearing tick.
+        int24 refTick;
+        if (phase == AuctionPhase.Settled) {
+            refTick = clearingTick;
+        } else if (phase == AuctionPhase.Active || phase == AuctionPhase.Closed) {
+            refTick = estimatedClearingTick;
+        } else {
+            return false;
         }
 
-        // After settlement, use actual tick
-        return _isTickInRange(pos.tickLower, pos.tickUpper, currentTick);
+        if (isToken0) {
+            // Selling token0: price moves down (tick decreases). A position is touched if we clear below its upper tick.
+            return refTick < pos.tickUpper;
+        } else {
+            // Selling token1: price moves up (tick increases). A position is touched if we clear at or above its lower tick.
+            return refTick >= pos.tickLower;
+        }
     }
 
     /// @notice Check if a position is currently locked (backwards-compatible helper)
@@ -678,30 +690,29 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         IPoolManager.ModifyLiquidityParams calldata params,
         bytes calldata
     ) internal view override returns (bytes4) {
-        // During active auction, validate the position
-        if (phase == AuctionPhase.Active) {
-            // Block new bids after auction end time (before settlement)
-            if (block.timestamp >= auctionEndTime) revert BiddingClosed();
+        if (phase != AuctionPhase.Active) revert AuctionNotActive();
 
-            // Must be a single-tick position
-            int24 tickSpacing = key.tickSpacing;
-            if (params.tickUpper - params.tickLower != tickSpacing) {
-                revert NotSingleTickPosition();
-            }
+        // Block new bids after auction end time (before settlement)
+        if (block.timestamp >= auctionEndTime) revert BiddingClosed();
 
-            // Enforce floor (token0) or ceiling (token1) in pool tick space.
-            int24 limitTick = _auctionPriceLimitTick();
-            if (isToken0) {
-                if (params.tickLower < limitTick) revert BidBelowMinimumPrice();
-            } else {
-                if (params.tickLower > limitTick) revert BidBelowMinimumPrice();
-            }
+        // Must be a single-tick position
+        int24 tickSpacing = key.tickSpacing;
+        if (params.tickUpper - params.tickLower != tickSpacing) {
+            revert NotSingleTickPosition();
+        }
 
-            // Validate minimum liquidity to prevent dust bid griefing
-            // This prevents attackers from creating many tiny positions to bloat activeTicks
-            if (uint128(uint256(params.liquidityDelta)) < minLiquidity) {
-                revert BidBelowMinimumLiquidity();
-            }
+        // Enforce floor (token0) or ceiling (token1) in pool tick space.
+        int24 limitTick = _auctionPriceLimitTick();
+        if (isToken0) {
+            if (params.tickLower < limitTick) revert BidBelowMinimumPrice();
+        } else {
+            if (params.tickLower > limitTick) revert BidBelowMinimumPrice();
+        }
+
+        // Validate minimum liquidity to prevent dust bid griefing
+        // This prevents attackers from creating many tiny positions to bloat activeTicks
+        if (uint128(uint256(params.liquidityDelta)) < minLiquidity) {
+            revert BidBelowMinimumLiquidity();
         }
 
         return BaseHook.beforeAddLiquidity.selector;
