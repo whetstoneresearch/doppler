@@ -11,7 +11,7 @@ contract HookPermissionsAndIsInRangeTest is OpeningAuctionBaseTest {
     /// @dev In production, BaseHook's constructor calls Hooks.validateHookPermissions.
     ///      Our unit tests often bypass that to allow deployCodeTo() at a mined address.
     ///      This test ensures the mined address flags still match getHookPermissions().
-    function test_hookPermissions_MatchMinedAddressFlags() public {
+    function test_hookPermissions_MatchMinedAddressFlags() public view {
         // Should not revert.
         Hooks.validateHookPermissions(IHooks(address(hook)), hook.getHookPermissions());
     }
