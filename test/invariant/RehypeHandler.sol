@@ -88,8 +88,6 @@ contract RehyperInvariantTests2 is Deployers {
     }
 
     function invariant_NoFeesAboveEpsilon() public {
-        // Skipping this one for now
-        vm.skip(true);
         uint256 poolKeysLength = handler.poolKeysLength();
 
         for (uint256 i; i < poolKeysLength; i++) {
