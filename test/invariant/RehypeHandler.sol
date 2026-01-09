@@ -111,9 +111,6 @@ contract RehyperInvariantTests2 is Deployers {
 
             uint256 ghostLiquidity = handler.ghost_liquidityOf(poolId);
             (,, uint256 currentLiquidity,) = rehypeHook.getPosition(poolId);
-
-            console.log("Current liquidity:", currentLiquidity);
-            console.log("Ghost liquidity:", ghostLiquidity);
             assertGe(currentLiquidity, ghostLiquidity, "Full range liquidity decreased");
         }
     }
