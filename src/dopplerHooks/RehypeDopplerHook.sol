@@ -13,8 +13,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { FeeDistributionInfo, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -57,6 +57,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /// @notice Pool info for each pool
     mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
+
+    receive() external payable { }
 
     /**
      * @param initializer Address of the DopplerHookInitializer contract
@@ -614,7 +616,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         address asset = getPoolInfo[poolId].asset;
         BeneficiaryData[] memory beneficiaries = DopplerHookInitializer(payable(INITIALIZER)).getBeneficiaries(asset);
 
-        bool isBeneficiary = false;
+        bool isBeneficiary;
         for (uint256 i = 0; i < beneficiaries.length; i++) {
             if (beneficiaries[i].beneficiary == msg.sender) {
                 isBeneficiary = true;
