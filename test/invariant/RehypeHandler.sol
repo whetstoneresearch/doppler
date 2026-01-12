@@ -487,6 +487,7 @@ contract RehypeHandler is Test {
     function setFeeDistribution(uint256 seed) public {
         if (poolKeys.length == 0) return;
         // Only 0.5% chance to set fee distribution
+        if (seed < WAD) seed = WAD;
         vm.assume(seed % 1000 > 5);
 
         PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
@@ -498,7 +499,7 @@ contract RehypeHandler is Test {
         uint256 lpPercentWad = WAD - assetBuybackPercentWad - numeraireBuybackPercentWad - beneficiaryPercentWad;
 
         vm.prank(address(dopplerHookInitializer));
-        hook.setFeeDistributionByBeneficiary(
+        hook.setFeeDistribution(
             poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
         );
     }
