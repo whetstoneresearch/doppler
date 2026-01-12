@@ -553,12 +553,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
         fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
 
         if (hookFees.beneficiaryFees0 > 0) {
-            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
             getHookFees[poolId].beneficiaryFees0 = 0;
+            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
         }
         if (hookFees.beneficiaryFees1 > 0) {
-            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
             getHookFees[poolId].beneficiaryFees1 = 0;
+            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
         }
 
         return fees;
