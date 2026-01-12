@@ -15,6 +15,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency, equals, lessThan } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock } from "src/Airlock.sol";
@@ -37,6 +38,7 @@ contract RehyperInvariantTests2 is Deployers {
     DopplerHookInitializer public dopplerHookInitializer;
     RehypeDopplerHook public rehypeHook;
     RehypeHandler2 public handler;
+    V4Quoter public quoter;
 
     function setUp() public {
         deployFreshManager();
@@ -52,17 +54,20 @@ contract RehyperInvariantTests2 is Deployers {
                 ))
         );
         rehypeHook = new RehypeDopplerHook(address(dopplerHookInitializer), manager);
-        handler = new RehypeHandler2(manager, swapRouter, dopplerHookInitializer, rehypeHook);
+        quoter = new V4Quoter(manager);
+        handler = new RehypeHandler2(manager, swapRouter, dopplerHookInitializer, rehypeHook, quoter);
 
         // No need for the Airlock in this case we can simply use the handler instead
         deployCodeTo(
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](3);
+        bytes4[] memory selectors = new bytes4[](5);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
-        selectors[2] = handler.sellExactIn.selector;
+        selectors[2] = handler.buyExactOut.selector;
+        selectors[3] = handler.sellExactIn.selector;
+        selectors[4] = handler.sellExactOut.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
 
@@ -112,13 +117,6 @@ contract RehyperInvariantTests2 is Deployers {
             assertGe(currentLiquidity, ghostLiquidity, "Full range liquidity decreased");
         }
     }
-
-    function test_boop() public {
-        RehypeHandler2(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9).initialize(9_575_300_598_195);
-        RehypeHandler2(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9).buyExactIn(2);
-        RehypeHandler2(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9)
-            .sellExactIn(510_111_578_971_979_679_778_684_971_624_205_833);
-    }
 }
 
 struct Settings {
@@ -140,6 +138,7 @@ contract RehypeHandler2 is Test {
     RehypeDopplerHook public hook;
     PoolSwapTest public swapRouter;
     DopplerHookInitializer public dopplerHookInitializer;
+    V4Quoter public quoter;
 
     mapping(PoolId => Settings) public settingsOf;
     PoolKey[] public poolKeys;
@@ -184,12 +183,14 @@ contract RehypeHandler2 is Test {
         IPoolManager manager_,
         PoolSwapTest swapRouter_,
         DopplerHookInitializer dopplerHookInitializer_,
-        RehypeDopplerHook hook_
+        RehypeDopplerHook hook_,
+        V4Quoter quoter_
     ) {
         manager = manager_;
         hook = hook_;
         swapRouter = swapRouter_;
         dopplerHookInitializer = dopplerHookInitializer_;
+        quoter = quoter_;
 
         availableNumeraires.push(address(0));
 
@@ -289,6 +290,7 @@ contract RehypeHandler2 is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
                 console.logBytes4(revertReasonSelector);
+                revert("Buy reverted");
             } else {
                 revert("Unknown error");
             }
@@ -299,7 +301,64 @@ contract RehypeHandler2 is Test {
         _trackLiquidity(poolId);
     }
 
-    function buyExactOut() public { }
+    function buyExactOut(uint256 amountOut) public createActor {
+        if (poolKeys.length == 0) return;
+
+        amountOut = 1e18;
+
+        PoolKey memory poolKey = poolKeys[amountOut % poolKeys.length];
+        PoolId poolId = poolKey.toId();
+
+        Settings memory settings = settingsOf[poolId];
+
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+            IV4Quoter.QuoteExactSingleParams({
+                poolKey: poolKey,
+                zeroForOne: !settings.isToken0,
+                exactAmount: uint128(amountOut),
+                hookData: new bytes(0)
+            })
+        );
+
+        if (settings.numeraire == address(0)) {
+            deal(currentActor, amountIn);
+        } else {
+            deal(settings.numeraire, currentActor, amountIn);
+            TestERC20(settings.numeraire).approve(address(swapRouter), amountIn);
+        }
+
+        // TODO: Do something with the delta
+        // TODO: Track hook fees before and after the swap
+        try swapRouter.swap{ value: settings.numeraire == address(0) ? amountIn : 0 }(
+            poolKey,
+            IPoolManager.SwapParams(
+                !settings.isToken0, int256(amountOut), settings.isToken0 ? MAX_PRICE_LIMIT : MIN_PRICE_LIMIT
+            ),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        ) returns (
+            BalanceDelta delta
+        ) { }
+        catch (bytes memory err) {
+            bytes4 selector;
+
+            assembly {
+                selector := mload(add(err, 0x20))
+            }
+
+            if (selector == CustomRevert.WrappedError.selector) {
+                (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
+                console.logBytes4(revertReasonSelector);
+                revert("Buy reverted");
+            } else {
+                revert("Unknown error");
+            }
+        }
+
+        totalBuys[poolId]++;
+
+        _trackLiquidity(poolId);
+    }
 
     function sellExactIn(uint256 seed) public useActor(seed) {
         if (currentActor == address(0)) return;
@@ -342,7 +401,6 @@ contract RehypeHandler2 is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
                 console.logBytes4(revertReasonSelector);
-
                 revert("Sell reverted");
             } else {
                 revert("Unknown error");
@@ -354,7 +412,76 @@ contract RehypeHandler2 is Test {
         _trackLiquidity(poolId);
     }
 
-    function sellExactOut() public { }
+    function sellExactOut(uint256 seed) public useActor(seed) {
+        if (currentActor == address(0)) return;
+        if (poolKeys.length == 0) return;
+
+        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
+        PoolId poolId = poolKey.toId();
+
+        Settings memory settings = settingsOf[poolId];
+
+        uint256 currentBalance = TestERC20(settings.asset).balanceOf(currentActor);
+        if (currentBalance == 0) {
+            return;
+        }
+
+        // Let's see how much we can get if we sell all our tokens
+        (uint256 amountOut,) = quoter.quoteExactInputSingle(
+            IV4Quoter.QuoteExactSingleParams({
+                poolKey: poolKey,
+                zeroForOne: !settings.isToken0,
+                exactAmount: uint128(currentBalance),
+                hookData: new bytes(0)
+            })
+        );
+
+        // Let's sell half of it
+        amountOut /= 2;
+
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+            IV4Quoter.QuoteExactSingleParams({
+                poolKey: poolKey,
+                zeroForOne: !settings.isToken0,
+                exactAmount: uint128(amountOut),
+                hookData: new bytes(0)
+            })
+        );
+
+        TestERC20(settings.asset).approve(address(swapRouter), amountIn);
+
+        // TODO: Do something with the delta
+        // TODO: Track hook fees before and after the swap
+        try swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams(
+                settings.isToken0, int256(amountOut), settings.isToken0 ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
+            ),
+            PoolSwapTest.TestSettings(false, false),
+            ""
+        ) returns (
+            BalanceDelta delta
+        ) { }
+        catch (bytes memory err) {
+            bytes4 selector;
+
+            assembly {
+                selector := mload(add(err, 0x20))
+            }
+
+            if (selector == CustomRevert.WrappedError.selector) {
+                (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
+                console.logBytes4(revertReasonSelector);
+                revert("Sell reverted");
+            } else {
+                revert("Unknown error");
+            }
+        }
+
+        totalSells[poolId]++;
+
+        _trackLiquidity(poolId);
+    }
 
     function collectFees(uint256 seed) public {
         if (poolKeys.length == 0) return;
