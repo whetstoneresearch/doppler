@@ -377,8 +377,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
         // subtract the fees to avoid overflow when casting to uint
         BalanceDelta realizedDelta = balanceDelta - feeDelta;
 
-        _settleDelta(key, realizedDelta);
-        _collectDelta(key, realizedDelta);
+        _settleDelta(key, balanceDelta);
+        _collectDelta(key, balanceDelta);
 
         position.liquidity += liquidityDelta;
 
