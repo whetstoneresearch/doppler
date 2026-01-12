@@ -33,11 +33,11 @@ uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 
 address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
 
-contract RehyperInvariantTests2 is Deployers {
+contract RehyperInvariantTests is Deployers {
     Airlock public airlock;
     DopplerHookInitializer public dopplerHookInitializer;
     RehypeDopplerHook public rehypeHook;
-    RehypeHandler2 public handler;
+    RehypeHandler public handler;
     V4Quoter public quoter;
 
     function setUp() public {
@@ -55,19 +55,20 @@ contract RehyperInvariantTests2 is Deployers {
         );
         rehypeHook = new RehypeDopplerHook(address(dopplerHookInitializer), manager);
         quoter = new V4Quoter(manager);
-        handler = new RehypeHandler2(manager, swapRouter, dopplerHookInitializer, rehypeHook, quoter);
+        handler = new RehypeHandler(manager, swapRouter, dopplerHookInitializer, rehypeHook, quoter);
 
         // No need for the Airlock in this case we can simply use the handler instead
         deployCodeTo(
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](6);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
         selectors[2] = handler.buyExactOut.selector;
         selectors[3] = handler.sellExactIn.selector;
         selectors[4] = handler.sellExactOut.selector;
+        selectors[5] = handler.setFeeDistribution.selector;
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
 
@@ -131,7 +132,7 @@ struct Settings {
     bool isToken0;
 }
 
-contract RehypeHandler2 is Test {
+contract RehypeHandler is Test {
     using LibAddressSet for AddressSet;
 
     IPoolManager public manager;
@@ -483,8 +484,29 @@ contract RehypeHandler2 is Test {
         _trackLiquidity(poolId);
     }
 
+    function setFeeDistribution(uint256 seed) public {
+        if (poolKeys.length == 0) return;
+        // Only 0.5% chance to set fee distribution
+        vm.assume(seed % 1000 > 5);
+
+        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
+        PoolId poolId = poolKey.toId();
+
+        uint256 assetBuybackPercentWad = seed % WAD;
+        uint256 numeraireBuybackPercentWad = seed % (WAD - assetBuybackPercentWad);
+        uint256 beneficiaryPercentWad = seed % (WAD - assetBuybackPercentWad - numeraireBuybackPercentWad);
+        uint256 lpPercentWad = WAD - assetBuybackPercentWad - numeraireBuybackPercentWad - beneficiaryPercentWad;
+
+        vm.prank(address(dopplerHookInitializer));
+        hook.setFeeDistributionByBeneficiary(
+            poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
+        );
+    }
+
     function collectFees(uint256 seed) public {
         if (poolKeys.length == 0) return;
+        // Only 2% chance to collect fees
+        vm.assume(seed % 100 > 2);
 
         PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
         PoolId poolId = poolKey.toId();
