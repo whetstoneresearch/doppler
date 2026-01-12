@@ -542,7 +542,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             Currency feeCurrency;
             (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
 
-            if (delta != 0) {
+            if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
                 poolManager.sync(feeCurrency);
 
