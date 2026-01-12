@@ -87,7 +87,7 @@ contract RehyperInvariantTests2 is Deployers {
         }
     }
 
-    function invariant_NoFeesAboveEpsilon() public {
+    function invariant_NoFeesAboveEpsilon() public view {
         uint256 poolKeysLength = handler.poolKeysLength();
 
         for (uint256 i; i < poolKeysLength; i++) {
@@ -215,7 +215,6 @@ contract RehypeHandler2 is Test {
         });
         poolKeys.push(poolKey);
         poolKeysLength++;
-        console.log("Initialized pool");
 
         PoolId poolId = poolKey.toId();
 
@@ -318,7 +317,6 @@ contract RehypeHandler2 is Test {
 
         // TODO: Fuzz the amount
         uint256 amount = currentBalance;
-        console.log("Selling amount:", amount);
 
         TestERC20(settings.asset).approve(address(swapRouter), amount);
 
