@@ -5,10 +5,10 @@ import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/utils/ReentrancyGuard.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IBurnable } from "src/interfaces/IBurnable.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPredictionMigrator } from "src/interfaces/IPredictionMigrator.sol";
 import { IPredictionOracle } from "src/interfaces/IPredictionOracle.sol";
-import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
 /**
  * @title PredictionMigrator
@@ -153,10 +153,9 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
         // claimableSupply = tokens in user hands = totalSupply - unsold tokens we hold
         uint256 claimableSupply = IERC20(asset).totalSupply() - assetBalance;
 
-        // Pseudo-burn unsold tokens by sending to dead address
-        // Note: OpenZeppelin ERC20 reverts on transfer to address(0), so we use DEAD_ADDRESS
+        // Burn unsold tokens (both DERC20 and CloneERC20 implement burn())
         if (assetBalance > 0) {
-            ERC20(asset).safeTransfer(DEAD_ADDRESS, assetBalance);
+            IBurnable(asset).burn(assetBalance);
         }
 
         // Update entry

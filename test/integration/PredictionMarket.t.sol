@@ -5,6 +5,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -13,7 +14,6 @@ import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -29,7 +29,6 @@ import { Curve } from "src/libraries/MulticurveLibrary.sol";
 import { PredictionMigrator } from "src/migrators/PredictionMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { DEAD_ADDRESS } from "src/types/Constants.sol";
 import { WAD } from "src/types/Wad.sol";
 
 import {
@@ -155,6 +154,8 @@ contract PredictionMarketIntegrationTest is BaseIntegrationTest {
             curves[i].shares = WAD / 10;
         }
 
+        // For prediction markets, farTick = startingTick (0) so graduation is immediate
+        // and migration is only gated by oracle finalization.
         return abi.encode(
             InitData({
                 fee: 0,
@@ -164,7 +165,7 @@ contract PredictionMarketIntegrationTest is BaseIntegrationTest {
                 dopplerHook: address(noSellHook),
                 onInitializationDopplerHookCalldata: new bytes(0),
                 graduationDopplerHookCalldata: new bytes(0),
-                farTick: 200_000
+                farTick: 0 // Immediate graduation (farTick == startingTick)
             })
         );
     }
@@ -345,10 +346,9 @@ contract PredictionMarketFullFlowTest is Deployers {
 
     // Pool configuration
     int24 public constant TICK_SPACING = 8;
-    // Note: For prediction markets, farTick should equal startingTick so graduation
-    // is immediate and migration is only gated by oracle finalization.
-    // The multicurve starts at tick 0, so we use a small farTick that's easily reached.
-    int24 public constant FAR_TICK = 8; // Just one tick spacing away from start
+    // For prediction markets, farTick = startingTick (0) so graduation is immediate
+    // and migration is only gated by oracle finalization.
+    int24 public constant FAR_TICK = 0; // Immediate graduation (farTick == startingTick)
 
     function setUp() public {
         // Deploy V4 infrastructure (from Deployers)
@@ -387,15 +387,13 @@ contract PredictionMarketFullFlowTest is Deployers {
 
     function _deployDopplerHookInitializer() internal returns (DopplerHookInitializer initializer) {
         initializer = DopplerHookInitializer(
-            payable(
-                address(
+            payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
                             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
                             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
-                )
-            )
+                ))
         );
 
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));

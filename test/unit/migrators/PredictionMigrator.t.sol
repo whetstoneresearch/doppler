@@ -8,9 +8,8 @@ import { AlreadyFinalized, MockPredictionOracle, OnlyOwner } from "src/base/Mock
 import { IPredictionMigrator } from "src/interfaces/IPredictionMigrator.sol";
 import { IPredictionOracle } from "src/interfaces/IPredictionOracle.sol";
 import { PredictionMigrator } from "src/migrators/PredictionMigrator.sol";
-import { DEAD_ADDRESS } from "src/types/Constants.sol";
 
-/// @dev Simple ERC20 mock for testing with totalSupply support
+/// @dev Simple ERC20 mock for testing with totalSupply support and burn()
 contract MockERC20 is ERC20 {
     constructor(string memory name_, string memory symbol_, uint256 initialSupply) ERC20(name_, symbol_, 18) {
         _mint(msg.sender, initialSupply);
@@ -20,8 +19,9 @@ contract MockERC20 is ERC20 {
         _mint(to, amount);
     }
 
-    function burn(address from, uint256 amount) external {
-        _burn(from, amount);
+    /// @notice Burns tokens from the caller's balance (matches DERC20/CloneERC20 interface)
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
     }
 }
 
@@ -214,7 +214,7 @@ contract PredictionMigratorTest is Test {
         assertEq(market.totalPot, 100 ether);
     }
 
-    function test_migrate_PseudoBurnsUnsoldTokens() public {
+    function test_migrate_BurnsUnsoldTokens() public {
         migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
         oracle.setWinner(address(tokenA));
 
@@ -222,11 +222,12 @@ contract PredictionMigratorTest is Test {
         numeraire.transfer(address(migrator), 100 ether);
         tokenA.transfer(address(migrator), unsoldTokens);
 
-        uint256 deadBalanceBefore = tokenA.balanceOf(DEAD_ADDRESS);
+        uint256 totalSupplyBefore = tokenA.totalSupply();
 
         migrator.migrate(0, address(tokenA), address(numeraire), address(0));
 
-        assertEq(tokenA.balanceOf(DEAD_ADDRESS), deadBalanceBefore + unsoldTokens);
+        // Unsold tokens should be burned (supply decreased)
+        assertEq(tokenA.totalSupply(), totalSupplyBefore - unsoldTokens);
         assertEq(tokenA.balanceOf(address(migrator)), 0);
     }
 
@@ -502,6 +503,7 @@ contract PredictionMigratorTest is Test {
         assertEq(aliceETHAfter - aliceETHBefore, expectedETH);
         vm.stopPrank();
     }
+
     /* -------------------------------------------------------------------------------- */
     /*                     BUG TESTS: Claim Before All Migrate                         */
     /* -------------------------------------------------------------------------------- */
