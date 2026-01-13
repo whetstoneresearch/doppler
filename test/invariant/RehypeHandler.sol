@@ -23,6 +23,7 @@ import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/ba
 import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
@@ -200,6 +201,10 @@ contract RehypeHandler is Test {
         }
     }
 
+    /* ------------------------------------------------------------------------------ */
+    /*                                Target functions                                */
+    /* ------------------------------------------------------------------------------ */
+
     function initialize(uint256 seed) public {
         // Only 5% chance to initialize a new pool
         vm.assume(seed % 100 > 5);
@@ -222,7 +227,7 @@ contract RehypeHandler is Test {
 
         TestERC20(asset).approve(address(dopplerHookInitializer), type(uint256).max);
 
-        InitData memory data = _prepareInitData();
+        InitData memory data = _prepareInitData(seed);
 
         (
             uint256 assetBuybackPercentWad,
@@ -524,17 +529,43 @@ contract RehypeHandler is Test {
         BalanceDelta delta = hook.collectFees(asset);
     }
 
-    function _prepareInitData() internal returns (InitData memory) {
-        // TODO: Randomize curves
-        Curve[] memory curves = new Curve[](1);
-        int24 tickSpacing = 8;
+    /* --------------------------------------------------------------------------------------- */
+    /*                                External helper functions                                */
+    /* --------------------------------------------------------------------------------------- */
 
-        for (uint256 i; i < curves.length; ++i) {
-            curves[i].tickLower = int24(uint24(160_000 + i * 8));
-            curves[i].tickUpper = 240_000;
-            curves[i].numPositions = 1;
+    function getPoolKey(uint256 index) external view returns (PoolKey memory) {
+        return poolKeys[index];
+    }
+
+    // We need an owner function to mock the Airlock owner
+    function owner() external pure returns (address) {
+        return AIRLOCK_OWNER;
+    }
+
+    /* --------------------------------------------------------------------------------------- */
+    /*                                Internal helper functions                                */
+    /* --------------------------------------------------------------------------------------- */
+
+    function _randomizeCurves(uint256 seed, int24 tickSpacing) internal pure returns (Curve[] memory curves) {
+        curves = new Curve[](4);
+
+        int24 tickLower = 160_000 / tickSpacing * tickSpacing;
+        int24 tickUpper = 240_000 / tickSpacing * tickSpacing;
+
+        for (uint24 i; i < curves.length; i++) {
+            curves[i].tickLower = int24(tickLower + int24(i) * tickSpacing);
+            curves[i].tickUpper = tickUpper;
+            curves[i].numPositions = 1; //uint16(_randomUint(1, 10, seed + i));
             curves[i].shares = WAD / curves.length;
         }
+    }
+
+    function _prepareInitData(uint256 seed) internal returns (InitData memory) {
+        // TODO: Randomize curves
+        int24 tickSpacing = int24(uint24(_randomUint(1, uint256(uint16(type(int16).max)), seed)));
+        tickSpacing = 8;
+
+        Curve[] memory curves = _randomizeCurves(seed, tickSpacing);
 
         // TODO: Randomize beneficiaries
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
@@ -551,15 +582,6 @@ contract RehypeHandler is Test {
             graduationDopplerHookCalldata: new bytes(0),
             farTick: 200_000
         });
-    }
-
-    function getPoolKey(uint256 index) external view returns (PoolKey memory) {
-        return poolKeys[index];
-    }
-
-    // We need an owner function to mock the Airlock owner
-    function owner() external pure returns (address) {
-        return AIRLOCK_OWNER;
     }
 
     function _trackLiquidity(PoolId poolId) internal {
@@ -581,5 +603,9 @@ contract RehypeHandler is Test {
         numeraireBuybackPercentWad = seed % (WAD - assetBuybackPercentWad);
         beneficiaryPercentWad = seed % (WAD - assetBuybackPercentWad - numeraireBuybackPercentWad);
         lpPercentWad = WAD - assetBuybackPercentWad - numeraireBuybackPercentWad - beneficiaryPercentWad;
+    }
+
+    function _randomUint(uint256 min, uint256 max, uint256 seed) internal pure returns (uint256) {
+        return (seed % (max - min)) + min;
     }
 }
