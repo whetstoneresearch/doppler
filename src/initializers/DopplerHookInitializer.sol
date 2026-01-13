@@ -455,7 +455,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of positions currently held in the Uniswap V4 pool
      */
-    function getPositions(address asset) public view returns (Position[] memory) {
+    function getPositions(address asset) internal view returns (Position[] memory) {
         PoolState memory state = getState[asset];
         address token0 = Currency.unwrap(state.poolKey.currency0);
         Position[] memory positions = Multicurve.calculatePositions(

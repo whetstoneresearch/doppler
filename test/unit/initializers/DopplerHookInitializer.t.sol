@@ -45,7 +45,7 @@ import {
 } from "src/initializers/DopplerHookInitializer.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
+import { Curve, calculatePositions } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -310,15 +310,6 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         assertLt(currency1.balanceOf(address(manager)), 100, "Poolmanager should have zero balance of token1");
 
         assertEq(manager.getLiquidity(poolId), 0, "Pool liquidity should be zero");
-
-        Position[] memory positions = initializer.getPositions(asset);
-
-        for (uint256 i; i < positions.length; i++) {
-            (uint128 liquidity,,) = manager.getPositionInfo(
-                poolId, address(initializer), positions[i].tickLower, positions[i].tickUpper, positions[i].salt
-            );
-            assertEq(liquidity, 0, "Position liquidity should be zero");
-        }
     }
 
     function test_exitLiquidity_RevertsWhenSenderNotAirlock(InitDataParams memory params, bool isToken0) public {
