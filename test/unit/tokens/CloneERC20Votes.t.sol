@@ -454,7 +454,7 @@ contract CloneERC20VotesTest is Test {
     /*                                burn()                                */
     /* -------------------------------------------------------------------- */
 
-    function test_burn_RevertsWhenInvalidOwner(
+    function test_burn_AnyoneCanBurnTheirOwnTokens(
         string memory name,
         string memory symbol,
         uint256 initialSupply,
@@ -465,12 +465,26 @@ contract CloneERC20VotesTest is Test {
         string memory tokenURI,
         uint256 seed
     ) public {
+        // Initialize token with recipient receiving initial supply
         testFuzz_initialize(
             name, symbol, initialSupply, recipient, owner, yearlyMintRate, vestingDuration, tokenURI, seed
         );
-        vm.prank(address(0xbeef));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.Unauthorized.selector));
-        token.burn(0);
+
+        // Must unlock pool first - burning transfers to address(0) which matches
+        // the default pool address, so pool must be unlocked for burn to work
+        vm.prank(owner);
+        token.unlockPool();
+
+        // Recipient should be able to burn their own tokens
+        uint256 balanceBefore = token.balanceOf(recipient);
+        vm.assume(balanceBefore > 0);
+        uint256 burnAmount = balanceBefore / 2;
+        vm.assume(burnAmount > 0);
+
+        vm.prank(recipient);
+        token.burn(burnAmount);
+
+        assertEq(token.balanceOf(recipient), balanceBefore - burnAmount, "Burn should reduce balance");
     }
 
     error InsufficientBalance();
