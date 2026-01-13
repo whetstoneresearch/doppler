@@ -24,7 +24,7 @@ import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.s
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { WAD } from "src/types/WAD.sol";
+import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
 
