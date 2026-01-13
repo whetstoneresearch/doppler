@@ -224,16 +224,23 @@ contract RehypeHandler is Test {
 
         InitData memory data = _prepareInitData();
 
+        (
+            uint256 assetBuybackPercentWad,
+            uint256 numeraireBuybackPercentWad,
+            uint256 beneficiaryPercentWad,
+            uint256 lpPercentWad
+        ) = _randomizeFeeDistribution(seed);
+
         // TODO: Fuzz these parameters
         Settings memory settings = Settings({
             asset: asset,
             numeraire: numeraire,
             buybackDst: address(0xbeef),
             customFee: 300,
-            assetBuybackPercentWad: 0.25e18,
-            numeraireBuybackPercentWad: 0.25e18,
-            beneficiaryPercentWad: 0.25e18,
-            lpPercentWad: 0.25e18,
+            assetBuybackPercentWad: assetBuybackPercentWad,
+            numeraireBuybackPercentWad: numeraireBuybackPercentWad,
+            beneficiaryPercentWad: beneficiaryPercentWad,
+            lpPercentWad: lpPercentWad,
             isToken0: Currency.unwrap(poolKey.currency0) == asset
         });
 
@@ -493,10 +500,12 @@ contract RehypeHandler is Test {
         PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
         PoolId poolId = poolKey.toId();
 
-        uint256 assetBuybackPercentWad = seed % WAD;
-        uint256 numeraireBuybackPercentWad = seed % (WAD - assetBuybackPercentWad);
-        uint256 beneficiaryPercentWad = seed % (WAD - assetBuybackPercentWad - numeraireBuybackPercentWad);
-        uint256 lpPercentWad = WAD - assetBuybackPercentWad - numeraireBuybackPercentWad - beneficiaryPercentWad;
+        (
+            uint256 assetBuybackPercentWad,
+            uint256 numeraireBuybackPercentWad,
+            uint256 beneficiaryPercentWad,
+            uint256 lpPercentWad
+        ) = _randomizeFeeDistribution(seed);
 
         vm.prank(address(dopplerHookInitializer));
         hook.setFeeDistribution(
@@ -556,5 +565,21 @@ contract RehypeHandler is Test {
     function _trackLiquidity(PoolId poolId) internal {
         (,, uint256 liquidity,) = hook.getPosition(poolId);
         ghost_liquidityOf[poolId] = liquidity;
+    }
+
+    function _randomizeFeeDistribution(uint256 seed)
+        internal
+        pure
+        returns (
+            uint256 assetBuybackPercentWad,
+            uint256 numeraireBuybackPercentWad,
+            uint256 beneficiaryPercentWad,
+            uint256 lpPercentWad
+        )
+    {
+        assetBuybackPercentWad = seed % WAD;
+        numeraireBuybackPercentWad = seed % (WAD - assetBuybackPercentWad);
+        beneficiaryPercentWad = seed % (WAD - assetBuybackPercentWad - numeraireBuybackPercentWad);
+        lpPercentWad = WAD - assetBuybackPercentWad - numeraireBuybackPercentWad - beneficiaryPercentWad;
     }
 }
