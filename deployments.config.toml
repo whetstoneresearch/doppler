@@ -62,6 +62,8 @@ airlock = "0x3411306ce66c9469bff1535ba955503c4bde1c6e"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
 uniswap_v4_pool_manager = "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408"
+clone_erc20_factory = "0xbf4Ca4D527c9760A884df31292f72E9AcA503045"
+clone_erc20_votes_factory = "0x9a497a9fB78e49984B9d260abA1F4AD6321D4D92"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
