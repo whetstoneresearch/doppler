@@ -502,6 +502,161 @@ contract PredictionMigratorTest is Test {
         assertEq(aliceETHAfter - aliceETHBefore, expectedETH);
         vm.stopPrank();
     }
+    /* -------------------------------------------------------------------------------- */
+    /*                     BUG TESTS: Claim Before All Migrate                         */
+    /* -------------------------------------------------------------------------------- */
+
+    /**
+     * @notice This test verifies the fix for claiming before all entries migrate.
+     * The totalClaimed tracking ensures correct numeraire amount calculation.
+     *
+     * Scenario:
+     * 1. Entry A (winner) and Entry B (loser) both register
+     * 2. Oracle finalizes, Entry A wins
+     * 3. Entry A migrates with 100 ETH -> totalPot = 100
+     * 4. User claims 50 ETH -> balance = 50, totalClaimed = 50
+     * 5. Entry B migrates with 40 ETH -> balance = 90
+     *    numeraireAmount = 90 - (100 - 50) = 40 ✓
+     */
+    function test_migrate_ClaimBeforeAllMigrate_Works() public {
+        // Setup: Register both entries
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenB), address(numeraire), abi.encode(address(oracle), entryIdB));
+
+        // Oracle finalizes - Entry A wins
+        oracle.setWinner(address(tokenA));
+
+        // Entry A migrates with 100 numeraire
+        numeraire.transfer(address(migrator), 100 ether);
+        tokenA.transfer(address(migrator), 400_000 ether); // unsold tokens
+        migrator.migrate(0, address(tokenA), address(numeraire), address(0));
+
+        // Verify Entry A migrated correctly
+        IPredictionMigrator.MarketView memory marketAfterA = migrator.getMarket(address(oracle));
+        assertEq(marketAfterA.totalPot, 100 ether);
+        assertEq(marketAfterA.totalClaimed, 0);
+
+        // User claims 50% of their tokens (gets 50 ETH out)
+        tokenA.transfer(alice, 300_000 ether); // Give alice half the claimable supply (600k)
+
+        vm.startPrank(alice);
+        tokenA.approve(address(migrator), 300_000 ether);
+        migrator.claim(address(oracle), 300_000 ether); // Claims 50 ETH
+        vm.stopPrank();
+
+        // Verify claim worked - alice should have 50 ETH
+        assertEq(numeraire.balanceOf(alice), 50 ether);
+
+        // Verify totalClaimed was incremented
+        IPredictionMigrator.MarketView memory marketAfterClaim = migrator.getMarket(address(oracle));
+        assertEq(marketAfterClaim.totalPot, 100 ether);
+        assertEq(marketAfterClaim.totalClaimed, 50 ether);
+
+        // Entry B migrates with 40 numeraire - should work now!
+        numeraire.transfer(address(migrator), 40 ether);
+        tokenB.transfer(address(migrator), 600_000 ether); // unsold tokens
+        migrator.migrate(0, address(tokenB), address(numeraire), address(0));
+
+        // Verify Entry B migrated correctly
+        IPredictionMigrator.MarketView memory marketFinal = migrator.getMarket(address(oracle));
+        assertEq(marketFinal.totalPot, 140 ether); // 100 + 40
+        assertEq(marketFinal.totalClaimed, 50 ether);
+
+        // Verify entry B contribution
+        IPredictionMigrator.EntryView memory entryB = migrator.getEntry(address(oracle), entryIdB);
+        assertEq(entryB.contribution, 40 ether);
+        assertTrue(entryB.isMigrated);
+    }
+
+    /**
+     * @notice Test that demonstrates the correct behavior when all entries
+     * migrate BEFORE any claims happen.
+     */
+    function test_migrate_AllEntriesMigrateBeforeClaims_Works() public {
+        // Setup: Register both entries
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenB), address(numeraire), abi.encode(address(oracle), entryIdB));
+
+        // Oracle finalizes - Entry A wins
+        oracle.setWinner(address(tokenA));
+
+        // Entry A migrates
+        numeraire.transfer(address(migrator), 100 ether);
+        tokenA.transfer(address(migrator), 400_000 ether);
+        migrator.migrate(0, address(tokenA), address(numeraire), address(0));
+
+        // Entry B migrates BEFORE any claims
+        numeraire.transfer(address(migrator), 50 ether);
+        tokenB.transfer(address(migrator), 600_000 ether);
+        migrator.migrate(0, address(tokenB), address(numeraire), address(0));
+
+        // Verify total pot
+        IPredictionMigrator.MarketView memory market = migrator.getMarket(address(oracle));
+        assertEq(market.totalPot, 150 ether); // 100 + 50
+
+        // Now claims should work correctly
+        uint256 claimableSupply = 600_000 ether;
+        tokenA.transfer(alice, 300_000 ether);
+
+        vm.startPrank(alice);
+        tokenA.approve(address(migrator), 300_000 ether);
+        migrator.claim(address(oracle), 300_000 ether);
+        vm.stopPrank();
+
+        // Alice should get (300k / 600k) * 150 = 75 ETH
+        assertEq(numeraire.balanceOf(alice), 75 ether);
+    }
+
+    /**
+     * @notice Test with ETH numeraire verifies the fix works for native ETH too
+     */
+    function test_migrate_ClaimBeforeAllMigrate_ETH_Works() public {
+        // Setup with ETH as numeraire
+        migrator.initialize(address(tokenA), address(0), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenB), address(0), abi.encode(address(oracle), entryIdB));
+
+        oracle.setWinner(address(tokenA));
+
+        // Entry A migrates with 100 ETH
+        deal(address(this), 200 ether);
+        payable(address(migrator)).transfer(100 ether);
+        tokenA.transfer(address(migrator), 400_000 ether);
+        migrator.migrate(0, address(tokenA), address(0), address(0));
+
+        // Verify Entry A state
+        IPredictionMigrator.MarketView memory marketAfterA = migrator.getMarket(address(oracle));
+        assertEq(marketAfterA.totalPot, 100 ether);
+        assertEq(marketAfterA.totalClaimed, 0);
+
+        // User claims
+        tokenA.transfer(alice, 300_000 ether);
+
+        uint256 aliceBalanceBefore = alice.balance;
+        vm.startPrank(alice);
+        tokenA.approve(address(migrator), 300_000 ether);
+        migrator.claim(address(oracle), 300_000 ether); // Claims 50 ETH
+        vm.stopPrank();
+
+        assertEq(alice.balance - aliceBalanceBefore, 50 ether);
+
+        // Verify totalClaimed
+        IPredictionMigrator.MarketView memory marketAfterClaim = migrator.getMarket(address(oracle));
+        assertEq(marketAfterClaim.totalClaimed, 50 ether);
+
+        // Entry B migrates - should work now!
+        payable(address(migrator)).transfer(40 ether);
+        tokenB.transfer(address(migrator), 600_000 ether);
+        migrator.migrate(0, address(tokenB), address(0), address(0));
+
+        // Verify final state
+        IPredictionMigrator.MarketView memory marketFinal = migrator.getMarket(address(oracle));
+        assertEq(marketFinal.totalPot, 140 ether);
+        assertEq(marketFinal.totalClaimed, 50 ether);
+
+        IPredictionMigrator.EntryView memory entryB = migrator.getEntry(address(oracle), entryIdB);
+        assertEq(entryB.contribution, 40 ether);
+        assertTrue(entryB.isMigrated);
+    }
 }
 
 /* -------------------------------------------------------------------------------- */

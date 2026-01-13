@@ -35,6 +35,7 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
     /// @dev Internal market state
     struct MarketState {
         uint256 totalPot;
+        uint256 totalClaimed;
         address winningToken;
         address numeraire;
         bool isResolved;
@@ -142,7 +143,8 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
 
         // Get numeraire amount being migrated (transferred by Airlock before this call)
         // Note: Airlock deducts fees before transfer, so this is post-fee amount
-        uint256 numeraireAmount = _getNumeraireBalance(numeraire) - market.totalPot;
+        // We use (totalPot - totalClaimed) to account for any claims that happened before this migration
+        uint256 numeraireAmount = _getNumeraireBalance(numeraire) - (market.totalPot - market.totalClaimed);
 
         // Get asset tokens transferred to us (unsold tokens from pool)
         uint256 assetBalance = IERC20(asset).balanceOf(address(this));
@@ -199,6 +201,9 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
         // Tokens are held here permanently (pseudo-burned)
         ERC20(winningToken).safeTransferFrom(msg.sender, address(this), tokenAmount);
 
+        // Update totalClaimed before transfer
+        market.totalClaimed += claimAmount;
+
         // Transfer numeraire to user
         _transferNumeraire(market.numeraire, msg.sender, claimAmount);
 
@@ -210,6 +215,7 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
         MarketState storage market = _markets[oracle];
         return MarketView({
             totalPot: market.totalPot,
+            totalClaimed: market.totalClaimed,
             winningToken: market.winningToken,
             numeraire: market.numeraire,
             isResolved: market.isResolved

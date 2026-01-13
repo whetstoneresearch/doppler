@@ -64,11 +64,13 @@ interface IPredictionMigrator {
 
     /// @notice View struct for market state
     /// @param totalPot Sum of all migrated numeraire for this market
+    /// @param totalClaimed Sum of all claimed numeraire from this market
     /// @param winningToken Address of the winning token (set after resolution)
     /// @param numeraire The quote asset for this market
     /// @param isResolved Whether the market has been resolved (winner determined)
     struct MarketView {
         uint256 totalPot;
+        uint256 totalClaimed;
         address winningToken;
         address numeraire;
         bool isResolved;
