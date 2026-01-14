@@ -12,8 +12,10 @@ contract DeployCloneERC20VotesFactoryScript is Script, Config {
         _loadConfigAndForks("./deployments.config.toml", true);
 
         for (uint256 i; i < chainIds.length; i++) {
-            uint256 chainId = chainIds[i];
-            deployToChain(chainId);
+            if (chainIds[i] == 84_532) {
+                uint256 chainId = chainIds[i];
+                deployToChain(chainId);
+            }
         }
     }
 
@@ -22,7 +24,7 @@ contract DeployCloneERC20VotesFactoryScript is Script, Config {
 
         address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
-        bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xbeef));
+        bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint96(0xa71a52));
 
         vm.startBroadcast();
         address cloneERC20VotesFactory = ICreateX(createX)
