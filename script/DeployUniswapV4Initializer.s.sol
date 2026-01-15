@@ -6,6 +6,7 @@ import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 
 contract DeployUniswapV4InitializerScript is Script, Config {
@@ -26,16 +27,23 @@ contract DeployUniswapV4InitializerScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 dopplerDeployerSalt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xbaaf));
+        bytes32 dopplerDeployerSalt = generateCreate3Salt(msg.sender, type(DopplerDeployer).name);
+        address expectedDoppledDeployer =
+            computeCreate3Address(computeCreate3GuardedSalt(dopplerDeployerSalt, msg.sender), createX);
+
         address dopplerDeployer = ICreateX(createX)
             .deployCreate3(
                 dopplerDeployerSalt, abi.encodePacked(type(DopplerDeployer).creationCode, abi.encode(poolManager))
             );
+        require(dopplerDeployer == expectedDoppledDeployer, "Unexpected DopplerDeployer address");
 
         console.log("DopplerDeployer deployed to:", dopplerDeployer);
         config.set("doppler_deployer", dopplerDeployer);
 
-        bytes32 uniswapV4InitializerSalt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0x001));
+        bytes32 uniswapV4InitializerSalt = generateCreate3Salt(msg.sender, type(UniswapV4Initializer).name);
+        address expectedUniswapV4Initializer =
+            computeCreate3Address(computeCreate3GuardedSalt(uniswapV4InitializerSalt, msg.sender), createX);
+
         address uniswapV4Initializer = ICreateX(createX)
             .deployCreate3(
                 uniswapV4InitializerSalt,
@@ -43,6 +51,8 @@ contract DeployUniswapV4InitializerScript is Script, Config {
                     type(UniswapV4Initializer).creationCode, abi.encode(airlock, poolManager, dopplerDeployer)
                 )
             );
+        require(uniswapV4Initializer == expectedUniswapV4Initializer, "Unexpected UniswapV4Initializer address");
+
         console.log("UniswapV4Initializer deployed to:", uniswapV4Initializer);
         config.set("uniswap_v4_initializer", uniswapV4Initializer);
         vm.stopBroadcast();
