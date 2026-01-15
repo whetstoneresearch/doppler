@@ -32,12 +32,18 @@ contract IncentivesTest is OpeningAuctionBaseTest {
         hook.claimIncentives(1);
     }
 
-    function test_claimIncentives_RevertsWhenNotMigrated() public {
+    function test_claimIncentives_AllowsBeforeMigration() public {
+        int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
+        uint256 positionId = _addBid(alice, tickLower, hook.minLiquidity() * 10);
+
         _warpToAuctionEnd();
         hook.settleAuction();
 
-        vm.expectRevert(IOpeningAuction.AuctionNotMigrated.selector);
-        hook.claimIncentives(1);
+        vm.prank(alice);
+        hook.claimIncentives(positionId);
+
+        AuctionPosition memory pos = hook.positions(positionId);
+        assertTrue(pos.hasClaimedIncentives);
     }
 
     function test_claimIncentives_RevertsWhenPositionNotFound() public {

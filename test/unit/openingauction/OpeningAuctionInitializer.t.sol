@@ -258,7 +258,8 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         OpeningAuctionInitData memory initData = getInitData(60);
         initData.shareToAuctionBps = 2500; // 25%
 
-        bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
+        uint256 expectedAuctionTokens = (AUCTION_TOKENS * 2500) / 10_000;
+        bytes32 salt = mineHookSalt(expectedAuctionTokens, initData.auctionConfig);
         uint256 airlockBalanceBefore = TestERC20(asset).balanceOf(address(this));
 
         address auctionHookAddr = initializer.initialize(
@@ -282,7 +283,6 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             ,
             
         ) = initializer.getState(asset);
-        uint256 expectedAuctionTokens = (AUCTION_TOKENS * 2500) / 10_000;
         uint256 expectedDopplerTokens = AUCTION_TOKENS - expectedAuctionTokens;
 
         assertEq(auctionTokens, expectedAuctionTokens);
@@ -295,10 +295,9 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     /*                         completeAuction Tests                               */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Test that completeAuction forwards proceeds to airlock
-    /// @dev Verifies the proceeds forwarding code path exists and executes correctly.
-    ///      Note: Full integration would require a valid Doppler hook address.
-    function test_completeAuction_forwardsProceedsToAirlock() public {
+    /// @notice Test that completeAuction reverts with an invalid Doppler hook
+    /// @dev Proceeds forwarding is covered in integration tests with valid hook addresses.
+    function test_completeAuction_RevertsWithInvalidDopplerHook() public {
         OpeningAuctionConfig memory config = getDefaultAuctionConfig();
         OpeningAuctionInitData memory initData = getInitData(60);
         
@@ -366,16 +365,37 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         // Since MockDoppler doesn't have a valid hook address, pool init fails.
         // The -vvv trace confirms ProceedsForwarded event IS emitted before revert.
         
-        vm.recordLogs();
-        
-        try initializer.completeAuction(asset) {
-            // Full success path
-        } catch {
-            // Expected: MockDoppler has invalid hook address
-            // Trace with -vvv confirms proceeds forwarding code executes
-        }
-        
-        assertTrue(true, "Proceeds forwarding code path verified via trace");
+        (
+            ,
+            ,
+            ,
+            ,
+            ,
+            OpeningAuctionStatus statusBefore,
+            ,
+            ,
+            ,
+            ,
+            
+        ) = initializer.getState(asset);
+
+        vm.expectRevert();
+        initializer.completeAuction(asset);
+
+        (
+            ,
+            ,
+            ,
+            ,
+            ,
+            OpeningAuctionStatus statusAfter,
+            ,
+            ,
+            ,
+            ,
+            
+        ) = initializer.getState(asset);
+        assertEq(uint8(statusAfter), uint8(statusBefore));
     }
 
     /* -------------------------------------------------------------------------- */

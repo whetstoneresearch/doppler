@@ -42,6 +42,14 @@ interface IOpeningAuctionInitializer is IPoolInitializer {
     /// @param asset The asset token address
     function completeAuction(address asset) external;
 
+    /// @notice Permissionless recovery of incentives when no positions accrued any time
+    /// @param asset The asset token address
+    function recoverOpeningAuctionIncentives(address asset) external;
+
+    /// @notice Permissionless sweep of unclaimed incentives after the claim window
+    /// @param asset The asset token address
+    function sweepOpeningAuctionIncentives(address asset) external;
+
     /// @notice Get the state for an asset's opening auction
     /// @param asset The asset token address
     /// @return state The opening auction state

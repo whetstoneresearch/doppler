@@ -121,6 +121,25 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         assertEq(selector, BaseHook.beforeAddLiquidity.selector);
     }
 
+    function test_beforeAddLiquidity_RevertsBidBelowMinimumLiquidity() public {
+        int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
+        uint128 liquidity = hook.minLiquidity() - 1;
+
+        vm.prank(address(manager));
+        vm.expectRevert(IOpeningAuction.BidBelowMinimumLiquidity.selector);
+        hook.beforeAddLiquidity(
+            alice,
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + key.tickSpacing,
+                liquidityDelta: int256(uint256(liquidity)),
+                salt: bytes32(0)
+            }),
+            ""
+        );
+    }
+
     function test_beforeAddLiquidity_RevertsAfterSettlement() public {
         // Warp to after auction end
         _warpToAuctionEnd();

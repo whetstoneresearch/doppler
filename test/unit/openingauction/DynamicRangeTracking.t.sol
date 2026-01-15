@@ -331,6 +331,38 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
     }
 
+    function test_incentives_IncludeHarvestedTime() public {
+        _createAuction(AUCTION_TOKENS);
+
+        int24 aliceTickLower = -3000;
+        uint128 aliceLiquidity = 2000 ether;
+        uint256 alicePos = _addBid(alice, aliceTickLower, aliceLiquidity);
+
+        assertTrue(auction.isInRange(alicePos), "Alice should be in range initially");
+
+        vm.warp(block.timestamp + 2 days);
+
+        int24 bobTickLower = 0;
+        uint128 bobLiquidity = 2000 ether;
+        uint256 bobPos = _addBid(bob, bobTickLower, bobLiquidity);
+
+        assertTrue(auction.isInRange(bobPos), "Bob should be in range");
+        assertFalse(auction.isInRange(alicePos), "Alice should be out of range");
+
+        _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
+
+        uint256 aliceIncentives = auction.calculateIncentives(alicePos);
+        uint256 bobIncentives = auction.calculateIncentives(bobPos);
+
+        assertApproxEqAbs(aliceIncentives + bobIncentives, auction.incentiveTokensTotal(), 2);
+    }
+
     /// @notice Test that view-based time accrual stops after auction end even before settlement
     function test_viewAccumulation_StopsAfterAuctionEnd() public {
         _createAuction(AUCTION_TOKENS);

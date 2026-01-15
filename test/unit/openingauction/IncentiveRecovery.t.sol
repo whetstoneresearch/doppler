@@ -401,6 +401,69 @@ contract IncentiveRecoveryTest is Test, Deployers {
         auction.claimIncentives(bobPos);
     }
 
+    function test_sweepUnclaimedIncentives_RevertsBeforeDeadline() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        auction = _createAuction(config);
+
+        int24 bidTick = minAcceptableTick + tickSpacing * 10;
+        _addBid(alice, bidTick, 50_000 ether);
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
+
+        vm.prank(creator);
+        vm.expectRevert(IOpeningAuction.ClaimWindowNotEnded.selector);
+        auction.sweepUnclaimedIncentives(creator);
+    }
+
+    function test_sweepUnclaimedIncentives_RevertsWhenNothingToSweep() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.incentiveShareBps = 0;
+        auction = _createAuction(config);
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
+
+        vm.warp(auction.incentivesClaimDeadline() + 1);
+
+        vm.prank(creator);
+        vm.expectRevert(IOpeningAuction.NoUnclaimedIncentives.selector);
+        auction.sweepUnclaimedIncentives(creator);
+    }
+
+    function test_sweepUnclaimedIncentives_RevertsOnSecondSweep() public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        auction = _createAuction(config);
+
+        int24 bidTick = minAcceptableTick + tickSpacing * 10;
+        uint256 alicePos = _addBid(alice, bidTick, 50_000 ether);
+        _addBid(bob, bidTick + tickSpacing, 50_000 ether);
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        vm.prank(creator);
+        auction.migrate(address(this));
+
+        vm.prank(alice);
+        auction.claimIncentives(alicePos);
+
+        vm.warp(auction.incentivesClaimDeadline() + 1);
+
+        vm.prank(creator);
+        auction.sweepUnclaimedIncentives(creator);
+
+        vm.prank(creator);
+        vm.expectRevert(IOpeningAuction.NoUnclaimedIncentives.selector);
+        auction.sweepUnclaimedIncentives(creator);
+    }
+
     // ============ Recovery Failure Scenarios ============
 
     /// @notice Test that recovery fails when positions earned time but haven't claimed

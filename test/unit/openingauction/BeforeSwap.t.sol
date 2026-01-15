@@ -42,7 +42,7 @@ contract BeforeSwapTest is OpeningAuctionBaseTest {
         assertEq(selector, BaseHook.beforeSwap.selector);
     }
 
-    function test_beforeSwap_AllowsSwapsAfterSettlement() public {
+    function test_beforeSwap_StillRestrictsAfterSettlement() public {
         _warpToAuctionEnd();
         hook.settleAuction();
 

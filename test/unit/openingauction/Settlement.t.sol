@@ -68,4 +68,21 @@ contract SettlementTest is OpeningAuctionBaseTest {
         assertEq(hook.totalTokensSold(), 0);
         assertEq(hook.totalProceeds(), 0);
     }
+
+    function test_claimWindow_StartsAtDelayedSettlement() public {
+        int24 tickLower = 0;
+        uint128 liquidity = hook.minLiquidity() * 10;
+        uint256 positionId = _addBid(alice, tickLower, liquidity);
+
+        vm.warp(hook.auctionEndTime() + 40 days);
+        hook.settleAuction();
+
+        vm.prank(initializer);
+        hook.migrate(address(this));
+
+        assertGt(hook.incentivesClaimDeadline(), block.timestamp);
+
+        vm.prank(alice);
+        hook.claimIncentives(positionId);
+    }
 }

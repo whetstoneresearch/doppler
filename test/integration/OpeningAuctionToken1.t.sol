@@ -379,6 +379,71 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.stopPrank();
     }
 
+    function test_fuzz_bidValidation_MinAcceptableTickToken1(
+        uint256 offsetSeed,
+        uint256 liquiditySeed
+    ) public {
+        OpeningAuctionConfig memory config = getDefaultConfig();
+
+        (bytes32 salt,) = mineHookSalt(
+            address(auctionDeployer),
+            creator,
+            AUCTION_TOKENS,
+            config
+        );
+
+        vm.startPrank(creator);
+        OpeningAuction auction = auctionDeployer.deploy(
+            AUCTION_TOKENS,
+            salt,
+            abi.encode(config)
+        );
+        TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setIsToken0(false);
+
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
+            fee: config.fee,
+            tickSpacing: config.tickSpacing,
+            hooks: IHooks(address(auction))
+        });
+
+        int24 startingTick = alignTickTowardZero(TickMath.MIN_TICK, config.tickSpacing);
+        manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
+        vm.stopPrank();
+
+        int24 limitTick = auction.minAcceptableTick();
+        int24 offset = int24(int256(offsetSeed % 7)) - 3;
+        int24 tickLower = limitTick + offset * config.tickSpacing;
+
+        vm.assume(tickLower >= TickMath.MIN_TICK);
+        vm.assume(tickLower + config.tickSpacing <= TickMath.MAX_TICK);
+
+        uint128 liquidity = auction.minLiquidity() + uint128(liquiditySeed % 1e18);
+
+        vm.startPrank(alice);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        bytes32 bidSalt = keccak256(abi.encode(alice, bidNonce++));
+        if (offset > 0) {
+            vm.expectRevert();
+        }
+
+        modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + config.tickSpacing,
+                liquidityDelta: int256(uint256(liquidity)),
+                salt: bidSalt
+            }),
+            abi.encode(alice)
+        );
+        vm.stopPrank();
+    }
+
     // ============ Multiple Bidders Test ============
 
     /// @notice Test multiple bidders with isToken0=false
