@@ -381,12 +381,15 @@ contract DERC20Test is Test {
         assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedMint, "Wrong total supply");
     }
 
-    function test_burn_RevertsWhenInvalidOwner() public {
+    function test_burn_AnyoneCanBurnTheirOwnTokens() public {
+        address user = address(0xbeef);
+        uint256 burnAmount = 100 ether;
+
         token = new DERC20(
             NAME,
             SYMBOL,
             INITIAL_SUPPLY,
-            RECIPIENT,
+            user, // mint initial supply to user
             address(this),
             YEARLY_MINT_RATE,
             VESTING_DURATION,
@@ -394,9 +397,17 @@ contract DERC20Test is Test {
             new uint256[](0),
             ""
         );
-        vm.prank(address(0xbeef));
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xbeef)));
-        token.burn(0);
+
+        // Must unlock pool first - burning transfers to address(0) which matches
+        // the default pool address, so pool must be unlocked for burn to work
+        token.unlockPool();
+
+        uint256 balanceBefore = token.balanceOf(user);
+        vm.prank(user);
+        token.burn(burnAmount);
+        uint256 balanceAfter = token.balanceOf(user);
+
+        assertEq(balanceBefore - balanceAfter, burnAmount, "Burn amount should match");
     }
 
     function test_burn_RevertsWhenBurnAmountExceedsBalance() public {
