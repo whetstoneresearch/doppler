@@ -728,6 +728,9 @@ contract Doppler is BaseHook {
                 - uint128(state.feesAccrued.amount1());
         }
 
+        uint256 remainingTokensToSell = numTokensToSell - totalTokensSold_;
+        if (assetAvailable > remainingTokensToSell) assetAvailable = remainingTokensToSell;
+
         // Compute new positions
         SlugData memory lowerSlug =
             _computeLowerSlugData(key, requiredProceeds, numeraireAvailable, totalTokensSold_, tickLower, currentTick);
