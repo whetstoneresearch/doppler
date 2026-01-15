@@ -9,7 +9,6 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -21,7 +20,7 @@ import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.so
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { Curve, Multicurve } from "src/libraries/MulticurveLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -71,6 +70,13 @@ event Swap(
     int128 amount1,
     bytes hookData
 );
+
+/**
+ * @notice Emitted when a user delegates their pool authority to another address
+ * @param user Address of the user delegating their authority
+ * @param authority Address of the delegated authority
+ */
+event DelegateAuthority(address indexed user, address indexed authority);
 
 /// @notice Thrown when the caller is not the Uniswap V4 Multicurve Initializer
 error OnlyInitializer();
@@ -264,62 +270,45 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         uint256 totalTokensOnBondingCurve,
         InitData memory initData
     ) private returns (PoolKey memory poolKey, Position[] memory positions) {
-        (
-            Curve[] memory curves,
-            int24 farTick,
-            address dopplerHook,
-            int24 tickSpacing,
-            uint24 fee,
-            BeneficiaryData[] memory beneficiaries,
-            bytes memory graduationDopplerHookCalldata
-        ) = (
-            initData.curves,
-            initData.farTick,
-            initData.dopplerHook,
-            initData.tickSpacing,
-            initData.fee,
-            initData.beneficiaries,
-            initData.graduationDopplerHookCalldata
-        );
-
         poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
             hooks: IHooks(address(this)),
-            fee: dopplerHook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : fee,
-            tickSpacing: tickSpacing
+            fee: initData.dopplerHook != address(0) ? LPFeeLibrary.DYNAMIC_FEE_FLAG : initData.fee,
+            tickSpacing: initData.tickSpacing
         });
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
         (Curve[] memory adjustedCurves, int24 lowerTickBoundary, int24 upperTickBoundary) =
-            adjustCurves(curves, 0, tickSpacing, isToken0);
+            Multicurve.adjustCurves(initData.curves, 0, initData.tickSpacing, isToken0);
 
         int24 startTick;
 
         if (isToken0) {
             startTick = lowerTickBoundary;
-            require(farTick > startTick && farTick <= upperTickBoundary, UnreachableFarTick());
+            require(initData.farTick > startTick && initData.farTick <= upperTickBoundary, UnreachableFarTick());
         } else {
             startTick = upperTickBoundary;
-            farTick = -farTick;
-            require(farTick < startTick && farTick >= lowerTickBoundary, UnreachableFarTick());
+            initData.farTick = -initData.farTick;
+            require(initData.farTick < startTick && initData.farTick >= lowerTickBoundary, UnreachableFarTick());
         }
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
-        positions = calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+        positions =
+            Multicurve.calculatePositions(adjustedCurves, initData.tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
-            beneficiaries: beneficiaries,
+            beneficiaries: initData.beneficiaries,
             adjustedCurves: adjustedCurves,
             totalTokensOnBondingCurve: totalTokensOnBondingCurve,
-            dopplerHook: dopplerHook,
-            graduationDopplerHookCalldata: graduationDopplerHookCalldata,
-            status: beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
+            dopplerHook: initData.dopplerHook,
+            graduationDopplerHookCalldata: initData.graduationDopplerHookCalldata,
+            status: initData.beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
-            farTick: farTick
+            farTick: initData.farTick
         });
 
         getState[asset] = state;
@@ -349,7 +338,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
         sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
-        Position[] memory positions = calculatePositions(
+        Position[] memory positions = Multicurve.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, positions);
@@ -367,6 +356,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
      * @param delegatedAuthority Address to delgate to
      */
     function delegateAuthority(address delegatedAuthority) external {
+        emit DelegateAuthority(msg.sender, delegatedAuthority);
         getAuthority[msg.sender] = delegatedAuthority;
     }
 
@@ -468,7 +458,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     function getPositions(address asset) public view returns (Position[] memory) {
         PoolState memory state = getState[asset];
         address token0 = Currency.unwrap(state.poolKey.currency0);
-        Position[] memory positions = calculatePositions(
+        Position[] memory positions = Multicurve.calculatePositions(
             state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
         return positions;
@@ -545,11 +535,23 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         address asset = getAsset[key.toId()];
         PoolState memory state = getState[asset];
         address dopplerHook = state.dopplerHook;
+
+        int128 delta;
+
         if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
-            IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+            Currency feeCurrency;
+            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+
+            if (delta != 0) {
+                poolManager.take(feeCurrency, address(this), uint128(delta));
+                poolManager.sync(feeCurrency);
+                feeCurrency.transfer(address(poolManager), uint128(delta));
+                poolManager.settleFor(dopplerHook);
+            }
         }
+
         emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
-        return (BaseHook.afterSwap.selector, 0);
+        return (BaseHook.afterSwap.selector, delta);
     }
 
     /// @inheritdoc BaseHook
@@ -566,7 +568,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             beforeDonate: false,
             afterDonate: false,
             beforeSwapReturnDelta: false,
-            afterSwapReturnDelta: false,
+            afterSwapReturnDelta: true,
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });

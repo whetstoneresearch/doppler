@@ -16,7 +16,9 @@ bytecode_hash = "none"
 optimizer = true
 # gas_limit = "8000000000"
 create2_deployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
+dynamic_test_linking = true
 gas_limit = "18446744073709551615"
+# memory_limit = 0xFFFFFFFF
 
 [fuzz]
 max_test_rejects = 10000000

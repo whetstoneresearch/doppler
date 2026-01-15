@@ -33,6 +33,7 @@
   },
   "1301": {
     "Airlock": "0x0d2f38d807bfad5c18e430516e10ab560d300caf",
+    "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "Bundler": "0xed344444633b965cd148f8ffce3765938a179094",
     "DopplerDeployer": "0x77b5f559ee9cf3bfcf2fff5731a84332d8eecac9",
     "DopplerLensQuoter": "0x917da361072ce968acd810bbfc9b64079426ebf0",
@@ -51,6 +52,9 @@
     "UniswapV4MulticurveInitializer": "0xac7939f1b4079d55a7fa4dfa314ac0173a77ba40",
     "UniswapV4MulticurveInitializerHook": "0x11b55a121a38fdab8faf16f9f1a4f124e3f42d40"
   },
+  "4326": {
+    "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA"
+  },
   "4801": {
     "Airlock": "0x5f3ba43d44375286296cb85f1ea2ebfa25dde731",
     "GovernanceFactory": "0x136191b46478cab023cbc01a36160c4aad81677a",
@@ -58,6 +62,9 @@
     "UniswapV2Migrator": "0x8b4c7db9121fc885689c0a50d5a1429f15aec2a0",
     "UniswapV3Initializer": "0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
+  },
+  "6343": {
+    "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA"
   },
   "8453": {
     "Airlock": "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12",
@@ -84,6 +91,7 @@
   },
   "10143": {
     "Airlock": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b",
+    "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "Bundler": "0xf6023127f6e937091d5b605680056a6d27524bad",
     "DopplerDeployer": "0x166109c4ee7fe69164631caa937daa5f5cebfef0",
     "DopplerLensQuoter": "0x2f2bacd46d3f5c9ee052ab392b73711db89129db",
@@ -116,14 +124,18 @@
   },
   "84532": {
     "Airlock": "0x3411306ce66c9469bff1535ba955503c4bde1c6e",
+    "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "BasicMultisig": "0x6f645fa08b7eadad620cec85634204b1d7a46dc2",
     "Bundler": "0xab7bacb0d5c2c10152f92d34e07f530eb3cb0fb1",
     "DopplerDeployer": "0x82d727ffda3f874da802663fc2f3f4b83dc3aaba",
+    "DopplerHookInitializer": "0x98cd6478debe443069db863abb9626d94de9a544",
     "DopplerLensQuoter": "0x4a8d81db741248a36d9eb3bc6ef648bf798b47a7",
     "GovernanceFactory": "0x9dbfaadc8c0cb2c34ba698dd9426555336992e20",
     "LockableUniswapV3Initializer": "0x16ada5be50c3c2d94af5feae6b539c40a78ad53c",
+    "MulticurveLibrary": "0x32238a39ba5af060efbfada59979b639e0945fe0",
     "NoOpGovernanceFactory": "0x7bd798fafc99a3b17e261f8308a8c11b56935ea1",
     "NoOpMigrator": "0xf11066abbd329ac4bba39455340539322c222eb0",
+    "RehypeDopplerHook": "0x636a756cee08775cc18780f52dd90b634f18ad37",
     "StreamableFeesLocker": "0x3345e557c5c0b474be1eb4693264008b8562aa9c",
     "TeamGovernanceFactory": "0x8af3001ed75f86f4dd910577eca9c5db7cea765c",
     "TokenFactory": "0x9d8fd79b2a59c5d91ccbd79c3aeb4de56451bb02",

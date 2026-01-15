@@ -6,8 +6,8 @@ icon: pen-field
 
 Here are the networks that Doppler is officially deployed to:
 
-- Mainnets: Unichain, Monad Mainnet, Base, Ink
-- Testnets: Unichain Sepolia, World Chain Sepolia, Monad Testnet, Base Sepolia
+- Mainnets: Unichain, Monad Mainnet, MegaETH Mainnet, Base, Ink
+- Testnets: Unichain Sepolia, World Chain Sepolia, MegaETH Testnet, Monad Testnet, Base Sepolia
 
 {% hint style="danger" %}
 If there are contracts not reflected here but claiming to be instances of Doppler, they are not considered canonical. Use with caution. :rotating_light:
@@ -48,6 +48,10 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | UniswapV2Migrator | [0x1361...677a](https://monadscan.com/address/0x136191b46478cab023cbc01a36160c4aad81677a) | [0x8bc6...7e7c](https://monadscan.com/tx/0x8bc6824df7736dff712eb6e73d50d55c27021b4b7272f44347af51d59a0e7e7c) | [cc6efe5](https://github.com/whetstoneresearch/doppler/commit/cc6efe5) | 
 | UniswapV4ScheduledMulticurveInitializer | [0xce30...1783](https://monadscan.com/address/0xce3099b2f07029b086e5e92a1573c5f5a3071783) | [0xfa28...f5f5](https://monadscan.com/tx/0xfa2834c7ce46f45b5a828fa5f77276ba2ad3617a1c3fc9912dcae9ee90fbf5f5) | [cc6efe5](https://github.com/whetstoneresearch/doppler/commit/cc6efe5) | 
 | UniswapV4ScheduledMulticurveInitializerHook | [0x580c...2dc0](https://monadscan.com/address/0x580ca49389d83b019d07e17e99454f2f218e2dc0) | [0x8a48...1760](https://monadscan.com/tx/0x8a481a8f14f091dc0446c0e952931022d07db6e32b8ae7f815083fb044821760) | [cc6efe5](https://github.com/whetstoneresearch/doppler/commit/cc6efe5) | 
+### MegaETH Mainnet (4326)
+| Contract | Address | Transaction | Commit |
+|---|---|---|---|
+| Airlock | [0xDe35...9dFA](https://megaeth.blockscout.com/address/0xDe3599a2eC440B296373a983C85C365DA55d9dFA) | [0xd285...e18b](https://megaeth.blockscout.com/tx/0xd285fe561c1a277ee5bf2c00bc66a3ddcadb41e2c35156009af2dd768805e18b) | [de7f4b6](https://github.com/whetstoneresearch/doppler/commit/de7f4b6) | 
 ### Base (8453)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
@@ -90,6 +94,7 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
 | Airlock | [0x0d2f...0caf](https://sepolia.uniscan.xyz/address/0x0d2f38d807bfad5c18e430516e10ab560d300caf) | [0x0243...de13](https://sepolia.uniscan.xyz/tx/0x024368e2a9ce89057268d32c1d4bd97d626cf691143b10446fe74a55ebabde13) | [a324c47](https://github.com/whetstoneresearch/doppler/commit/a324c47) | 
+| AirlockMultisigTestnet | [0x0abc...4426](https://sepolia.uniscan.xyz/address/0x0abcf819fd57c9f0141628410ffc273405e44426) | [0x134d...e6aa](https://sepolia.uniscan.xyz/tx/0x134daa52b7b2198e5b59ef8edf4e7088efb99de6de6aece834e2a56efd28e6aa) | [ee35a52](https://github.com/whetstoneresearch/doppler/commit/ee35a52) | 
 | Bundler | [0xed34...9094](https://sepolia.uniscan.xyz/address/0xed344444633b965cd148f8ffce3765938a179094) | [0xcd22...51eb](https://sepolia.uniscan.xyz/tx/0xcd22ffb56eeb7b4ff3bd763f1c1d2a409331782c2536584aa9e5730d42cf51eb) | [d31ceb9](https://github.com/whetstoneresearch/doppler/commit/d31ceb9) | 
 | DopplerDeployer | [0x77b5...cac9](https://sepolia.uniscan.xyz/address/0x77b5f559ee9cf3bfcf2fff5731a84332d8eecac9) | [0x459e...67d1](https://sepolia.uniscan.xyz/tx/0x459e2d2d9c0cc9b625806bf19209dfbefc8eb2b72cd9cc8db18f0b4f1a6267d1) | [4ffc0e3](https://github.com/whetstoneresearch/doppler/commit/4ffc0e3) | 
 | DopplerLensQuoter | [0x917d...ebf0](https://sepolia.uniscan.xyz/address/0x917da361072ce968acd810bbfc9b64079426ebf0) | [0xdfb4...21bb](https://sepolia.uniscan.xyz/tx/0xdfb424b7f1c91062dd3de28e0110787cb1892997377308324b9011fbe6b321bb) | [d31ceb9](https://github.com/whetstoneresearch/doppler/commit/d31ceb9) | 
@@ -116,10 +121,15 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | UniswapV2Migrator | [0x8b4c...c2a0](https://worldchain-sepolia.explorer.alchemy.com/address/0x8b4c7db9121fc885689c0a50d5a1429f15aec2a0) | [0x47c7...e038](https://worldchain-sepolia.explorer.alchemy.com/tx/0x47c72166896f99cbda81baeeee0b5a85dbb4c33106a417fac366a571c718e038) | [06d865d](https://github.com/whetstoneresearch/doppler/commit/06d865d) | 
 | UniswapV3Initializer | [0x9916...c82a](https://worldchain-sepolia.explorer.alchemy.com/address/0x9916ec1c1e0462f6f8f7514e414f06bf001ac82a) | [0xf4fd...de36](https://worldchain-sepolia.explorer.alchemy.com/tx/0xf4fd354b45833b12f08573d571109b80196d2c4ec7277decfee3b9222ae7de36) | [06d865d](https://github.com/whetstoneresearch/doppler/commit/06d865d) | 
 | WETH | [0x660e...8d12](https://worldchain-sepolia.explorer.alchemy.com/address/0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12) | [0x0253...9980](https://worldchain-sepolia.explorer.alchemy.com/tx/0x02534e55c0e49c98c9d5e3626e2b462d20520be2687102651326f821ae689980) | [06d865d](https://github.com/whetstoneresearch/doppler/commit/06d865d) | 
+### MegaETH Testnet (6343)
+| Contract | Address | Transaction | Commit |
+|---|---|---|---|
+| Airlock | [0xDe35...9dFA](https://megaeth-testnet-v2.blockscout.com/address/0xDe3599a2eC440B296373a983C85C365DA55d9dFA) | [0xe066...d0b9](https://megaeth-testnet-v2.blockscout.com/tx/0xe066583a4d2bc23d6dbf4efcf2ab030b19826607b58a46f63d3d462823bed0b9) | [de7f4b6](https://github.com/whetstoneresearch/doppler/commit/de7f4b6) | 
 ### Monad Testnet (10143)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
 | Airlock | [0xa82c...2d4b](https://testnet.monadscan.com/address/0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b) | [0x14e4...fe8e](https://testnet.monadscan.com/tx/0x14e4234fef06b8d31f2ce5c26928a4c70464bd29babbe1313828d4737f10fe8e) | [15f32a9](https://github.com/whetstoneresearch/doppler/commit/15f32a9) | 
+| AirlockMultisigTestnet | [0x0abc...4426](https://testnet.monadscan.com/address/0x0abcf819fd57c9f0141628410ffc273405e44426) | [0xd925...7a19](https://testnet.monadscan.com/tx/0xd925bf4bde5595a579c1ba13dadbc61933fb6fe9faa34491f58264c3eb5d7a19) | [ee35a52](https://github.com/whetstoneresearch/doppler/commit/ee35a52) | 
 | Bundler | [0xf602...4bad](https://testnet.monadscan.com/address/0xf6023127f6e937091d5b605680056a6d27524bad) | [0x0a85...cebe](https://testnet.monadscan.com/tx/0x0a8543ce858537bea3721322267a96ced2f26c44e2328f6e60805fb34a74cebe) | [15f32a9](https://github.com/whetstoneresearch/doppler/commit/15f32a9) | 
 | DopplerDeployer | [0x1661...fef0](https://testnet.monadscan.com/address/0x166109c4ee7fe69164631caa937daa5f5cebfef0) | [0xce23...ad7f](https://testnet.monadscan.com/tx/0xce237988f69d8a9e830590563a1cecc1c51ac59a41e7b306de437bd76a04ad7f) | [ac29a72](https://github.com/whetstoneresearch/doppler/commit/ac29a72) | 
 | DopplerLensQuoter | [0x2f2b...29db](https://testnet.monadscan.com/address/0x2f2bacd46d3f5c9ee052ab392b73711db89129db) | [0x86ef...55e1](https://testnet.monadscan.com/tx/0x86effd750c220122289a035a7ea55f34a614bd5c8ad0b13ee6c3406c707055e1) | [ac29a72](https://github.com/whetstoneresearch/doppler/commit/ac29a72) | 
@@ -142,14 +152,18 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
 | Airlock | [0x3411...1c6e](https://sepolia.basescan.org/address/0x3411306ce66c9469bff1535ba955503c4bde1c6e) | [0x5508...1b5a](https://sepolia.basescan.org/tx/0x550857ce00eb6b050fbd0a089bbd516226b88ee05a052792c7d380acd7a61b5a) | [68b9f34](https://github.com/whetstoneresearch/doppler/commit/68b9f34) | 
+| AirlockMultisigTestnet | [0x0abc...4426](https://sepolia.basescan.org/address/0x0abcf819fd57c9f0141628410ffc273405e44426) | [0xb2c5...12a4](https://sepolia.basescan.org/tx/0xb2c5e7493f5da21edd21baeaf5c68b09075bd0722811ac3b5fe849385bd112a4) | [ee35a52](https://github.com/whetstoneresearch/doppler/commit/ee35a52) | 
 | BasicMultisig | [0x6f64...6dc2](https://sepolia.basescan.org/address/0x6f645fa08b7eadad620cec85634204b1d7a46dc2) | [0xf3e3...37f5](https://sepolia.basescan.org/tx/0xf3e31f7e1fc95be7236d66bb43108d1c373fee18f4eba65c34f928f0b4ae37f5) | [efa0f4e](https://github.com/whetstoneresearch/doppler/commit/efa0f4e) | 
 | Bundler | [0xab7b...0fb1](https://sepolia.basescan.org/address/0xab7bacb0d5c2c10152f92d34e07f530eb3cb0fb1) | [0x0d87...ddbf](https://sepolia.basescan.org/tx/0x0d8732852ef18071040b78954204f1b2b28c7490e395d5c8d2422228299cddbf) | [68b9f34](https://github.com/whetstoneresearch/doppler/commit/68b9f34) | 
 | DopplerDeployer | [0x82d7...aaba](https://sepolia.basescan.org/address/0x82d727ffda3f874da802663fc2f3f4b83dc3aaba) | [0xebb7...9744](https://sepolia.basescan.org/tx/0xebb7d6c93ee9f4762e1ba19e011f5235536e001634a40f993fa61c449a439744) | [4ffc0e3](https://github.com/whetstoneresearch/doppler/commit/4ffc0e3) | 
+| DopplerHookInitializer | [0x98cd...a544](https://sepolia.basescan.org/address/0x98cd6478debe443069db863abb9626d94de9a544) | [0xe398...7cc2](https://sepolia.basescan.org/tx/0xe398d12729b69ec8a017cb19e80d40bd78878b1e5e50879ed4d8a221e2867cc2) | [c6dd10c](https://github.com/whetstoneresearch/doppler/commit/c6dd10c) | 
 | DopplerLensQuoter | [0x4a8d...47a7](https://sepolia.basescan.org/address/0x4a8d81db741248a36d9eb3bc6ef648bf798b47a7) | [0x403a...dc6d](https://sepolia.basescan.org/tx/0x403a8a37966866e14fa673221f07b770a764bf8fcae238882021e6e76912dc6d) | [68b9f34](https://github.com/whetstoneresearch/doppler/commit/68b9f34) | 
 | GovernanceFactory | [0x9dbf...2e20](https://sepolia.basescan.org/address/0x9dbfaadc8c0cb2c34ba698dd9426555336992e20) | [0xfb4b...c2cc](https://sepolia.basescan.org/tx/0xfb4b43d9ed92a62705b497a48668673ee0b5d35ea02075066a44a8e2d4bcc2cc) | [68b9f34](https://github.com/whetstoneresearch/doppler/commit/68b9f34) | 
 | LockableUniswapV3Initializer | [0x16ad...d53c](https://sepolia.basescan.org/address/0x16ada5be50c3c2d94af5feae6b539c40a78ad53c) | [0x029d...1c2e](https://sepolia.basescan.org/tx/0x029d8d87e753b383fc5afa33a8639bf28e32144dd8de519a38bde94e8b0b1c2e) | [3d77e8f](https://github.com/whetstoneresearch/doppler/commit/3d77e8f) | 
+| MulticurveLibrary | [0x3223...5fe0](https://sepolia.basescan.org/address/0x32238a39ba5af060efbfada59979b639e0945fe0) | [0x9afc...dcc6](https://sepolia.basescan.org/tx/0x9afc063c7ef68b1ecad9721d425646b592d4daddae3848e2a758e12b4938dcc6) | [c6dd10c](https://github.com/whetstoneresearch/doppler/commit/c6dd10c) | 
 | NoOpGovernanceFactory | [0x7bd7...5ea1](https://sepolia.basescan.org/address/0x7bd798fafc99a3b17e261f8308a8c11b56935ea1) | [0xf89e...d650](https://sepolia.basescan.org/tx/0xf89e9f684ba171864ec0bce988f5971732d7650e258f824c2294f5b8df1cd650) | [51f9aec](https://github.com/whetstoneresearch/doppler/commit/51f9aec) | 
 | NoOpMigrator | [0xf110...2eb0](https://sepolia.basescan.org/address/0xf11066abbd329ac4bba39455340539322c222eb0) | [0xc184...95df](https://sepolia.basescan.org/tx/0xc184a1d61256f247e7ec65390c65056a4f3179adcde70c304702f7ca465895df) | [6a2dbfd](https://github.com/whetstoneresearch/doppler/commit/6a2dbfd) | 
+| RehypeDopplerHook | [0x636a...ad37](https://sepolia.basescan.org/address/0x636a756cee08775cc18780f52dd90b634f18ad37) | [0x998e...c23f](https://sepolia.basescan.org/tx/0x998e473a68194f50e246240636c808f8f16bf83387e6cf8c5ba3b56015b7c23f) | [6422c8e](https://github.com/whetstoneresearch/doppler/commit/6422c8e) | 
 | StreamableFeesLocker | [0x3345...aa9c](https://sepolia.basescan.org/address/0x3345e557c5c0b474be1eb4693264008b8562aa9c) | [0x1525...d850](https://sepolia.basescan.org/tx/0x15259da74d713e9ed69c8491a945383a5c27df167eb149f9310a04365b59d850) | [9de0ce5](https://github.com/whetstoneresearch/doppler/commit/9de0ce5) | 
 | TeamGovernanceFactory | [0x8af3...765c](https://sepolia.basescan.org/address/0x8af3001ed75f86f4dd910577eca9c5db7cea765c) | [0xf537...702c](https://sepolia.basescan.org/tx/0xf5379cdfc220b2a0fdb08d5e142c7d1762090ca88fabae666c99ec646fe1702c) | [88c548e](https://github.com/whetstoneresearch/doppler/commit/88c548e) | 
 | TokenFactory | [0x9d8f...bb02](https://sepolia.basescan.org/address/0x9d8fd79b2a59c5d91ccbd79c3aeb4de56451bb02) | [0x5f65...2d36](https://sepolia.basescan.org/tx/0x5f65e11a19bbd7196038459660b244aace158814aa860560d0d03f7fe9072d36) | [df3705a](https://github.com/whetstoneresearch/doppler/commit/df3705a) | 

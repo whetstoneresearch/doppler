@@ -3,15 +3,16 @@ pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
+import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
 import { Airlock } from "src/Airlock.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
 import { IUniswapV3Factory, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
-import { AirlockMultisig } from "test/shared/AirlockMultisig.sol";
 
 struct ScriptData {
     uint256 chainId;
@@ -51,8 +52,7 @@ abstract contract DeployV3Script is Script {
         // Deploy the Airlock Multisig and transfer ownership to it
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
-
-        AirlockMultisig airlockMultisig = new AirlockMultisig(airlock, signers);
+        AirlockMultisigTestnet airlockMultisig = new AirlockMultisigTestnet(signers);
 
         vm.stopBroadcast();
     }
