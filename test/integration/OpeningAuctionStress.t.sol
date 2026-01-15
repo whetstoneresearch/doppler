@@ -257,8 +257,8 @@ contract OpeningAuctionStressTest is Test, Deployers {
             }
         }
         
-        // Should complete without errors
-        assertTrue(true);
+        // At least one position should have been created
+        assertGt(hook.nextPositionId(), 1);
     }
 
     /// @notice Test incentive claims with many positions

@@ -466,7 +466,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
 
         currentTick = clearingTick;
-        incentivesClaimDeadline = auctionEndTime + INCENTIVE_CLAIM_WINDOW;
+        incentivesClaimDeadline = block.timestamp + INCENTIVE_CLAIM_WINDOW;
 
         AuctionPhase closedPhase = phase;
         phase = AuctionPhase.Settled;
@@ -478,7 +478,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @inheritdoc IOpeningAuction
     function claimIncentives(uint256 positionId) external nonReentrant {
         if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
-        if (!isMigrated) revert AuctionNotMigrated();
         if (block.timestamp > incentivesClaimDeadline) revert ClaimWindowEnded();
 
         AuctionPosition storage pos = _positions[positionId];
@@ -501,6 +500,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @inheritdoc IOpeningAuction
     function migrate(address recipient)
         external
+        nonReentrant
         returns (
             uint160 sqrtPriceX96,
             address token0,
@@ -514,8 +514,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (msg.sender != initializer) revert SenderNotInitializer();
         if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
 
-        isMigrated = true;
-
         sqrtPriceX96 = TickMath.getSqrtPriceAtTick(clearingTick);
 
         token0 = Currency.unwrap(poolKey.currency0);
@@ -528,16 +526,20 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         // Reserve incentive tokens for LP claims - they stay in this contract
         uint256 reservedIncentives = incentiveTokensTotal;
+        uint256 claimedIncentives = totalIncentivesClaimed;
+        reservedIncentives = claimedIncentives < reservedIncentives
+            ? reservedIncentives - claimedIncentives
+            : 0;
         if (isToken0) {
             // Asset is token0, reserve incentives from token0 balance
             uint256 transferable0 = rawBalance0 > reservedIncentives ? rawBalance0 - reservedIncentives : 0;
-            balance0 = uint128(transferable0);
-            balance1 = uint128(rawBalance1);
+            balance0 = transferable0.toUint128();
+            balance1 = rawBalance1.toUint128();
         } else {
             // Asset is token1, reserve incentives from token1 balance
-            balance0 = uint128(rawBalance0);
+            balance0 = rawBalance0.toUint128();
             uint256 transferable1 = rawBalance1 > reservedIncentives ? rawBalance1 - reservedIncentives : 0;
-            balance1 = uint128(transferable1);
+            balance1 = transferable1.toUint128();
         }
 
         // Transfer to recipient (excluding reserved incentives)
@@ -547,6 +549,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (balance1 > 0) {
             token1.safeTransfer(recipient, balance1);
         }
+
+        isMigrated = true;
 
         // No separate fee tracking in this simple implementation
         fees0 = 0;
@@ -705,7 +709,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         // Validate minimum liquidity to prevent dust bid griefing
         // This prevents attackers from creating many tiny positions to bloat activeTicks
-        if (uint128(uint256(params.liquidityDelta)) < minLiquidity) {
+        if (uint256(params.liquidityDelta).toUint128() < minLiquidity) {
             revert BidBelowMinimumLiquidity();
         }
 
@@ -727,7 +731,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             address owner = _decodeOwner(hookData);
 
             // Get liquidity (params.liquidityDelta is positive for adds)
-            uint128 liquidity = uint128(uint256(params.liquidityDelta));
+            uint128 liquidity = uint256(params.liquidityDelta).toUint128();
 
             // IMPORTANT: Update tick accumulator BEFORE adding liquidity
             // This ensures the new position doesn't earn rewards for time before it existed
@@ -815,7 +819,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             // Disallow partial removals - must remove full position liquidity
             // This prevents incentive accounting corruption where pos.liquidity isn't decremented
             AuctionPosition memory pos = _positions[positionId];
-            uint128 liquidityToRemove = uint128(uint256(-params.liquidityDelta));
+            uint128 liquidityToRemove = uint256(-params.liquidityDelta).toUint128();
             if (liquidityToRemove != pos.liquidity) revert PartialRemovalNotAllowed();
         } else if (phase == AuctionPhase.Closed) {
             // Block removals during settlement to prevent race condition with cached denominator
@@ -869,7 +873,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             }
 
             // Decrement liquidity tracking (liquidityDelta is negative for removals)
-            uint128 liquidityRemoved = uint128(uint256(-params.liquidityDelta));
+            uint128 liquidityRemoved = uint256(-params.liquidityDelta).toUint128();
             liquidityAtTick[params.tickLower] -= liquidityRemoved;
             
             emit LiquidityRemovedFromTick(params.tickLower, liquidityRemoved, liquidityAtTick[params.tickLower]);

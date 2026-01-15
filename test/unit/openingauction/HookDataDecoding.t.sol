@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
-import { AuctionPosition, OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
+import { AuctionPosition, OpeningAuctionConfig, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { PoolManager } from "@v4-core/PoolManager.sol";
@@ -105,5 +105,23 @@ contract HookDataDecodingTest is OpeningAuctionBaseTest {
 
         AuctionPosition memory pos = hook.positions(positionId);
         assertEq(pos.liquidity, 0);
+    }
+
+    function test_hookDataMissingOwner_RevertsBeforeRemoveLiquidity() public {
+        int24 tickLower = hook.minAcceptableTick();
+
+        vm.prank(address(manager));
+        vm.expectRevert(IOpeningAuction.HookDataMissingOwner.selector);
+        hook.beforeRemoveLiquidity(
+            alice,
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + key.tickSpacing,
+                liquidityDelta: -int256(uint256(1 ether)),
+                salt: bytes32(0)
+            }),
+            ""
+        );
     }
 }

@@ -73,6 +73,14 @@ contract OpeningAuctionImpl is OpeningAuction {
         if (!hasActiveTicks) return (0, 0);
         return (_decompressTick(minActiveTick), _decompressTick(maxActiveTick));
     }
+
+    function isTickActive(int24 tick) external view returns (bool) {
+        return _isTickActive(tick);
+    }
+
+    function getTickRewardDebtSumX128(int24 tick) external view returns (uint256) {
+        return tickRewardDebtSumX128[tick];
+    }
 }
 
 // ============ Handler Contract ============
@@ -114,6 +122,15 @@ contract OpeningAuctionHandler is Test {
 
     /// @notice Track whether auction has been migrated
     bool public ghost_isMigrated;
+
+    /// @notice Track whether incentives were swept
+    bool public ghost_hasSwept;
+
+    /// @notice Track whether incentives were recovered
+    bool public ghost_hasRecovered;
+
+    /// @notice Track if any in-range position was removed successfully
+    bool public ghost_removedInRange;
 
     /// @notice Initializer address for migrate calls
     address public initializer;
@@ -313,6 +330,90 @@ contract OpeningAuctionHandler is Test {
         }
     }
 
+    /// @notice Attempt to remove an in-range position (should revert)
+    /// @param positionSeed Seed for selecting which position to remove
+    function tryRemoveInRange(uint256 positionSeed) external {
+        if (hook.phase() != AuctionPhase.Active) return;
+        if (ghost_removedInRange) return;
+
+        currentActor = actors.rand(positionSeed);
+        if (currentActor == address(0)) return;
+
+        uint256[] storage positions = actorPositions[currentActor];
+        if (positions.length == 0) return;
+
+        uint256 idx = positionSeed % positions.length;
+        uint256 positionId = positions[idx];
+
+        AuctionPosition memory pos = hook.positions(positionId);
+        if (pos.owner == address(0) || pos.liquidity == 0) return;
+        if (!hook.isInRange(positionId)) return;
+
+        vm.startPrank(currentActor);
+        try modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: pos.tickLower,
+                tickUpper: pos.tickUpper,
+                liquidityDelta: -int256(uint256(pos.liquidity)),
+                salt: positionSalts[positionId]
+            }),
+            abi.encode(currentActor)
+        ) {
+            ghost_removedInRange = true;
+        } catch {
+            // Expected to revert
+        }
+        vm.stopPrank();
+    }
+
+    /// @notice Sweep unclaimed incentives after the claim window
+    function sweepUnclaimedIncentives() external {
+        if (hook.phase() != AuctionPhase.Settled) return;
+        if (block.timestamp <= hook.incentivesClaimDeadline()) return;
+        if (ghost_hasSwept) return;
+
+        if (!hook.isMigrated()) {
+            vm.prank(initializer);
+            try hook.migrate(address(this)) {
+                ghost_isMigrated = true;
+            } catch {
+                return;
+            }
+        }
+
+        vm.prank(initializer);
+        try hook.sweepUnclaimedIncentives(initializer) {
+            ghost_hasSwept = true;
+        } catch {
+            // Sweep failed
+        }
+    }
+
+    /// @notice Recover incentives when no positions earned time
+    function recoverIncentives() external {
+        if (hook.phase() != AuctionPhase.Settled) return;
+        if (ghost_hasRecovered) return;
+        if (hook.cachedTotalWeightedTimeX128() > 0) return;
+        if (hook.incentiveTokensTotal() == 0) return;
+
+        if (!hook.isMigrated()) {
+            vm.prank(initializer);
+            try hook.migrate(address(this)) {
+                ghost_isMigrated = true;
+            } catch {
+                return;
+            }
+        }
+
+        vm.prank(initializer);
+        try hook.recoverIncentives(initializer) {
+            ghost_hasRecovered = true;
+        } catch {
+            // Recovery failed
+        }
+    }
+
     /// @notice Force warp to auction end for testing settlement
     function warpToAuctionEnd() external {
         if (hook.phase() == AuctionPhase.Active) {
@@ -479,13 +580,16 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
         handler = new OpeningAuctionHandler(hook, manager, modifyLiquidityRouter, key, isToken0, initializer);
         vm.label(address(handler), "Handler");
 
-        bytes4[] memory selectors = new bytes4[](6);
+        bytes4[] memory selectors = new bytes4[](9);
         selectors[0] = handler.addBid.selector;
         selectors[1] = handler.removeBid.selector;
         selectors[2] = handler.warpTime.selector;
         selectors[3] = handler.settleAuction.selector;
         selectors[4] = handler.claimIncentives.selector;
         selectors[5] = handler.warpToAuctionEnd.selector;
+        selectors[6] = handler.tryRemoveInRange.selector;
+        selectors[7] = handler.sweepUnclaimedIncentives.selector;
+        selectors[8] = handler.recoverIncentives.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
@@ -640,6 +744,66 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
         }
     }
 
+    /// @notice Additional: After migration, reserved balance matches incentive accounting
+    function invariant_reserved_balance_matches_accounting() public view {
+        if (!hook.isMigrated()) return;
+
+        (Currency currency0, Currency currency1,,,) = hook.poolKey();
+        Currency assetCurrency = hook.isToken0() ? currency0 : currency1;
+        uint256 balance = TestERC20(Currency.unwrap(assetCurrency)).balanceOf(address(hook));
+
+        uint256 reserved = hook.incentiveTokensTotal() - hook.totalIncentivesClaimed();
+        assertEq(balance, reserved, "Reserved balance mismatch");
+    }
+
+    /// @notice Additional: Removing in-range liquidity should never succeed
+    function invariant_no_in_range_removals() public view {
+        assertFalse(handler.ghost_removedInRange(), "In-range removal succeeded");
+    }
+
+    /// @notice Additional: Ticks with liquidity are always active and counted
+    function invariant_active_ticks_match_positions() public view {
+        uint256 positionCount = handler.getPositionCount();
+        int24[] memory uniqueTicks = new int24[](positionCount);
+        uint256 uniqueCount = 0;
+
+        for (uint256 i = 0; i < positionCount; i++) {
+            uint256 posId = handler.getPositionIdAt(i);
+            AuctionPosition memory pos = hook.positions(posId);
+
+            if (pos.owner == address(0) || pos.liquidity == 0) continue;
+
+            bool seen = false;
+            for (uint256 j = 0; j < uniqueCount; j++) {
+                if (uniqueTicks[j] == pos.tickLower) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (!seen) {
+                uniqueTicks[uniqueCount++] = pos.tickLower;
+                assertTrue(hook.isTickActive(pos.tickLower), "Tick with liquidity not active");
+            }
+        }
+
+        assertEq(uniqueCount, hook.getActiveTicksLength(), "Active tick count mismatch");
+    }
+
+    /// @notice Additional: sweep/recover set expected accounting state
+    function invariant_sweep_recover_accounting() public view {
+        if (handler.ghost_hasSwept()) {
+            assertEq(
+                hook.incentiveTokensTotal(),
+                hook.totalIncentivesClaimed(),
+                "Sweep should zero remaining incentives"
+            );
+        }
+
+        if (handler.ghost_hasRecovered()) {
+            assertEq(hook.incentiveTokensTotal(), 0, "Recover should zero incentives");
+        }
+    }
+
     /// @notice Additional: Total pending + claimed ≤ incentiveTokensTotal
     /// @dev Sum of all incentives (claimed and pending) must not exceed total
     function invariant_total_incentives_bounded() public view {
@@ -675,9 +839,105 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
         }
     }
 
+    /// @notice Additional: Active tick metadata matches derived values
+    function invariant_active_tick_metadata_consistent() public view {
+        int24[] memory activeTicks = hook.getActiveTicks();
+        uint256 count = activeTicks.length;
+
+        assertEq(count, hook.getActiveTicksLength(), "Active tick count mismatch");
+        assertEq(hook.getHasActiveTicks(), count > 0, "hasActiveTicks mismatch");
+
+        if (count > 0) {
+            int24 minTick = activeTicks[0];
+            int24 maxTick = activeTicks[0];
+
+            for (uint256 i = 1; i < count; i++) {
+                int24 tick = activeTicks[i];
+                if (tick < minTick) minTick = tick;
+                if (tick > maxTick) maxTick = tick;
+            }
+
+            (int24 boundMin, int24 boundMax) = hook.getActiveTickBounds();
+            assertEq(boundMin, minTick, "Min active tick mismatch");
+            assertEq(boundMax, maxTick, "Max active tick mismatch");
+        }
+    }
+
+    /// @notice Additional: Positions see their ticks as active
+    function invariant_positions_on_active_ticks() public view {
+        uint256 positionCount = handler.getPositionCount();
+
+        for (uint256 i = 0; i < positionCount; i++) {
+            uint256 posId = handler.getPositionIdAt(i);
+            AuctionPosition memory pos = hook.positions(posId);
+
+            if (pos.owner == address(0) || pos.liquidity == 0) continue;
+
+            assertTrue(hook.isTickActive(pos.tickLower), "Position tick not active");
+        }
+    }
+
+    /// @notice Additional: liquidityAtTick equals sum of live position liquidity at each active tick
+    function invariant_liquidityAtTick_matches_positions() public view {
+        int24[] memory activeTicks = hook.getActiveTicks();
+        uint256 positionCount = handler.getPositionCount();
+
+        for (uint256 i = 0; i < activeTicks.length; i++) {
+            int24 tick = activeTicks[i];
+            uint256 sumLiquidity = 0;
+
+            for (uint256 j = 0; j < positionCount; j++) {
+                uint256 posId = handler.getPositionIdAt(j);
+                AuctionPosition memory pos = hook.positions(posId);
+
+                if (pos.owner == address(0) || pos.liquidity == 0) continue;
+                if (pos.tickLower != tick) continue;
+
+                sumLiquidity += pos.liquidity;
+            }
+
+            assertEq(sumLiquidity, hook.liquidityAtTick(tick), "Liquidity sum mismatch");
+        }
+    }
+
+    /// @notice Additional: Reward debt sum per tick matches active positions
+    function invariant_reward_debt_sum_matches_positions() public view {
+        int24[] memory activeTicks = hook.getActiveTicks();
+        uint256 positionCount = handler.getPositionCount();
+
+        for (uint256 i = 0; i < activeTicks.length; i++) {
+            int24 tick = activeTicks[i];
+            uint256 sumRewardDebt = 0;
+
+            for (uint256 j = 0; j < positionCount; j++) {
+                uint256 posId = handler.getPositionIdAt(j);
+                AuctionPosition memory pos = hook.positions(posId);
+
+                if (pos.owner == address(0) || pos.liquidity == 0) continue;
+                if (pos.tickLower != tick) continue;
+
+                sumRewardDebt += pos.rewardDebtX128 * uint256(pos.liquidity);
+            }
+
+            assertEq(sumRewardDebt, hook.getTickRewardDebtSumX128(tick), "Reward debt sum mismatch");
+        }
+    }
+
+    /// @notice Additional: Total harvested time equals sum of per-position harvested time
+    function invariant_total_harvested_time_matches_positions() public view {
+        uint256 positionCount = handler.getPositionCount();
+        uint256 totalHarvested = 0;
+
+        for (uint256 i = 0; i < positionCount; i++) {
+            uint256 posId = handler.getPositionIdAt(i);
+            totalHarvested += hook.positionHarvestedTimeX128(posId);
+        }
+
+        assertEq(totalHarvested, hook.totalHarvestedTimeX128(), "Harvested time mismatch");
+    }
+
     /// @notice Sanity check that handler is working
     function invariant_handler_tracking() public view {
-        // Just verify handler state is accessible
-        assertTrue(true, "Handler accessible");
+        assertTrue(address(handler) != address(0), "Handler accessible");
     }
 }

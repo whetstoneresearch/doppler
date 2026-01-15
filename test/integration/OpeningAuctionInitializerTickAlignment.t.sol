@@ -148,7 +148,10 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
         assertTrue(clearingTick % dopplerTickSpacing != 0, "clearing tick should be misaligned");
         int24 expectedAligned = alignTick(auctionHook.isToken0(), clearingTick, dopplerTickSpacing);
         _setDopplerSalt(auctionHook, initData.dopplerData, expectedAligned);
+        uint256 airlockBefore = TestERC20(numeraire).balanceOf(airlock);
         initializer.completeAuction(asset);
+        uint256 airlockAfter = TestERC20(numeraire).balanceOf(airlock);
+        assertGt(airlockAfter - airlockBefore, 0, "numeraire proceeds not forwarded");
         _assertDopplerStartTick(poolKey, dopplerTickSpacing, expectedAligned);
     }
 

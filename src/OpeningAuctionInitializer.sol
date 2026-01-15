@@ -79,6 +79,12 @@ error InvalidShareToAuctionBps();
 /// @notice Thrown when auction allocation rounds to zero
 error AuctionAllocationTooSmall();
 
+/// @notice Thrown when an auction has not been initialized
+error AuctionNotInitialized();
+
+/// @notice Thrown when an asset has not been initialized
+error AssetNotInitialized();
+
 /// @notice Emitted when an opening auction transitions to Doppler
 event AuctionCompleted(
     address indexed asset,
@@ -393,6 +399,49 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         emit StatusChanged(asset, oldStatus, OpeningAuctionStatus.DopplerActive);
 
         emit AuctionCompleted(asset, alignedClearingTick, tokensSold, proceeds);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                    Incentive recovery / sweeping helpers                   */
+    /* -------------------------------------------------------------------------- */
+
+    /// @notice Permissionless recovery for the edge-case where no tick accrued any
+    ///         in-range time (i.e., cachedTotalWeightedTimeX128 == 0).
+    ///         Sends recovered incentive tokens to the Airlock owner.
+    function recoverOpeningAuctionIncentives(address asset) external nonReentrant {
+        OpeningAuctionState storage state = getState[asset];
+        if (state.status == OpeningAuctionStatus.Uninitialized) revert AssetNotInitialized();
+
+        OpeningAuction(payable(state.openingAuctionHook)).recoverIncentives(airlock.owner());
+    }
+
+    /// @notice Permissionless sweep of remaining/unclaimed incentive tokens after
+    ///         the claim window ends. Sends swept incentives to the Airlock owner.
+    function sweepOpeningAuctionIncentives(address asset) external nonReentrant {
+        OpeningAuctionState storage state = getState[asset];
+        if (state.status == OpeningAuctionStatus.Uninitialized) revert AssetNotInitialized();
+
+        OpeningAuction(payable(state.openingAuctionHook)).sweepUnclaimedIncentives(airlock.owner());
+    }
+
+    /// @notice Sweep unclaimed auction incentives after the claim window
+    /// @param asset The asset token address
+    /// @param recipient The recipient of swept incentives
+    function sweepAuctionIncentives(address asset, address recipient) external onlyAirlock {
+        OpeningAuctionState storage state = getState[asset];
+        if (state.status == OpeningAuctionStatus.Uninitialized) revert AuctionNotInitialized();
+
+        OpeningAuction(payable(state.openingAuctionHook)).sweepUnclaimedIncentives(recipient);
+    }
+
+    /// @notice Recover incentive tokens when no positions earned time
+    /// @param asset The asset token address
+    /// @param recipient The recipient of recovered incentives
+    function recoverAuctionIncentives(address asset, address recipient) external onlyAirlock {
+        OpeningAuctionState storage state = getState[asset];
+        if (state.status == OpeningAuctionStatus.Uninitialized) revert AuctionNotInitialized();
+
+        OpeningAuction(payable(state.openingAuctionHook)).recoverIncentives(recipient);
     }
 
     /// @inheritdoc IPoolInitializer
