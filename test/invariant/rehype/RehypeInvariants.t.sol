@@ -90,7 +90,7 @@ contract RehypeInvariantsTest is RehypeSetup {
 
     /// @notice INV-003: Hook must always hold enough tokens to cover beneficiary fees
     function invariant_HookSolventForBeneficiaryFees() public view {
-        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         uint256 hookBalance0 = poolKey.currency0.balanceOf(address(rehypeDopplerHook));
         uint256 hookBalance1 = poolKey.currency1.balanceOf(address(rehypeDopplerHook));
@@ -102,7 +102,7 @@ contract RehypeInvariantsTest is RehypeSetup {
     /// @notice INV-004: After swap processing, temporary fee variables should be below EPSILON
     /// @dev Fees below EPSILON (1e6) are intentionally not distributed to save gas
     function invariant_NoStuckTemporaryFees() public view {
-        (uint128 fees0, uint128 fees1,,,) = rehypeDopplerHook.getHookFees(poolId);
+        (uint128 fees0, uint128 fees1,,,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         // EPSILON = 1e6 - fees below this threshold are intentionally not processed
         uint128 EPSILON = 1e6;
@@ -144,7 +144,7 @@ contract RehypeInvariantsTest is RehypeSetup {
 
     /// @notice INV-008: Custom fee must remain within valid bounds
     function invariant_CustomFeeWithinBounds() public view {
-        (,,,, uint24 storedCustomFee) = rehypeDopplerHook.getHookFees(poolId);
+        (,,,,,, uint24 storedCustomFee) = rehypeDopplerHook.getHookFees(poolId);
 
         // MAX_SWAP_FEE = 1e6 (100%)
         assertLe(storedCustomFee, 1e6, "Custom fee exceeds maximum (1e6)");
@@ -189,7 +189,7 @@ contract RehypeInvariantsTest is RehypeSetup {
         (,, uint128 liquidity,) = rehypeDopplerHook.getPosition(poolId);
         console.log("Current LP liquidity:     ", liquidity);
 
-        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeDopplerHook.getHookFees(poolId);
         console.log("Beneficiary fees0:        ", beneficiaryFees0);
         console.log("Beneficiary fees1:        ", beneficiaryFees1);
 
@@ -267,7 +267,7 @@ contract RehypeInvariantsETHTest is RehypeSetup {
 
     /// @notice INV-003 (ETH): Hook must be solvent
     function invariant_HookSolventForBeneficiaryFees() public view {
-        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         uint256 hookBalance0 = poolKey.currency0.balanceOf(address(rehypeDopplerHook));
         uint256 hookBalance1 = poolKey.currency1.balanceOf(address(rehypeDopplerHook));
@@ -279,7 +279,7 @@ contract RehypeInvariantsETHTest is RehypeSetup {
     /// @notice INV-004 (ETH): Temporary fees should be below EPSILON
     /// @dev Fees below EPSILON (1e6) are intentionally not distributed to save gas
     function invariant_NoStuckTemporaryFees() public view {
-        (uint128 fees0, uint128 fees1,,,) = rehypeDopplerHook.getHookFees(poolId);
+        (uint128 fees0, uint128 fees1,,,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         uint128 EPSILON = 1e6;
         assertLe(fees0, EPSILON, "Stuck fees0 exceeds EPSILON (ETH)");
@@ -437,7 +437,7 @@ contract RehypeInvariantsFullBeneficiaryTest is RehypeSetup {
     }
 
     function invariant_HookSolvent() public view {
-        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         uint256 hookBalance0 = poolKey.currency0.balanceOf(address(rehypeDopplerHook));
         uint256 hookBalance1 = poolKey.currency1.balanceOf(address(rehypeDopplerHook));
@@ -451,7 +451,7 @@ contract RehypeInvariantsFullBeneficiaryTest is RehypeSetup {
         console.log("=== 100% Beneficiary Fee Test ===");
         console.log("Swaps: ", handler.ghost_successfulSwaps());
         console.log("Collections: ", handler.ghost_feeCollections());
-        (,, uint128 bf0, uint128 bf1,) = rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 bf0, uint128 bf1,,,) = rehypeDopplerHook.getHookFees(poolId);
         console.log("Pending fees0: ", bf0);
         console.log("Pending fees1: ", bf1);
         console.log("=================================");
@@ -572,7 +572,7 @@ contract RehypeInvariantsZeroFeeTest is RehypeSetup {
 
     /// @notice With zero fee, no beneficiary fees should accumulate
     function invariant_NoBeneficiaryFeesWithZeroFee() public view {
-        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         assertEq(beneficiaryFees0, 0, "Beneficiary fees0 accumulated with zero fee");
         assertEq(beneficiaryFees1, 0, "Beneficiary fees1 accumulated with zero fee");
@@ -582,7 +582,7 @@ contract RehypeInvariantsZeroFeeTest is RehypeSetup {
         console.log("");
         console.log("=== Zero Custom Fee Test ===");
         console.log("Swaps: ", handler.ghost_successfulSwaps());
-        (,,,, uint24 fee) = rehypeDopplerHook.getHookFees(poolId);
+        (,,,,,, uint24 fee) = rehypeDopplerHook.getHookFees(poolId);
         console.log("Custom fee: ", fee);
         console.log("============================");
     }

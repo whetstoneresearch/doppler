@@ -188,7 +188,7 @@ contract RehypeHandler is Test {
         (,, uint128 liquidity,) = hook.getPosition(poolId);
         ghost_lastLiquidity = liquidity;
 
-        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = hook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = hook.getHookFees(poolId);
         ghost_lastBeneficiaryFees0 = beneficiaryFees0;
         ghost_lastBeneficiaryFees1 = beneficiaryFees1;
     }
@@ -288,7 +288,7 @@ contract RehypeHandler is Test {
             }
 
             // Update ghost state
-            (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,) = hook.getHookFees(poolId);
+            (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,,,) = hook.getHookFees(poolId);
             ghost_lastBeneficiaryFees0 = beneficiaryFees0After;
             ghost_lastBeneficiaryFees1 = beneficiaryFees1After;
 

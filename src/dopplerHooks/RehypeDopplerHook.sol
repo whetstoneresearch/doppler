@@ -25,10 +25,19 @@ error FeeDistributionMustAddUpToWAD();
 /// @notice Thrown when the sender is not a beneficiary of the pool
 error SenderNotBeneficiary();
 
+/// @notice Thrown when the sender is not the airlock owner
+error SenderNotAirlockOwner();
+
 // Constants
 uint256 constant MAX_SWAP_FEE = 1e6;
 uint128 constant EPSILON = 1e6;
 uint256 constant MAX_REBALANCE_ITERATIONS = 15;
+
+/// @dev Airlock owner fee in basis points (5% = 500 BPS)
+uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
+
+/// @dev Basis points denominator
+uint256 constant BPS_DENOMINATOR = 10_000;
 
 /**
  * @title Rehype Doppler Hook
@@ -57,6 +66,16 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /// @notice Pool info for each pool
     mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
+
+    /// @notice Airlock owner address for each pool (for fee claims)
+    mapping(PoolId poolId => address airlockOwner) public getAirlockOwner;
+
+    /// @notice Emitted when airlock owner claims fees
+    /// @param poolId The pool from which fees were claimed
+    /// @param airlockOwner The address that received the fees
+    /// @param fees0 Amount of currency0 claimed
+    /// @param fees1 Amount of currency1 claimed
+    event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
 
     /**
      * @param initializer Address of the DopplerHookInitializer contract
@@ -96,6 +115,9 @@ contract RehypeDopplerHook is BaseDopplerHook {
         });
 
         getHookFees[poolId].customFee = customFee;
+
+        // Store airlock owner for fee claims
+        getAirlockOwner[poolId] = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
 
         // Initialize position
         getPosition[poolId] = Position({
@@ -563,6 +585,34 @@ contract RehypeDopplerHook is BaseDopplerHook {
     }
 
     /**
+     * @notice Claims accumulated airlock owner fees for a pool
+     * @param asset Asset address to identify the pool
+     * @return fees0 Amount of currency0 claimed
+     * @return fees1 Amount of currency1 claimed
+     */
+    function claimAirlockOwnerFees(address asset) external returns (uint128 fees0, uint128 fees1) {
+        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        PoolId poolId = poolKey.toId();
+
+        address airlockOwner = getAirlockOwner[poolId];
+        require(msg.sender == airlockOwner, SenderNotAirlockOwner());
+
+        fees0 = getHookFees[poolId].airlockOwnerFees0;
+        fees1 = getHookFees[poolId].airlockOwnerFees1;
+
+        if (fees0 > 0) {
+            poolKey.currency0.transfer(airlockOwner, fees0);
+            getHookFees[poolId].airlockOwnerFees0 = 0;
+        }
+        if (fees1 > 0) {
+            poolKey.currency1.transfer(airlockOwner, fees1);
+            getHookFees[poolId].airlockOwnerFees1 = 0;
+        }
+
+        emit AirlockOwnerFeesClaimed(poolId, airlockOwner, fees0, fees1);
+    }
+
+    /**
      * @notice Updates the fee distribution for a pool
      * @param poolId Uniswap V4 poolId
      * @param assetBuybackPercentWad Percentage for asset buyback (in WAD)
@@ -669,10 +719,16 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         poolManager.take(feeCurrency, address(this), feeAmount);
 
+        // Calculate airlock owner fee (5% of total fee)
+        uint256 airlockOwnerFee = FullMath.mulDiv(feeAmount, AIRLOCK_OWNER_FEE_BPS, BPS_DENOMINATOR);
+        uint256 remainingFee = feeAmount - airlockOwnerFee;
+
         if (feeCurrency == key.currency0) {
-            getHookFees[poolId].fees0 += uint128(feeAmount);
+            getHookFees[poolId].airlockOwnerFees0 += uint128(airlockOwnerFee);
+            getHookFees[poolId].fees0 += uint128(remainingFee);
         } else {
-            getHookFees[poolId].fees1 += uint128(feeAmount);
+            getHookFees[poolId].airlockOwnerFees1 += uint128(airlockOwnerFee);
+            getHookFees[poolId].fees1 += uint128(remainingFee);
         }
 
         return (feeCurrency, int128(uint128(feeAmount)));

@@ -98,7 +98,7 @@ contract MultiPoolRehypeInvariantsTest is MultiPoolRehypeSetup {
             PoolId poolId = getPoolId(i);
             PoolKey memory key = getPoolKey(i);
 
-            (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeDopplerHook.getHookFees(poolId);
+            (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
             uint256 hookBalance0 = key.currency0.balanceOf(address(rehypeDopplerHook));
             uint256 hookBalance1 = key.currency1.balanceOf(address(rehypeDopplerHook));
@@ -122,7 +122,7 @@ contract MultiPoolRehypeInvariantsTest is MultiPoolRehypeSetup {
 
         for (uint256 i = 0; i < NUM_POOLS; i++) {
             PoolId poolId = getPoolId(i);
-            (uint128 fees0, uint128 fees1,,,) = rehypeDopplerHook.getHookFees(poolId);
+            (uint128 fees0, uint128 fees1,,,,,) = rehypeDopplerHook.getHookFees(poolId);
 
             assertLe(
                 fees0,
@@ -204,7 +204,7 @@ contract MultiPoolRehypeInvariantsTest is MultiPoolRehypeSetup {
     function invariant_CustomFeeWithinBoundsPerPool() public view {
         for (uint256 i = 0; i < NUM_POOLS; i++) {
             PoolId poolId = getPoolId(i);
-            (,,,, uint24 storedCustomFee) = rehypeDopplerHook.getHookFees(poolId);
+            (,,,,,, uint24 storedCustomFee) = rehypeDopplerHook.getHookFees(poolId);
 
             assertLe(
                 storedCustomFee,
@@ -259,7 +259,7 @@ contract MultiPoolRehypeInvariantsTest is MultiPoolRehypeSetup {
         for (uint256 i = 0; i < NUM_POOLS; i++) {
             PoolId poolId = getPoolId(i);
             bool isToken0 = getIsToken0(i);
-            (,, uint128 bf0, uint128 bf1,) = rehypeDopplerHook.getHookFees(poolId);
+            (,, uint128 bf0, uint128 bf1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
             // Numeraire is token1 if asset is token0, else token0
             totalNumeraireFees += isToken0 ? bf1 : bf0;
@@ -388,7 +388,7 @@ contract MultiPoolRehypeInvariantsTest is MultiPoolRehypeSetup {
             (,, uint128 liquidity,) = rehypeDopplerHook.getPosition(getPoolId(i));
             console.log("  Current LP liquidity: ", liquidity);
 
-            (,, uint128 bf0, uint128 bf1,) = rehypeDopplerHook.getHookFees(getPoolId(i));
+            (,, uint128 bf0, uint128 bf1,,,) = rehypeDopplerHook.getHookFees(getPoolId(i));
             console.log("  Beneficiary fees0:    ", bf0);
             console.log("  Beneficiary fees1:    ", bf1);
 
@@ -470,7 +470,7 @@ contract MultiPoolRehypeInvariantsETHTest is MultiPoolRehypeSetup {
     function invariant_HookSolventForBeneficiaryFees() public view {
         for (uint256 i = 0; i < NUM_POOLS; i++) {
             PoolKey memory key = getPoolKey(i);
-            (,, uint128 bf0, uint128 bf1,) = rehypeDopplerHook.getHookFees(getPoolId(i));
+            (,, uint128 bf0, uint128 bf1,,,) = rehypeDopplerHook.getHookFees(getPoolId(i));
 
             uint256 hookBalance0 = key.currency0.balanceOf(address(rehypeDopplerHook));
             uint256 hookBalance1 = key.currency1.balanceOf(address(rehypeDopplerHook));
@@ -488,7 +488,7 @@ contract MultiPoolRehypeInvariantsETHTest is MultiPoolRehypeSetup {
         for (uint256 i = 0; i < NUM_POOLS; i++) {
             PoolId poolId = getPoolId(i);
             bool isToken0 = getIsToken0(i);
-            (,, uint128 bf0, uint128 bf1,) = rehypeDopplerHook.getHookFees(poolId);
+            (,, uint128 bf0, uint128 bf1,,,) = rehypeDopplerHook.getHookFees(poolId);
 
             // ETH (numeraire) is token1 if asset is token0, else token0
             // Actually for ETH, Currency.wrap(address(0)) represents ETH
@@ -702,15 +702,15 @@ contract MultiPoolVaryingFeesTest is MultiPoolRehypeSetup {
 
     function invariant_ZeroFeePoolNoFees() public view {
         // Pool 0 has zero custom fee, so no beneficiary fees should accumulate
-        (,, uint128 bf0, uint128 bf1,) = rehypeDopplerHook.getHookFees(getPoolId(0));
+        (,, uint128 bf0, uint128 bf1,,,) = rehypeDopplerHook.getHookFees(getPoolId(0));
         assertEq(bf0, 0, "Zero-fee pool accumulated fees0");
         assertEq(bf1, 0, "Zero-fee pool accumulated fees1");
     }
 
     function invariant_CustomFeesPreserved() public view {
-        (,,,, uint24 fee0) = rehypeDopplerHook.getHookFees(getPoolId(0));
-        (,,,, uint24 fee1) = rehypeDopplerHook.getHookFees(getPoolId(1));
-        (,,,, uint24 fee2) = rehypeDopplerHook.getHookFees(getPoolId(2));
+        (,,,,,, uint24 fee0) = rehypeDopplerHook.getHookFees(getPoolId(0));
+        (,,,,,, uint24 fee1) = rehypeDopplerHook.getHookFees(getPoolId(1));
+        (,,,,,, uint24 fee2) = rehypeDopplerHook.getHookFees(getPoolId(2));
 
         assertEq(fee0, 0, "Pool 0 fee changed");
         assertEq(fee1, 10000, "Pool 1 fee changed");
