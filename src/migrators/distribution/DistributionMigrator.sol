@@ -32,6 +32,12 @@ error UnderlyingNotWhitelisted();
 /// @notice Thrown when underlying migrator's airlock is not this contract
 error UnderlyingNotForwarded();
 
+/// @notice Thrown when underlying V4 migrator is not approved in locker (optional preflight)
+error UnderlyingNotLockerApproved();
+
+/// @notice Thrown when hook's migrator doesn't match underlying (optional preflight)
+error UnderlyingHookMismatch();
+
 // ============ Events ============
 
 /**
@@ -59,6 +65,22 @@ event WrappedMigration(
 /// @notice Interface to check if a contract has an airlock() accessor
 interface IHasAirlock {
     function airlock() external view returns (Airlock);
+}
+
+/// @notice Interface for V4 migrator preflight checks
+interface IV4MigratorPreflight {
+    function locker() external view returns (address);
+    function migratorHook() external view returns (address);
+}
+
+/// @notice Interface for StreamableFeesLocker approval check
+interface ILockerApproval {
+    function approvedMigrators(address) external view returns (bool);
+}
+
+/// @notice Interface for hook migrator binding check
+interface IHookMigrator {
+    function migrator() external view returns (address);
 }
 
 // ============ Storage ============
@@ -154,6 +176,10 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
             revert UnderlyingNotForwarded();
         }
 
+        // Optional V4 preflight checks (fail-fast for V4 migrators)
+        // These are SHOULD checks per spec - helps catch misconfiguration early
+        _performV4PreflightChecks(underlyingMigrator);
+
         // Store config (underlyingData is NOT stored per spec)
         getDistributionConfig[token0][token1] = DistributionConfig({
             payout: payout, percentWad: percentWad, underlying: ILiquidityMigrator(underlyingMigrator), asset: asset
@@ -190,6 +216,10 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
         } else {
             revert AssetMismatch();
         }
+
+        // CEI Pattern: Delete config BEFORE external calls to prevent reentrancy
+        // We've already loaded config into memory, so this is safe
+        delete getDistributionConfig[token0][token1];
 
         // Compute numeraire balance and distribution
         uint256 numeraireBalance;
@@ -235,8 +265,40 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         // Call underlying migrate
         liquidity = config.underlying.migrate{ value: ethToForward }(sqrtPriceX96, token0, token1, recipient);
+    }
 
-        // Optional: delete config to save gas (storage refund)
-        delete getDistributionConfig[token0][token1];
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Performs optional V4 preflight checks for fail-fast validation
+     * @dev These are SHOULD checks per spec - helps catch misconfiguration at create-time rather than migrate-time
+     * @param underlyingMigrator Address of the underlying migrator to check
+     */
+    function _performV4PreflightChecks(address underlyingMigrator) internal view {
+        // Try to get locker and check approval (V4 migrators only)
+        try IV4MigratorPreflight(underlyingMigrator).locker() returns (address locker) {
+            if (locker != address(0)) {
+                try ILockerApproval(locker).approvedMigrators(underlyingMigrator) returns (bool approved) {
+                    if (!approved) revert UnderlyingNotLockerApproved();
+                } catch {
+                    // Locker doesn't have approvedMigrators - skip check
+                }
+            }
+        } catch {
+            // Not a V4 migrator or doesn't have locker() - skip check
+        }
+
+        // Try to get hook and check migrator binding (V4 migrators only)
+        try IV4MigratorPreflight(underlyingMigrator).migratorHook() returns (address hook) {
+            if (hook != address(0)) {
+                try IHookMigrator(hook).migrator() returns (address hookMigrator) {
+                    if (hookMigrator != underlyingMigrator) revert UnderlyingHookMismatch();
+                } catch {
+                    // Hook doesn't have migrator() - skip check
+                }
+            }
+        } catch {
+            // Not a V4 migrator or doesn't have migratorHook() - skip check
+        }
     }
 }

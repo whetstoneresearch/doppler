@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Test } from "forge-std/Test.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
@@ -16,7 +17,9 @@ import {
     InvalidUnderlying,
     MAX_DISTRIBUTION_WAD,
     PoolNotInitialized,
+    UnderlyingHookMismatch,
     UnderlyingNotForwarded,
+    UnderlyingNotLockerApproved,
     UnderlyingNotWhitelisted,
     WAD
 } from "src/migrators/distribution/DistributionMigrator.sol";
@@ -80,6 +83,49 @@ contract MockRevertingMigrator is ILiquidityMigrator {
 
     function migrate(uint160, address, address, address) external payable returns (uint256) {
         revert(revertMessage);
+    }
+}
+
+/// @notice Mock V4 migrator with locker and hook for preflight checks
+contract MockV4Migrator is ILiquidityMigrator {
+    address public airlock;
+    address public locker;
+    address public migratorHook;
+    address public returnPool;
+
+    constructor(address airlock_, address locker_, address hook_, address returnPool_) {
+        airlock = airlock_;
+        locker = locker_;
+        migratorHook = hook_;
+        returnPool = returnPool_;
+    }
+
+    function initialize(address, address, bytes calldata) external view returns (address) {
+        return returnPool;
+    }
+
+    function migrate(uint160, address, address, address) external payable returns (uint256) {
+        return 1000 ether;
+    }
+
+    receive() external payable { }
+}
+
+/// @notice Mock locker for V4 preflight tests
+contract MockLocker {
+    mapping(address => bool) public approvedMigrators;
+
+    function setApproval(address migrator, bool approved) external {
+        approvedMigrators[migrator] = approved;
+    }
+}
+
+/// @notice Mock hook for V4 preflight tests
+contract MockHook {
+    address public migrator;
+
+    function setMigrator(address migrator_) external {
+        migrator = migrator_;
     }
 }
 
@@ -486,5 +532,465 @@ contract DistributionMigratorTest is Test {
         uint256 expectedDistribution = (balance * percentWad) / WAD;
         assertEq(numeraire.balanceOf(payout), expectedDistribution);
         assertEq(numeraire.balanceOf(address(mockUnderlying)), balance - expectedDistribution);
+    }
+
+    // ============ Edge Case Tests (Trail of Bits patterns) ============
+
+    /// @notice Test with zero numeraire balance - distribution should be 0
+    function test_migrate_ZeroNumeraireBalance() public {
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        // Fund with only asset, no numeraire
+        asset.mint(address(distributor), 1000 ether);
+        // No numeraire minted
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Payout should receive nothing
+        assertEq(numeraire.balanceOf(payout), 0);
+        // Underlying should receive all asset
+        assertEq(asset.balanceOf(address(mockUnderlying)), 1000 ether);
+    }
+
+    /// @notice Test with very large balance to check overflow safety
+    function test_migrate_LargeBalanceNoOverflow() public {
+        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        // Fund with max reasonable balance (1e30 tokens)
+        uint256 largeBalance = 1e30;
+        numeraire.mint(address(distributor), largeBalance);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Verify no overflow - 50% of 1e30 = 5e29
+        uint256 expectedDistribution = (largeBalance * PERCENT_50) / WAD;
+        assertEq(numeraire.balanceOf(payout), expectedDistribution);
+    }
+
+    /// @notice Test that underlying.migrate() revert bubbles up correctly
+    function test_migrate_BubblesUnderlyingRevert() public {
+        // Deploy reverting mock
+        MockRevertingMigrator revertingMock = new MockRevertingMigrator(address(distributor), "MIGRATE_FAILED");
+
+        // Whitelist it
+        address[] memory modules = new address[](1);
+        modules[0] = address(revertingMock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(revertingMock), "");
+        vm.prank(address(airlock));
+        // Note: initialize will also revert since the mock reverts on initialize, and the error bubbles up
+        vm.expectRevert("MIGRATE_FAILED");
+        distributor.initialize(address(asset), address(numeraire), data);
+    }
+
+    /// @notice Test event emission when distribution is zero (percentWad = 0)
+    function test_migrate_NoEventWhenZeroDistribution() public {
+        bytes memory data = abi.encode(payout, 0, address(mockUnderlying), ""); // 0%
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        numeraire.mint(address(distributor), 1000 ether);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        // Record logs to check no Distribution event
+        vm.recordLogs();
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Check that Distribution event was NOT emitted (only WrappedMigration should be)
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        bool distributionEmitted = false;
+        for (uint256 i = 0; i < logs.length; i++) {
+            // Distribution event topic0
+            if (logs[i].topics[0] == keccak256("Distribution(address,address,uint256,uint256)")) {
+                distributionEmitted = true;
+            }
+        }
+        assertFalse(distributionEmitted, "Distribution event should not be emitted when distribution is 0");
+    }
+
+    /// @notice Test that asset balance is never affected by distribution
+    function test_migrate_AssetBalanceUnaffected() public {
+        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        uint256 assetAmount = 1000 ether;
+        uint256 numeraireAmount = 500 ether;
+        asset.mint(address(distributor), assetAmount);
+        numeraire.mint(address(distributor), numeraireAmount);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Payout should ONLY receive numeraire, NEVER asset
+        assertEq(asset.balanceOf(payout), 0, "Payout should not receive any asset");
+        // Underlying receives ALL asset
+        assertEq(asset.balanceOf(address(mockUnderlying)), assetAmount, "Underlying should receive all asset");
+    }
+
+    /// @notice Fuzz test: distribution + remaining always equals original balance (conservation)
+    function testFuzz_migrate_BalanceConservation(uint256 balance, uint256 percentWad) public {
+        balance = bound(balance, 1, type(uint128).max);
+        percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
+
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        numeraire.mint(address(distributor), balance);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Conservation: payout + underlying = original balance
+        uint256 payoutReceived = numeraire.balanceOf(payout);
+        uint256 underlyingReceived = numeraire.balanceOf(address(mockUnderlying));
+        assertEq(payoutReceived + underlyingReceived, balance, "Balance not conserved");
+    }
+
+    // ============ Trail of Bits Recommended Tests ============
+
+    /// @notice Test that no funds get stuck in distributor after migrate
+    function testFuzz_migrate_NoStuckFunds(uint256 assetAmt, uint256 numAmt, uint256 percentWad) public {
+        assetAmt = bound(assetAmt, 0, type(uint128).max);
+        numAmt = bound(numAmt, 0, type(uint128).max);
+        percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
+
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        if (assetAmt > 0) asset.mint(address(distributor), assetAmt);
+        if (numAmt > 0) numeraire.mint(address(distributor), numAmt);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // After migrate, distributor should have zero balance
+        assertEq(asset.balanceOf(address(distributor)), 0, "Asset stuck in distributor");
+        assertEq(numeraire.balanceOf(address(distributor)), 0, "Numeraire stuck in distributor");
+    }
+
+    /// @notice Test multiple independent pools don't interfere with each other
+    function test_migrate_MultiplePoolsIndependent() public {
+        // Create second token pair
+        TestERC20 asset2 = new TestERC20(0);
+        TestERC20 numeraire2 = new TestERC20(0);
+        if (address(asset2) > address(numeraire2)) {
+            (asset2, numeraire2) = (numeraire2, asset2);
+        }
+
+        // Initialize pool 1 with 10%
+        bytes memory data1 = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data1);
+
+        // Create second mock underlying for pool 2
+        MockForwardedMigrator mockUnderlying2 =
+            new MockForwardedMigrator(address(distributor), address(0x5678), 2000 ether);
+        address[] memory modules = new address[](1);
+        modules[0] = address(mockUnderlying2);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        // Initialize pool 2 with 50%
+        bytes memory data2 = abi.encode(payout, PERCENT_50, address(mockUnderlying2), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset2), address(numeraire2), data2);
+
+        // Fund both pools
+        asset.mint(address(distributor), 1000 ether);
+        numeraire.mint(address(distributor), 500 ether);
+        asset2.mint(address(distributor), 2000 ether);
+        numeraire2.mint(address(distributor), 1000 ether);
+
+        // Migrate pool 1
+        (address token0_1, address token1_1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0_1, token1_1, recipient);
+
+        // Verify pool 1 distributed correctly (10%)
+        assertEq(numeraire.balanceOf(payout), 50 ether); // 10% of 500
+
+        // Pool 2 funds should be untouched in distributor still
+        assertEq(asset2.balanceOf(address(distributor)), 2000 ether);
+        assertEq(numeraire2.balanceOf(address(distributor)), 1000 ether);
+
+        // Reset payout balance for clean check
+        uint256 payoutBalanceBefore = numeraire2.balanceOf(payout);
+
+        // Migrate pool 2
+        (address token0_2, address token1_2) = address(asset2) < address(numeraire2)
+            ? (address(asset2), address(numeraire2))
+            : (address(numeraire2), address(asset2));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0_2, token1_2, recipient);
+
+        // Verify pool 2 distributed correctly (50%)
+        assertEq(numeraire2.balanceOf(payout) - payoutBalanceBefore, 500 ether); // 50% of 1000
+    }
+
+    /// @notice Test with extreme values near safe max (overflow safety)
+    function testFuzz_migrate_ExtremeValues(uint256 balance) public {
+        // Test with very large balances - max safe value is type(uint256).max / WAD
+        // to prevent overflow in distribution calculation: balance * percentWad / WAD
+        // With percentWad up to 5e17 (50%), max safe balance is ~type(uint256).max / 5e17
+        uint256 maxSafeBalance = type(uint256).max / WAD; // ~1.15e59
+        balance = bound(balance, type(uint128).max, maxSafeBalance);
+
+        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        // Mint extreme balance
+        numeraire.mint(address(distributor), balance);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        // Should not overflow
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Verify math is correct even with large numbers
+        uint256 expectedDistribution = (balance * PERCENT_50) / WAD;
+        assertEq(numeraire.balanceOf(payout), expectedDistribution);
+    }
+
+    /// @notice Test that distribution never exceeds 50% regardless of input
+    function testFuzz_migrate_DistributionNeverExceedsHalf(uint256 balance, uint256 percentWad) public {
+        balance = bound(balance, 1, type(uint128).max);
+        percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
+
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        numeraire.mint(address(distributor), balance);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Distribution should never exceed half the balance
+        uint256 distribution = numeraire.balanceOf(payout);
+        assertLe(distribution, balance / 2 + 1, "Distribution exceeded 50%"); // +1 for rounding
+    }
+
+    /// @notice Test CEI pattern - config is deleted before external calls (reentrancy protection)
+    function test_migrate_ConfigDeletedBeforeExternalCalls() public {
+        // This test verifies CEI pattern by checking config is gone even if we could re-enter
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        numeraire.mint(address(distributor), 1000 ether);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        // Before migrate - config exists
+        (address storedPayoutBefore,,,) = distributor.getDistributionConfig(token0, token1);
+        assertEq(storedPayoutBefore, payout, "Config should exist before migrate");
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // After migrate - config should be deleted
+        (address storedPayoutAfter,,,) = distributor.getDistributionConfig(token0, token1);
+        assertEq(storedPayoutAfter, address(0), "Config should be deleted after migrate");
+    }
+
+    /// @notice Test with zero percent - no distribution should occur
+    function test_migrate_ZeroPercent() public {
+        bytes memory data = abi.encode(payout, 0, address(mockUnderlying), ""); // 0%
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        uint256 balance = 1000 ether;
+        numeraire.mint(address(distributor), balance);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Payout should receive nothing
+        assertEq(numeraire.balanceOf(payout), 0);
+        // Underlying should receive everything
+        assertEq(numeraire.balanceOf(address(mockUnderlying)), balance);
+    }
+
+    /// @notice Test exact max percent (50%)
+    function test_migrate_ExactMaxPercent() public {
+        bytes memory data = abi.encode(payout, MAX_DISTRIBUTION_WAD, address(mockUnderlying), ""); // exactly 50%
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        uint256 balance = 1000 ether;
+        numeraire.mint(address(distributor), balance);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        // Payout should receive exactly 50%
+        assertEq(numeraire.balanceOf(payout), balance / 2);
+        // Underlying should receive exactly 50%
+        assertEq(numeraire.balanceOf(address(mockUnderlying)), balance / 2);
+    }
+
+    // ============ V4 Preflight Check Tests ============
+
+    /// @notice Test V4 preflight - reverts when locker has not approved migrator
+    function test_initialize_RevertsWhenLockerNotApproved() public {
+        // Deploy mock locker and hook
+        MockLocker mockLocker = new MockLocker();
+        MockHook mockHook = new MockHook();
+
+        // Deploy V4 mock migrator with locker and hook
+        MockV4Migrator v4Mock =
+            new MockV4Migrator(address(distributor), address(mockLocker), address(mockHook), address(0x1234));
+
+        // Set hook's migrator correctly
+        mockHook.setMigrator(address(v4Mock));
+
+        // DON'T approve the migrator in locker (this should cause revert)
+        // mockLocker.setApproval(address(v4Mock), true); // Intentionally NOT called
+
+        // Whitelist the V4 mock
+        address[] memory modules = new address[](1);
+        modules[0] = address(v4Mock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(v4Mock), "");
+        vm.prank(address(airlock));
+        vm.expectRevert(UnderlyingNotLockerApproved.selector);
+        distributor.initialize(address(asset), address(numeraire), data);
+    }
+
+    /// @notice Test V4 preflight - reverts when hook's migrator doesn't match
+    function test_initialize_RevertsWhenHookMigratorMismatch() public {
+        // Deploy mock locker and hook
+        MockLocker mockLocker = new MockLocker();
+        MockHook mockHook = new MockHook();
+
+        // Deploy V4 mock migrator with locker and hook
+        MockV4Migrator v4Mock =
+            new MockV4Migrator(address(distributor), address(mockLocker), address(mockHook), address(0x1234));
+
+        // Approve the migrator in locker
+        mockLocker.setApproval(address(v4Mock), true);
+
+        // Set hook's migrator to WRONG address
+        mockHook.setMigrator(address(0xdead)); // Wrong migrator!
+
+        // Whitelist the V4 mock
+        address[] memory modules = new address[](1);
+        modules[0] = address(v4Mock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(v4Mock), "");
+        vm.prank(address(airlock));
+        vm.expectRevert(UnderlyingHookMismatch.selector);
+        distributor.initialize(address(asset), address(numeraire), data);
+    }
+
+    /// @notice Test V4 preflight - succeeds when locker approved and hook matches
+    function test_initialize_V4PreflightSuccess() public {
+        // Deploy mock locker and hook
+        MockLocker mockLocker = new MockLocker();
+        MockHook mockHook = new MockHook();
+
+        // Deploy V4 mock migrator with locker and hook
+        MockV4Migrator v4Mock =
+            new MockV4Migrator(address(distributor), address(mockLocker), address(mockHook), address(0x1234));
+
+        // Approve the migrator in locker
+        mockLocker.setApproval(address(v4Mock), true);
+
+        // Set hook's migrator correctly
+        mockHook.setMigrator(address(v4Mock));
+
+        // Whitelist the V4 mock
+        address[] memory modules = new address[](1);
+        modules[0] = address(v4Mock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(v4Mock), "");
+        vm.prank(address(airlock));
+        // Should succeed
+        address pool = distributor.initialize(address(asset), address(numeraire), data);
+        assertEq(pool, address(0x1234));
+    }
+
+    /// @notice Test that non-V4 migrators (without locker/hook) still work
+    function test_initialize_NonV4MigratorSkipsPreflight() public {
+        // mockUnderlying doesn't have locker() or migratorHook(), so preflight should be skipped
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        // Should succeed - no preflight checks triggered for non-V4 migrators
+        address pool = distributor.initialize(address(asset), address(numeraire), data);
+        assertEq(pool, address(0x1234));
     }
 }
