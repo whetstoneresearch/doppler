@@ -182,6 +182,9 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     /// @notice Reverse mapping from Doppler hook to asset address
     mapping(address dopplerHook => address asset) public dopplerHookToAsset;
 
+    /// @notice Reverse mapping from Opening Auction hook to asset address
+    mapping(address openingAuctionHook => address asset) public openingAuctionHookToAsset;
+
     /// @param airlock_ Address of the Airlock contract
     /// @param poolManager_ Address of the PoolManager
     /// @param auctionDeployer_ Address of the OpeningAuctionDeployer contract
@@ -286,6 +289,9 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             dopplerInitData: initData.dopplerData,
             isToken0: isToken0
         });
+
+        // Store reverse mapping for exitLiquidity validation (Airlock passes this address)
+        openingAuctionHookToAsset[address(auctionHook)] = asset;
 
         emit Create(address(auctionHook), asset, numeraire);
         
@@ -462,8 +468,12 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             uint128 balance1
         )
     {
-        // Validate target is a known Doppler hook
+        // Try to resolve asset from Doppler hook mapping first
         address asset = dopplerHookToAsset[target];
+        // If not found, try the Opening Auction hook mapping (Airlock passes this address)
+        if (asset == address(0)) {
+            asset = openingAuctionHookToAsset[target];
+        }
         if (asset == address(0)) {
             revert InvalidExitTarget();
         }
@@ -474,13 +484,19 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             revert DopplerNotActive();
         }
 
+        // Get the actual Doppler hook address
+        address doppler = state.dopplerHook;
+        if (doppler == address(0)) {
+            revert DopplerNotActive();
+        }
+
         // Update status to Exited
         OpeningAuctionStatus oldStatus = state.status;
         state.status = OpeningAuctionStatus.Exited;
         emit StatusChanged(asset, oldStatus, OpeningAuctionStatus.Exited);
 
-        // Delegate to Doppler's migrate
-        return Doppler(payable(target)).migrate(address(airlock));
+        // Delegate to the actual Doppler hook's migrate (NOT the target passed by Airlock)
+        return Doppler(payable(doppler)).migrate(address(airlock));
     }
 
     /// @notice Get the Doppler hook address for an asset
