@@ -13,8 +13,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { FeeDistributionInfo, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -27,6 +27,15 @@ error SenderNotBeneficiary();
 
 /// @notice Thrown when the sender is not the airlock owner
 error SenderNotAirlockOwner();
+
+/**
+ * @notice Emitted when Airlock owner claims fees
+ * @param poolId Pool from which fees were claimed
+ * @param airlockOwner Address that received the fees
+ * @param fees0 Amount of currency0 claimed
+ * @param fees1 Amount of currency1 claimed
+ */
+event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
 
 // Constants
 uint256 constant MAX_SWAP_FEE = 1e6;
@@ -67,16 +76,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
     /// @notice Pool info for each pool
     mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
 
-    /// @notice Airlock owner address for each pool (for fee claims)
-    mapping(PoolId poolId => address airlockOwner) public getAirlockOwner;
-
-    /// @notice Emitted when airlock owner claims fees
-    /// @param poolId The pool from which fees were claimed
-    /// @param airlockOwner The address that received the fees
-    /// @param fees0 Amount of currency0 claimed
-    /// @param fees1 Amount of currency1 claimed
-    event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
-
     /**
      * @param initializer Address of the DopplerHookInitializer contract
      * @param poolManager_ Address of the Uniswap V4 Pool Manager
@@ -115,9 +114,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
         });
 
         getHookFees[poolId].customFee = customFee;
-
-        // Store airlock owner for fee claims
-        getAirlockOwner[poolId] = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
 
         // Initialize position
         getPosition[poolId] = Position({
@@ -591,25 +587,25 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @return fees1 Amount of currency1 claimed
      */
     function claimAirlockOwnerFees(address asset) external returns (uint128 fees0, uint128 fees1) {
+        address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
+        require(msg.sender == airlockOwner, SenderNotAirlockOwner());
+
         (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
-
-        address airlockOwner = getAirlockOwner[poolId];
-        require(msg.sender == airlockOwner, SenderNotAirlockOwner());
 
         fees0 = getHookFees[poolId].airlockOwnerFees0;
         fees1 = getHookFees[poolId].airlockOwnerFees1;
 
         if (fees0 > 0) {
-            poolKey.currency0.transfer(airlockOwner, fees0);
+            poolKey.currency0.transfer(msg.sender, fees0);
             getHookFees[poolId].airlockOwnerFees0 = 0;
         }
         if (fees1 > 0) {
-            poolKey.currency1.transfer(airlockOwner, fees1);
+            poolKey.currency1.transfer(msg.sender, fees1);
             getHookFees[poolId].airlockOwnerFees1 = 0;
         }
 
-        emit AirlockOwnerFeesClaimed(poolId, airlockOwner, fees0, fees1);
+        emit AirlockOwnerFeesClaimed(poolId, msg.sender, fees0, fees1);
     }
 
     /**
