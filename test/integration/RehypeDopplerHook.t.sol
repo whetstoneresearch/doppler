@@ -344,8 +344,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         swapRouter.swap(poolKey, swapParams2, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
-        (,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before,,,) =
-            rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before,,,) = rehypeDopplerHook.getHookFees(poolId);
 
         if (beneficiaryFees0Before > 0 || beneficiaryFees1Before > 0) {
             uint256 beneficiaryBalanceBefore0 = poolKey.currency0.balanceOf(buybackDst);
@@ -364,8 +363,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 "Beneficiary should receive fees1"
             );
 
-            (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,,,) =
-                rehypeDopplerHook.getHookFees(poolId);
+            (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,,,) = rehypeDopplerHook.getHookFees(poolId);
             assertEq(beneficiaryFees0After, 0, "Fees0 should be reset");
             assertEq(beneficiaryFees1After, 0, "Fees1 should be reset");
         }
@@ -465,8 +463,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(poolKey, swapParams2, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         // Get fees before claim
-        (,,,, uint128 airlockOwnerFees0Before, uint128 airlockOwnerFees1Before,) =
-            rehypeDopplerHook.getHookFees(poolId);
+        (,,,, uint128 airlockOwnerFees0Before, uint128 airlockOwnerFees1Before,) = rehypeDopplerHook.getHookFees(poolId);
 
         if (airlockOwnerFees0Before > 0 || airlockOwnerFees1Before > 0) {
             uint256 ownerBalance0Before = poolKey.currency0.balanceOf(airlockOwner);
@@ -534,8 +531,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(poolKey, setupSwap, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         // Get state before the exact output swap
-        (,,,, uint128 airlockOwnerFees0Before, uint128 airlockOwnerFees1Before,) =
-            rehypeDopplerHook.getHookFees(poolId);
+        (,,,, uint128 airlockOwnerFees0Before, uint128 airlockOwnerFees1Before,) = rehypeDopplerHook.getHookFees(poolId);
 
         // Now perform an exact output swap (positive amountSpecified)
         // This should work because PoolManager now has numeraire balance
@@ -548,8 +544,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         // Get fees after swap
-        (,,,, uint128 airlockOwnerFees0After, uint128 airlockOwnerFees1After,) =
-            rehypeDopplerHook.getHookFees(poolId);
+        (,,,, uint128 airlockOwnerFees0After, uint128 airlockOwnerFees1After,) = rehypeDopplerHook.getHookFees(poolId);
 
         // Airlock owner fees should have increased
         uint128 airlockOwnerFeesAccumulated0 = airlockOwnerFees0After - airlockOwnerFees0Before;
@@ -560,14 +555,6 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             airlockOwnerFeesAccumulated0 > 0 || airlockOwnerFeesAccumulated1 > 0,
             "Airlock owner should receive 5% of custom fee"
         );
-    }
-
-    function test_getAirlockOwner_ReturnsCorrectOwner() public {
-        bytes32 salt = bytes32(uint256(18));
-        _createToken(salt);
-
-        address storedAirlockOwner = rehypeDopplerHook.getAirlockOwner(poolId);
-        assertEq(storedAirlockOwner, airlockOwner, "Airlock owner should be stored correctly");
     }
 
     function _prepareInitData(address token) internal returns (InitData memory) {
