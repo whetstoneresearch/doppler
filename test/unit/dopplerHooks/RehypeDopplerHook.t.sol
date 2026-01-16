@@ -23,8 +23,26 @@ contract MockPoolManager {
 
     }
 
+contract MockAirlock {
+    address public owner;
+
+    constructor(address _owner) {
+        owner = _owner;
+    }
+}
+
 contract MockInitializer {
     mapping(address asset => BeneficiaryData[] beneficiaries) internal _beneficiaries;
+    MockAirlock public airlock;
+
+    constructor() {
+        // Create a mock airlock with a default owner
+        airlock = new MockAirlock(address(this));
+    }
+
+    function setAirlockOwner(address _owner) external {
+        airlock = new MockAirlock(_owner);
+    }
 
     function setBeneficiaries(address asset, BeneficiaryData[] memory beneficiaries) external {
         delete _beneficiaries[asset];
@@ -41,13 +59,14 @@ contract MockInitializer {
 contract RehypeDopplerHookTest is Test {
     RehypeDopplerHook internal dopplerHook;
     RehypeDopplerHook internal dopplerHookWithMockInitializer;
-    address internal initializer = makeAddr("initializer");
+    MockInitializer internal initializer;
     MockInitializer internal mockInitializer;
     IPoolManager internal poolManager;
 
     function setUp() public {
         poolManager = IPoolManager(address(new MockPoolManager()));
-        dopplerHook = new RehypeDopplerHook(initializer, poolManager);
+        initializer = new MockInitializer();
+        dopplerHook = new RehypeDopplerHook(address(initializer), poolManager);
         mockInitializer = new MockInitializer();
         dopplerHookWithMockInitializer = new RehypeDopplerHook(address(mockInitializer), poolManager);
     }
@@ -57,7 +76,7 @@ contract RehypeDopplerHookTest is Test {
     /* --------------------------------------------------------------------------- */
 
     function test_constructor() public view {
-        assertEq(dopplerHook.INITIALIZER(), initializer);
+        assertEq(dopplerHook.INITIALIZER(), address(initializer));
         assertEq(address(dopplerHook.poolManager()), address(poolManager));
         assertTrue(address(dopplerHook.quoter()) != address(0));
     }
@@ -89,7 +108,7 @@ contract RehypeDopplerHookTest is Test {
             lpPercentWad
         );
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
@@ -109,13 +128,22 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedLp, lpPercentWad);
 
         // Check hook fees
-        (uint128 fees0, uint128 fees1, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint24 storedCustomFee) =
-            dopplerHook.getHookFees(poolId);
+        (
+            uint128 fees0,
+            uint128 fees1,
+            uint128 beneficiaryFees0,
+            uint128 beneficiaryFees1,
+            uint128 airlockOwnerFees0,
+            uint128 airlockOwnerFees1,
+            uint24 storedCustomFee
+        ) = dopplerHook.getHookFees(poolId);
         assertEq(storedCustomFee, customFee);
         assertEq(fees0, 0);
         assertEq(fees1, 0);
         assertEq(beneficiaryFees0, 0);
         assertEq(beneficiaryFees1, 0);
+        assertEq(airlockOwnerFees0, 0);
+        assertEq(airlockOwnerFees1, 0);
     }
 
     function test_onInitialization_InitializesPosition(PoolKey memory poolKey) public {
@@ -127,7 +155,7 @@ contract RehypeDopplerHookTest is Test {
 
         bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
@@ -155,7 +183,7 @@ contract RehypeDopplerHookTest is Test {
         // Fee distribution that doesn't add up to WAD
         bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.24e18);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
         dopplerHook.onInitialization(asset, poolKey, data);
     }
@@ -167,7 +195,7 @@ contract RehypeDopplerHookTest is Test {
         // Fee distribution that exceeds WAD
         bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.5e18, 0.5e18, 0.5e18, 0.5e18);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
         dopplerHook.onInitialization(asset, poolKey, data);
     }
@@ -195,21 +223,21 @@ contract RehypeDopplerHookTest is Test {
         // All fees go to beneficiary for simple testing
         bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         // Simulate a swap with amountSpecified < 0 (exact input) and zeroForOne = true
         IPoolManager.SwapParams memory swapParams =
             IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1e18, sqrtPriceLimitX96: 0 });
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onSwap(address(0x123), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
 
         PoolId poolId = poolKey.toId();
 
         // Fee should be 1% of 1e18 = 0.01e18
         // Since fees are below EPSILON after distribution, they should accumulate to beneficiary
-        (,,,, uint128 beneficiaryFees1) = dopplerHook.getHookFees(poolId);
+        (,,,,,, uint24 storedFee) = dopplerHook.getHookFees(poolId);
         // Note: Actual fee accumulation depends on the fee logic, but fees0 should have been set
     }
 
@@ -226,7 +254,7 @@ contract RehypeDopplerHookTest is Test {
 
         bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
@@ -258,7 +286,7 @@ contract RehypeDopplerHookTest is Test {
 
         bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         vm.prank(buybackDst);
@@ -278,14 +306,14 @@ contract RehypeDopplerHookTest is Test {
 
         bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
-        vm.prank(initializer);
+        vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         // collectFees should return zero delta when no fees accumulated
         // Note: This will revert or return zeros depending on implementation
         // For now, we just verify the hook fees are zero
         PoolId poolId = poolKey.toId();
-        (,,, uint128 beneficiaryFees0, uint128 beneficiaryFees1) = dopplerHook.getHookFees(poolId);
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = dopplerHook.getHookFees(poolId);
 
         assertEq(beneficiaryFees0, 0);
         assertEq(beneficiaryFees1, 0);
