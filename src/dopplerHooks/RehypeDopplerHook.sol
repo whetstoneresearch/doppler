@@ -22,11 +22,16 @@ import { WAD } from "src/types/Wad.sol";
 /// @notice Thrown when the fee distribution does not add up to WAD (1e18)
 error FeeDistributionMustAddUpToWAD();
 
+/// @notice Thrown when the sender is not authorized to perform an action
 error SenderNotAuthorized();
 
-// Constants
+/// @dev Maximum swap fee denominator (1e6 = 100%)
 uint256 constant MAX_SWAP_FEE = 1e6;
+
+/// @dev Epsilon trigger for rebalancing swaps
 uint128 constant EPSILON = 1e6;
+
+/// @dev Maximum iterations for rebalancing swap calculation
 uint256 constant MAX_REBALANCE_ITERATIONS = 15;
 
 /**
