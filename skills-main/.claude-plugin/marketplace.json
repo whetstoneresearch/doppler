@@ -1,0 +1,176 @@
+{
+  "name": "trailofbits",
+  "owner": {
+    "name": "Trail of Bits",
+    "email": "opensource@trailofbits.com"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Claude Code plugins from Trail of Bits for enhanced AI-assisted security analysis and development"
+  },
+  "plugins": [
+    {
+      "name": "ask-questions-if-underspecified",
+      "version": "1.0.0",
+      "description": "Clarify requirements before implementing. When doubting, ask questions.",
+      "author": {
+        "name": "Kevin Valerio",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/ask-questions-if-underspecified"
+    },
+    {
+      "name": "audit-context-building",
+      "description": "Build deep architectural context through ultra-granular code analysis before vulnerability hunting",
+      "version": "1.0.0",
+      "author": {
+        "name": "Omar Inuwa"
+      },
+      "source": "./plugins/audit-context-building"
+    },
+    {
+      "name": "building-secure-contracts",
+      "version": "1.0.0",
+      "description": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
+      "author": {
+        "name": "Omar Inuwa"
+      },
+      "source": "./plugins/building-secure-contracts"
+    },
+    {
+      "name": "burpsuite-project-parser",
+      "version": "1.0.0",
+      "description": "Search and extract data from Burp Suite project files (.burp) for use in Claude",
+      "author": {
+        "name": "Will Vandevanter"
+      },
+      "source": "./plugins/burpsuite-project-parser"
+    },
+    {
+      "name": "constant-time-analysis",
+      "version": "0.1.0",
+      "description": "Detect compiler-induced timing side-channels in cryptographic code",
+      "author": {
+        "name": "Scott Arciszewski",
+        "email": "opensource@trailofbits.com"
+      },
+      "source": "./plugins/constant-time-analysis"
+    },
+    {
+      "name": "culture-index",
+      "version": "1.0.0",
+      "description": "Interprets Culture Index survey results for individuals and teams",
+      "author": {
+        "name": "Dan Guido"
+      },
+      "source": "./plugins/culture-index"
+    },
+    {
+      "name": "differential-review",
+      "description": "Security-focused differential review of code changes with git history analysis and blast radius estimation",
+      "version": "1.0.0",
+      "author": {
+        "name": "Omar Inuwa"
+      },
+      "source": "./plugins/differential-review"
+    },
+    {
+      "name": "fix-review",
+      "description": "Verify fix commits address audit findings without introducing bugs",
+      "version": "0.1.0",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com"
+      },
+      "source": "./plugins/fix-review"
+    },
+    {
+      "name": "dwarf-expert",
+      "description": "Interact with and understand the DWARF debugging format",
+      "version": "1.0.0",
+      "author": {
+        "name": "Evan Hellman",
+        "email": "opensource@trailofbits.com"
+      },
+      "source": "./plugins/dwarf-expert"
+    },
+    {
+      "name": "entry-point-analyzer",
+      "version": "1.0.0",
+      "description": "Analyzes smart contract codebases to identify state-changing entry points for security auditing. Detects externally callable functions that modify state, categorizes them by access level, and generates structured audit reports.",
+      "author": {
+        "name": "Nicolas Donboly",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/entry-point-analyzer"
+    },
+    {
+      "name": "property-based-testing",
+      "description": "Property-based testing guidance for multiple languages and smart contracts",
+      "version": "1.0.0",
+      "author": {
+        "name": "Henrik Brodin",
+        "email": "opensource@trailofbits.com"
+      },
+      "source": "./plugins/property-based-testing"
+    },
+    {
+      "name": "semgrep-rule-creator",
+      "version": "1.0.0",
+      "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
+      "author": {
+        "name": "Maciej Domanski"
+      },
+      "source": "./plugins/semgrep-rule-creator"
+    },
+    {
+      "name": "sharp-edges",
+      "version": "1.0.0",
+      "description": "Identify error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes",
+      "author": {
+        "name": "Scott Arciszewski",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/sharp-edges"
+    },
+    {
+      "name": "static-analysis",
+      "version": "1.0.1",
+      "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
+      "author": {
+        "name": "Axel Mierczuk"
+      },
+      "source": "./plugins/static-analysis"
+    },
+    {
+      "name": "spec-to-code-compliance",
+      "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
+      "version": "1.0.0",
+      "author": {
+        "name": "Omar Inuwa"
+      },
+      "source": "./plugins/spec-to-code-compliance"
+    },
+    {
+      "name": "testing-handbook-skills",
+      "version": "1.0.0",
+      "description": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
+      "author": {
+        "name": "Paweł Płatek"
+      },
+      "source": "./plugins/testing-handbook-skills"
+    },
+    {
+      "name": "variant-analysis",
+      "version": "1.0.0",
+      "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
+      "author": {
+        "name": "Axel Mierczuk"
+      },
+      "source": "./plugins/variant-analysis"
+    }
+  ]
+}
