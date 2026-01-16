@@ -88,7 +88,7 @@ contract RehyperInvariantTests is Deployers {
             PoolKey memory poolKey = handler.getPoolKey(i);
             PoolId poolId = poolKey.toId();
 
-            (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,) = rehypeHook.getHookFees(poolId);
+            (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeHook.getHookFees(poolId);
             assertGe(poolKey.currency0.balanceOf(address(rehypeHook)), beneficiaryFees0, "Insolvent for currency0");
             assertGe(poolKey.currency1.balanceOf(address(rehypeHook)), beneficiaryFees1, "Insolvent for currency1");
         }
@@ -101,7 +101,7 @@ contract RehyperInvariantTests is Deployers {
             PoolKey memory poolKey = handler.getPoolKey(i);
             PoolId poolId = poolKey.toId();
 
-            (uint128 fees0, uint128 fees1,,,) = rehypeHook.getHookFees(poolId);
+            (uint128 fees0, uint128 fees1,,,,,) = rehypeHook.getHookFees(poolId);
             assertGe(EPSILON, fees0, "Excessive fees0 accumulated");
             assertGe(EPSILON, fees1, "Excessive fees1 accumulated");
         }
