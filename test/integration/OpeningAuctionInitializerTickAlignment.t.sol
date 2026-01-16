@@ -98,6 +98,7 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
 
     address alice = address(0xa71c3);
     address airlock;
+    address governance;
     uint256 bidNonce;
 
     OpeningAuctionInitializer initializer;
@@ -114,6 +115,7 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
         (token0, token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         airlock = address(this);
+        governance = makeAddr("Governance");
 
         auctionDeployer = new OpeningAuctionDeployer(manager);
         dopplerDeployer = new DopplerDeployerHookMiner(manager);
@@ -148,10 +150,10 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
         assertTrue(clearingTick % dopplerTickSpacing != 0, "clearing tick should be misaligned");
         int24 expectedAligned = alignTick(auctionHook.isToken0(), clearingTick, dopplerTickSpacing);
         _setDopplerSalt(auctionHook, initData.dopplerData, expectedAligned);
-        uint256 airlockBefore = TestERC20(numeraire).balanceOf(airlock);
+        uint256 governanceBefore = TestERC20(numeraire).balanceOf(governance);
         initializer.completeAuction(asset);
-        uint256 airlockAfter = TestERC20(numeraire).balanceOf(airlock);
-        assertGt(airlockAfter - airlockBefore, 0, "numeraire proceeds not forwarded");
+        uint256 governanceAfter = TestERC20(numeraire).balanceOf(governance);
+        assertGt(governanceAfter - governanceBefore, 0, "numeraire proceeds not forwarded");
         _assertDopplerStartTick(poolKey, dopplerTickSpacing, expectedAligned);
     }
 
@@ -409,5 +411,24 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
             return TickMath.MAX_SQRT_PRICE - 1;
         }
         return limit;
+    }
+
+    function getAssetData(address)
+        external
+        view
+        returns (
+            address assetNumeraire,
+            address timelock,
+            address governance_,
+            address liquidityMigrator,
+            address poolInitializer,
+            address pool,
+            address migrationPool,
+            uint256 numTokensToSell,
+            uint256 totalSupply,
+            address integrator
+        )
+    {
+        return (numeraire, address(0), governance, address(0), address(0), address(0), address(0), 0, 0, address(0));
     }
 }

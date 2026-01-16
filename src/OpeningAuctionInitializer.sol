@@ -93,7 +93,7 @@ event AuctionCompleted(
     uint256 proceeds
 );
 
-/// @notice Emitted when proceeds are forwarded to airlock
+/// @notice Emitted when proceeds are forwarded to governance
 event ProceedsForwarded(address indexed asset, address indexed numeraire, uint256 amount);
 
 /// @notice Emitted when an opening auction is initialized
@@ -342,9 +342,11 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         uint256 unsoldTokens = state.isToken0 ? balance0 : balance1;
         uint256 numeraireBalance = state.isToken0 ? balance1 : balance0;
 
-        // Forward proceeds (numeraire) to airlock
+        (, , address governance,,,,,,,) = airlock.getAssetData(asset);
+
+        // Forward proceeds (numeraire) to governance
         if (numeraireBalance > 0) {
-            numeraireToken.safeTransfer(address(airlock), numeraireBalance);
+            numeraireToken.safeTransfer(governance, numeraireBalance);
             emit ProceedsForwarded(asset, numeraireToken, numeraireBalance);
         }
 
