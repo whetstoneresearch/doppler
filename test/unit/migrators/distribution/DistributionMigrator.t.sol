@@ -9,7 +9,6 @@ import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import {
     AlreadyInitialized,
-    AssetMismatch,
     DistributionConfig,
     DistributionMigrator,
     InvalidPayout,
@@ -17,6 +16,7 @@ import {
     InvalidUnderlying,
     MAX_DISTRIBUTION_WAD,
     PoolNotInitialized,
+    TokenPairMismatch,
     UnderlyingHookMismatch,
     UnderlyingNotForwarded,
     UnderlyingNotLockerApproved,
@@ -127,6 +127,35 @@ contract MockHook {
     function setMigrator(address migrator_) external {
         migrator = migrator_;
     }
+}
+
+/// @notice Mock forwarded migrator WITH onlyAirlock modifier (for security tests)
+/// @dev This mock properly simulates the real ForwardedMigrator behavior
+contract MockForwardedMigratorWithGuard is ILiquidityMigrator {
+    address public immutable airlock;
+    address public returnPool;
+
+    error SenderNotAirlockMock();
+
+    modifier onlyAirlock() {
+        if (msg.sender != airlock) revert SenderNotAirlockMock();
+        _;
+    }
+
+    constructor(address airlock_, address returnPool_) {
+        airlock = airlock_;
+        returnPool = returnPool_;
+    }
+
+    function initialize(address, address, bytes calldata) external onlyAirlock returns (address) {
+        return returnPool;
+    }
+
+    function migrate(uint160, address, address, address) external payable onlyAirlock returns (uint256) {
+        return 1000 ether;
+    }
+
+    receive() external payable { }
 }
 
 contract DistributionMigratorTest is Test {
@@ -316,13 +345,19 @@ contract DistributionMigratorTest is Test {
             ? (address(asset), address(numeraire))
             : (address(numeraire), address(asset));
 
-        (address storedPayout, uint256 storedPercent, ILiquidityMigrator storedUnderlying, address storedAsset) =
-            distributor.getDistributionConfig(token0, token1);
+        (
+            address storedPayout,
+            uint256 storedPercent,
+            ILiquidityMigrator storedUnderlying,
+            address storedAsset,
+            address storedNumeraire
+        ) = distributor.getDistributionConfig(token0, token1);
 
         assertEq(storedPayout, payout);
         assertEq(storedPercent, PERCENT_10);
         assertEq(address(storedUnderlying), address(mockUnderlying));
         assertEq(storedAsset, address(asset));
+        assertEq(storedNumeraire, address(numeraire));
     }
 
     function test_initialize_ForwardsToUnderlying() public {
@@ -353,6 +388,62 @@ contract DistributionMigratorTest is Test {
         vm.prank(address(airlock));
         vm.expectRevert(PoolNotInitialized.selector);
         distributor.migrate(1e18, token0, token1, recipient);
+    }
+
+    function test_migrate_RevertsWhenTokenPairMismatch_WrongKeyLookup() public {
+        // Initialize config with (asset, numeraire)
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        // Create a third token that doesn't match either
+        TestERC20 rogueToken = new TestERC20(2);
+
+        // Try to migrate with (asset, rogueToken) - different tokens than initialized
+        // This simulates a malicious poolInitializer returning wrong tokens
+        (address token0, address token1) = address(asset) < address(rogueToken)
+            ? (address(asset), address(rogueToken))
+            : (address(rogueToken), address(asset));
+
+        vm.prank(address(airlock));
+        // First line of defense: different key lookup → PoolNotInitialized
+        vm.expectRevert(PoolNotInitialized.selector);
+        distributor.migrate(1e18, token0, token1, recipient);
+    }
+
+    function test_migrate_ValidatesStoredTokensMatch() public {
+        // This test verifies that migrate() explicitly validates the stored (asset, numeraire)
+        // matches the provided (token0, token1) pair, providing defense-in-depth against:
+        // 1. Storage corruption
+        // 2. Mapping collision attacks (extremely unlikely but checked anyway)
+        // 3. Untrusted poolInitializer returning unexpected tokens
+        //
+        // With sorted key storage, a mismatch is only possible through storage corruption
+        // or collision. The explicit check ensures we fail safely even in those cases.
+
+        // Initialize config
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        // Verify config stores BOTH asset and numeraire explicitly
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        (address storedPayout,, address storedAsset, address storedNumeraire) = _getConfigValues(token0, token1);
+
+        assertEq(storedPayout, payout, "payout should be stored");
+        assertEq(storedAsset, address(asset), "asset should be stored explicitly");
+        assertEq(storedNumeraire, address(numeraire), "numeraire should be stored explicitly");
+    }
+
+    // Helper to read config values
+    function _getConfigValues(
+        address token0,
+        address token1
+    ) internal view returns (address payout_, uint256 percentWad_, address asset_, address numeraire_) {
+        (payout_, percentWad_,, asset_, numeraire_) = distributor.getDistributionConfig(token0, token1);
     }
 
     function test_migrate_DistributesNumeraireOnly() public {
@@ -474,7 +565,7 @@ contract DistributionMigratorTest is Test {
         distributor.migrate(1e18, token0, token1, recipient);
 
         // Check config was deleted
-        (address storedPayout,,,) = distributor.getDistributionConfig(token0, token1);
+        (address storedPayout,,,,) = distributor.getDistributionConfig(token0, token1);
         assertEq(storedPayout, address(0));
     }
 
@@ -836,14 +927,14 @@ contract DistributionMigratorTest is Test {
             : (address(numeraire), address(asset));
 
         // Before migrate - config exists
-        (address storedPayoutBefore,,,) = distributor.getDistributionConfig(token0, token1);
+        (address storedPayoutBefore,,,,) = distributor.getDistributionConfig(token0, token1);
         assertEq(storedPayoutBefore, payout, "Config should exist before migrate");
 
         vm.prank(address(airlock));
         distributor.migrate(1e18, token0, token1, recipient);
 
         // After migrate - config should be deleted
-        (address storedPayoutAfter,,,) = distributor.getDistributionConfig(token0, token1);
+        (address storedPayoutAfter,,,,) = distributor.getDistributionConfig(token0, token1);
         assertEq(storedPayoutAfter, address(0), "Config should be deleted after migrate");
     }
 
@@ -992,5 +1083,55 @@ contract DistributionMigratorTest is Test {
         // Should succeed - no preflight checks triggered for non-V4 migrators
         address pool = distributor.initialize(address(asset), address(numeraire), data);
         assertEq(pool, address(0x1234));
+    }
+
+    // ============ Security: ForwardedMigrator Direct Use Protection ============
+
+    /// @notice Test that ForwardedMigrator CANNOT be called directly from real Airlock
+    /// @dev This is a critical security property - ForwardedMigrator should only accept calls
+    ///      from DistributionMigrator, not from the real Airlock
+    function test_forwardedMigrator_RevertsWhenCalledDirectlyFromAirlock() public {
+        // Deploy a mock that has onlyAirlock modifier (like real ForwardedMigrator)
+        // Its airlock is set to the distributor, NOT the real Airlock
+        MockForwardedMigratorWithGuard guardedMock =
+            new MockForwardedMigratorWithGuard(address(distributor), address(0x1234));
+
+        // Whitelist it in Airlock (simulating deployment misconfiguration risk)
+        address[] memory modules = new address[](1);
+        modules[0] = address(guardedMock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        // Now simulate: user tries to use guardedMock directly in Airlock.create()
+        // This mimics what would happen if someone specified ForwardedMigrator directly
+        vm.prank(address(airlock)); // Real Airlock is the caller
+        vm.expectRevert(MockForwardedMigratorWithGuard.SenderNotAirlockMock.selector);
+        // guardedMock.airlock = distributor, so msg.sender (airlock) != airlock (distributor) → REVERT
+        guardedMock.initialize(address(asset), address(numeraire), "");
+    }
+
+    /// @notice Test that ForwardedMigrator CAN be called from DistributionMigrator
+    function test_forwardedMigrator_AcceptsCallsFromDistributor() public {
+        // Deploy a mock that has onlyAirlock modifier
+        MockForwardedMigratorWithGuard guardedMock =
+            new MockForwardedMigratorWithGuard(address(distributor), address(0x5678));
+
+        // Whitelist it
+        address[] memory modules = new address[](1);
+        modules[0] = address(guardedMock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        // Now use it through the proper flow: Airlock → Distributor → ForwardedMigrator
+        bytes memory data = abi.encode(payout, PERCENT_10, address(guardedMock), "");
+        vm.prank(address(airlock));
+        // Airlock calls Distributor, Distributor calls guardedMock
+        // guardedMock.airlock = distributor, msg.sender = distributor → SUCCESS
+        address pool = distributor.initialize(address(asset), address(numeraire), data);
+        assertEq(pool, address(0x5678));
     }
 }

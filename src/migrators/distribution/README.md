@@ -116,6 +116,25 @@ forge script script/ValidateDistributionMigrator.s.sol --rpc-url $RPC_URL
 | **Blocklisted Payout** | Transfer reverts if payout is blocklisted | Use non-blocklisted payout addresses |
 | **Pausable Tokens** | Transfer reverts if token is paused | Monitor token status before migration |
 
+### Important: ForwardedMigrator Direct Use
+
+**ForwardedMigrator MUST NOT be used directly via Airlock.create().**
+
+Both DistributionMigrator and ForwardedMigrator are whitelisted in Airlock, but:
+- **DistributionMigrator**: Can be used directly in `Airlock.create()`
+- **ForwardedMigrator**: CANNOT be used directly - will revert with `SenderNotAirlock`
+
+This is because ForwardedMigrator's `airlock` is set to the DistributionMigrator, not the real Airlock. The `onlyAirlock` modifier will reject calls from the real Airlock.
+
+```
+✅ CORRECT: Airlock → DistributionMigrator → ForwardedMigrator
+❌ WRONG:   Airlock → ForwardedMigrator (reverts!)
+```
+
+**Why is ForwardedMigrator whitelisted then?**
+
+The DistributionMigrator validates that its underlying migrator is whitelisted by Airlock (trust validation). This requires the ForwardedMigrator to be in Airlock's whitelist, even though it cannot be called directly.
+
 ### Access Control
 
 | Function | Access | Notes |
@@ -131,6 +150,27 @@ forge script script/ValidateDistributionMigrator.s.sol --rpc-url $RPC_URL
 2. **Balance Conservation**: `distribution + forwarded == original_balance`
 3. **No Stuck Funds**: After `migrate()`, distributor has 0 balance
 4. **Asset Untouched**: Distribution only affects numeraire, never asset
+5. **Token Pair Integrity**: Stored `(asset, numeraire)` must match provided `(token0, token1)`
+
+### Token Pair Validation
+
+This contract explicitly stores and validates both `asset` AND `numeraire` (rather than deriving numeraire at runtime):
+
+1. **Explicit Token Storage**: Both tokens are stored in the config during `initialize()`
+2. **Strict Validation**: `migrate()` verifies the provided `(token0, token1)` matches the stored pair exactly
+3. **Order-Independent Comparison**: Either ordering is accepted, but both tokens must match
+
+```solidity
+// Defense-in-depth validation in migrate()
+bool validPair = (config.asset == token0 && config.numeraire == token1)
+    || (config.asset == token1 && config.numeraire == token0);
+if (!validPair) revert TokenPairMismatch();
+```
+
+This prevents:
+- Ordering spoofing (wrong tokens passed to `migrate()`)
+- Distribution to wrong token if `poolInitializer` returns unexpected values
+- Asset/numeraire confusion from storage corruption
 
 ## Testing
 
@@ -172,7 +212,7 @@ event WrappedMigration(
 | `InvalidPercent()` | Percent exceeds 50% |
 | `AlreadyInitialized()` | Config exists for token pair |
 | `PoolNotInitialized()` | No config for token pair |
-| `AssetMismatch()` | Stored asset doesn't match tokens |
+| `TokenPairMismatch()` | Provided tokens don't match stored (asset, numeraire) |
 | `UnderlyingNotWhitelisted()` | Underlying not in Airlock whitelist |
 | `UnderlyingNotForwarded()` | Underlying's airlock != this contract |
 | `UnderlyingNotLockerApproved()` | V4 locker hasn't approved underlying |

@@ -23,8 +23,8 @@ error AlreadyInitialized();
 /// @notice Thrown when config does not exist for token pair
 error PoolNotInitialized();
 
-/// @notice Thrown when stored asset doesn't match token0 or token1
-error AssetMismatch();
+/// @notice Thrown when provided token pair doesn't match stored (asset, numeraire)
+error TokenPairMismatch();
 
 /// @notice Thrown when underlying migrator is not whitelisted by Airlock
 error UnderlyingNotWhitelisted();
@@ -90,13 +90,15 @@ interface IHookMigrator {
  * @param payout Address receiving the distribution
  * @param percentWad Distribution percentage in WAD (1e18 = 100%)
  * @param underlying The underlying migrator to forward to
- * @param asset The asset token address (used to identify numeraire at migrate-time)
+ * @param asset The asset token address
+ * @param numeraire The numeraire token address (address(0) for ETH)
  */
 struct DistributionConfig {
     address payout;
     uint256 percentWad;
     ILiquidityMigrator underlying;
     address asset;
+    address numeraire;
 }
 
 // ============ Constants ============
@@ -180,9 +182,14 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
         // These are SHOULD checks per spec - helps catch misconfiguration early
         _performV4PreflightChecks(underlyingMigrator);
 
-        // Store config (underlyingData is NOT stored per spec)
+        // Store config with BOTH asset and numeraire explicitly (underlyingData is NOT stored per spec)
+        // Storing both enables explicit validation in migrate() - prevents ordering spoofing
         getDistributionConfig[token0][token1] = DistributionConfig({
-            payout: payout, percentWad: percentWad, underlying: ILiquidityMigrator(underlyingMigrator), asset: asset
+            payout: payout,
+            percentWad: percentWad,
+            underlying: ILiquidityMigrator(underlyingMigrator),
+            asset: asset,
+            numeraire: numeraire
         });
 
         // Forward initialize to underlying migrator
@@ -203,19 +210,18 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
         address token1,
         address recipient
     ) external payable onlyAirlock returns (uint256 liquidity) {
-        // Look up config
+        // Look up config using sorted key
         DistributionConfig memory config = getDistributionConfig[token0][token1];
         if (config.payout == address(0)) revert PoolNotInitialized();
 
-        // Identify numeraire from stored asset
-        address numeraire;
-        if (config.asset == token0) {
-            numeraire = token1;
-        } else if (config.asset == token1) {
-            numeraire = token0;
-        } else {
-            revert AssetMismatch();
-        }
+        // Verify token pair matches stored config EXACTLY (order-independent)
+        // This prevents ordering spoofing if poolInitializer returns unexpected tokens
+        bool validPair = (config.asset == token0 && config.numeraire == token1)
+            || (config.asset == token1 && config.numeraire == token0);
+        if (!validPair) revert TokenPairMismatch();
+
+        // Use stored numeraire directly (no derivation needed - more secure)
+        address numeraire = config.numeraire;
 
         // CEI Pattern: Delete config BEFORE external calls to prevent reentrancy
         // We've already loaded config into memory, so this is safe
