@@ -51,21 +51,13 @@ struct DopplerData {
 
 contract DopplerDeployerHookMiner is IDopplerDeployer {
     IPoolManager public poolManager;
-    bytes32 public nextSalt;
 
     constructor(IPoolManager poolManager_) {
         poolManager = poolManager_;
     }
 
-    function deploy(uint256 numTokensToSell, bytes32, bytes calldata data) external returns (Doppler) {
-        if (nextSalt == bytes32(0)) {
-            revert("nextSalt not set");
-        }
-
+    function deploy(uint256 numTokensToSell, bytes32 salt, bytes calldata data) external returns (Doppler) {
         DopplerData memory decoded = abi.decode(data, (DopplerData));
-
-        bytes32 salt = nextSalt;
-        nextSalt = bytes32(0);
 
         return new Doppler{salt: salt}(
             poolManager,
@@ -83,10 +75,6 @@ contract DopplerDeployerHookMiner is IDopplerDeployer {
             msg.sender,
             decoded.lpFee
         );
-    }
-
-    function setNextSalt(bytes32 salt) external {
-        nextSalt = salt;
     }
 }
 
@@ -167,8 +155,8 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 clearingTick = _settleAuction(auctionHook);
         int24 alignedClearingTick = alignTick(auctionHook.isToken0(), clearingTick, dopplerTickSpacing);
 
-        _setDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
-        initializer.completeAuction(asset);
+        bytes32 dopplerSalt = _mineDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
+        initializer.completeAuction(asset, dopplerSalt);
 
         // Verify Doppler is now active
         OpeningAuctionStatus status = _getStatus(asset);
@@ -221,8 +209,8 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 clearingTick = _settleAuction(auctionHook);
         int24 alignedClearingTick = alignTick(auctionHook.isToken0(), clearingTick, dopplerTickSpacing);
 
-        _setDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
-        initializer.completeAuction(asset);
+        bytes32 dopplerSalt = _mineDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
+        initializer.completeAuction(asset, dopplerSalt);
 
         address dopplerHookAddress = initializer.getDopplerHook(asset);
 
@@ -254,8 +242,8 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 clearingTick = _settleAuction(auctionHook);
         int24 alignedClearingTick = alignTick(auctionHook.isToken0(), clearingTick, dopplerTickSpacing);
 
-        _setDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
-        initializer.completeAuction(asset);
+        bytes32 dopplerSalt = _mineDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
+        initializer.completeAuction(asset, dopplerSalt);
 
         // Call exitLiquidity() with a random unknown address
         vm.expectRevert(InvalidExitTarget.selector);
@@ -377,11 +365,11 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         return salt;
     }
 
-    function _setDopplerSalt(
+    function _mineDopplerSalt(
         OpeningAuction auctionHook,
         bytes memory dopplerData,
         int24 alignedClearingTick
-    ) internal {
+    ) internal view returns (bytes32) {
         bytes memory modifiedData = _modifyDopplerStartingTick(dopplerData, alignedClearingTick);
         DopplerData memory decoded = abi.decode(modifiedData, (DopplerData));
 
@@ -412,7 +400,7 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
             constructorArgs
         );
 
-        dopplerDeployer.setNextSalt(salt);
+        return salt;
     }
 
     function _modifyDopplerStartingTick(bytes memory dopplerData, int24 newStartingTick)

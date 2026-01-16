@@ -312,7 +312,8 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     /// @dev Can be called by anyone after auction duration or when early exit conditions are met
     /// @dev This function settles the auction (if not already settled) and deploys Doppler
     /// @param asset The asset token address
-    function completeAuction(address asset) external nonReentrant {
+    /// @param dopplerSalt Salt for the CREATE2 Doppler deployment (must yield a valid hook address)
+    function completeAuction(address asset, bytes32 dopplerSalt) external nonReentrant {
         OpeningAuctionState storage state = getState[asset];
 
         if (state.status != OpeningAuctionStatus.AuctionActive) revert AuctionNotActive();
@@ -372,7 +373,6 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         );
 
         // Deploy Doppler hook
-        bytes32 dopplerSalt = keccak256(abi.encodePacked(asset, "doppler"));
         Doppler doppler = dopplerDeployer.deploy(unsoldTokens, dopplerSalt, modifiedDopplerData);
         state.dopplerHook = address(doppler);
 
