@@ -182,7 +182,8 @@ contract OpeningAuctionFeeImpactTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: fee,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
     }
 }

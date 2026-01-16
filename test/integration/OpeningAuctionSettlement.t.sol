@@ -229,7 +229,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -356,7 +357,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -409,7 +411,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -457,7 +460,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -514,7 +518,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
             incentiveShareBps: 1000, // 10%
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         // Mine salt for smaller auction

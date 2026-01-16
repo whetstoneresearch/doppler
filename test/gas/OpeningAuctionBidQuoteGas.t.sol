@@ -23,7 +23,8 @@ contract OpeningAuctionBidQuoteGas is OpeningAuctionBaseTest {
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
-            minLiquidity: 1
+            minLiquidity: 1,
+            shareToAuctionBps: 10_000
         });
     }
 

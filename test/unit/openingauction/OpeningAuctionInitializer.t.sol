@@ -224,7 +224,8 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
     }
 
@@ -251,14 +252,13 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         bool isToken0 = asset < numeraire;
         return OpeningAuctionInitData({
             auctionConfig: getDefaultAuctionConfig(),
-            shareToAuctionBps: 10_000,
             dopplerData: getDopplerData(dopplerTickSpacing, isToken0)
         });
     }
 
     function test_initialize_splitsTokens_correctly() public {
         OpeningAuctionInitData memory initData = getInitData(60);
-        initData.shareToAuctionBps = 2500; // 25%
+        initData.auctionConfig.shareToAuctionBps = 2500; // 25%
 
         uint256 expectedAuctionTokens = (AUCTION_TOKENS * 2500) / 10_000;
         bytes32 salt = mineHookSalt(expectedAuctionTokens, initData.auctionConfig);
@@ -502,7 +502,6 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: getDefaultAuctionConfig(),
-            shareToAuctionBps: 10_000,
             dopplerData: wrongDopplerData
         });
         

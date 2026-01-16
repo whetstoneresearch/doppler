@@ -150,7 +150,6 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 dopplerTickSpacing = 30;
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: config,
-            shareToAuctionBps: 10_000,
             dopplerData: _getDopplerData(dopplerTickSpacing, asset < numeraire)
         });
 
@@ -212,7 +211,6 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 dopplerTickSpacing = 30;
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: config,
-            shareToAuctionBps: 10_000,
             dopplerData: _getDopplerData(dopplerTickSpacing, asset < numeraire)
         });
 
@@ -246,7 +244,6 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 dopplerTickSpacing = 30;
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: config,
-            shareToAuctionBps: 10_000,
             dopplerData: _getDopplerData(dopplerTickSpacing, asset < numeraire)
         });
 
@@ -271,7 +268,6 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 dopplerTickSpacing = 30;
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: config,
-            shareToAuctionBps: 10_000,
             dopplerData: _getDopplerData(dopplerTickSpacing, asset < numeraire)
         });
 
@@ -289,7 +285,6 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         int24 dopplerTickSpacing = 30;
         OpeningAuctionInitData memory initData = OpeningAuctionInitData({
             auctionConfig: config,
-            shareToAuctionBps: 10_000,
             dopplerData: _getDopplerData(dopplerTickSpacing, asset < numeraire)
         });
 
@@ -315,7 +310,8 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
-            minLiquidity: 1e12
+            minLiquidity: 1e12,
+            shareToAuctionBps: 10_000
         });
     }
 

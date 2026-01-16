@@ -43,6 +43,7 @@ struct TickTimeState {
 /// @param tickSpacing Tick spacing for the pool
 /// @param fee Fee for the pool
 /// @param minLiquidity Minimum liquidity per position (prevents dust bid griefing)
+/// @param shareToAuctionBps Share of tokens allocated to the opening auction (basis points)
 struct OpeningAuctionConfig {
     uint256 auctionDuration;
     int24 minAcceptableTickToken0;
@@ -51,6 +52,7 @@ struct OpeningAuctionConfig {
     int24 tickSpacing;
     uint24 fee;
     uint128 minLiquidity;
+    uint256 shareToAuctionBps;
 }
 
 /// @title IOpeningAuction

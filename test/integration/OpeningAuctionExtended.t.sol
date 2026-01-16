@@ -210,7 +210,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000, // 10% for incentives
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -300,7 +301,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -357,7 +359,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         (, bytes32 salt) = HookMiner.find(
@@ -461,7 +464,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -531,7 +535,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -593,7 +598,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);
@@ -667,7 +673,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config);

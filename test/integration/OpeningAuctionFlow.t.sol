@@ -118,7 +118,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
             incentiveShareBps: 1000, // 10%
             tickSpacing: 60,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
     }
 

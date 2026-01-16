@@ -28,7 +28,6 @@ enum OpeningAuctionStatus {
 /// @param dopplerData Encoded Doppler parameters (startingTick will be overwritten with clearing price)
 struct OpeningAuctionInitData {
     OpeningAuctionConfig auctionConfig;
-    uint256 shareToAuctionBps;
     bytes dopplerData;
 }
 
@@ -234,7 +233,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             revert IsToken0Mismatch();
         }
 
-        uint256 shareToAuctionBps = initData.shareToAuctionBps;
+        uint256 shareToAuctionBps = config.shareToAuctionBps;
         if (shareToAuctionBps == 0 || shareToAuctionBps > BPS) {
             revert InvalidShareToAuctionBps();
         }
