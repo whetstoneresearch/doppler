@@ -129,6 +129,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     address alice = address(0xa71c3);
     address bob = address(0xb0b);
     address airlock;
+    address governance;
 
     function setUp() public {
         // Deploy pool manager
@@ -149,6 +150,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
         // Use this test contract as the airlock
         airlock = address(this);
+        governance = makeAddr("Governance");
 
         // Deploy deployers
         auctionDeployer = new OpeningAuctionDeployerTestImpl(manager);
@@ -359,7 +361,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         
         // completeAuction will:
         // 1. Call migrate() to get assets from auction hook to initializer
-        // 2. Forward numeraire to airlock via safeTransfer (emits ProceedsForwarded)
+        // 2. Forward numeraire to governance via safeTransfer (emits ProceedsForwarded)
         // 3. Deploy Doppler with remaining asset tokens
         //
         // Since MockDoppler doesn't have a valid hook address, pool init fails.
@@ -396,6 +398,25 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             
         ) = initializer.getState(asset);
         assertEq(uint8(statusAfter), uint8(statusBefore));
+    }
+
+    function getAssetData(address)
+        external
+        view
+        returns (
+            address assetNumeraire,
+            address timelock,
+            address governance_,
+            address liquidityMigrator,
+            address poolInitializer,
+            address pool,
+            address migrationPool,
+            uint256 numTokensToSell,
+            uint256 totalSupply,
+            address integrator
+        )
+    {
+        return (numeraire, address(0), governance, address(0), address(0), address(0), address(0), 0, 0, address(0));
     }
 
     /* -------------------------------------------------------------------------- */
