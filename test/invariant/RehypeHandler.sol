@@ -63,13 +63,16 @@ contract RehyperInvariantTests is Deployers {
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](6);
+        bytes4[] memory selectors = new bytes4[](8);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
         selectors[2] = handler.buyExactOut.selector;
         selectors[3] = handler.sellExactIn.selector;
         selectors[4] = handler.sellExactOut.selector;
         selectors[5] = handler.setFeeDistribution.selector;
+        selectors[6] = handler.collectFees.selector;
+        selectors[7] = handler.claimAirlockOwnerFees.selector;
+
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
 
@@ -527,6 +530,19 @@ contract RehypeHandler is Test {
         PoolId poolId = poolKey.toId();
         address asset = settingsOf[poolId].asset;
         BalanceDelta delta = hook.collectFees(asset);
+    }
+
+    function claimAirlockOwnerFees(uint256 seed) public {
+        if (poolKeys.length == 0) return;
+        // Only 2% chance to collect fees
+        vm.assume(seed % 100 > 2);
+
+        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
+        PoolId poolId = poolKey.toId();
+        address asset = settingsOf[poolId].asset;
+
+        vm.prank(AIRLOCK_OWNER);
+        (uint128 fees0, uint128 fees1) = hook.claimAirlockOwnerFees(asset);
     }
 
     /* --------------------------------------------------------------------------------------- */
