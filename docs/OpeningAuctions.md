@@ -148,7 +148,7 @@ stateDiagram-v2
   [*] --> NotStarted
   NotStarted --> Active: poolManager.initialize -> afterInitialize
   Active --> Closed: settleAuction() starts
-  Closed --> Settled: settlement swap + clearingTick set
+  Closed --> Settled: settlement swap and clearingTick set
   Settled --> [*]
 ```
 
@@ -173,33 +173,33 @@ stateDiagram-v2
 
 ```mermaid
 graph TD
-  A[Airlock] -->|initialize(asset,numeraire,tokens,salt,data)| I[OpeningAuctionInitializer]
-  I -->|create2 deploy(salt)| D[OpeningAuctionDeployer]
+  A[Airlock] -->|"initialize(asset, numeraire, tokens, salt, data)"| I[OpeningAuctionInitializer]
+  I -->|"create2 deploy(salt)"| D[OpeningAuctionDeployer]
   D --> H[OpeningAuction Hook]
 
-  I -->|setIsToken0(isToken0)| H
-  I -->|poolManager.initialize(auctionPoolKey,startPrice)| PM[Uniswap v4 PoolManager]
-  PM -->|beforeInitialize/afterInitialize| H
+  I -->|"setIsToken0(isToken0)"| H
+  I -->|"poolManager.initialize(auctionPoolKey, startPrice)"| PM[Uniswap v4 PoolManager]
+  PM -->|"beforeInitialize/afterInitialize"| H
 
-  U[Bidder via router] -->|modifyLiquidity(add/remove)| PM
-  PM -->|beforeAdd/afterAdd| H
-  PM -->|beforeRemove/afterRemove| H
+  U[Bidder via router] -->|"modifyLiquidity(add/remove)"| PM
+  PM -->|"beforeAdd/afterAdd"| H
+  PM -->|"beforeRemove/afterRemove"| H
 
-  S[Anyone] -->|settleAuction()| H
-  H -->|poolManager.unlock(amount)| PM
-  PM -->|unlockCallback(data)| H
-  H -->|poolManager.swap(...)| PM
-  PM -->|beforeSwap| H
+  S[Anyone] -->|"settleAuction()"| H
+  H -->|"poolManager.unlock(amount)"| PM
+  PM -->|"unlockCallback(data)"| H
+  H -->|"poolManager.swap(...)"| PM
+  PM -->|"beforeSwap"| H
 
-  C[Anyone] -->|completeAuction(asset,dopplerSalt)| I
-  I -->|migrate(recipient=initializer)| H
-  I -->|create2 deploy dopplerSalt| DD[DopplerDeployer]
+  C[Anyone] -->|"completeAuction(asset, dopplerSalt)"| I
+  I -->|"migrate(recipient=initializer)"| H
+  I -->|"create2 deploy(dopplerSalt)"| DD[DopplerDeployer]
   DD --> DH[Doppler Hook]
-  I -->|poolManager.initialize(dopplerPoolKey, alignedClearingPrice)| PM
-  PM -->|beforeInitialize/afterInitialize| DH
+  I -->|"poolManager.initialize(dopplerPoolKey, alignedClearingPrice)"| PM
+  PM -->|"beforeInitialize/afterInitialize"| DH
 
-  A -->|exitLiquidity(targetPool,migrationPool)| I
-  I -->|Doppler.migrate(airlock)| DH
+  A -->|"exitLiquidity(targetPool, migrationPool)"| I
+  I -->|"Doppler.migrate(airlock)"| DH
 ```
 
 ---
@@ -268,8 +268,8 @@ sequenceDiagram
   participant Token as Asset ERC20
 
   Airlock->>Init: initialize(asset,numeraire,numTokensToSell,salt,abi.encode(initData))
-  Init->>Init: validate token order + tick spacing compatibility
-  Init->>Init: split tokens: auctionTokens + dopplerTokens
+  Init->>Init: validate token order and tick spacing compatibility
+  Init->>Init: split tokens: auctionTokens and dopplerTokens
   Init->>Deployer: deploy(auctionTokens, salt, abi.encode(auctionConfig))
   Deployer->>Hook: new OpeningAuction{salt}(poolManager, initializer=Init, totalAuctionTokens=auctionTokens, config)
 
@@ -279,7 +279,7 @@ sequenceDiagram
   PM->>Hook: beforeInitialize(sender=Init, key, sqrtPrice)
   Hook-->>PM: ok
   PM->>Hook: afterInitialize(sender=Init, key, sqrtPrice, tick)
-  Hook->>Hook: set auctionStartTime/endTime; phase=Active; estimatedClearingTick=extreme
+  Hook->>Hook: set auctionStartTime/endTime, set phase=Active, set estimatedClearingTick=extreme
   Hook-->>PM: ok
   Init-->>Airlock: returns address(Hook)
 ```
@@ -293,7 +293,7 @@ sequenceDiagram
   participant PM as PoolManager
   participant Hook as OpeningAuction
 
-  User->>Router: modifyLiquidity(add tickLower, tickUpper=tickLower+spacing, liquidityDelta>0, salt, hookData=abi.encode(owner))
+  User->>Router: modifyLiquidity(add tickLower, tickUpper=tickLower plus spacing, liquidityDelta>0, salt, hookData=abi.encode(owner))
   Router->>PM: modifyLiquidity(poolKey, params, hookData)
   PM->>Hook: beforeAddLiquidity(sender=Router, key, params, hookData)
   Hook->>Hook: require phase==Active && now<auctionEnd
@@ -306,10 +306,10 @@ sequenceDiagram
   PM->>Hook: afterAddLiquidity(sender=Router, key, params, delta, feesAccrued, hookData)
 
   Hook->>Hook: decode owner from hookData
-  Hook->>Hook: create positionId + store AuctionPosition
+  Hook->>Hook: create positionId and store AuctionPosition
   Hook->>Hook: update tick accumulator (prevent retroactive incentive)
   Hook->>Hook: snapshot rewardDebtX128
-  Hook->>Hook: update tick bitmap + liquidityAtTick
+  Hook->>Hook: update tick bitmap and liquidityAtTick
   Hook->>Hook: estimate clearing tick via QuoterMath.quote
   Hook->>Hook: update TickTimeStates (ticks entering/exiting range)
   Hook-->>PM: ok
@@ -329,7 +329,7 @@ sequenceDiagram
   Hook->>Hook: require phase==Active && now>=auctionEndTime
   Hook->>Hook: phase=Closed
   Hook->>Hook: finalize all tick time accumulators at auctionEndTime
-  Hook->>Hook: cachedTotalWeightedTimeX128 = harvested + active contributions
+  Hook->>Hook: cachedTotalWeightedTimeX128 = harvested plus active contributions
 
   alt has bids && tokensToSell > 0
     Hook->>PM: unlock(abi.encode(tokensToSell))
@@ -338,15 +338,15 @@ sequenceDiagram
     PM->>Hook: beforeSwap(sender=Hook, ...)
     Hook-->>PM: ok (only because sender==Hook)
     PM-->>Hook: returns BalanceDelta delta
-    Hook->>Hook: totalTokensSold += input; totalProceeds += output
+    Hook->>Hook: add input to totalTokensSold, add output to totalProceeds
     Hook->>Hook: settle deltas (sync/transfer/settle/take)
-    Hook->>Hook: read final tick from PM; enforce price limit
+    Hook->>Hook: read final tick from PM and enforce price limit
   else no bids or no tokens
     Hook->>Hook: clearing tick = price limit tick
   end
 
-  Hook->>Hook: clearingTick set; currentTick=clearingTick
-  Hook->>Hook: incentivesClaimDeadline=now+30d
+  Hook->>Hook: clearingTick set, currentTick=clearingTick
+  Hook->>Hook: incentivesClaimDeadline = now plus 30d
   Hook->>Hook: phase=Settled
   Hook-->>Caller: emits AuctionSettled
 ```
@@ -374,7 +374,7 @@ sequenceDiagram
   Hook->>Hook: transfer all balances except reserved incentives to Init
   Hook-->>Init: returns (token0,balance0,token1,balance1,...)
 
-  Init->>Airlock: getAssetData(asset) -> governance
+  Init->>Airlock: getAssetData(asset) returns governance
   Init->>Governance: transfer numeraire proceeds
 
   Init->>Init: alignedClearingTick = alignTick(isToken0, clearingTick, dopplerTickSpacing)
@@ -386,7 +386,7 @@ sequenceDiagram
   Init->>Doppler: transfer asset inventory (unsoldTokens)
   Init->>PM: initialize(dopplerPoolKey(hooks=Doppler), sqrtPrice(alignedClearingTick))
   PM->>Doppler: beforeInitialize/afterInitialize
-  Init->>Init: status=DopplerActive; store doppler hook + clearing tick
+  Init->>Init: status=DopplerActive, store doppler hook and clearing tick
   Init-->>Caller: returns address(Doppler)
 ```
 
@@ -1663,5 +1663,4 @@ If you want, paste (or point me to) the exact **deployment/config** you’re usi
 * sanity-check the tick math and sign conventions for your specific token ordering,
 * produce a “price-path diagram” showing exactly which ticks would be crossed for your current bids,
 * and walk through the exact storage updates for a concrete example (two bids enter range, one exits, then settlement).
-
 
