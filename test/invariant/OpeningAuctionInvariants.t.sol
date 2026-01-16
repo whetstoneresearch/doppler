@@ -622,7 +622,8 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
             incentiveShareBps: DEFAULT_INCENTIVE_SHARE_BPS,
             tickSpacing: DEFAULT_TICK_SPACING,
             fee: DEFAULT_FEE,
-            minLiquidity: DEFAULT_MIN_LIQUIDITY
+            minLiquidity: DEFAULT_MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         address hookAddress = address(uint160(_getHookFlags()) ^ (0x4444 << 144));

@@ -154,7 +154,8 @@ contract InitializerTickSpacingTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
     }
 
@@ -183,7 +184,6 @@ contract InitializerTickSpacingTest is Test, Deployers {
     ) internal view returns (OpeningAuctionInitData memory) {
         return OpeningAuctionInitData({
             auctionConfig: getAuctionConfig(auctionTickSpacing),
-            shareToAuctionBps: 10_000,
             dopplerData: getDopplerData(dopplerTickSpacing)
         });
     }

@@ -84,7 +84,8 @@ contract TokenOrderingTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: TICK_SPACING,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
     }
 
@@ -273,7 +274,8 @@ contract TokenOrderingTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: TICK_SPACING,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         deployCodeTo(

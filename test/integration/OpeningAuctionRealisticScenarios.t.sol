@@ -222,7 +222,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS, // 6% of sale = 0.3% of supply
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config, SALE_AMOUNT);
@@ -338,7 +339,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config, SALE_AMOUNT);
@@ -424,7 +426,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config, SALE_AMOUNT);
@@ -509,7 +512,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config, SALE_AMOUNT);
@@ -581,7 +585,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config, SALE_AMOUNT);
@@ -672,7 +677,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         // Use the standard sale amount
@@ -723,7 +729,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             incentiveShareBps: INCENTIVE_SHARE_BPS,
             tickSpacing: TICK_SPACING,
             fee: FEE,
-            minLiquidity: MIN_LIQUIDITY
+            minLiquidity: MIN_LIQUIDITY,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuction(config, SALE_AMOUNT);

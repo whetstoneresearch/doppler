@@ -131,7 +131,8 @@ contract MigrateReentrancyTest is Test, Deployers {
             incentiveShareBps: 1000,
             tickSpacing: 60,
             fee: 3000,
-            minLiquidity: 1e15
+            minLiquidity: 1e15,
+            shareToAuctionBps: 10_000
         });
 
         address hookAddress = address(uint160(_getHookFlags()) ^ (0x4444 << 144));

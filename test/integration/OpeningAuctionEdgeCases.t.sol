@@ -129,7 +129,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
             incentiveShareBps: incentiveShareBps,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: minLiquidity
+            minLiquidity: minLiquidity,
+            shareToAuctionBps: 10_000
         });
     }
 
@@ -270,7 +271,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
             incentiveShareBps: incentiveShareBps,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: minLiquidity
+            minLiquidity: minLiquidity,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuctionWithConfig(config);
@@ -300,7 +302,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
             incentiveShareBps: incentiveShareBps,
             tickSpacing: tickSpacing,
             fee: 3000,
-            minLiquidity: minLiquidity
+            minLiquidity: minLiquidity,
+            shareToAuctionBps: 10_000
         });
 
         auction = _createAuctionWithConfig(config);
