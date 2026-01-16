@@ -5,16 +5,7 @@ import { Test, console } from "forge-std/Test.sol";
 
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 
-import {
-    Curve,
-    InvalidTotalShares,
-    ZeroPosition,
-    ZeroShare,
-    adjustCurves,
-    calculateLogNormalDistribution,
-    calculateLpTail,
-    calculatePositions
-} from "src/libraries/Multicurve.sol";
+import { Curve, InvalidTotalShares, Multicurve, ZeroPosition, ZeroShare } from "src/libraries/Multicurve.sol";
 import { isTickAligned } from "src/libraries/TickLibrary.sol";
 import { Position } from "src/types/Position.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -48,7 +39,7 @@ contract MulticurveTest is Test {
         curves[3].shares = WAD / 4;
 
         vm.startSnapshotGas("Multicurve", "adjustCurves");
-        (Curve[] memory adjustedCurves,,) = adjustCurves(curves, 0, int24(8), true);
+        (Curve[] memory adjustedCurves,,) = Multicurve.adjustCurves(curves, 0, int24(8), true);
         vm.stopSnapshotGas("Multicurve", "adjustCurves");
         assertEq(adjustedCurves.length, curves.length, "Incorrect number of curves");
     }
@@ -61,7 +52,7 @@ contract MulticurveTest is Test {
         curves[0].shares = WAD;
 
         (Curve[] memory adjustedCurves, int24 lowerTickBounday, int24 upperTickBoundary) =
-            adjustCurves(curves, 0, int24(8), true);
+            Multicurve.adjustCurves(curves, 0, int24(8), true);
 
         assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
         assertEq(adjustedCurves[0].tickLower, curves[0].tickLower, "Incorrect lower tick");
@@ -80,7 +71,7 @@ contract MulticurveTest is Test {
         curves[0].shares = WAD;
 
         (Curve[] memory adjustedCurves, int24 lowerTickBounday, int24 upperTickBoundary) =
-            adjustCurves(curves, 0, int24(8), false);
+            Multicurve.adjustCurves(curves, 0, int24(8), false);
 
         assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
         assertEq(adjustedCurves[0].tickLower, -curves[0].tickUpper, "Incorrect lower tick");
@@ -101,7 +92,7 @@ contract MulticurveTest is Test {
         curves[0].shares = WAD;
 
         (Curve[] memory adjustedCurves, int24 lowerTickBounday, int24 upperTickBoundary) =
-            adjustCurves(curves, offset, int24(8), true);
+            Multicurve.adjustCurves(curves, offset, int24(8), true);
 
         assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
         assertEq(adjustedCurves[0].tickLower, curves[0].tickLower + offset, "Incorrect lower tick");
@@ -122,7 +113,7 @@ contract MulticurveTest is Test {
         curves[0].shares = WAD;
 
         (Curve[] memory adjustedCurves, int24 lowerTickBounday, int24 upperTickBoundary) =
-            adjustCurves(curves, offset, int24(8), false);
+            Multicurve.adjustCurves(curves, offset, int24(8), false);
 
         assertEq(adjustedCurves.length, 1, "Incorrect number of curves");
         assertEq(adjustedCurves[0].tickLower, -curves[0].tickUpper + offset, "Incorrect lower tick");
@@ -142,7 +133,7 @@ contract MulticurveTest is Test {
         curves[0].shares = WAD;
 
         vm.expectRevert(ZeroPosition.selector);
-        adjustCurves(curves, 0, int24(8), false);
+        Multicurve.adjustCurves(curves, 0, int24(8), false);
     }
 
     /// forge-config: default.allow_internal_expect_revert = true
@@ -154,7 +145,7 @@ contract MulticurveTest is Test {
         curves[0].shares = 0;
 
         vm.expectRevert(ZeroShare.selector);
-        adjustCurves(curves, 0, int24(8), false);
+        Multicurve.adjustCurves(curves, 0, int24(8), false);
     }
 
     /// forge-config: default.allow_internal_expect_revert = true
@@ -171,7 +162,7 @@ contract MulticurveTest is Test {
         curves[1].shares = WAD / 2 + 1;
 
         vm.expectRevert(InvalidTotalShares.selector);
-        adjustCurves(curves, 0, int24(8), false);
+        Multicurve.adjustCurves(curves, 0, int24(8), false);
     }
 
     /* ------------------------------------------------------------------------------- */
@@ -186,7 +177,7 @@ contract MulticurveTest is Test {
         uint256 supply = 1e18;
         int24 tickSpacing = 8;
 
-        Position memory lpTail = calculateLpTail(salt, tickLower, tickUpper, isToken0, supply, tickSpacing);
+        Position memory lpTail = Multicurve.calculateLpTail(salt, tickLower, tickUpper, isToken0, supply, tickSpacing);
 
         assertEq(lpTail.salt, salt, "Incorrect salt");
         assertEq(lpTail.tickLower, tickUpper + tickSpacing, "Incorrect lower tick");
@@ -207,8 +198,11 @@ contract MulticurveTest is Test {
         uint256 curveSupply = 1e27;
 
         vm.startSnapshotGas("Multicurve", "calculateLogNormalDistribution");
-        Position[] memory positions =
-            calculateLogNormalDistribution(0, tickLower, tickUpper, tickSpacing, isToken0, numPositions, curveSupply);
+        Position[] memory positions = Multicurve.calculateLogNormalDistribution(
+            Multicurve.LogNormalDistributionParams(
+                0, tickLower, tickUpper, tickSpacing, isToken0, numPositions, curveSupply
+            )
+        );
         vm.stopSnapshotGas("Multicurve", "calculateLogNormalDistribution");
 
         assertEq(positions.length, numPositions, "Incorrect number of positions");
@@ -238,7 +232,7 @@ contract MulticurveTest is Test {
         }
 
         vm.startSnapshotGas("Multicurve", "calculatePositions");
-        Position[] memory positions = calculatePositions(curves, tickSpacing, 1e27, 0, true);
+        Position[] memory positions = Multicurve.calculatePositions(curves, tickSpacing, 1e27, 0, true);
         vm.stopSnapshotGas("Multicurve", "calculatePositions");
         assertEq(positions.length, 50, "Incorrect number of positions");
 
@@ -260,7 +254,7 @@ contract MulticurveTest is Test {
         }
 
         vm.expectRevert(InvalidTotalShares.selector);
-        calculatePositions(curves, tickSpacing, 1e27, 0, true);
+        Multicurve.calculatePositions(curves, tickSpacing, 1e27, 0, true);
     }
 
     function test_calculatePositions_WithHead() public pure {
@@ -274,7 +268,7 @@ contract MulticurveTest is Test {
             curves[i].shares = WAD / 10;
         }
 
-        Position[] memory positions = calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
+        Position[] memory positions = Multicurve.calculatePositions(curves, tickSpacing, 8e18, 1e22, true);
         assertEq(positions.length, 51, "Incorrect number of positions");
 
         Position memory headPosition = positions[positions.length - 1];
