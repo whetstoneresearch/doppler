@@ -512,7 +512,7 @@ contract RehypeHandler is Test {
             uint256 lpPercentWad
         ) = _randomizeFeeDistribution(seed);
 
-        vm.prank(address(dopplerHookInitializer));
+        vm.prank(settingsOf[poolId].buybackDst);
         hook.setFeeDistribution(
             poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
         );
