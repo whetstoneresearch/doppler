@@ -16,6 +16,7 @@ A couple of things to note:
 - A pool initialized with a Doppler Hook can opt-out of using it later by setting the hook address to `address(0)`
 - A pool can change its associated Doppler Hook to a different one at any time via the `setHook` function
 - Doppler Hooks are approved by the protocol multisig
+- A pool without a Doppler Hook cannot be initialized with a dynamic LP fee
 
 ## Implementation
 

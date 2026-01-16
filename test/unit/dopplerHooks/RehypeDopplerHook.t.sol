@@ -7,15 +7,21 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
+import { console } from "forge-std/console.sol";
 import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
-import { FeeDistributionMustAddUpToWAD, RehypeDopplerHook, SenderNotBeneficiary } from "src/dopplerHooks/RehypeDopplerHook.sol";
-import { FeeDistributionInfo, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
+import {
+    FeeDistributionMustAddUpToWAD,
+    RehypeDopplerHook,
+    SenderNotAuthorized
+} from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { FeeDistributionInfo, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
-}
+
+    }
 
 contract MockAirlock {
     address public owner;
@@ -244,16 +250,17 @@ contract RehypeDopplerHookTest is Test {
 
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
-
+        console.log("dst", buybackDst);
         // Update fee distribution
-        vm.prank(address(initializer));
+        vm.prank(buybackDst);
         dopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
 
         (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
@@ -265,8 +272,8 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedLp, 0);
     }
 
-    function test_setFeeDistribution_RevertsWhenSenderNotInitializer(PoolKey memory poolKey) public {
-        vm.expectRevert(SenderNotInitializer.selector);
+    function test_setFeeDistribution_RevertsWhenSenderNotAuthorized(PoolKey memory poolKey) public {
+        vm.expectRevert(SenderNotAuthorized.selector);
         dopplerHook.setFeeDistribution(poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
     }
 
@@ -275,138 +282,16 @@ contract RehypeDopplerHookTest is Test {
 
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
-        vm.prank(address(initializer));
+        vm.prank(buybackDst);
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
         dopplerHook.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0);
-    }
-
-    /* ----------------------------------------------------------------------------------- */
-    /*                        setFeeDistributionByBeneficiary()                            */
-    /* ----------------------------------------------------------------------------------- */
-
-    function test_setFeeDistributionByBeneficiary_UpdatesDistribution(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address beneficiary1 = makeAddr("beneficiary1");
-        address beneficiary2 = makeAddr("beneficiary2");
-
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-
-        // Set up beneficiaries in mock initializer
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary1, shares: uint96(0.5e18) });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: beneficiary2, shares: uint96(0.5e18) });
-        mockInitializer.setBeneficiaries(asset, beneficiaries);
-
-        vm.prank(address(mockInitializer));
-        dopplerHookWithMockInitializer.onInitialization(asset, poolKey, data);
-
-        PoolId poolId = poolKey.toId();
-
-        // Beneficiary updates fee distribution
-        vm.prank(beneficiary1);
-        dopplerHookWithMockInitializer.setFeeDistributionByBeneficiary(poolId, 0.5e18, 0, 0.5e18, 0);
-
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
-            dopplerHookWithMockInitializer.getFeeDistributionInfo(poolId);
-
-        assertEq(storedAssetBuyback, 0.5e18);
-        assertEq(storedNumeraireBuyback, 0);
-        assertEq(storedBeneficiary, 0.5e18);
-        assertEq(storedLp, 0);
-    }
-
-    function test_setFeeDistributionByBeneficiary_WorksForAnyBeneficiary(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address beneficiary1 = makeAddr("beneficiary1");
-        address beneficiary2 = makeAddr("beneficiary2");
-
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-
-        // Set up beneficiaries in mock initializer
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary1, shares: uint96(0.5e18) });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: beneficiary2, shares: uint96(0.5e18) });
-        mockInitializer.setBeneficiaries(asset, beneficiaries);
-
-        vm.prank(address(mockInitializer));
-        dopplerHookWithMockInitializer.onInitialization(asset, poolKey, data);
-
-        PoolId poolId = poolKey.toId();
-
-        // Second beneficiary also can update fee distribution
-        vm.prank(beneficiary2);
-        dopplerHookWithMockInitializer.setFeeDistributionByBeneficiary(poolId, 0.1e18, 0.2e18, 0.3e18, 0.4e18);
-
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
-            dopplerHookWithMockInitializer.getFeeDistributionInfo(poolId);
-
-        assertEq(storedAssetBuyback, 0.1e18);
-        assertEq(storedNumeraireBuyback, 0.2e18);
-        assertEq(storedBeneficiary, 0.3e18);
-        assertEq(storedLp, 0.4e18);
-    }
-
-    function test_setFeeDistributionByBeneficiary_RevertsWhenSenderNotBeneficiary(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address beneficiary1 = makeAddr("beneficiary1");
-        address nonBeneficiary = makeAddr("nonBeneficiary");
-
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-
-        // Set up beneficiaries in mock initializer (nonBeneficiary is NOT included)
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary1, shares: uint96(WAD) });
-        mockInitializer.setBeneficiaries(asset, beneficiaries);
-
-        vm.prank(address(mockInitializer));
-        dopplerHookWithMockInitializer.onInitialization(asset, poolKey, data);
-
-        PoolId poolId = poolKey.toId();
-
-        // Non-beneficiary tries to update fee distribution
-        vm.prank(nonBeneficiary);
-        vm.expectRevert(SenderNotBeneficiary.selector);
-        dopplerHookWithMockInitializer.setFeeDistributionByBeneficiary(poolId, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-    }
-
-    function test_setFeeDistributionByBeneficiary_RevertsWhenDoesNotAddToWAD(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address beneficiary1 = makeAddr("beneficiary1");
-
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
-
-        // Set up beneficiaries in mock initializer
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary1, shares: uint96(WAD) });
-        mockInitializer.setBeneficiaries(asset, beneficiaries);
-
-        vm.prank(address(mockInitializer));
-        dopplerHookWithMockInitializer.onInitialization(asset, poolKey, data);
-
-        PoolId poolId = poolKey.toId();
-
-        // Beneficiary tries to update with invalid distribution (doesn't add to WAD)
-        vm.prank(beneficiary1);
-        vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        dopplerHookWithMockInitializer.setFeeDistributionByBeneficiary(poolId, 0.5e18, 0.5e18, 0.5e18, 0);
     }
 
     /* ----------------------------------------------------------------------------- */
