@@ -11,7 +11,6 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
-import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
@@ -20,7 +19,6 @@ import {
     OpeningAuctionInitializer,
     OpeningAuctionDeployer,
     OpeningAuctionInitData,
-    OpeningAuctionState,
     OpeningAuctionStatus,
     IDopplerDeployer,
     AssetAlreadyInitialized,
@@ -28,80 +26,22 @@ import {
     IsToken0Mismatch
 } from "src/OpeningAuctionInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerDeployer } from "src/initializers/UniswapV4Initializer.sol";
 import { alignTickTowardZero, alignTick } from "src/libraries/TickLibrary.sol";
 
-/// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionTestImpl is OpeningAuction {
-    constructor(
-        IPoolManager poolManager_,
-        address initializer_,
-        uint256 totalAuctionTokens_,
-        OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
-
-    function validateHookAddress(BaseHook) internal pure override {}
-}
-
-/// @notice OpeningAuctionDeployer that creates the implementation without address validation
-contract OpeningAuctionDeployerTestImpl is OpeningAuctionDeployer {
-    constructor(IPoolManager poolManager_) OpeningAuctionDeployer(poolManager_) {}
-
-    function deploy(
-        uint256 auctionTokens,
-        bytes32 salt,
-        bytes calldata data
-    ) external override returns (OpeningAuction) {
-        OpeningAuctionConfig memory config = abi.decode(data, (OpeningAuctionConfig));
-
-        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl{salt: salt}(
-            poolManager,
-            msg.sender,
-            auctionTokens,
-            config
-        );
-
-        return OpeningAuction(payable(address(auction)));
-    }
-}
-
-/// @notice Mock Doppler that can receive tokens and be migrated
-contract MockDoppler {
-    IPoolManager public poolManager;
-    address public initializer;
-    
-    constructor(IPoolManager _poolManager, address _initializer) {
-        poolManager = _poolManager;
-        initializer = _initializer;
-    }
-    
-    function migrate(address) external pure returns (
-        uint160 sqrtPriceX96,
-        address token0,
-        uint128 fees0,
-        uint128 balance0,
-        address token1,
-        uint128 fees1,
-        uint128 balance1
-    ) {
-        return (0, address(0), 0, 0, address(0), 0, 0);
-    }
-    
-    receive() external payable {}
-}
-
-/// @notice Mock DopplerDeployer that creates MockDoppler
-contract MockDopplerDeployer is IDopplerDeployer {
-    IPoolManager public poolManager;
-    MockDoppler public lastDeployed;
-    
-    constructor(IPoolManager _poolManager) {
-        poolManager = _poolManager;
-    }
-    
-    function deploy(uint256, bytes32, bytes calldata) external returns (Doppler) {
-        lastDeployed = new MockDoppler(poolManager, msg.sender);
-        return Doppler(payable(address(lastDeployed)));
-    }
+struct DopplerData {
+    uint256 minimumProceeds;
+    uint256 maximumProceeds;
+    uint256 startingTime;
+    uint256 endingTime;
+    int24 startingTick;
+    int24 endingTick;
+    uint256 epochLength;
+    int24 gamma;
+    bool isToken0;
+    uint256 numPDSlugs;
+    uint24 lpFee;
+    int24 tickSpacing;
 }
 
 /// @title OpeningAuctionInitializerTest
@@ -118,8 +58,8 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
     // Contracts
     OpeningAuctionInitializer initializer;
-    OpeningAuctionDeployerTestImpl auctionDeployer;
-    MockDopplerDeployer dopplerDeployer;
+    OpeningAuctionDeployer auctionDeployer;
+    DopplerDeployer dopplerDeployer;
 
     // Test parameters
     uint256 constant AUCTION_TOKENS = 100 ether;
@@ -153,15 +93,15 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         governance = makeAddr("Governance");
 
         // Deploy deployers
-        auctionDeployer = new OpeningAuctionDeployerTestImpl(manager);
-        dopplerDeployer = new MockDopplerDeployer(manager);
+        auctionDeployer = new OpeningAuctionDeployer(manager);
+        dopplerDeployer = new DopplerDeployer(manager);
 
         // Deploy initializer with this contract as airlock
         initializer = new OpeningAuctionInitializer(
             airlock,
             manager,
             auctionDeployer,
-            dopplerDeployer
+            IDopplerDeployer(address(dopplerDeployer))
         );
         vm.label(address(initializer), "Initializer");
 
@@ -210,7 +150,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         (,salt) = HookMiner.find(
             address(auctionDeployer),
             getHookFlags(),
-            type(OpeningAuctionTestImpl).creationCode,
+            type(OpeningAuction).creationCode,
             constructorArgs
         );
     }
@@ -239,7 +179,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             int24(0),                 // startingTick (will be overwritten)
             int24(-100_000),          // endingTick
             uint256(1 hours),         // epochLength
-            int24(60),                // gamma
+            int24(180),               // gamma
             isToken0,                 // isToken0
             uint256(5),               // numPDSlugs
             uint24(3000),             // lpFee
@@ -257,7 +197,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     }
 
     function test_initialize_splitsTokens_correctly() public {
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         initData.auctionConfig.shareToAuctionBps = 2500; // 25%
 
         uint256 expectedAuctionTokens = (AUCTION_TOKENS * 2500) / 10_000;
@@ -297,11 +237,10 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     /*                         completeAuction Tests                               */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Test that completeAuction reverts with an invalid Doppler hook
-    /// @dev Proceeds forwarding is covered in integration tests with valid hook addresses.
-    function test_completeAuction_RevertsWithInvalidDopplerHook() public {
+    /// @notice Test that completeAuction succeeds with a mined Doppler salt
+    function test_completeAuction_SucceedsWithMinedSalt() public {
         OpeningAuctionConfig memory config = getDefaultAuctionConfig();
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         
         // Mine a valid salt for the hook
         bytes32 salt = mineHookSalt(AUCTION_TOKENS, config);
@@ -359,14 +298,81 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         uint256 hookNumeraireBalance = TestERC20(numeraire).balanceOf(auctionHookAddr);
         assertEq(hookNumeraireBalance, proceeds, "Hook should hold proceeds after settlement");
         
-        // completeAuction will:
-        // 1. Call migrate() to get assets from auction hook to initializer
-        // 2. Forward numeraire to governance via safeTransfer (emits ProceedsForwarded)
-        // 3. Deploy Doppler with remaining asset tokens
-        //
-        // Since MockDoppler doesn't have a valid hook address, pool init fails.
-        // The -vvv trace confirms ProceedsForwarded event IS emitted before revert.
-        
+        DopplerData memory decoded = abi.decode(initData.dopplerData, (DopplerData));
+        int24 alignedClearingTick =
+            _alignClearingTick(auctionHook.isToken0(), auctionHook.clearingTick(), decoded.tickSpacing);
+        bytes32 dopplerSalt = _mineDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
+
+        initializer.completeAuction(asset, dopplerSalt);
+
+        (
+            ,
+            ,
+            ,
+            ,
+            ,
+            OpeningAuctionStatus statusAfter,
+            ,
+            address dopplerHook,
+            ,
+            ,
+            
+        ) = initializer.getState(asset);
+        assertEq(uint8(statusAfter), uint8(OpeningAuctionStatus.DopplerActive));
+        assertTrue(dopplerHook != address(0), "Doppler hook should be set");
+    }
+
+    /// @notice Test that completeAuction reverts with an invalid Doppler salt
+    /// @dev Proceeds forwarding is covered in integration tests with valid hook addresses.
+    function test_completeAuction_RevertsWithInvalidDopplerSalt() public {
+        OpeningAuctionConfig memory config = getDefaultAuctionConfig();
+        OpeningAuctionInitData memory initData = getInitData(60);
+
+        bytes32 salt = mineHookSalt(AUCTION_TOKENS, config);
+
+        address auctionHookAddr = initializer.initialize(
+            asset,
+            numeraire,
+            AUCTION_TOKENS,
+            salt,
+            abi.encode(initData)
+        );
+
+        OpeningAuction auctionHook = OpeningAuction(payable(auctionHookAddr));
+
+        (Currency currency0, Currency currency1, uint24 fee, int24 tickSpacing, IHooks hooks) = auctionHook.poolKey();
+        PoolKey memory poolKey = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            fee: fee,
+            tickSpacing: tickSpacing,
+            hooks: hooks
+        });
+
+        int24 tickLower = 0;
+        vm.startPrank(alice);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + poolKey.tickSpacing,
+                liquidityDelta: int256(uint256(100_000 ether)),
+                salt: bytes32(uint256(1))
+            }),
+            abi.encode(alice)
+        );
+        vm.stopPrank();
+
+        vm.warp(auctionHook.auctionEndTime() + 1);
+        auctionHook.settleAuction();
+
+        DopplerData memory decoded = abi.decode(initData.dopplerData, (DopplerData));
+        int24 alignedClearingTick =
+            _alignClearingTick(auctionHook.isToken0(), auctionHook.clearingTick(), decoded.tickSpacing);
+        bytes32 invalidSalt = _findInvalidDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
+
         (
             ,
             ,
@@ -382,7 +388,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         ) = initializer.getState(asset);
 
         vm.expectRevert();
-        initializer.completeAuction(asset);
+        initializer.completeAuction(asset, invalidSalt);
 
         (
             ,
@@ -587,5 +593,126 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         // For uninitialized assets, helper functions should return zero addresses
         assertEq(initializer.getOpeningAuctionHook(uninitializedAsset), address(0), "Auction hook should be zero");
         assertEq(initializer.getDopplerHook(uninitializedAsset), address(0), "Doppler hook should be zero");
+    }
+
+    function _mineDopplerSalt(
+        OpeningAuction auctionHook,
+        bytes memory dopplerData,
+        int24 alignedClearingTick
+    ) internal view returns (bytes32) {
+        (bytes memory constructorArgs,) = _buildDopplerConstructorArgs(auctionHook, dopplerData, alignedClearingTick);
+        (, bytes32 salt) = HookMiner.find(
+            address(dopplerDeployer),
+            _dopplerHookFlags(),
+            type(Doppler).creationCode,
+            constructorArgs
+        );
+        return salt;
+    }
+
+    function _findInvalidDopplerSalt(
+        OpeningAuction auctionHook,
+        bytes memory dopplerData,
+        int24 alignedClearingTick
+    ) internal view returns (bytes32) {
+        (bytes memory constructorArgs,) = _buildDopplerConstructorArgs(auctionHook, dopplerData, alignedClearingTick);
+        bytes memory creationCodeWithArgs = abi.encodePacked(type(Doppler).creationCode, constructorArgs);
+
+        for (uint256 salt; ; ++salt) {
+            address hook = HookMiner.computeAddress(address(dopplerDeployer), salt, creationCodeWithArgs);
+            if (uint160(hook) & Hooks.ALL_HOOK_MASK != _dopplerHookFlags() && hook.code.length == 0) {
+                return bytes32(salt);
+            }
+        }
+        revert("invalid doppler salt not found");
+    }
+
+    function _buildDopplerConstructorArgs(
+        OpeningAuction auctionHook,
+        bytes memory dopplerData,
+        int24 alignedClearingTick
+    ) internal view returns (bytes memory constructorArgs, DopplerData memory decoded) {
+        bytes memory modifiedData = _modifyDopplerStartingTick(dopplerData, alignedClearingTick);
+        decoded = abi.decode(modifiedData, (DopplerData));
+
+        uint256 unsoldTokens =
+            auctionHook.totalAuctionTokens() - auctionHook.incentiveTokensTotal() - auctionHook.totalTokensSold();
+
+        constructorArgs = abi.encode(
+            manager,
+            unsoldTokens,
+            decoded.minimumProceeds,
+            decoded.maximumProceeds,
+            decoded.startingTime,
+            decoded.endingTime,
+            decoded.startingTick,
+            decoded.endingTick,
+            decoded.epochLength,
+            decoded.gamma,
+            decoded.isToken0,
+            decoded.numPDSlugs,
+            address(initializer),
+            decoded.lpFee
+        );
+    }
+
+    function _modifyDopplerStartingTick(bytes memory dopplerData, int24 newStartingTick)
+        internal
+        view
+        returns (bytes memory)
+    {
+        DopplerData memory decoded = abi.decode(dopplerData, (DopplerData));
+
+        uint256 originalDuration = decoded.endingTime - decoded.startingTime;
+
+        uint256 newStartingTime = decoded.startingTime;
+        uint256 newEndingTime = decoded.endingTime;
+        if (block.timestamp >= decoded.startingTime) {
+            newStartingTime = block.timestamp + 1;
+            newEndingTime = newStartingTime + originalDuration;
+        }
+
+        return abi.encode(
+            decoded.minimumProceeds,
+            decoded.maximumProceeds,
+            newStartingTime,
+            newEndingTime,
+            newStartingTick,
+            decoded.endingTick,
+            decoded.epochLength,
+            decoded.gamma,
+            decoded.isToken0,
+            decoded.numPDSlugs,
+            decoded.lpFee,
+            decoded.tickSpacing
+        );
+    }
+
+    function _alignClearingTick(bool isToken0, int24 clearingTick, int24 tickSpacing)
+        internal
+        pure
+        returns (int24)
+    {
+        int24 aligned = alignTick(isToken0, clearingTick, tickSpacing);
+        int24 minAligned = alignTickTowardZero(TickMath.MIN_TICK, tickSpacing);
+        int24 maxAligned = alignTickTowardZero(TickMath.MAX_TICK, tickSpacing);
+        if (aligned < minAligned) {
+            aligned = minAligned;
+        }
+        if (aligned > maxAligned) {
+            aligned = maxAligned;
+        }
+        return aligned;
+    }
+
+    function _dopplerHookFlags() internal pure returns (uint160) {
+        return uint160(
+            Hooks.BEFORE_INITIALIZE_FLAG
+            | Hooks.AFTER_INITIALIZE_FLAG
+            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+            | Hooks.BEFORE_SWAP_FLAG
+            | Hooks.AFTER_SWAP_FLAG
+            | Hooks.BEFORE_DONATE_FLAG
+        );
     }
 }

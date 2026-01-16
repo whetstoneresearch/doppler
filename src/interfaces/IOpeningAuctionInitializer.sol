@@ -40,7 +40,8 @@ interface IOpeningAuctionInitializer is IPoolInitializer {
 
     /// @notice Complete the auction and transition to Doppler
     /// @param asset The asset token address
-    function completeAuction(address asset) external;
+    /// @param dopplerSalt Salt for the CREATE2 Doppler deployment (must yield a valid hook address)
+    function completeAuction(address asset, bytes32 dopplerSalt) external;
 
     /// @notice Permissionless recovery of incentives when no positions accrued any time
     /// @param asset The asset token address

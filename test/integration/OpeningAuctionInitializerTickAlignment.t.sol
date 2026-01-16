@@ -48,21 +48,13 @@ struct DopplerData {
 
 contract DopplerDeployerHookMiner is IDopplerDeployer {
     IPoolManager public poolManager;
-    bytes32 public nextSalt;
 
     constructor(IPoolManager poolManager_) {
         poolManager = poolManager_;
     }
 
-    function deploy(uint256 numTokensToSell, bytes32, bytes calldata data) external returns (Doppler) {
-        if (nextSalt == bytes32(0)) {
-            revert("nextSalt not set");
-        }
-
+    function deploy(uint256 numTokensToSell, bytes32 salt, bytes calldata data) external returns (Doppler) {
         DopplerData memory decoded = abi.decode(data, (DopplerData));
-
-        bytes32 salt = nextSalt;
-        nextSalt = bytes32(0);
 
         return new Doppler{salt: salt}(
             poolManager,
@@ -80,10 +72,6 @@ contract DopplerDeployerHookMiner is IDopplerDeployer {
             msg.sender,
             decoded.lpFee
         );
-    }
-
-    function setNextSalt(bytes32 salt) external {
-        nextSalt = salt;
     }
 }
 
@@ -148,9 +136,9 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
         assertLt(clearingTick, 0, "clearing tick should be negative");
         assertTrue(clearingTick % dopplerTickSpacing != 0, "clearing tick should be misaligned");
         int24 expectedAligned = alignTick(auctionHook.isToken0(), clearingTick, dopplerTickSpacing);
-        _setDopplerSalt(auctionHook, initData.dopplerData, expectedAligned);
+        bytes32 dopplerSalt = _mineDopplerSalt(auctionHook, initData.dopplerData, expectedAligned);
         uint256 governanceBefore = TestERC20(numeraire).balanceOf(governance);
-        initializer.completeAuction(asset);
+        initializer.completeAuction(asset, dopplerSalt);
         uint256 governanceAfter = TestERC20(numeraire).balanceOf(governance);
         assertGt(governanceAfter - governanceBefore, 0, "numeraire proceeds not forwarded");
         _assertDopplerStartTick(poolKey, dopplerTickSpacing, expectedAligned);
@@ -250,11 +238,11 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
         return salt;
     }
 
-    function _setDopplerSalt(
+    function _mineDopplerSalt(
         OpeningAuction auctionHook,
         bytes memory dopplerData,
         int24 alignedClearingTick
-    ) internal {
+    ) internal view returns (bytes32) {
         bytes memory modifiedData = _modifyDopplerStartingTick(dopplerData, alignedClearingTick);
         DopplerData memory decoded = abi.decode(modifiedData, (DopplerData));
 
@@ -285,10 +273,11 @@ contract OpeningAuctionInitializerTickAlignmentTest is Test, Deployers {
             constructorArgs
         );
 
-        dopplerDeployer.setNextSalt(salt);
         if (decoded.tickSpacing == 0) {
             revert("tickSpacing=0");
         }
+
+        return salt;
     }
 
     function _modifyDopplerStartingTick(bytes memory dopplerData, int24 newStartingTick)
