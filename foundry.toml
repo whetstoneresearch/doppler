@@ -45,6 +45,7 @@ lint_on_build = false
 [invariant]
 show_metrics = true
 fail_on_revert = true
+show_solidity = true
 
 [etherscan]
 base = { key = "${BASESCAN_API_KEY}" }

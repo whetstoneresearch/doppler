@@ -230,7 +230,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bytes32 salt = bytes32(uint256(7));
         (bool isToken0, address asset) = _createToken(salt);
 
-        vm.prank(address(initializer));
+        vm.prank(address(buybackDst));
         rehypeDopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
 
         (

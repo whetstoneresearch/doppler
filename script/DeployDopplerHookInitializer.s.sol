@@ -13,8 +13,10 @@ contract DeployDopplerHookInitializerMultichainScript is Script, Config {
         _loadConfigAndForks("./deployments.config.toml", true);
 
         for (uint256 i; i < chainIds.length; i++) {
-            uint256 chainId = chainIds[i];
-            deployToTestnetChain(chainId);
+            if (chainIds[i] != 6343) {
+                uint256 chainId = chainIds[i];
+                deployToTestnetChain(chainId);
+            }
         }
     }
 

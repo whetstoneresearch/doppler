@@ -17,9 +17,7 @@ import {
 import {
     UniswapV4ScheduledMulticurveInitializerHook
 } from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -81,7 +79,7 @@ contract UniswapV4ScheduledMulticurveInitializer is UniswapV4MulticurveInitializ
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
         (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper) =
-            adjustCurves(curves, 0, tickSpacing, isToken0);
+            Multicurve.adjustCurves(curves, 0, tickSpacing, isToken0);
 
         int24 startTick = isToken0 ? tickLower : tickUpper;
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
@@ -89,7 +87,7 @@ contract UniswapV4ScheduledMulticurveInitializer is UniswapV4MulticurveInitializ
         UniswapV4ScheduledMulticurveInitializerHook(address(HOOK)).setStartingTime(poolKey, startingTime);
 
         Position[] memory positions =
-            calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+            Multicurve.calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,

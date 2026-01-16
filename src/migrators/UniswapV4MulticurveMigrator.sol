@@ -13,7 +13,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
@@ -145,8 +145,8 @@ contract UniswapV4MulticurveMigrator is ILiquidityMigrator, ImmutableAirlock {
         }
 
         int24 offset = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        (Curve[] memory adjustedCurves,,) = adjustCurves(data.curves, offset, tickSpacing, !isToken0);
-        Position[] memory positions = calculatePositions(
+        (Curve[] memory adjustedCurves,,) = Multicurve.adjustCurves(data.curves, offset, tickSpacing, !isToken0);
+        Position[] memory positions = Multicurve.calculatePositions(
             adjustedCurves, tickSpacing, isToken0 ? balance1 : balance0, isToken0 ? balance0 : balance1, !isToken0
         );
 

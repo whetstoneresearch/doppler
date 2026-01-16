@@ -16,7 +16,7 @@ import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve, adjustCurves, calculatePositions } from "src/libraries/Multicurve.sol";
+import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -173,14 +173,14 @@ contract UniswapV4MulticurveInitializer is IPoolInitializer, FeesManager, Immuta
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
 
         (Curve[] memory adjustedCurves, int24 tickLower, int24 tickUpper) =
-            adjustCurves(curves, 0, tickSpacing, isToken0);
+            Multicurve.adjustCurves(curves, 0, tickSpacing, isToken0);
 
         int24 startTick = isToken0 ? tickLower : tickUpper;
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(startTick);
         poolManager.initialize(poolKey, sqrtPriceX96);
 
         Position[] memory positions =
-            calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
+            Multicurve.calculatePositions(adjustedCurves, tickSpacing, totalTokensOnBondingCurve, 0, isToken0);
 
         PoolState memory state = PoolState({
             numeraire: numeraire,
