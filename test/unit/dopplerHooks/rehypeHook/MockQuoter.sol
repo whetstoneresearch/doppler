@@ -69,13 +69,8 @@ contract MockQuoter {
     function reset() external {
         callCount = 0;
         delete _recordedCalls;
-        defaultResponse = QuoteResponse({
-            amount0: 0,
-            amount1: 0,
-            sqrtPriceAfterX96: 0,
-            shouldRevert: false,
-            revertData: ""
-        });
+        defaultResponse =
+            QuoteResponse({ amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: false, revertData: "" });
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -96,7 +91,7 @@ contract MockQuoter {
         QuoteResponse memory response;
 
         bytes32 key = _responseKey(params.zeroForOne, params.amountSpecified);
-        
+
         if (_responseSet[key]) {
             response = _responses[key];
         } else {
@@ -124,7 +119,7 @@ contract MockQuoter {
     ) external returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32 gasUsed) {
         callCount++;
         _recordedCalls.push(RecordedCall({ zeroForOne: params.zeroForOne, amountSpecified: params.amountSpecified }));
-        
+
         // Call the view version for the actual response
         return this.quoteSingle(key, params);
     }
