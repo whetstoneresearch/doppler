@@ -12,7 +12,7 @@ contract DeployRehypeHookScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](1);
+        uint256[] memory targets = new uint256[](2);
         targets[0] = 84_532;
         targets[1] = 1301;
 
