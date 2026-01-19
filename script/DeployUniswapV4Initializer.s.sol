@@ -5,6 +5,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
+import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -13,8 +14,16 @@ contract DeployUniswapV4InitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        for (uint256 i; i < chainIds.length; i++) {
-            uint256 chainId = chainIds[i];
+        uint256[] memory targets = new uint256[](6);
+        targets[0] = ChainIds.BASE_MAINNET;
+        targets[1] = ChainIds.BASE_SEPOLIA;
+        targets[2] = ChainIds.UNICHAIN_MAINNET;
+        targets[3] = ChainIds.UNICHAIN_SEPOLIA;
+        targets[4] = ChainIds.MONAD_MAINNET;
+        targets[5] = ChainIds.MONAD_TESTNET;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
             deployToChain(chainId);
         }
     }
