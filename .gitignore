@@ -10,3 +10,7 @@ out/
 .env
 
 /node_modules
+
+# Local worktrees and archives
+/.worktrees/
+/opening-auction-wip.zip
