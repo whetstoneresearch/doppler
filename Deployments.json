@@ -53,7 +53,9 @@
     "UniswapV4MulticurveInitializerHook": "0x11b55a121a38fdab8faf16f9f1a4f124e3f42d40"
   },
   "4326": {
-    "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA"
+    "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA",
+    "NoOpGovernanceFactory": "0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638",
+    "NoOpMigrator": "0x233A71A7bB928b1357A1Ebf454298320989Ca5B5"
   },
   "4801": {
     "Airlock": "0x5f3ba43d44375286296cb85f1ea2ebfa25dde731",
@@ -64,7 +66,9 @@
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
   },
   "6343": {
-    "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA"
+    "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA",
+    "NoOpGovernanceFactory": "0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638",
+    "NoOpMigrator": "0x233A71A7bB928b1357A1Ebf454298320989Ca5B5"
   },
   "8453": {
     "Airlock": "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12",

@@ -52,6 +52,8 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
 | Airlock | [0xDe35...9dFA](https://megaeth.blockscout.com/address/0xDe3599a2eC440B296373a983C85C365DA55d9dFA) | [0xd285...e18b](https://megaeth.blockscout.com/tx/0xd285fe561c1a277ee5bf2c00bc66a3ddcadb41e2c35156009af2dd768805e18b) | [de7f4b6](https://github.com/whetstoneresearch/doppler/commit/de7f4b6) | 
+| NoOpGovernanceFactory | [0xddAE...b638](https://megaeth.blockscout.com/address/0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638) | [0xa13a...bf20](https://megaeth.blockscout.com/tx/0xa13a89d94cc81a1a68f3851efea4f3e4ac0552987d511fc26ccdfa7a993abf20) | [e7b5f49](https://github.com/whetstoneresearch/doppler/commit/e7b5f49) | 
+| NoOpMigrator | [0x233A...a5B5](https://megaeth.blockscout.com/address/0x233A71A7bB928b1357A1Ebf454298320989Ca5B5) | [0xec40...153b](https://megaeth.blockscout.com/tx/0xec40a52fc1544d8fc1b0d876c432ca446c3d6089d5f06b7c01d515287671153b) | [051a329](https://github.com/whetstoneresearch/doppler/commit/051a329) | 
 ### Base (8453)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
@@ -125,6 +127,8 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
 | Airlock | [0xDe35...9dFA](https://megaeth-testnet-v2.blockscout.com/address/0xDe3599a2eC440B296373a983C85C365DA55d9dFA) | [0xe066...d0b9](https://megaeth-testnet-v2.blockscout.com/tx/0xe066583a4d2bc23d6dbf4efcf2ab030b19826607b58a46f63d3d462823bed0b9) | [de7f4b6](https://github.com/whetstoneresearch/doppler/commit/de7f4b6) | 
+| NoOpGovernanceFactory | [0xddAE...b638](https://megaeth-testnet-v2.blockscout.com/address/0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638) | [0xe66d...2cde](https://megaeth-testnet-v2.blockscout.com/tx/0xe66d5fc6acc80d74e15c5e20850582224701107941890c6ae7fa196a97a32cde) | [e7b5f49](https://github.com/whetstoneresearch/doppler/commit/e7b5f49) | 
+| NoOpMigrator | [0x233A...a5B5](https://megaeth-testnet-v2.blockscout.com/address/0x233A71A7bB928b1357A1Ebf454298320989Ca5B5) | [0x7d1f...e71d](https://megaeth-testnet-v2.blockscout.com/tx/0x7d1f23c4117c3f8840cc4563ebe3ad2591e5bf1e40731ab668b332ef16d7e71d) | [051a329](https://github.com/whetstoneresearch/doppler/commit/051a329) | 
 ### Monad Testnet (10143)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
