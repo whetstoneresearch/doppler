@@ -783,6 +783,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             if (tickInRange && !newTickState.isInRange) {
                 newTickState.isInRange = true;
                 newTickState.lastUpdateTime = block.timestamp;
+                emit TickEnteredRange(params.tickLower, liquidityAtTick[params.tickLower]);
             }
 
             emit BidPlaced(positionId, owner, params.tickLower, liquidity);
