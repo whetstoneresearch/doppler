@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { RehypeDopplerHookHarness } from "./RehypeDopplerHookHarness.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Test } from "forge-std/Test.sol";
-import { RehypeDopplerHookHarness } from "./RehypeDopplerHookHarness.sol";
 
 /// @notice Minimal mock pool manager for harness construction
 contract MockPoolManager { }
@@ -18,13 +18,13 @@ contract CalculateExcessTest is Test {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// @notice Price = 1 (sqrtPrice = 2^96)
-    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    uint160 internal constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
 
     /// @notice Min sqrt price from TickMath
-    uint160 internal constant MIN_SQRT_PRICE = 4295128739;
+    uint160 internal constant MIN_SQRT_PRICE = 4_295_128_739;
 
     /// @notice Max sqrt price from TickMath
-    uint160 internal constant MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970342;
+    uint160 internal constant MAX_SQRT_PRICE = 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
 
     /// @notice Boundary for ratioX192 vs ratioX128 path (type(uint128).max)
     uint160 internal constant UINT128_MAX = type(uint128).max;
