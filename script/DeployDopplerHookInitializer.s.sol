@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
+import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MineDopplerHookInitializerParams, mineDopplerHookInitializer } from "test/shared/AirlockMiner.sol";
@@ -13,8 +14,8 @@ contract DeployDopplerHookInitializerScript is Script, Config {
         _loadConfigAndForks("./deployments.config.toml", true);
 
         uint256[] memory targets = new uint256[](2);
-        targets[0] = 84_532;
-        targets[1] = 1301;
+        targets[0] = ChainIds.BASE_SEPOLIA;
+        targets[1] = ChainIds.UNICHAIN_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
