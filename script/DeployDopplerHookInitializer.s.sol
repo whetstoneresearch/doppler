@@ -8,25 +8,22 @@ import { ICreateX } from "script/ICreateX.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MineDopplerHookInitializerParams, mineDopplerHookInitializer } from "test/shared/AirlockMiner.sol";
 
-contract DeployDopplerHookInitializerMultichainScript is Script, Config {
+contract DeployDopplerHookInitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        for (uint256 i; i < chainIds.length; i++) {
-            if (chainIds[i] != 6343) {
-                uint256 chainId = chainIds[i];
-                deployToTestnetChain(chainId);
-            }
+        uint256[] memory targets = new uint256[](1);
+        targets[0] = 84_532;
+        targets[1] = 1301;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
         }
     }
 
-    function deployToTestnetChain(uint256 chainId) internal {
+    function deployToChain(uint256 chainId) internal {
         vm.selectFork(forkOf[chainId]);
-
-        // TODO: Remove this to deploy to production
-        if (config.get("is_testnet").toBool() == false) {
-            return;
-        }
 
         address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
