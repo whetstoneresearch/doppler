@@ -188,6 +188,28 @@ async function generateHistoryLogs(): Promise<void> {
       }));
 
     deployments[broadcast.chain].push(...transactions);
+
+    // Also process additionalContracts from individual chain broadcasts
+    for (const transaction of broadcast.transactions) {
+      if (transaction.additionalContracts) {
+        for (const additional of transaction.additionalContracts) {
+          if ((additional.transactionType === 'CREATE' || additional.transactionType === 'CREATE2')
+            && additional.contractName !== null
+            && additional.contractName !== 'AirlockMultisig'
+            && transaction.hash !== null
+          ) {
+            deployments[broadcast.chain].push({
+              contractName: additional.contractName,
+              contractAddress: additional.address,
+              hash: transaction.hash,
+              arguments: [],
+              commit: broadcast.commit as `0x${string}`,
+              timestamp: broadcast.timestamp,
+            });
+          }
+        }
+      }
+    }
   }
 
   // Foundry now supports multichain broadcasts but these files must be handled differently
@@ -295,9 +317,12 @@ async function generateHistoryLogs(): Promise<void> {
 
   // Now we're going to generate the history logs for each chain
   for (const chainId in deployments) {
-    if (deployments[chainId].length === 0) {  
+    if (deployments[chainId].length === 0) {
       continue;
     }
+
+    // Filter out any deployments with null/undefined contractName
+    deployments[chainId] = deployments[chainId].filter(d => d.contractName);
 
     let content = `# Deployments on ${chains[chainId].name} (${chainId})\n`;
     let timestamps: {[key: number]: Deployment[]} = {};
@@ -329,6 +354,8 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
 
+    // Filter out any deployments with null/undefined contractName
+    deployments[chainId] = deployments[chainId].filter(d => d.contractName);
     deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     let latestDeployments = getLatestDeployments(deployments[chainId]);
     latestDeployments = latestDeployments.filter(d => d.contractName !== 'AirlockMultisig');
@@ -345,6 +372,8 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
 
+    // Filter out any deployments with null/undefined contractName
+    deployments[chainId] = deployments[chainId].filter(d => d.contractName);
     deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     const latestDeployments = getLatestDeployments(deployments[chainId]);
     testnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
