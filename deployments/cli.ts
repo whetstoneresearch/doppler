@@ -175,8 +175,6 @@ async function generateHistoryLogs(): Promise<void> {
       deployments[broadcast.chain] = [];
     }
 
-    console.log(filePath);
-
     const transactions = broadcast.transactions
       .filter((transaction) => (transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
         && transaction.hash !== null && transaction.contractName !== null && transaction.contractName !== 'AirlockMultisig')
