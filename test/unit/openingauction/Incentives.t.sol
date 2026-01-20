@@ -8,10 +8,10 @@ import { IOpeningAuction, AuctionPhase, AuctionPosition } from "src/interfaces/I
 contract IncentivesTest is OpeningAuctionBaseTest {
     function test_calculateIncentives_ReturnsZeroBeforeSettlement() public {
         int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
-        _addBid(alice, tickLower, 1000e18);
+        uint256 positionId = _addBid(alice, tickLower, 1000e18);
 
         // Before settlement, should return 0
-        uint256 incentives = hook.calculateIncentives(1);
+        uint256 incentives = hook.calculateIncentives(positionId);
         assertEq(incentives, 0);
     }
 
@@ -20,16 +20,16 @@ contract IncentivesTest is OpeningAuctionBaseTest {
         hook.settleAuction();
 
         // No positions exist, so this should return 0
-        uint256 incentives = hook.calculateIncentives(1);
+        uint256 incentives = hook.calculateIncentives(hook.nextPositionId());
         assertEq(incentives, 0);
     }
 
     function test_claimIncentives_RevertsWhenNotSettled() public {
         int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
-        _addBid(alice, tickLower, 1000e18);
+        uint256 positionId = _addBid(alice, tickLower, 1000e18);
 
         vm.expectRevert(IOpeningAuction.AuctionNotSettled.selector);
-        hook.claimIncentives(1);
+        hook.claimIncentives(positionId);
     }
 
     function test_claimIncentives_AllowsBeforeMigration() public {

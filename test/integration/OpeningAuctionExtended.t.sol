@@ -15,7 +15,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
@@ -287,7 +287,16 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("Expected total:", auction.incentiveTokensTotal());
 
         // Verify all filled positions got incentives
+        for (uint256 i = 0; i < NUM_BIDDERS; i++) {
+            uint256 posId = i + 1;
+            if (auction.isInRange(posId)) {
+                assertGt(auction.calculateIncentives(posId), 0, "Filled positions should earn incentives");
+            }
+        }
+
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+        assertGt(totalIncentives, 0);
+        assertLe(totalIncentives, auction.incentiveTokensTotal());
     }
 
     /// @notice Test multiple bidders with different strategies
@@ -345,6 +354,9 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("Dave incentives:", auction.calculateIncentives(davePos));
 
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+        assertGt(auction.totalTokensSold(), 0);
+        assertGe(auction.clearingTick(), minAcceptableTick);
+        assertGt(auction.calculateIncentives(alicePos), 0);
     }
 
     /// @notice Test scenario where clearing price doesn't reach all positions
@@ -523,10 +535,13 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("Expected incentives:", auction.incentiveTokensTotal());
 
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+        assertGt(filledCount, 0);
+        assertGt(totalIncentivesDistributed, 0);
+        assertLe(totalIncentivesDistributed, auction.incentiveTokensTotal());
     }
 
     /// @notice Test early vs late bidders
-    /// @dev Tests that all bidders who place positions before auction end get incentives
+    /// @dev Tests that early bidders earn incentives and late bidders do so if in range
     function test_earlyVsLateBidders() public {
         OpeningAuctionConfig memory config = OpeningAuctionConfig({
             auctionDuration: 3 days, // Shorter auction
@@ -585,8 +600,20 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("  Filled:", auction.isInRange(davePos));
         console2.log("  Incentives:", auction.calculateIncentives(davePos));
 
-        // All should get equal incentives since they all get filled at settlement
+        // Early bidders should receive incentives if they were ever in range
+        uint256 aliceIncentives = auction.calculateIncentives(alicePos);
+        uint256 bobIncentives = auction.calculateIncentives(bobPos);
+        uint256 carolIncentives = auction.calculateIncentives(carolPos);
+        uint256 daveIncentives = auction.calculateIncentives(davePos);
+
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+        assertGt(aliceIncentives, 0);
+        if (auction.isInRange(davePos)) {
+            assertGt(daveIncentives, 0);
+        }
+
+        uint256 totalIncentives = aliceIncentives + bobIncentives + carolIncentives + daveIncentives;
+        assertLe(totalIncentives, auction.incentiveTokensTotal());
     }
 
     /// @notice Test claiming incentives after settlement
@@ -657,7 +684,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         // Verify cannot claim twice
         AuctionPosition memory pos0 = auction.positions(posIds[0]);
         if (auction.isInRange(posIds[0])) {
-            vm.expectRevert();
+            vm.expectRevert(IOpeningAuction.AlreadyClaimed.selector);
             vm.prank(pos0.owner);
             auction.claimIncentives(posIds[0]);
             console2.log("Double claim correctly reverted");
@@ -683,8 +710,9 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
 
         // All 10 bidders place at the same tick
         int24 sameTick = -6000;
+        uint256[] memory posIds = new uint256[](NUM_BIDDERS);
         for (uint256 i = 0; i < NUM_BIDDERS; i++) {
-            _addBid(bidders[i], sameTick, 50_000 ether);
+            posIds[i] = _addBid(bidders[i], sameTick, 50_000 ether);
         }
 
         console2.log("All 10 bidders placed 50K liquidity at tick", int256(sameTick));
@@ -697,11 +725,11 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         console2.log("Clearing tick:", int256(auction.clearingTick()));
 
         // All positions should have same incentives (equal time)
-        uint256 firstIncentive = auction.calculateIncentives(1);
+        uint256 firstIncentive = auction.calculateIncentives(posIds[0]);
         console2.log("Incentives per position:", firstIncentive);
 
-        for (uint256 i = 2; i <= NUM_BIDDERS; i++) {
-            uint256 incentive = auction.calculateIncentives(i);
+        for (uint256 i = 1; i < NUM_BIDDERS; i++) {
+            uint256 incentive = auction.calculateIncentives(posIds[i]);
             assertEq(incentive, firstIncentive, "All positions should have equal incentives");
         }
 

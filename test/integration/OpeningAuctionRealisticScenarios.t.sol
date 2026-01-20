@@ -490,14 +490,11 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         // Key assertion: Alice gets SOME incentives (she was in range for 3 days)
         // If Alice was pushed completely out and never in range at settlement, she should still
         // have accumulated time from when she WAS in range
-        if (aliceTimeAfterPush > 0) {
-            assertGt(aliceIncentives, 0, "Alice should have some incentives from partial time in range");
-        }
+        assertGt(aliceTimeAfterPush, 0, "Test setup failed: Alice never in range");
+        assertGt(aliceIncentives, 0, "Alice should have some incentives from partial time in range");
 
         // Bob should have more incentives (more time + more liquidity)
-        if (auction.isInRange(bobPos)) {
-            assertGt(bobIncentives, 0, "Bob should have incentives");
-        }
+        assertGt(bobIncentives, 0, "Bob should have incentives");
     }
 
     // ============ Test: Mixed Bidder Sizes (Whales vs Retail) ============
@@ -728,10 +725,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         console2.log("Alice incentives:", aliceIncentives);
         console2.log("Bob incentives:", bobIncentives);
 
-        // Even with very short time in range, Alice should get SOME incentives if she accumulated time
-        if (aliceTimeAfter1Min > 0) {
-            assertGt(aliceIncentives, 0, "Alice should have incentives from short time in range");
-        }
+        assertGt(aliceTimeAfter1Min, 0, "Test setup failed: Alice never in range");
+        assertGt(aliceIncentives, 0, "Alice should have incentives from short time in range");
     }
 
     // ============ Test: Claiming All Incentives ============

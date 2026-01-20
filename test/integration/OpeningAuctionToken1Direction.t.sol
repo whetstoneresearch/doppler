@@ -11,11 +11,12 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
@@ -439,8 +440,15 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        // The error gets wrapped by the pool manager, so we check for any revert
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeAddLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.BidBelowMinimumPrice.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({

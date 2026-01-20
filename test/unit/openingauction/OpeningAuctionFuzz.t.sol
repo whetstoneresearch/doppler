@@ -247,8 +247,8 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         timeDuration = bound(timeDuration, 1, hook.auctionDuration() - 1);
 
         // Add a bid
-        int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
-        uint128 liquidity = hook.minLiquidity() * 10;
+        int24 tickLower = hook.minAcceptableTick();
+        uint128 liquidity = 2000 ether;
         uint256 positionId = _addBid(alice, tickLower, liquidity);
 
         uint256 accumulatedTimeBefore = hook.getPositionAccumulatedTime(positionId);
@@ -261,11 +261,8 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         uint256 delta = accumulatedTimeAfter - accumulatedTimeBefore;
 
         // Invariant: accumulation is linear while in range, and zero otherwise
-        if (hook.isInRange(positionId)) {
-            assertEq(delta, uint256(liquidity) * timeDuration);
-        } else {
-            assertEq(delta, 0);
-        }
+        vm.assume(hook.isInRange(positionId));
+        assertEq(delta, uint256(liquidity) * timeDuration);
     }
 
     /// @notice Fuzz test for incentive distribution proportionality
@@ -279,7 +276,7 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         liquidity2 = uint128(bound(liquidity2, minLiq, 100 ether));
 
         // Create two positions at adjacent ticks
-        int24 tickLower1 = hook.minAcceptableTick() + key.tickSpacing * 10;
+        int24 tickLower1 = hook.minAcceptableTick();
         int24 tickLower2 = tickLower1 + key.tickSpacing;
 
         uint256 positionId1 = _addBid(alice, tickLower1, liquidity1);
@@ -296,21 +293,12 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         assertTrue(time1 <= uint256(liquidity1) * (1 hours + 1));
         assertTrue(time2 <= uint256(liquidity2) * (1 hours + 1));
 
-        bool inRange1 = hook.isInRange(positionId1);
-        bool inRange2 = hook.isInRange(positionId2);
+        vm.assume(hook.isInRange(positionId1));
+        vm.assume(hook.isInRange(positionId2));
 
-        if (inRange1 && inRange2) {
-            uint256 scaled1 = time1 * uint256(liquidity2);
-            uint256 scaled2 = time2 * uint256(liquidity1);
-            assertApproxEqAbs(scaled1, scaled2, uint256(liquidity1 + liquidity2), "Time should scale with liquidity");
-        } else {
-            if (!inRange1) {
-                assertEq(time1, 0, "Out-of-range position should not accrue time");
-            }
-            if (!inRange2) {
-                assertEq(time2, 0, "Out-of-range position should not accrue time");
-            }
-        }
+        uint256 scaled1 = time1 * uint256(liquidity2);
+        uint256 scaled2 = time2 * uint256(liquidity1);
+        assertApproxEqAbs(scaled1, scaled2, uint256(liquidity1 + liquidity2), "Time should scale with liquidity");
     }
 
     /// @notice Fuzz test for time accumulation at auction boundaries

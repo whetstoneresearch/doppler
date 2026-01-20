@@ -15,7 +15,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
     OpeningAuctionDeployer,
@@ -178,11 +178,49 @@ contract OpeningAuctionFlowTest is Test, Deployers {
             salt,
             abi.encode(config)
         );
+        TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setIsToken0(true);
+
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
+            fee: config.fee,
+            tickSpacing: config.tickSpacing,
+            hooks: IHooks(address(auction))
+        });
+
+        int24 startingTick = alignTickTowardZero(TickMath.MAX_TICK, config.tickSpacing);
+        manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
         vm.stopPrank();
 
         // Verify initial state
-        assertEq(uint8(auction.phase()), uint8(AuctionPhase.NotStarted));
+        assertEq(uint8(auction.phase()), uint8(AuctionPhase.Active));
         assertEq(auction.totalAuctionTokens(), AUCTION_TOKENS);
+
+        int24 tickLower = config.minAcceptableTickToken0 + config.tickSpacing * 10;
+
+        vm.startPrank(alice);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        bytes32 bidSalt = keccak256(abi.encode(alice, bidNonce++));
+        modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickLower + config.tickSpacing,
+                liquidityDelta: int256(uint256(100_000 ether)),
+                salt: bidSalt
+            }),
+            abi.encode(alice)
+        );
+        vm.stopPrank();
+
+        vm.warp(auction.auctionEndTime() + 1);
+        auction.settleAuction();
+
+        assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+        assertGt(auction.totalTokensSold(), 0);
+        assertGt(auction.totalProceeds(), 0);
     }
 
     function test_fullAuctionFlow_PlaceBids() public {
@@ -385,14 +423,17 @@ contract OpeningAuctionFlowTest is Test, Deployers {
         assertEq(auction.auctionEndTime(), block.timestamp + AUCTION_DURATION);
 
         // Before auction end - cannot settle
-        vm.expectRevert();
+        vm.expectRevert(IOpeningAuction.AuctionNotEnded.selector);
         auction.settleAuction();
 
         // Warp to auction end
         vm.warp(auction.auctionEndTime() + 1);
 
-        // Note: Full settlement test requires proper swap mechanics
-        // which is tested separately. Here we just verify the timing check passes.
+        auction.settleAuction();
+
+        assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
+        assertEq(auction.totalTokensSold(), 0);
+        assertEq(auction.totalProceeds(), 0);
     }
 
     function test_fullAuctionFlow_SettleWithBids() public {
@@ -494,5 +535,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         // Clearing tick should be at or below the highest bid
         assertLe(auction.clearingTick(), aliceTickLower + config.tickSpacing);
+        assertGt(tokensSold, 0);
+        assertGt(proceeds, 0);
+        assertGt(hookNumeraireAfter, hookNumeraireBefore);
     }
 }

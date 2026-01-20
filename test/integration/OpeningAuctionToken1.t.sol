@@ -11,11 +11,12 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
     OpeningAuctionDeployer,
@@ -366,7 +367,15 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeAddLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.BidBelowMinimumPrice.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
@@ -429,7 +438,15 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
 
         bytes32 bidSalt = keccak256(abi.encode(alice, bidNonce++));
         if (offset > 0) {
-            vm.expectRevert();
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    CustomRevert.WrappedError.selector,
+                    address(auction),
+                    IHooks.beforeAddLiquidity.selector,
+                    abi.encodeWithSelector(IOpeningAuction.BidBelowMinimumPrice.selector),
+                    abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+                )
+            );
         }
 
         modifyLiquidityRouter.modifyLiquidity(
@@ -908,7 +925,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         assertEq(auction.auctionEndTime(), block.timestamp + AUCTION_DURATION);
 
         // Before auction end - cannot settle
-        vm.expectRevert();
+        vm.expectRevert(IOpeningAuction.AuctionNotEnded.selector);
         auction.settleAuction();
 
         // Warp to auction end

@@ -222,10 +222,14 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         _deployAuction(config);
 
         // Normal bidders place bids early with enough liquidity to settle
+        uint256 alicePosId;
         for (uint256 i = 0; i < 50; i++) {
-            _addBid(alice, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 100e18);
+            uint256 posId =
+                _addBid(alice, config.minAcceptableTickToken0 + config.tickSpacing * int24(int256(10 + i)), 100e18);
+            if (i == 0) {
+                alicePosId = posId;
+            }
         }
-        uint256 alicePosId = 1; // First position
 
         // Warp through most of auction
         vm.warp(hook.auctionEndTime() - 10);
@@ -290,7 +294,15 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Attacker cannot remove locked position
         vm.startPrank(attacker);
-        vm.expectRevert(); // Should revert due to locked position
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
@@ -336,7 +348,15 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
         bytes32 attackerSalt = keccak256(abi.encode(attacker, bidNonce++));
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.beforeAddLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.BiddingClosed.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
@@ -378,7 +398,15 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
         bytes32 attackerSalt = keccak256(abi.encode(attacker, bidNonce++));
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.beforeAddLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.BidBelowMinimumPrice.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
@@ -453,7 +481,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         hook.settleAuction();
 
         // Second settlement should fail
-        vm.expectRevert();
+        vm.expectRevert(IOpeningAuction.AuctionNotActive.selector);
         hook.settleAuction();
     }
 

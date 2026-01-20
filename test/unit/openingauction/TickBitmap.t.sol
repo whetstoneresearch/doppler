@@ -338,8 +338,8 @@ contract TickBitmapTest is OpeningAuctionBaseTest {
 
     function test_bitmap_IncentiveDistribution() public {
         // Add multiple bids at different ticks
-        _addValidBid(alice, 0, LARGE_LIQUIDITY * 50);
-        _addValidBid(bob, 1, LARGE_LIQUIDITY * 50);
+        uint256 alicePos = _addValidBid(alice, 0, LARGE_LIQUIDITY * 50);
+        uint256 bobPos = _addValidBid(bob, 1, LARGE_LIQUIDITY * 50);
         
         // Warp time
         vm.warp(block.timestamp + 12 hours);
@@ -348,8 +348,8 @@ contract TickBitmapTest is OpeningAuctionBaseTest {
         hook.settleAuction();
         
         // Calculate incentives for both
-        uint256 aliceIncentives = hook.calculateIncentives(1);
-        uint256 bobIncentives = hook.calculateIncentives(2);
+        uint256 aliceIncentives = hook.calculateIncentives(alicePos);
+        uint256 bobIncentives = hook.calculateIncentives(bobPos);
         
         // Total incentives should not exceed the pool
         uint256 totalIncentives = aliceIncentives + bobIncentives;
@@ -358,9 +358,9 @@ contract TickBitmapTest is OpeningAuctionBaseTest {
 
     function test_bitmap_IncentivesWithMultipleBidders() public {
         // Test incentive calculation with multiple bidders at different ticks
-        _addValidBid(alice, 0, LARGE_LIQUIDITY * 50);
-        _addValidBid(bob, 5, LARGE_LIQUIDITY * 50);
-        _addValidBid(alice, 10, LARGE_LIQUIDITY * 50);
+        uint256 alicePos1 = _addValidBid(alice, 0, LARGE_LIQUIDITY * 50);
+        uint256 bobPos = _addValidBid(bob, 5, LARGE_LIQUIDITY * 50);
+        uint256 alicePos2 = _addValidBid(alice, 10, LARGE_LIQUIDITY * 50);
         
         // Warp time to accumulate
         vm.warp(block.timestamp + 12 hours);
@@ -369,9 +369,9 @@ contract TickBitmapTest is OpeningAuctionBaseTest {
         hook.settleAuction();
         
         // Verify incentives are calculable for all positions
-        uint256 aliceIncentives1 = hook.calculateIncentives(1);
-        uint256 bobIncentives = hook.calculateIncentives(2);
-        uint256 aliceIncentives2 = hook.calculateIncentives(3);
+        uint256 aliceIncentives1 = hook.calculateIncentives(alicePos1);
+        uint256 bobIncentives = hook.calculateIncentives(bobPos);
+        uint256 aliceIncentives2 = hook.calculateIncentives(alicePos2);
         
         // Total incentives should not exceed the pool
         uint256 totalIncentives = aliceIncentives1 + bobIncentives + aliceIncentives2;

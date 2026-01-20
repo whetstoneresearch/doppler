@@ -15,7 +15,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
     OpeningAuctionDeployer,
@@ -310,10 +310,10 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
 
         // Place bid at the aligned MIN_TICK
         int24 minTickAligned = alignTickTowardZero(TickMath.MIN_TICK, tickSpacing);
-        _addBid(alice, minTickAligned, 50_000 ether);
+        uint256 alicePos = _addBid(alice, minTickAligned, 50_000 ether);
 
         // Verify position was created
-        AuctionPosition memory pos = auction.positions(1);
+        AuctionPosition memory pos = auction.positions(alicePos);
         assertEq(pos.tickLower, minTickAligned, "Position should be at MIN_TICK aligned");
         assertEq(pos.owner, alice, "Owner should be alice");
     }
@@ -326,10 +326,10 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
         // Using a moderate high tick to avoid sqrt price overflow issues
         int24 highTick = tickSpacing * 100; // 6000 with tickSpacing=60
 
-        _addBid(alice, highTick, 50_000 ether);
+        uint256 alicePos = _addBid(alice, highTick, 50_000 ether);
 
         // Verify position was created
-        AuctionPosition memory pos = auction.positions(1);
+        AuctionPosition memory pos = auction.positions(alicePos);
         assertEq(pos.tickLower, highTick, "Position should be at high tick");
     }
 
@@ -366,7 +366,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
 
         // Settlement should fail
         vm.prank(creator);
-        vm.expectRevert(); // AuctionNotEnded
+        vm.expectRevert(IOpeningAuction.AuctionNotEnded.selector);
         auction.settleAuction();
     }
 
@@ -375,10 +375,10 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
         auction = _createAuction();
 
         // Immediately after initialization (same block), place a bid
-        _addBid(alice, 0, 50_000 ether);
+        uint256 alicePos = _addBid(alice, 0, 50_000 ether);
 
         // Verify bid was accepted
-        AuctionPosition memory pos = auction.positions(1);
+        AuctionPosition memory pos = auction.positions(alicePos);
         assertEq(pos.owner, alice, "Bid should be accepted in same block as start");
     }
 
@@ -540,7 +540,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
     function test_StateConsistencyAfterSettlement() public {
         auction = _createAuction();
 
-        _addBid(alice, 0, 50_000 ether);
+        uint256 alicePos = _addBid(alice, 0, 50_000 ether);
         _addBid(bob, -tickSpacing, 30_000 ether);
 
         vm.warp(block.timestamp + auctionDuration + 1);
@@ -558,28 +558,27 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
         uint256 cachedTime = auction.cachedTotalWeightedTimeX128();
         console2.log("Cached total weighted time:", cachedTime);
 
-        // If there was time in range, cached should be > 0
-        if (cachedTime > 0) {
-            // Incentives should be claimable
-            uint256 aliceIncentives = auction.calculateIncentives(1);
-            console2.log("Alice incentives:", aliceIncentives);
-        }
+        assertGt(cachedTime, 0, "Cached time should be > 0 with in-range bids");
+
+        uint256 aliceIncentives = auction.calculateIncentives(alicePos);
+        console2.log("Alice incentives:", aliceIncentives);
+        assertGt(aliceIncentives, 0, "Alice incentives should be > 0");
     }
 
     /// @notice Test that position state is preserved correctly through settlement
     function test_PositionStatePreservationThroughSettlement() public {
         auction = _createAuction();
 
-        _addBid(alice, 0, 50_000 ether);
+        uint256 alicePos = _addBid(alice, 0, 50_000 ether);
 
-        AuctionPosition memory posBefore = auction.positions(1);
+        AuctionPosition memory posBefore = auction.positions(alicePos);
 
         vm.warp(block.timestamp + auctionDuration + 1);
 
         vm.prank(creator);
         auction.settleAuction();
 
-        AuctionPosition memory posAfter = auction.positions(1);
+        AuctionPosition memory posAfter = auction.positions(alicePos);
 
         // Core position data should be unchanged
         assertEq(posAfter.owner, posBefore.owner, "Owner should be unchanged");

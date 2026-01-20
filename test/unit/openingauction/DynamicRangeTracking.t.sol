@@ -12,6 +12,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition, IOpeningAuction, TickTimeState } from "src/interfaces/IOpeningAuction.sol";
@@ -261,7 +262,15 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         assertTrue(auction.isInRange(alicePos), "Position should be in range");
 
         // Trying to remove should revert (revert is wrapped by pool manager)
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
     }
 
@@ -490,7 +499,15 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
 
         // Bob cannot remove (he's in range)
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         _removeBid(bob, bobTickLower, bobLiquidity, bobPos);
     }
 

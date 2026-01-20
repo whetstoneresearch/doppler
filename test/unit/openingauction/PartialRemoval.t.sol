@@ -12,6 +12,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
@@ -233,7 +234,15 @@ contract PartialRemovalTest is Test, Deployers {
         uint128 partialLiquidity = bobLiquidity / 2;
 
         // Should revert (error gets wrapped by pool manager)
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PartialRemovalNotAllowed.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         _removeBid(bob, bobTickLower, partialLiquidity, bobPos);
     }
 
@@ -256,7 +265,15 @@ contract PartialRemovalTest is Test, Deployers {
         // Try to remove liquidity - 1 (one wei less than full)
         uint128 almostFullLiquidity = bobLiquidity - 1;
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PartialRemovalNotAllowed.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         _removeBid(bob, bobTickLower, almostFullLiquidity, bobPos);
     }
 
@@ -280,7 +297,15 @@ contract PartialRemovalTest is Test, Deployers {
         // Try to remove liquidity + 1 (one wei more than position has)
         uint128 tooMuchLiquidity = bobLiquidity + 1;
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PartialRemovalNotAllowed.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         _removeBid(bob, bobTickLower, tooMuchLiquidity, bobPos);
     }
 
@@ -299,7 +324,15 @@ contract PartialRemovalTest is Test, Deployers {
         assertTrue(auction.isInRange(alicePos), "Alice should be in range");
 
         // Even full removal should revert (position is locked)
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(auction),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
     }
 

@@ -12,6 +12,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
@@ -181,9 +182,16 @@ contract TokenOrderingTest is Test, Deployers {
         int24 startingTick = alignTickTowardZero(TickMath.MAX_TICK, TICK_SPACING);
 
         // Try to initialize without setting isToken0 - should revert
-        // Note: The error gets wrapped by PoolManager, so we just check it reverts
         vm.prank(initializer);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.beforeInitialize.selector,
+                abi.encodeWithSelector(IOpeningAuction.IsToken0NotSet.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
 
         // Verify isToken0Set is still false
@@ -336,7 +344,8 @@ contract TokenOrderingTest is Test, Deployers {
         vm.stopPrank();
 
         // Verify position was created
-        AuctionPosition memory pos = hook.positions(1);
+        uint256 positionId = hook.getPositionId(alice, bidTick, bidTick + TICK_SPACING, bytes32(uint256(1)));
+        AuctionPosition memory pos = hook.positions(positionId);
         assertEq(pos.owner, alice, "position owner should be alice");
         assertEq(pos.tickLower, bidTick, "position tick should match");
 
@@ -405,7 +414,8 @@ contract TokenOrderingTest is Test, Deployers {
         vm.stopPrank();
 
         // Position should be created
-        assertEq(hook.positions(1).owner, alice, "valid bid should be accepted");
+        uint256 positionId = hook.getPositionId(alice, validTickLower, validTickLower + TICK_SPACING, bytes32(uint256(1)));
+        assertEq(hook.positions(positionId).owner, alice, "valid bid should be accepted");
     }
 
     /// @notice Test the isToken0Set getter
