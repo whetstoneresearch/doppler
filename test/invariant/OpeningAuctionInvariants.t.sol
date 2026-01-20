@@ -75,7 +75,7 @@ contract OpeningAuctionImpl is OpeningAuction {
     }
 
     function isTickActive(int24 tick) external view returns (bool) {
-        return _isTickActive(tick);
+        return _isCompressedTickActive(_compressTick(tick));
     }
 
     function getTickRewardDebtSumX128(int24 tick) external view returns (uint256) {

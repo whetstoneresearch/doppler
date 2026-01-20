@@ -54,7 +54,7 @@ contract OpeningAuctionImplementation is OpeningAuction {
     }
 
     function isTickActive(int24 tick) external view returns (bool) {
-        return _isTickActive(tick);
+        return _isCompressedTickActive(_compressTick(tick));
     }
 }
 

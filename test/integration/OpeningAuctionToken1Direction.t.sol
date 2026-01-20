@@ -8,6 +8,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -58,6 +60,8 @@ contract OpeningAuctionToken1Deployer is OpeningAuctionDeployer {
 /// @notice Tests for OpeningAuction with isToken0=false (selling token1, price moves UP)
 /// @dev This mirrors the isToken0=true tests but with inverse auction direction
 contract OpeningAuctionToken1DirectionTest is Test, Deployers {
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
     // Tokens - TOKEN_A > TOKEN_B so when asset=TOKEN_A, it becomes token1
     address constant TOKEN_A = address(0x9999);
     address constant TOKEN_B = address(0x8888);
@@ -87,6 +91,11 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     int24 tickSpacing = 60;
     int24 minTick;
     int24 minAcceptableTick; // Minimum acceptable price tick (tick(token0/token1))
+
+    function _currentTick() internal view returns (int24) {
+        (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolKey.toId());
+        return TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+    }
 
     function setUp() public {
         // Deploy pool manager
@@ -245,7 +254,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         assertEq(auction.totalAuctionTokens(), AUCTION_TOKENS);
 
         // Pool should start at MIN_TICK for isToken0=false
-        int24 currentTick = auction.currentTick();
+        int24 currentTick = _currentTick();
         console2.log("Current tick (should be near MIN_TICK):", int256(currentTick));
         assertLe(currentTick, minTick + tickSpacing, "Current tick should be near MIN_TICK");
     }
@@ -269,7 +278,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         console2.log("=== Token1 Direction Bid Test ===");
         console2.log("Min tick (starting price):", int256(minTick));
         console2.log("Min acceptable tick:", int256(auction.minAcceptableTick()));
-        console2.log("Current tick:", int256(auction.currentTick()));
+        console2.log("Current tick:", int256(_currentTick()));
 
         // For isToken0=false: Lower ticks are closer to starting price (MIN_TICK)
         // So lower tick bids fill first as price moves UP

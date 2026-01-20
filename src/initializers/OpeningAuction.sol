@@ -26,9 +26,6 @@ import {
 import { QuoterMath } from "src/libraries/QuoterMath.sol";
 import { BitMath } from "@v3-core/libraries/BitMath.sol";
 
-/// @dev Precision multiplier
-uint256 constant WAD = 1e18;
-
 /// @dev Basis points denominator
 uint256 constant BPS = 10_000;
 
@@ -95,9 +92,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice True if the hook has been initialized
     bool public isInitialized;
-
-    /// @notice Current tick of the pool
-    int24 public currentTick;
 
     /// @notice Final clearing tick after settlement
     int24 public clearingTick;
@@ -480,7 +474,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             clearingTick = _auctionPriceLimitTick();
         }
 
-        currentTick = clearingTick;
         incentivesClaimDeadline = block.timestamp + INCENTIVE_CLAIM_WINDOW;
 
         AuctionPhase closedPhase = phase;
@@ -654,9 +647,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         // NOTE: isToken0 is already set by setIsToken0() called before pool.initialize()
         // Do NOT overwrite it here - that was a bug!
 
-        // Get initial tick
-        currentTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-
         return BaseHook.beforeInitialize.selector;
     }
 
@@ -667,7 +657,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         uint160,
         int24 tick
     ) internal override returns (bytes4) {
-        currentTick = tick;
         auctionStartTime = block.timestamp;
         auctionEndTime = block.timestamp + auctionDuration;
         
@@ -941,11 +930,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
     }
 
-    /// @notice Check if a tick range contains the current tick
-    function _isTickInRange(int24 tickLower, int24 tickUpper, int24 tick) internal pure returns (bool) {
-        return tickLower <= tick && tick < tickUpper;
-    }
-
     /// @notice Floor a tick to the nearest multiple of spacing (toward negative infinity)
     function _floorToSpacing(int24 tick, int24 spacing) internal pure returns (int24) {
         int24 compressed = tick / spacing;
@@ -997,23 +981,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         tickBitmap[wordPos] ^= mask;
     }
 
-    /// @notice Flips the bit for a given tick in the bitmap
-    /// @param tick The tick to flip
-    function _flipTick(int24 tick) internal {
-        _flipTickCompressed(_compressTick(tick));
-    }
-
     /// @notice Check if a compressed tick is set in the bitmap
     function _isCompressedTickActive(int24 tick) internal view returns (bool) {
         (int16 wordPos, uint8 bitPos) = _position(tick);
         return (tickBitmap[wordPos] & (1 << bitPos)) != 0;
-    }
-
-    /// @notice Check if a tick is set in the bitmap
-    /// @param tick The tick to check
-    /// @return True if the tick is active (has liquidity)
-    function _isTickActive(int24 tick) internal view returns (bool) {
-        return _isCompressedTickActive(_compressTick(tick));
     }
 
     /// @notice Returns the next initialized compressed tick in the bitmap

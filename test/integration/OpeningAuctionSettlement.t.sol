@@ -8,6 +8,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -56,6 +58,8 @@ contract OpeningAuctionTestDeployer is OpeningAuctionDeployer {
 /// @notice Comprehensive settlement test for Opening Auction
 /// @dev Tests various scenarios with in-range and out-of-range positions
 contract OpeningAuctionSettlementTest is Test, Deployers {
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
     // Tokens
     address constant TOKEN_A = address(0x8888);
     address constant TOKEN_B = address(0x9999);
@@ -87,6 +91,11 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
     int24 tickSpacing = 60;
     int24 maxTick;
     int24 minAcceptableTick;
+
+    function _currentTick() internal view returns (int24) {
+        (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolKey.toId());
+        return TickMath.getTickAtSqrtPrice(sqrtPriceX96);
+    }
 
     function setUp() public {
         // Deploy pool manager
@@ -238,7 +247,6 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         console2.log("=== Initial State ===");
         console2.log("Max tick:", int256(maxTick));
         console2.log("Min acceptable tick:", int256(minAcceptableTick));
-        console2.log("Current tick:", int256(auction.currentTick()));
 
         // Create positions at various tick levels
         // Higher ticks = higher price = more likely to fill
@@ -291,7 +299,6 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         vm.warp(auction.auctionStartTime() + 12 hours);
 
         // Check which positions are locked (in range)
-        console2.log("Current tick after 12h:", int256(auction.currentTick()));
 
         // Warp to end
         console2.log("\n=== Warping to Auction End ===");
@@ -379,7 +386,7 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
 
         console2.log("=== Incentive Time Accumulation Test ===");
         console2.log("Auction duration:", auction.auctionDuration());
-        console2.log("Starting tick:", int256(auction.currentTick()));
+        console2.log("Starting tick:", int256(_currentTick()));
 
         // Alice starts in range at a low tick
         int24 aliceTick = -30_000;
@@ -591,7 +598,7 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
 
         console2.log("=== Partial Fill Test ===");
         console2.log("Auction tokens:", smallAuctionTokens);
-        console2.log("Starting tick:", int256(auction.currentTick()));
+        console2.log("Starting tick:", int256(_currentTick()));
 
         // Place a large amount of liquidity at tick 0 (within user budget)
         // This will absorb all the tokens before price falls below 0
