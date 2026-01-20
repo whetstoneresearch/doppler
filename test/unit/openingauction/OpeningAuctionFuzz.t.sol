@@ -251,19 +251,20 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         uint128 liquidity = hook.minLiquidity() * 10;
         uint256 positionId = _addBid(alice, tickLower, liquidity);
 
+        uint256 accumulatedTimeBefore = hook.getPositionAccumulatedTime(positionId);
+
         // Warp forward by fuzzed amount
         vm.warp(block.timestamp + timeDuration);
 
         // Position should be tracking time
-        uint256 accumulatedTime = hook.getPositionAccumulatedTime(positionId);
+        uint256 accumulatedTimeAfter = hook.getPositionAccumulatedTime(positionId);
+        uint256 delta = accumulatedTimeAfter - accumulatedTimeBefore;
 
-        // Invariant: accumulated time should be bounded by elapsed time * liquidity
-        // (May be 0 if not in range)
-        assertTrue(accumulatedTime <= uint256(liquidity) * (timeDuration + 1));
+        // Invariant: accumulation is linear while in range, and zero otherwise
         if (hook.isInRange(positionId)) {
-            assertGt(accumulatedTime, 0);
+            assertEq(delta, uint256(liquidity) * timeDuration);
         } else {
-            assertEq(accumulatedTime, 0);
+            assertEq(delta, 0);
         }
     }
 

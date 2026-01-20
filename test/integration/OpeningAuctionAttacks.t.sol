@@ -13,10 +13,11 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
 /// @title OpeningAuctionAttacksTest
@@ -173,24 +174,35 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         // Attacker simulates flash loan - adds massive bid
         uint256 attackerPosId = _addBid(attacker, 0, 1_000_000 ether);
 
-        // Attacker tries to remove bid in same block (but position may be locked)
         AuctionPosition memory pos = hook.positions(attackerPosId);
         bool isLocked = hook.isPositionLocked(attackerPosId);
 
-        if (!isLocked) {
-            // Position not locked - attacker can remove but position tracking is still accurate
-            vm.startPrank(attacker);
-            modifyLiquidityRouter.modifyLiquidity(
-                poolKey,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: 0,
-                    tickUpper: config.tickSpacing,
-                    liquidityDelta: -int256(uint256(pos.liquidity)),
-                    salt: positionSalts[attackerPosId]
-                }),
-                abi.encode(attacker)
+        // Attacker tries to remove bid in same block (should revert if locked)
+        vm.startPrank(attacker);
+        if (isLocked) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    CustomRevert.WrappedError.selector,
+                    address(hook),
+                    IHooks.beforeRemoveLiquidity.selector,
+                    abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
+                    abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+                )
             );
-            vm.stopPrank();
+        }
+        modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: 0,
+                tickUpper: config.tickSpacing,
+                liquidityDelta: -int256(uint256(pos.liquidity)),
+                salt: positionSalts[attackerPosId]
+            }),
+            abi.encode(attacker)
+        );
+        vm.stopPrank();
+
+        if (!isLocked) {
             assertEq(hook.positions(attackerPosId).liquidity, 0);
         }
 
@@ -200,8 +212,6 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 ? estimateBefore - estimateAfter
                 : estimateAfter - estimateBefore;
             assertLe(diff, config.tickSpacing, "Flash loan add/remove should not move estimate");
-        } else {
-            assertTrue(isLocked, "Position should be locked when in range");
         }
 
         // Warp to auction end and settle
@@ -210,6 +220,12 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Auction should settle successfully with reasonable clearing tick
         assertEq(uint8(hook.phase()), uint8(AuctionPhase.Settled));
+        if (!isLocked) {
+            int24 clearingTickDiff = estimateBefore > hook.clearingTick()
+                ? estimateBefore - hook.clearingTick()
+                : hook.clearingTick() - estimateBefore;
+            assertLe(clearingTickDiff, config.tickSpacing, "Flash loan add/remove should not move clearing tick");
+        }
         assertGe(hook.clearingTick(), config.minAcceptableTickToken0);
     }
 
