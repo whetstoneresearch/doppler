@@ -571,6 +571,13 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         // Verify total doesn't exceed pool
         uint256 totalDistributed = totalWhaleIncentives + totalSmallIncentives;
         assertLe(totalDistributed, auction.incentiveTokensTotal(), "Total exceeds pool");
+        assertGt(whale1Incentives, 0, "Whale 1 should receive incentives");
+        if (auction.isInRange(whale2Pos)) {
+            assertGt(whale2Incentives, 0, "Whale 2 should receive incentives if in range");
+        } else {
+            assertEq(whale2Incentives, 0, "Whale 2 should not receive incentives if out of range");
+        }
+        assertGt(totalWhaleIncentives, totalSmallIncentives, "Whales should receive majority of incentives");
     }
 
     // ============ Test: Last Minute Bidding ============
@@ -609,6 +616,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             }
         }
         console2.log("Early bidders in range:", earlyInRangeCount);
+        assertGt(earlyInRangeCount, 0, "Expected some early bids in range");
 
         // Warp to last hour
         vm.warp(auction.auctionEndTime() - 1 hours);
@@ -630,6 +638,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             }
         }
         console2.log("\nEarly bidders still in range after sniping:", earlyStillInRange);
+        assertLt(earlyStillInRange, earlyInRangeCount, "Expected sniping to push some early bids out");
 
         // Warp to end and settle
         vm.warp(auction.auctionEndTime() + 1);
@@ -660,6 +669,13 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
 
         // Early bidders who were pushed out but spent time in range should still get some incentives
         // Late bidders had less time but higher priority
+        assertGt(totalEarlyIncentives, 0, "Early bidders should receive incentives");
+        assertGt(totalLateIncentives, 0, "Late bidders should receive incentives");
+        assertLe(
+            totalEarlyIncentives + totalLateIncentives,
+            auction.incentiveTokensTotal(),
+            "Total incentives should not exceed pool"
+        );
         console2.log(
             "Late bidders share:", (totalLateIncentives * 100) / (totalEarlyIncentives + totalLateIncentives + 1), "%"
         );

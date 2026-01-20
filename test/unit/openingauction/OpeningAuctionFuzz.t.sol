@@ -292,13 +292,25 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         uint256 time1 = hook.getPositionAccumulatedTime(positionId1);
         uint256 time2 = hook.getPositionAccumulatedTime(positionId2);
 
-        // Both positions should have non-negative accumulated time
-        assertTrue(time1 >= 0);
-        assertTrue(time2 >= 0);
-
         // Invariant: times are bounded by elapsed time * liquidity
         assertTrue(time1 <= uint256(liquidity1) * (1 hours + 1));
         assertTrue(time2 <= uint256(liquidity2) * (1 hours + 1));
+
+        bool inRange1 = hook.isInRange(positionId1);
+        bool inRange2 = hook.isInRange(positionId2);
+
+        if (inRange1 && inRange2) {
+            uint256 scaled1 = time1 * uint256(liquidity2);
+            uint256 scaled2 = time2 * uint256(liquidity1);
+            assertApproxEqAbs(scaled1, scaled2, uint256(liquidity1 + liquidity2), "Time should scale with liquidity");
+        } else {
+            if (!inRange1) {
+                assertEq(time1, 0, "Out-of-range position should not accrue time");
+            }
+            if (!inRange2) {
+                assertEq(time2, 0, "Out-of-range position should not accrue time");
+            }
+        }
     }
 
     /// @notice Fuzz test for time accumulation at auction boundaries
@@ -313,16 +325,24 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         // Warp to just before auction end
         vm.warp(hook.auctionEndTime() - timeBeforeEnd);
 
-        uint256 timeAtBoundary = hook.getPositionAccumulatedTime(positionId);
+        uint256 timeBefore = hook.getPositionAccumulatedTime(positionId);
+
+        // Warp to auction end
+        vm.warp(hook.auctionEndTime());
+        uint256 timeAtEnd = hook.getPositionAccumulatedTime(positionId);
 
         // Warp past auction end
         vm.warp(hook.auctionEndTime() + 1 hours);
-
         uint256 timeAfterEnd = hook.getPositionAccumulatedTime(positionId);
 
         // Invariant: time should not increase after auction end
-        // (Time is capped at auctionEndTime)
-        assertGe(timeAfterEnd, timeAtBoundary);
+        assertEq(timeAfterEnd, timeAtEnd, "Time should stop after auction end");
+
+        if (hook.isInRange(positionId)) {
+            assertGe(timeAtEnd, timeBefore, "Time should not decrease before end");
+        } else {
+            assertEq(timeAtEnd, timeBefore, "Out-of-range position should not accrue time");
+        }
     }
 
     // ============ Fuzz Tests: Edge Cases ============

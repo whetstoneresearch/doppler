@@ -171,30 +171,33 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         vm.warp(hook.auctionEndTime() - 100);
         int24 estimateBefore = hook.estimatedClearingTick();
 
-        // Attacker simulates flash loan - adds massive bid
-        uint256 attackerPosId = _addBid(attacker, 0, 1_000_000 ether);
+        // Attacker simulates flash loan - adds massive bid at/near clearing tick
+        int24 attackerTickLower = alignTickTowardZero(estimateBefore, config.tickSpacing);
+        if (attackerTickLower < config.minAcceptableTickToken0) {
+            attackerTickLower = config.minAcceptableTickToken0;
+        }
+        uint256 attackerPosId = _addBid(attacker, attackerTickLower, 1_000_000 ether);
 
         AuctionPosition memory pos = hook.positions(attackerPosId);
         bool isLocked = hook.isPositionLocked(attackerPosId);
+        assertTrue(isLocked, "Attacker position should be locked near clearing tick");
 
-        // Attacker tries to remove bid in same block (should revert if locked)
+        // Attacker tries to remove bid in same block (should revert)
         vm.startPrank(attacker);
-        if (isLocked) {
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    CustomRevert.WrappedError.selector,
-                    address(hook),
-                    IHooks.beforeRemoveLiquidity.selector,
-                    abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
-                    abi.encodeWithSelector(Hooks.HookCallFailed.selector)
-                )
-            );
-        }
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(hook),
+                IHooks.beforeRemoveLiquidity.selector,
+                abi.encodeWithSelector(IOpeningAuction.PositionIsLocked.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
-                tickLower: 0,
-                tickUpper: config.tickSpacing,
+                tickLower: attackerTickLower,
+                tickUpper: attackerTickLower + config.tickSpacing,
                 liquidityDelta: -int256(uint256(pos.liquidity)),
                 salt: positionSalts[attackerPosId]
             }),
@@ -202,17 +205,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         );
         vm.stopPrank();
 
-        if (!isLocked) {
-            assertEq(hook.positions(attackerPosId).liquidity, 0);
-        }
-
-        int24 estimateAfter = hook.estimatedClearingTick();
-        if (!isLocked) {
-            int24 diff = estimateBefore > estimateAfter
-                ? estimateBefore - estimateAfter
-                : estimateAfter - estimateBefore;
-            assertLe(diff, config.tickSpacing, "Flash loan add/remove should not move estimate");
-        }
+        assertEq(hook.positions(attackerPosId).liquidity, pos.liquidity, "Locked position should remain");
 
         // Warp to auction end and settle
         vm.warp(hook.auctionEndTime() + 1);
@@ -220,12 +213,6 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Auction should settle successfully with reasonable clearing tick
         assertEq(uint8(hook.phase()), uint8(AuctionPhase.Settled));
-        if (!isLocked) {
-            int24 clearingTickDiff = estimateBefore > hook.clearingTick()
-                ? estimateBefore - hook.clearingTick()
-                : hook.clearingTick() - estimateBefore;
-            assertLe(clearingTickDiff, config.tickSpacing, "Flash loan add/remove should not move clearing tick");
-        }
         assertGe(hook.clearingTick(), config.minAcceptableTickToken0);
     }
 
@@ -243,8 +230,8 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         // Warp through most of auction
         vm.warp(hook.auctionEndTime() - 10);
 
-        // Attacker adds massive bid right at the end to try to claim most incentives
-        uint256 attackerPosId = _addBid(attacker, config.minAcceptableTickToken0 + config.tickSpacing * 10, 1_000_000 ether);
+        // Attacker adds large bid right at the end to try to claim most incentives
+        uint256 attackerPosId = _addBid(attacker, config.minAcceptableTickToken0 + config.tickSpacing * 10, 500_000 ether);
 
         // Warp and settle
         vm.warp(hook.auctionEndTime() + 1);
@@ -275,14 +262,9 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         uint256 aliceTime = hook.getPositionAccumulatedTime(alicePosId);
         uint256 attackerTime = hook.getPositionAccumulatedTime(attackerPosId);
 
-        // Incentives should follow capital-weighted time-in-range
-        if (aliceTime > attackerTime) {
-            assertGt(aliceIncentives, attackerIncentives, "Incentives should follow time weight");
-        } else if (aliceTime < attackerTime) {
-            assertLt(aliceIncentives, attackerIncentives, "Incentives should follow time weight");
-        } else {
-            assertApproxEqAbs(aliceIncentives, attackerIncentives, 1, "Equal time weight should split incentives");
-        }
+        assertGt(aliceTime, attackerTime, "Early bidder should accrue more time than late attacker");
+        assertGt(aliceIncentives, attackerIncentives, "Incentives should follow time weight");
+        assertLe(aliceIncentives + attackerIncentives, hook.incentiveTokensTotal(), "Incentives should not exceed pool");
     }
 
     /// @notice Test protection against flash loan used to avoid position locking

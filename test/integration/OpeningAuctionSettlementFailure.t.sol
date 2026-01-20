@@ -397,10 +397,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
         address newNumeraire = TOKEN_A;
         
         // Only run if TOKEN_B > TOKEN_A for proper isToken0=false setup
-        if (TOKEN_B < TOKEN_A) {
-            // Skip test if token ordering doesn't work
-            return;
-        }
+        assertGt(uint256(uint160(TOKEN_B)), uint256(uint160(TOKEN_A)), "Token ordering must be TOKEN_B > TOKEN_A");
 
         (token0, token1) = (newNumeraire, newAsset);
         asset = newAsset;

@@ -318,9 +318,14 @@ contract PartialRemovalTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        uint256 incentivesBefore = auction.calculateIncentives(alicePos);
+
         // After settlement, Alice should be able to remove her position
         // Note: The partial removal check only applies during Active phase
         _removeBid(alice, aliceTickLower, aliceLiquidity, alicePos);
+
+        uint256 incentivesAfter = auction.calculateIncentives(alicePos);
+        assertEq(incentivesAfter, incentivesBefore, "Settlement incentives should not change after removal");
     }
 
     /// @notice Test that after settlement, partial removal still works (no check in non-Active phase)
@@ -336,12 +341,18 @@ contract PartialRemovalTest is Test, Deployers {
         vm.warp(auction.auctionEndTime() + 1);
         auction.settleAuction();
 
+        uint256 incentivesBefore = auction.calculateIncentives(alicePos);
+
         // After settlement, partial removal should work (check only in Active phase)
         uint128 partialLiquidity = aliceLiquidity / 2;
         _removeBid(alice, aliceTickLower, partialLiquidity, alicePos);
+        uint256 incentivesAfterPartial = auction.calculateIncentives(alicePos);
+        assertEq(incentivesAfterPartial, incentivesBefore, "Settlement incentives should not change after partial removal");
 
         // Can remove the rest
         _removeBid(alice, aliceTickLower, partialLiquidity, alicePos);
+        uint256 incentivesAfterFull = auction.calculateIncentives(alicePos);
+        assertEq(incentivesAfterFull, incentivesBefore, "Settlement incentives should not change after full removal");
     }
 
     // ============ Tests: Edge Cases ============

@@ -593,8 +593,10 @@ contract DynamicRangeTrackingTest is Test, Deployers {
         console2.log("Bob incentives:", bobIncentives);
         console2.log("Total incentive pool:", auction.incentiveTokensTotal());
 
-        // Both should have non-zero incentives if they accumulated time
-        // Note: The exact amounts depend on whether positions were "touched" during settlement
+        assertGt(aliceAccumulatedTime, 0, "Alice should accrue time");
+        assertGt(bobAccumulatedTime, aliceAccumulatedTime, "Bob should accrue more time");
+        assertGt(aliceIncentives, 0, "Alice should receive incentives");
+        assertGt(bobIncentives, aliceIncentives, "Bob should receive more incentives");
     }
 
     /// @notice Test removed positions do not accrue time if the tick re-enters range
