@@ -32,6 +32,9 @@ uint256 constant WAD = 1e18;
 /// @dev Basis points denominator
 uint256 constant BPS = 10_000;
 
+uint8 constant TICK_SUM_WEIGHTED = 0;
+uint8 constant TICK_SUM_ACCUMULATED = 1;
+
 
 /// @title OpeningAuction
 /// @notice A hook implementing a marginal price batch auction before Doppler
@@ -244,10 +247,32 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return _auctionPriceLimitTick();
     }
 
+    function _loadPosition(uint256 positionId) internal view returns (AuctionPosition memory pos, bool exists) {
+        pos = _positions[positionId];
+        exists = pos.owner != address(0);
+    }
+
+    function _getPositionStorageOrRevert(uint256 positionId)
+        internal
+        view
+        returns (AuctionPosition storage pos)
+    {
+        pos = _positions[positionId];
+        if (pos.owner == address(0)) revert PositionNotFound();
+    }
+
+    function _incentiveAsset() internal view returns (Currency) {
+        return isToken0 ? poolKey.currency0 : poolKey.currency1;
+    }
+
+    function _transferIncentives(address recipient, uint256 amount) internal {
+        Currency.unwrap(_incentiveAsset()).safeTransfer(recipient, amount);
+    }
+
     /// @inheritdoc IOpeningAuction
     function isInRange(uint256 positionId) public view returns (bool) {
-        AuctionPosition memory pos = _positions[positionId];
-        if (pos.owner == address(0)) return false;
+        (AuctionPosition memory pos, bool exists) = _loadPosition(positionId);
+        if (!exists) return false;
 
         // "In range" for the auction means "would be touched by the settlement swap".
         // While the auction is Active, we use the estimated clearing tick.
@@ -291,8 +316,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @param positionId The position to check
     /// @return earnedTimeX128 The position's earned time in Q128 format (time * liquidity)
     function _getPositionEarnedTimeX128(uint256 positionId) internal view returns (uint256 earnedTimeX128) {
-        AuctionPosition memory pos = _positions[positionId];
-        if (pos.owner == address(0)) return 0;
+        (AuctionPosition memory pos, bool exists) = _loadPosition(positionId);
+        if (!exists) return 0;
 
         // Start with any previously harvested time (from when liquidity was removed)
         earnedTimeX128 = positionHarvestedTimeX128[positionId];
@@ -301,19 +326,15 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (pos.liquidity > 0) {
             // Get the tick's current accumulator (may need real-time update if not settled)
             uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(pos.tickLower);
-
-            // Position earns: (currentAccumulator - rewardDebt) * liquidity
-            if (tickAccumulatorX128 > pos.rewardDebtX128) {
-                earnedTimeX128 += (tickAccumulatorX128 - pos.rewardDebtX128) * uint256(pos.liquidity);
-            }
+            earnedTimeX128 += _calculateEarnedTimeX128(tickAccumulatorX128, pos.liquidity, pos.rewardDebtX128);
         }
     }
 
     /// @inheritdoc IOpeningAuction
     /// @notice Calculate incentives using O(1) MasterChef-style math
     function calculateIncentives(uint256 positionId) public view returns (uint256) {
-        AuctionPosition memory pos = _positions[positionId];
-        if (pos.owner == address(0)) return 0;
+        (AuctionPosition memory pos, bool exists) = _loadPosition(positionId);
+        if (!exists) return 0;
         if (pos.hasClaimedIncentives) return 0;
 
         // Get position's earned weighted time (Q128)
@@ -354,33 +375,46 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return accumulatorX128;
     }
 
+    function _calculateEarnedTimeX128(
+        uint256 accumulatorX128,
+        uint128 liquidity,
+        uint256 rewardDebtX128
+    ) internal pure returns (uint256) {
+        if (liquidity == 0 || accumulatorX128 <= rewardDebtX128) return 0;
+        return (accumulatorX128 - rewardDebtX128) * uint256(liquidity);
+    }
+
     /// @notice Compute total weighted time across all ticks (for view functions before settlement)
     /// @dev Walks the bitmap to iterate all active ticks
     function _computeTotalWeightedTimeX128() internal view returns (uint256) {
-        uint256 total = totalHarvestedTimeX128;
+        return totalHarvestedTimeX128 + _sumActiveTickTimes(TICK_SUM_WEIGHTED);
+    }
 
-        if (hasActiveTicks) {
-            int24 iterTick = minActiveTick;
-            while (iterTick <= maxActiveTick) {
-                (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
-                if (!found || nextCompressed > maxActiveTick) break;
+    function _sumActiveTickTimes(uint8 mode) internal view returns (uint256 total) {
+        if (!hasActiveTicks) return 0;
 
-                int24 nextTick = _decompressTick(nextCompressed);
-                uint128 liquidity = liquidityAtTick[nextTick];
-                if (liquidity > 0) {
-                    uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
-                    uint256 gross = tickAccumulatorX128 * uint256(liquidity);
+        int24 iterTick = minActiveTick;
+        while (iterTick <= maxActiveTick) {
+            (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
+            if (!found || nextCompressed > maxActiveTick) break;
+
+            int24 nextTick = _decompressTick(nextCompressed);
+            uint128 liquidity = liquidityAtTick[nextTick];
+            if (liquidity > 0) {
+                uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
+                uint256 gross = tickAccumulatorX128 * uint256(liquidity);
+                if (mode == TICK_SUM_WEIGHTED) {
                     uint256 debtSum = tickRewardDebtSumX128[nextTick];
                     if (gross > debtSum) {
                         total += (gross - debtSum);
                     }
+                } else {
+                    total += gross >> 128;
                 }
-
-                iterTick = nextCompressed + 1;
             }
-        }
 
-        return total;
+            iterTick = nextCompressed + 1;
+        }
     }
 
     /// @notice Get the price limit tick enforced by swaps in pool tick space
@@ -410,27 +444,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Get total accumulated time across all ticks (for external queries)
     /// @dev Returns sum of liquidity-weighted seconds across ticks
     function totalAccumulatedTime() public view returns (uint256) {
-        uint256 total = 0;
-
-        if (hasActiveTicks) {
-            int24 iterTick = minActiveTick;
-            while (iterTick <= maxActiveTick) {
-                (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, maxActiveTick + 1);
-                if (!found || nextCompressed > maxActiveTick) break;
-
-                int24 nextTick = _decompressTick(nextCompressed);
-                uint128 liquidity = liquidityAtTick[nextTick];
-                if (liquidity > 0) {
-                    // Convert Q128 accumulator back to liquidity-weighted seconds
-                    uint256 tickAccumulatorX128 = _getCurrentTickAccumulatorX128(nextTick);
-                    total += (tickAccumulatorX128 * uint256(liquidity)) >> 128;
-                }
-
-                iterTick = nextCompressed + 1;
-            }
-        }
-
-        return total;
+        return _sumActiveTickTimes(TICK_SUM_ACCUMULATED);
     }
 
     /// @inheritdoc IOpeningAuction
@@ -443,6 +457,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         // Only perform price validation and swap if there are bids (active ticks with liquidity)
         // If no bids exist, auction settles with 0 tokens sold (no liquidity to absorb them)
         bool hasBids = hasActiveTicks;
+        bool shouldSwap = tokensToSell > 0 && hasBids;
 
         AuctionPhase oldPhase = phase;
         phase = AuctionPhase.Closed;
@@ -453,11 +468,11 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         _finalizeAllTickTimes();
 
         // Execute the settlement swap only if there are bids to absorb tokens
-        if (tokensToSell > 0 && hasBids) {
+        if (shouldSwap) {
             _executeSettlementSwap(tokensToSell);
         }
 
-        if (tokensToSell > 0 && hasBids) {
+        if (shouldSwap) {
             (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
             int24 finalTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
             clearingTick = finalTick;
@@ -480,8 +495,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
         if (block.timestamp > incentivesClaimDeadline) revert ClaimWindowEnded();
 
-        AuctionPosition storage pos = _positions[positionId];
-        if (pos.owner == address(0)) revert PositionNotFound();
+        AuctionPosition storage pos = _getPositionStorageOrRevert(positionId);
         if (pos.hasClaimedIncentives) revert AlreadyClaimed();
 
         uint256 amount = calculateIncentives(positionId);
@@ -489,9 +503,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         totalIncentivesClaimed += amount;
 
         if (amount > 0) {
-            // Transfer incentive tokens
-            Currency asset = isToken0 ? poolKey.currency0 : poolKey.currency1;
-            Currency.unwrap(asset).safeTransfer(pos.owner, amount);
+            _transferIncentives(pos.owner, amount);
         }
 
         emit IncentivesClaimed(positionId, pos.owner, amount);
@@ -571,8 +583,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         uint256 amount = incentiveTokensTotal;
         incentiveTokensTotal = 0; // Prevent double recovery
 
-        Currency asset = isToken0 ? poolKey.currency0 : poolKey.currency1;
-        Currency.unwrap(asset).safeTransfer(recipient, amount);
+        _transferIncentives(recipient, amount);
 
         emit IncentivesRecovered(recipient, amount);
     }
@@ -589,8 +600,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         incentiveTokensTotal = totalIncentivesClaimed;
 
-        Currency asset = isToken0 ? poolKey.currency0 : poolKey.currency1;
-        Currency.unwrap(asset).safeTransfer(recipient, remaining);
+        _transferIncentives(recipient, remaining);
 
         emit IncentivesRecovered(recipient, remaining);
     }
@@ -1125,14 +1135,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         AuctionPosition storage pos = _positions[positionId];
         if (pos.owner == address(0) || pos.liquidity == 0) return;
 
-        // Calculate earned time for this position (same logic as _getPositionEarnedTimeX128)
         TickTimeState storage tickState = tickTimeStates[pos.tickLower];
-        uint256 tickAccumulatorX128 = tickState.accumulatedSecondsX128;
-
-        uint256 earnedTimeX128 = 0;
-        if (tickAccumulatorX128 > pos.rewardDebtX128) {
-            earnedTimeX128 = (tickAccumulatorX128 - pos.rewardDebtX128) * uint256(pos.liquidity);
-        }
+        uint256 earnedTimeX128 = _calculateEarnedTimeX128(
+            tickState.accumulatedSecondsX128,
+            pos.liquidity,
+            pos.rewardDebtX128
+        );
 
         if (earnedTimeX128 > 0) {
             // Store harvested time for this position
@@ -1142,7 +1150,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             totalHarvestedTimeX128 += earnedTimeX128;
 
             // Update reward debt to current accumulator (prevents double-counting if partial removal)
-            pos.rewardDebtX128 = tickAccumulatorX128;
+            pos.rewardDebtX128 = tickState.accumulatedSecondsX128;
             
             emit TimeHarvested(positionId, earnedTimeX128);
         }
