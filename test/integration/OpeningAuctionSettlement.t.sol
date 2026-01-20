@@ -315,6 +315,18 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         console2.log("Proceeds:", auction.totalProceeds());
         console2.log("Total accumulated time:", auction.totalAccumulatedTime());
 
+        bool aliceInRange = auction.isInRange(alicePos);
+        bool bobInRange = auction.isInRange(bobPos);
+        bool carolInRange = auction.isInRange(carolPos);
+        bool daveInRange = auction.isInRange(davePos);
+        bool eveInRange = auction.isInRange(evePos);
+
+        uint256 inRangeCount = (aliceInRange ? 1 : 0)
+            + (bobInRange ? 1 : 0)
+            + (carolInRange ? 1 : 0)
+            + (daveInRange ? 1 : 0)
+            + (eveInRange ? 1 : 0);
+
         // Check final balances
         uint256 hookAssetAfter = TestERC20(asset).balanceOf(address(auction));
         uint256 hookNumeraireAfter = TestERC20(numeraire).balanceOf(address(auction));
@@ -326,6 +338,8 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
         assertGt(auction.totalTokensSold(), 0, "Should have sold tokens");
         assertGt(auction.totalProceeds(), 0, "Should have received proceeds");
+        assertGt(inRangeCount, 0, "Expected at least one in-range position");
+        assertLt(inRangeCount, 5, "Expected at least one out-of-range position");
 
         // Log position states after settlement
         console2.log("\n=== Position States After Settlement ===");
@@ -367,20 +381,49 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         console2.log("Auction duration:", auction.auctionDuration());
         console2.log("Starting tick:", int256(auction.currentTick()));
 
-        // Place a single large bid at tick 0 (will be in range when price falls)
-        int24 bidTick = 0;
-        uint256 posId = _addBid(alice, bidTick, 100_000 ether);
+        // Alice starts in range at a low tick
+        int24 aliceTick = -30_000;
+        uint128 aliceLiquidity = 100_000 ether;
+        uint256 alicePos = _addBid(alice, aliceTick, aliceLiquidity);
 
-        AuctionPosition memory pos = auction.positions(posId);
-        console2.log("\nPosition placed at tick:", int256(bidTick));
-        console2.log("Initial isInRange:", auction.isInRange(posId));
-        console2.log("Initial rewardDebtX128:", pos.rewardDebtX128);
+        AuctionPosition memory alicePosition = auction.positions(alicePos);
+        console2.log("\nAlice position placed at tick:", int256(aliceTick));
+        console2.log("Initial isInRange:", auction.isInRange(alicePos));
+        console2.log("Initial rewardDebtX128:", alicePosition.rewardDebtX128);
 
-        // Initially the position may or may not be in range depending on clearing tick estimation
-        // With enough liquidity, the position could be in range from the start
+        assertTrue(auction.isInRange(alicePos), "Alice should be in range initially");
+
+        // Warp 2 hours to accumulate time
+        vm.warp(block.timestamp + 2 hours);
+        uint256 aliceTimeBeforePush = auction.getPositionAccumulatedTime(alicePos);
+        console2.log("Alice accumulated time (2h):", aliceTimeBeforePush);
+
+        // Bob adds a large bid at a higher tick to push Alice out of range
+        int24 bobTick = 0;
+        uint128 bobLiquidity = 500_000 ether;
+        uint256 bobPos = _addBid(bob, bobTick, bobLiquidity);
+
+        console2.log("Bob position placed at tick:", int256(bobTick));
+        console2.log("Alice in range after Bob:", auction.isInRange(alicePos));
+        console2.log("Bob in range after Bob:", auction.isInRange(bobPos));
+
+        assertFalse(auction.isInRange(alicePos), "Alice should be pushed out of range");
+        assertTrue(auction.isInRange(bobPos), "Bob should be in range");
+
+        uint256 expectedAliceTime = aliceLiquidity * 2 hours;
+        assertApproxEqAbs(
+            aliceTimeBeforePush,
+            expectedAliceTime,
+            aliceLiquidity * 5 minutes,
+            "Alice time should match ~2 hours of accumulation"
+        );
 
         // Warp to auction end
         vm.warp(auction.auctionEndTime() + 1);
+
+        // Alice time should not increase while out of range
+        uint256 aliceTimeFinal = auction.getPositionAccumulatedTime(alicePos);
+        assertApproxEqAbs(aliceTimeFinal, aliceTimeBeforePush, 10, "Alice time should stop after being pushed out");
 
         // Settle
         auction.settleAuction();
@@ -388,18 +431,13 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         console2.log("\n=== After Settlement ===");
         console2.log("Clearing tick:", int256(auction.clearingTick()));
 
-        console2.log("Final isInRange:", auction.isInRange(posId));
-        console2.log("Final accumulatedTime:", auction.getPositionAccumulatedTime(posId));
+        uint256 aliceIncentives = auction.calculateIncentives(alicePos);
+        uint256 bobIncentives = auction.calculateIncentives(bobPos);
+        console2.log("Alice incentives:", aliceIncentives);
+        console2.log("Bob incentives:", bobIncentives);
 
-        uint256 incentives = auction.calculateIncentives(posId);
-        console2.log("Calculated incentives:", incentives);
-
-        // If the clearing tick passed through the position, it should have accumulated time
-        uint256 accTime = auction.getPositionAccumulatedTime(posId);
-        if (auction.clearingTick() <= bidTick + tickSpacing) {
-            assertGt(accTime, 0, "Position should have accumulated time");
-            assertGt(incentives, 0, "Position should have incentives");
-        }
+        assertGt(aliceIncentives, 0, "Alice should have incentives from time in range");
+        assertGt(bobIncentives, 0, "Bob should have incentives");
     }
 
     /// @notice Test with positions that definitely stay out of range
@@ -422,7 +460,7 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         // Place a small liquidity position at a high tick
         // This will fill immediately, limiting how far the price can fall
         int24 highTick = 0;
-        _addBid(alice, highTick, 10_000 ether);
+        _addBid(alice, highTick, 1_000_000 ether);
 
         // Place a position at a very low tick - this should stay out of range
         int24 lowTick = minAcceptableTick + tickSpacing * 2;
@@ -444,11 +482,10 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         uint256 lowIncentives = auction.calculateIncentives(lowPosId);
         console2.log("Low position incentives:", lowIncentives);
 
-        // If clearing tick is above the low position, it should have 0 accumulated time
-        if (auction.clearingTick() > lowTick + tickSpacing) {
-            assertEq(lowAccTime, 0, "Out-of-range position should have 0 accumulated time");
-            assertEq(lowIncentives, 0, "Out-of-range position should have 0 incentives");
-        }
+        int24 clearingTick = auction.clearingTick();
+        assertGt(clearingTick, lowTick + tickSpacing, "Clearing tick should stay above low position");
+        assertEq(lowAccTime, 0, "Out-of-range position should have 0 accumulated time");
+        assertEq(lowIncentives, 0, "Out-of-range position should have 0 incentives");
     }
 
     /// @notice Test claiming incentives after settlement
@@ -598,13 +635,10 @@ contract OpeningAuctionSettlementTest is Test, Deployers {
         int24 clearingTick = auction.clearingTick();
 
         uint256 carolAccTime = auction.getPositionAccumulatedTime(lowPosId);
-        if (clearingTick >= lowTick) {
-            console2.log("\nCarol's position was NOT filled (clearing tick >= position tick)");
-            assertEq(carolAccTime, 0, "Unfilled position should have 0 accumulated time");
-            assertEq(auction.calculateIncentives(lowPosId), 0, "Unfilled position should have 0 incentives");
-        } else {
-            console2.log("\nCarol's position WAS filled (clearing tick < position tick)");
-        }
+        assertGt(clearingTick, lowTick + tickSpacing, "Clearing tick should stay above low position");
+        console2.log("\nCarol's position was NOT filled (clearing tick above position range)");
+        assertEq(carolAccTime, 0, "Unfilled position should have 0 accumulated time");
+        assertEq(auction.calculateIncentives(lowPosId), 0, "Unfilled position should have 0 incentives");
 
         // Verify assertions
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));

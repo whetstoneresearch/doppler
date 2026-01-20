@@ -237,10 +237,8 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
     function test_SettlementAtExactMinAcceptableTick() public {
         auction = _createAuction();
 
-        // Place large bids at and above minAcceptableTick
-        // These create demand that should push clearing tick to minAcceptableTick
-        _addBid(alice, minAcceptableTick, 50_000 ether);
-        _addBid(bob, minAcceptableTick + tickSpacing, 30_000 ether);
+        // Place minimal liquidity exactly at minAcceptableTick
+        _addBid(alice, minAcceptableTick, minLiquidity);
 
         vm.warp(block.timestamp + auctionDuration + 1);
 
@@ -254,9 +252,10 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
 
         int24 actualClearingTick = auction.clearingTick();
         console2.log("Actual clearing tick:", actualClearingTick);
+        uint256 tokensToSell = auction.totalAuctionTokens() - auction.incentiveTokensTotal();
 
-        // Clearing tick should be >= minAcceptableTick
-        assertGe(actualClearingTick, minAcceptableTick, "Clearing tick should be >= minAcceptableTick");
+        assertLt(auction.totalTokensSold(), tokensToSell, "Should partially fill at limit");
+        assertEq(actualClearingTick, minAcceptableTick, "Clearing tick should equal minAcceptableTick");
     }
 
     /// @notice Test settlement partial fill when clearing tick would be below minAcceptableTick

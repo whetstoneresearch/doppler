@@ -256,6 +256,20 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         // Analyze results
         _analyzeResults();
 
+        uint256 inRangeCount = 0;
+        uint256 outOfRangeCount = 0;
+        for (uint256 i = 1; i <= bidders.length; i++) {
+            if (auction.isInRange(i)) {
+                inRangeCount++;
+            } else {
+                outOfRangeCount++;
+                assertEq(auction.calculateIncentives(i), 0, "Out-of-range positions should have 0 incentives");
+            }
+        }
+
+        assertGt(inRangeCount, 0, "Expected at least one in-range position");
+        assertGt(outOfRangeCount, 0, "Expected at least one out-of-range position");
+
         assertEq(uint8(auction.phase()), uint8(AuctionPhase.Settled));
     }
 
@@ -436,7 +450,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
 
         // Alice bids at a medium tick - initially in range
         int24 aliceTick = -30_000;
-        uint256 alicePos = _addBid(bidders[0], aliceTick, 100_000 ether);
+        uint128 aliceLiquidity = 100_000 ether;
+        uint256 alicePos = _addBid(bidders[0], aliceTick, aliceLiquidity);
         console2.log("Alice bids at tick:", int256(aliceTick));
         console2.log("Alice initially in range:", auction.isInRange(alicePos));
 
@@ -449,7 +464,8 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
 
         // Bob places large bid at higher tick, pushing Alice out
         int24 bobTick = 0;
-        uint256 bobPos = _addBid(bidders[1], bobTick, 500_000 ether);
+        uint128 bobLiquidity = 500_000 ether;
+        uint256 bobPos = _addBid(bidders[1], bobTick, bobLiquidity);
         console2.log("\nBob bids at tick:", int256(bobTick));
         console2.log("Alice now in range:", auction.isInRange(alicePos));
         console2.log("Bob in range:", auction.isInRange(bobPos));
@@ -461,6 +477,14 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         uint256 aliceTimeAfterPush = auction.getPositionAccumulatedTime(alicePos);
         console2.log("Alice accumulated time after being pushed out:", aliceTimeAfterPush);
 
+        uint256 expectedAliceTime = aliceLiquidity * 3 days;
+        assertApproxEqAbs(
+            aliceTimeAfterPush,
+            expectedAliceTime,
+            aliceLiquidity * 5 minutes,
+            "Alice time should match ~3 days of accumulation"
+        );
+
         // Warp to auction end (4 more days)
         vm.warp(auction.auctionEndTime() + 1);
 
@@ -469,6 +493,15 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         console2.log("\nAt auction end:");
         console2.log("Alice final accumulated time:", aliceTimeFinal);
         console2.log("Bob accumulated time:", auction.getPositionAccumulatedTime(bobPos));
+
+        uint256 bobTimeFinal = auction.getPositionAccumulatedTime(bobPos);
+        uint256 expectedBobTime = bobLiquidity * 4 days;
+        assertApproxEqAbs(
+            bobTimeFinal,
+            expectedBobTime,
+            bobLiquidity * 5 minutes,
+            "Bob time should match ~4 days of accumulation"
+        );
 
         // Alice's time should be approximately what it was when pushed out
         assertApproxEqAbs(aliceTimeFinal, aliceTimeAfterPush, 10, "Alice time should not increase while out of range");
@@ -517,17 +550,21 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
 
         console2.log("=== Mixed Bidder Sizes Test ===");
 
-        // 2 whales with large liquidity at prime ticks
-        uint256 whale1Pos = _addBid(bidders[0], 0, 500_000 ether);
-        uint256 whale2Pos = _addBid(bidders[1], -TICK_SPACING, 400_000 ether);
+        // 2 whales with large liquidity at the same tick as retail to compare proportionality
+        int24 sharedTick = 0;
+        uint128 whale1Liquidity = 500_000 ether;
+        uint128 whale2Liquidity = 400_000 ether;
+        uint128 retailLiquidity = 10_000 ether;
+
+        uint256 whale1Pos = _addBid(bidders[0], sharedTick, whale1Liquidity);
+        uint256 whale2Pos = _addBid(bidders[1], sharedTick, whale2Liquidity);
         console2.log("Whale 1: 500K liquidity at tick 0");
-        console2.log("Whale 2: 400K liquidity at tick", int256(-TICK_SPACING));
+        console2.log("Whale 2: 400K liquidity at tick 0");
 
         // 20 small bidders with modest liquidity
         uint256[] memory smallPositions = new uint256[](20);
         for (uint256 i = 0; i < 20; i++) {
-            int24 tick = int24(-int256((i + 2) * uint256(uint24(TICK_SPACING)) * 5));
-            smallPositions[i] = _addBid(bidders[2 + i], tick, 10_000 ether);
+            smallPositions[i] = _addBid(bidders[2 + i], sharedTick, retailLiquidity);
         }
         console2.log("20 small bidders: 10K liquidity each");
 
@@ -546,6 +583,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
 
         uint256 totalSmallIncentives = 0;
         uint256 smallBiddersWithIncentives = 0;
+        uint256 firstSmallIncentives = auction.calculateIncentives(smallPositions[0]);
         for (uint256 i = 0; i < 20; i++) {
             uint256 incentives = auction.calculateIncentives(smallPositions[i]);
             totalSmallIncentives += incentives;
@@ -565,15 +603,21 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
             "%"
         );
 
+        // Proportionality check for positions with identical time in range
+        assertTrue(auction.isInRange(whale1Pos), "Whale 1 should be in range");
+        assertTrue(auction.isInRange(smallPositions[0]), "Retail should be in range");
+        assertApproxEqRel(
+            whale1Incentives * retailLiquidity,
+            firstSmallIncentives * whale1Liquidity,
+            1e12,
+            "Incentives should be proportional to liquidity"
+        );
+
         // Verify total doesn't exceed pool
         uint256 totalDistributed = totalWhaleIncentives + totalSmallIncentives;
         assertLe(totalDistributed, auction.incentiveTokensTotal(), "Total exceeds pool");
         assertGt(whale1Incentives, 0, "Whale 1 should receive incentives");
-        if (auction.isInRange(whale2Pos)) {
-            assertGt(whale2Incentives, 0, "Whale 2 should receive incentives if in range");
-        } else {
-            assertEq(whale2Incentives, 0, "Whale 2 should not receive incentives if out of range");
-        }
+        assertGt(whale2Incentives, 0, "Whale 2 should receive incentives");
         assertGt(totalWhaleIncentives, totalSmallIncentives, "Whales should receive majority of incentives");
     }
 

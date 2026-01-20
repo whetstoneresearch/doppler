@@ -54,7 +54,7 @@ contract OpeningAuctionExtendedDeployer is OpeningAuctionDeployer {
 }
 
 /// @notice Extended test scenarios for Opening Auction
-/// @dev Tests realistic scenarios with hundreds of ETH in liquidity and position rolling
+/// @dev Tests realistic scenarios with hundreds of ETH in liquidity
 contract OpeningAuctionExtendedTest is Test, Deployers {
     // Tokens
     address constant TOKEN_A = address(0x8888);
