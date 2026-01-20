@@ -22,7 +22,9 @@ import {
     OpeningAuctionStatus,
     IDopplerDeployer,
     AssetAlreadyInitialized,
+    DopplerNotActive,
     InvalidTokenOrder,
+    InvalidExitTarget,
     IsToken0Mismatch
 } from "src/OpeningAuctionInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
@@ -138,7 +140,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     function mineHookSalt(
         uint256 auctionTokens,
         OpeningAuctionConfig memory config
-    ) internal view returns (bytes32 salt) {
+    ) internal returns (bytes32 salt) {
         // Build constructor args - deployer passes initializer (msg.sender) as the initializer
         bytes memory constructorArgs = abi.encode(
             manager,
@@ -372,6 +374,11 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         int24 alignedClearingTick =
             _alignClearingTick(auctionHook.isToken0(), auctionHook.clearingTick(), decoded.tickSpacing);
         bytes32 invalidSalt = _findInvalidDopplerSalt(auctionHook, initData.dopplerData, alignedClearingTick);
+        (bytes memory constructorArgs,) =
+            _buildDopplerConstructorArgs(auctionHook, initData.dopplerData, alignedClearingTick);
+        bytes memory creationCodeWithArgs = abi.encodePacked(type(Doppler).creationCode, constructorArgs);
+        address expectedHook =
+            HookMiner.computeAddress(address(dopplerDeployer), uint256(invalidSalt), creationCodeWithArgs);
 
         (
             ,
@@ -387,7 +394,13 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
             
         ) = initializer.getState(asset);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DopplerDeployer.InvalidDopplerSalt.selector,
+                invalidSalt,
+                expectedHook
+            )
+        );
         initializer.completeAuction(asset, invalidSalt);
 
         (
@@ -539,7 +552,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         
         // Try to exit liquidity while auction is still active
         // This should fail because status is AuctionActive, not DopplerActive
-        vm.expectRevert(); // Will revert because no doppler hook exists yet
+        vm.expectRevert(DopplerNotActive.selector);
         initializer.exitLiquidity(auctionHook); // Wrong target - auction hook, not doppler
     }
 
@@ -559,7 +572,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         
         // Try to exit liquidity with random address
         address randomTarget = address(0x1234);
-        vm.expectRevert(); // Will revert because target is not a valid doppler hook
+        vm.expectRevert(InvalidExitTarget.selector);
         initializer.exitLiquidity(randomTarget);
     }
 
@@ -599,7 +612,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         OpeningAuction auctionHook,
         bytes memory dopplerData,
         int24 alignedClearingTick
-    ) internal view returns (bytes32) {
+    ) internal returns (bytes32) {
         (bytes memory constructorArgs,) = _buildDopplerConstructorArgs(auctionHook, dopplerData, alignedClearingTick);
         (, bytes32 salt) = HookMiner.find(
             address(dopplerDeployer),
@@ -614,7 +627,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         OpeningAuction auctionHook,
         bytes memory dopplerData,
         int24 alignedClearingTick
-    ) internal view returns (bytes32) {
+    ) internal returns (bytes32) {
         (bytes memory constructorArgs,) = _buildDopplerConstructorArgs(auctionHook, dopplerData, alignedClearingTick);
         bytes memory creationCodeWithArgs = abi.encodePacked(type(Doppler).creationCode, constructorArgs);
 
@@ -631,7 +644,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         OpeningAuction auctionHook,
         bytes memory dopplerData,
         int24 alignedClearingTick
-    ) internal view returns (bytes memory constructorArgs, DopplerData memory decoded) {
+    ) internal returns (bytes memory constructorArgs, DopplerData memory decoded) {
         bytes memory modifiedData = _modifyDopplerStartingTick(dopplerData, alignedClearingTick);
         decoded = abi.decode(modifiedData, (DopplerData));
 

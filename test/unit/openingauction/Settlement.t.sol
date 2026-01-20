@@ -33,17 +33,17 @@ contract SettlementTest is OpeningAuctionBaseTest {
         _warpToAuctionEnd();
         hook.settleAuction();
 
-        // Clearing tick should be set (exact value depends on pool state)
-        int24 clearingTick = hook.clearingTick();
-        // Just verify it was set (not zero or some default)
-        assertTrue(clearingTick != 0 || hook.totalTokensSold() == 0);
+        // With no bids, clearing tick should be the auction price limit.
+        assertEq(hook.clearingTick(), hook.minAcceptableTick());
     }
 
     function test_settleAuction_EmitsAuctionSettledEvent() public {
         _warpToAuctionEnd();
 
-        // We expect the AuctionSettled event to be emitted
-        // The exact parameters depend on the pool state
+        int24 expectedClearingTick = hook.minAcceptableTick();
+        vm.expectEmit(false, false, false, true);
+        emit IOpeningAuction.AuctionSettled(expectedClearingTick, 0, 0);
+
         hook.settleAuction();
 
         // Verify phase changed

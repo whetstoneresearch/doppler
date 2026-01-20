@@ -2,14 +2,42 @@
 pragma solidity ^0.8.24;
 
 import { OpeningAuctionBaseTest } from "test/shared/OpeningAuctionBaseTest.sol";
-import { AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
+import { AuctionPosition, OpeningAuctionConfig, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
-import { IPoolManager } from "@v4-core/PoolManager.sol";
+import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
 
 contract PositionTrackingTest is OpeningAuctionBaseTest {
+    function setUp() public override {
+        manager = new PoolManager(address(this));
+
+        _deployTokens();
+
+        OpeningAuctionConfig memory config = getDefaultConfig();
+        config.incentiveShareBps = 10_000; // Ensure positions stay out of range for deterministic tests.
+        _deployOpeningAuction(config, DEFAULT_AUCTION_TOKENS);
+
+        swapRouter = new PoolSwapTest(manager);
+        vm.label(address(swapRouter), "SwapRouter");
+
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+        vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
+
+        TestERC20(token0).approve(address(swapRouter), type(uint256).max);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(swapRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        TestERC20(token0).transfer(alice, 1_000_000 ether);
+        TestERC20(token1).transfer(alice, 1_000_000 ether);
+        TestERC20(token0).transfer(bob, 1_000_000 ether);
+        TestERC20(token1).transfer(bob, 1_000_000 ether);
+    }
+
     function test_afterAddLiquidity_TracksPositionCorrectly() public {
         int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
         uint128 amount = 1 ether;
@@ -52,8 +80,31 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
     function test_afterAddLiquidity_EmitsBidPlacedEvent() public {
         int24 tickLower = hook.minAcceptableTick() + key.tickSpacing * 10;
         uint128 amount = 1 ether;
+        uint256 expectedPositionId = hook.nextPositionId();
+        int24 tickUpper = tickLower + key.tickSpacing;
+        bytes32 salt = keccak256(abi.encode(alice, bidNonce++));
 
-        uint256 positionId = _addBid(alice, tickLower, amount);
+        vm.startPrank(alice);
+        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+
+        vm.expectEmit(true, true, false, true);
+        emit IOpeningAuction.BidPlaced(expectedPositionId, alice, tickLower, amount);
+
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                liquidityDelta: int256(uint256(amount)),
+                salt: salt
+            }),
+            abi.encode(alice)
+        );
+        vm.stopPrank();
+
+        uint256 positionId = hook.getPositionId(alice, tickLower, tickUpper, salt);
+        assertEq(positionId, expectedPositionId);
 
         // Verify position was created with correct owner
         AuctionPosition memory pos = hook.positions(positionId);
@@ -66,14 +117,8 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
 
         uint256 positionId = _addBid(alice, tickLower, 1 ether);
 
-        AuctionPosition memory pos = hook.positions(positionId);
-
-        // Position may or may not be in range initially depending on clearing tick estimation
-        // With new tick-based tracking, we use isInRange() to check
-        // assertFalse(hook.isInRange(positionId)); -- depends on clearing tick
-        // With MasterChef-style accounting, rewardDebtX128 tracks the accumulator snapshot at position creation
-        // It may be 0 if the tick has no prior accumulated time
-        assertTrue(pos.owner != address(0)); // Position should be properly created
+        assertFalse(hook.isInRange(positionId), "Position should be out of range");
+        assertFalse(hook.isPositionLocked(positionId), "Position should not be locked");
     }
 
     function test_position_HasZeroAccumulatedTimeInitially() public {
@@ -81,11 +126,9 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
 
         uint256 positionId = _addBid(alice, tickLower, 1 ether);
 
-        // With tick-based tracking, accumulated time is computed dynamically
-        // It will be > 0 if the tick is currently in range
-        // For a position far from clearing tick, it should start at 0
-        hook.getPositionAccumulatedTime(positionId);
-        // accTime depends on whether tick is in range - skip strict assertion
+        assertFalse(hook.isInRange(positionId), "Position should be out of range");
+        uint256 accumulatedTime = hook.getPositionAccumulatedTime(positionId);
+        assertEq(accumulatedTime, 0, "Out-of-range position should start at 0");
     }
 
     function test_position_HasNotClaimedIncentivesInitially() public {

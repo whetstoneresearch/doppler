@@ -75,7 +75,7 @@ contract ConstructorTest is Test {
         );
 
         // 15% of 1_000_000 = 150_000
-        uint256 expectedIncentives = (totalTokens * 1500) / 10_000;
+        uint256 expectedIncentives = 150_000 ether;
         assertEq(auction.incentiveTokensTotal(), expectedIncentives);
     }
 

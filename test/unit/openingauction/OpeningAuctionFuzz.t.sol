@@ -260,6 +260,11 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
         // Invariant: accumulated time should be bounded by elapsed time * liquidity
         // (May be 0 if not in range)
         assertTrue(accumulatedTime <= uint256(liquidity) * (timeDuration + 1));
+        if (hook.isInRange(positionId)) {
+            assertGt(accumulatedTime, 0);
+        } else {
+            assertEq(accumulatedTime, 0);
+        }
     }
 
     /// @notice Fuzz test for incentive distribution proportionality

@@ -429,7 +429,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
             ? estimatedBefore - actualClearingTick
             : actualClearingTick - estimatedBefore;
 
-        assertLe(diff, tickSpacing * 10, "Estimated should be within 10 tick spacings of actual");
+        assertLe(diff, tickSpacing, "Estimated should be within 1 tick spacing of actual");
     }
 
     /// @notice Test estimatedClearingTick accuracy with multiple bidders at different ticks
@@ -458,7 +458,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
             ? estimatedBefore - actualClearingTick
             : actualClearingTick - estimatedBefore;
 
-        assertLe(diff, tickSpacing * 10, "Estimated should be reasonably accurate with multiple bidders");
+        assertLe(diff, tickSpacing, "Estimated should be within 1 tick spacing with multiple bidders");
     }
 
     // ============ POSITION INCREASE SCENARIOS ============

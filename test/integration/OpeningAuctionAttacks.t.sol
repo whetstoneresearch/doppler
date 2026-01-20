@@ -168,14 +168,16 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Get estimated clearing tick before attack
         vm.warp(hook.auctionEndTime() - 100);
+        int24 estimateBefore = hook.estimatedClearingTick();
 
         // Attacker simulates flash loan - adds massive bid
         uint256 attackerPosId = _addBid(attacker, 0, 1_000_000 ether);
 
         // Attacker tries to remove bid in same block (but position may be locked)
         AuctionPosition memory pos = hook.positions(attackerPosId);
+        bool isLocked = hook.isPositionLocked(attackerPosId);
 
-        if (!hook.isPositionLocked(attackerPosId)) {
+        if (!isLocked) {
             // Position not locked - attacker can remove but position tracking is still accurate
             vm.startPrank(attacker);
             modifyLiquidityRouter.modifyLiquidity(
@@ -189,6 +191,17 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 abi.encode(attacker)
             );
             vm.stopPrank();
+            assertEq(hook.positions(attackerPosId).liquidity, 0);
+        }
+
+        int24 estimateAfter = hook.estimatedClearingTick();
+        if (!isLocked) {
+            int24 diff = estimateBefore > estimateAfter
+                ? estimateBefore - estimateAfter
+                : estimateAfter - estimateBefore;
+            assertLe(diff, config.tickSpacing, "Flash loan add/remove should not move estimate");
+        } else {
+            assertTrue(isLocked, "Position should be locked when in range");
         }
 
         // Warp to auction end and settle
@@ -269,29 +282,28 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Attacker adds bid near estimated clearing range
         vm.warp(hook.auctionEndTime() - 3600); // 1 hour before end
-
-        int24 nearClearingTick = config.minAcceptableTickToken0 + config.tickSpacing * 45;
+        int24 nearClearingTick = 0;
         uint256 attackerPosId = _addBid(attacker, nearClearingTick, 100e18);
 
         // Check if position is locked
         AuctionPosition memory pos = hook.positions(attackerPosId);
+        bool isLocked = hook.isPositionLocked(attackerPosId);
+        assertTrue(isLocked, "Position should be locked near clearing range");
 
-        if (hook.isPositionLocked(attackerPosId)) {
-            // Attacker cannot remove locked position
-            vm.startPrank(attacker);
-            vm.expectRevert(); // Should revert due to locked position
-            modifyLiquidityRouter.modifyLiquidity(
-                poolKey,
-                IPoolManager.ModifyLiquidityParams({
-                    tickLower: nearClearingTick,
-                    tickUpper: nearClearingTick + config.tickSpacing,
-                    liquidityDelta: -int256(uint256(pos.liquidity)),
-                    salt: positionSalts[attackerPosId]
-                }),
-                abi.encode(attacker)
-            );
-            vm.stopPrank();
-        }
+        // Attacker cannot remove locked position
+        vm.startPrank(attacker);
+        vm.expectRevert(); // Should revert due to locked position
+        modifyLiquidityRouter.modifyLiquidity(
+            poolKey,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: nearClearingTick,
+                tickUpper: nearClearingTick + config.tickSpacing,
+                liquidityDelta: -int256(uint256(pos.liquidity)),
+                salt: positionSalts[attackerPosId]
+            }),
+            abi.encode(attacker)
+        );
+        vm.stopPrank();
 
         // Warp and settle
         vm.warp(hook.auctionEndTime() + 1);
@@ -344,8 +356,13 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Clearing tick should be as expected (no manipulation)
         assertEq(uint8(hook.phase()), uint8(AuctionPhase.Settled));
+        int24 actualClearingTick = hook.clearingTick();
+        int24 diff = expectedClearingTick > actualClearingTick
+            ? expectedClearingTick - actualClearingTick
+            : actualClearingTick - expectedClearingTick;
+        assertLe(diff, config.tickSpacing, "Clearing tick should match pre-settlement estimate");
         emit log_named_int("Expected clearing tick", expectedClearingTick);
-        emit log_named_int("Actual clearing tick", hook.clearingTick());
+        emit log_named_int("Actual clearing tick", actualClearingTick);
     }
 
     /// @notice Test that minAcceptableTick prevents price manipulation attacks
@@ -418,6 +435,11 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         // This tests that the mechanism handles it correctly
         assertEq(uint8(hook.phase()), uint8(AuctionPhase.Settled));
         assertGt(hook.totalTokensSold(), 0);
+        int24 finalClearingTick = hook.clearingTick();
+        int24 diff = finalEstimate > finalClearingTick
+            ? finalEstimate - finalClearingTick
+            : finalClearingTick - finalEstimate;
+        assertLe(diff, config.tickSpacing, "Final estimate should match settlement result");
     }
 
     /// @notice Test reentrancy protection on settlement
