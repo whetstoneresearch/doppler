@@ -14,13 +14,11 @@ contract DeployUniswapV4InitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](6);
+        uint256[] memory targets = new uint256[](4);
         targets[0] = ChainIds.BASE_MAINNET;
         targets[1] = ChainIds.BASE_SEPOLIA;
-        targets[2] = ChainIds.UNICHAIN_MAINNET;
-        targets[3] = ChainIds.UNICHAIN_SEPOLIA;
-        targets[4] = ChainIds.MONAD_MAINNET;
-        targets[5] = ChainIds.MONAD_TESTNET;
+        targets[2] = ChainIds.MONAD_MAINNET;
+        targets[3] = ChainIds.MONAD_TESTNET;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
