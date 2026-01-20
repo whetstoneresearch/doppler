@@ -189,7 +189,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     ) BaseHook(poolManager_) {
         if (config.auctionDuration == 0) revert InvalidAuctionDuration();
         if (config.incentiveShareBps > BPS) revert InvalidIncentiveShareBps();
-        if (config.tickSpacing <= 0) revert InvalidTickSpacing();
         if (
             config.tickSpacing < TickMath.MIN_TICK_SPACING
                 || config.tickSpacing > TickMath.MAX_TICK_SPACING
@@ -1199,13 +1198,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Update the estimated clearing tick and tick time states
     /// @dev Only updates ticks that transition in/out of range - O(k) where k = changed ticks
-    /// @return changed True if the clearing tick moved
-    function _updateClearingTickAndTimeStates() internal returns (bool changed) {
+    function _updateClearingTickAndTimeStates() internal {
         int24 oldClearingTick = estimatedClearingTick;
         int24 newClearingTick = _calculateEstimatedClearingTick();
         newClearingTick = _floorToSpacing(newClearingTick, poolKey.tickSpacing);
 
-        if (newClearingTick == oldClearingTick) return false;
+        if (newClearingTick == oldClearingTick) return;
 
         // Update estimatedClearingTick BEFORE calling _updateTickTimeStates
         // so that _wouldBeFilled uses the NEW clearing tick
@@ -1215,7 +1213,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         _updateTickTimeStates(oldClearingTick, newClearingTick);
 
         emit EstimatedClearingTickUpdated(newClearingTick);
-        return true;
     }
 
     /// @notice Update time states for ticks that transitioned in/out of range
