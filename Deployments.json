@@ -98,7 +98,7 @@
     "UniswapV4ScheduledMulticurveInitializerHook": "0x3e342a06f9592459d75721d6956b570f02ef2dc0"
   },
   "10143": {
-    "Airlock": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b",
+    "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "Bundler": "0xf6023127f6e937091d5b605680056a6d27524bad",
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
