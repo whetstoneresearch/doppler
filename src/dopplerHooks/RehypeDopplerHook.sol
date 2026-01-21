@@ -647,7 +647,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param delta BalanceDelta of the swap
      * @param key Uniswap V4 pool key
      * @param poolId Uniswap V4 poolId (to save gas)
-     * @return feeCurrency Currency in which the fee was collected
+     * @return feeCurrency Currency in which the fee was collected (always the unspecified token)
      * @return feeDelta Amount of fee collected in feeCurrency
      */
     function _collectSwapFees(
@@ -663,14 +663,27 @@ contract RehypeDopplerHook is BaseDopplerHook {
             return (feeCurrency, feeDelta);
         }
 
-        if (params.amountSpecified < 0) {
+        bool exactInput = params.amountSpecified < 0;
+
+        // Fee is always taken from the unspecified token:
+        if (exactInput) {
             feeCurrency = outputIsToken0 ? key.currency0 : key.currency1;
         } else {
-            bool inputIsToken0 = params.zeroForOne ? true : false;
-            feeCurrency = inputIsToken0 ? key.currency0 : key.currency1;
+            feeCurrency = params.zeroForOne ? key.currency0 : key.currency1;
         }
 
-        uint256 feeAmount = FullMath.mulDiv(uint256(outputAmount), getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        // Compute fee based on the feeCurrency amount 
+        uint256 feeBase;
+        if (exactInput) {
+            // For exact input, fee is of output
+            feeBase = uint256(outputAmount);
+        } else {
+            // For exact output, fee is of input 
+            int256 inputAmount = params.zeroForOne ? delta.amount0() : delta.amount1();
+            feeBase = uint256(-inputAmount);
+        }
+
+        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
