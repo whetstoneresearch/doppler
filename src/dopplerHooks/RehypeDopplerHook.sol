@@ -212,10 +212,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
                 lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
                 lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
-                (uint256 amount0Added, uint256 amount1Added) =
+                BalanceDelta liquidityDelta =
                     _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
-                balance0 = zeroForOne ? balance0 - swapAmountIn - amount0Added : balance0 + swapAmountOut - amount0Added;
-                balance1 = zeroForOne ? balance1 + swapAmountOut - amount1Added : balance1 - swapAmountIn - amount1Added;
+                balance0 =
+                    uint256(int256(zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut) + liquidityDelta.amount0());
+                balance1 =
+                    uint256(int256(zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn) + liquidityDelta.amount1());
             }
         }
 
@@ -360,8 +362,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param amount0 Amount of currency0 to add
      * @param amount1 Amount of currency1 to add
      * @param sqrtPriceX96 Current square root price of the pool
-     * @return amount0Added Actual amount of currency0 added
-     * @return amount1Added Actual amount of currency1 added
+     * @return callerDelta The balance delta (negative = paid, positive = received fees)
      */
     function _addFullRangeLiquidity(
         PoolKey memory key,
@@ -369,7 +370,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 amount0,
         uint256 amount1,
         uint160 sqrtPriceX96
-    ) internal returns (uint256 amount0Added, uint256 amount1Added) {
+    ) internal returns (BalanceDelta callerDelta) {
         uint128 liquidityDelta;
 
         if (amount0 >= 1 && amount1 >= 1) {
@@ -383,10 +384,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
 
         if (liquidityDelta == 0) {
-            return (0, 0);
+            return toBalanceDelta(0, 0);
         }
 
-        (BalanceDelta balanceDelta, BalanceDelta feeDelta) = poolManager.modifyLiquidity(
+        (callerDelta,) = poolManager.modifyLiquidity(
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: position.tickLower,
@@ -397,16 +398,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
             new bytes(0)
         );
 
-        // subtract the fees to avoid overflow when casting to uint
-        BalanceDelta realizedDelta = balanceDelta - feeDelta;
-
-        _settleDelta(key, balanceDelta);
-        _collectDelta(key, balanceDelta);
+        _settleDelta(key, callerDelta);
+        _collectDelta(key, callerDelta);
 
         position.liquidity += liquidityDelta;
-
-        amount0Added = uint256(uint128(-realizedDelta.amount0()));
-        amount1Added = uint256(uint128(-realizedDelta.amount1()));
     }
 
     /**
