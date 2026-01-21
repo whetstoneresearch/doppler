@@ -604,12 +604,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
         fees1 = getHookFees[poolId].airlockOwnerFees1;
 
         if (fees0 > 0) {
-            poolKey.currency0.transfer(msg.sender, fees0);
             getHookFees[poolId].airlockOwnerFees0 = 0;
+            poolKey.currency0.transfer(msg.sender, fees0);
         }
         if (fees1 > 0) {
-            poolKey.currency1.transfer(msg.sender, fees1);
             getHookFees[poolId].airlockOwnerFees1 = 0;
+            poolKey.currency1.transfer(msg.sender, fees1);
         }
 
         emit AirlockOwnerFeesClaimed(poolId, msg.sender, fees0, fees1);
