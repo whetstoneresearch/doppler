@@ -195,7 +195,7 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         // Process allocations
         uint256 vestedTokens;
-        for (uint256 i; i < allocationLength;) {
+        for (uint256 i; i < allocationLength; i++) {
             address beneficiary = beneficiaries_[i];
             uint256 scheduleId = scheduleIds_[i];
             uint256 amount = amounts_[i];
@@ -222,10 +222,6 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
             vestedTokens += amount;
             emit VestingAllocated(beneficiary, scheduleId, amount);
-
-            unchecked {
-                ++i;
-            }
         }
 
         // Enforce total premint cap
