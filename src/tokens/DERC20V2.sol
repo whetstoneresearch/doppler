@@ -178,7 +178,7 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
 
         // Validate and store schedules
         uint256 schedulesLength = schedules_.length;
-        for (uint256 i; i < schedulesLength;) {
+        for (uint256 i; i < schedulesLength; i++) {
             VestingSchedule memory s = schedules_[i];
             // Duration must be 0 (instant vest) or >= MIN_VESTING_DURATION
             // Cliff must be <= duration
@@ -187,9 +187,6 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
             );
             vestingSchedules.push(s);
             emit VestingScheduleCreated(i, s.cliff, s.duration);
-            unchecked {
-                ++i;
-            }
         }
 
         // Compute caps
