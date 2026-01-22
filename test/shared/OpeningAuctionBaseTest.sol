@@ -8,7 +8,6 @@ import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
@@ -19,6 +18,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 using PoolIdLibrary for PoolKey;
 using StateLibrary for IPoolManager;
@@ -87,20 +87,8 @@ contract OpeningAuctionBaseTest is Test, Deployers {
     address bob = address(0xb0b);
     address initializer = address(0xbeef);
     uint256 bidNonce;
+    mapping(address => bool) internal hasApprovedModifyLiquidityRouter;
 
-    /// @notice Get the hook flags for OpeningAuction
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
-    }
 
     /// @notice Deploy tokens
     function _deployTokens() public {
@@ -119,16 +107,12 @@ contract OpeningAuctionBaseTest is Test, Deployers {
 
     /// @notice Get default config
     function getDefaultConfig() public pure returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: DEFAULT_AUCTION_DURATION,
-            minAcceptableTickToken0: DEFAULT_MIN_ACCEPTABLE_TICK,
-            minAcceptableTickToken1: DEFAULT_MIN_ACCEPTABLE_TICK,
-            incentiveShareBps: DEFAULT_INCENTIVE_SHARE_BPS,
-            tickSpacing: DEFAULT_TICK_SPACING,
-            fee: DEFAULT_FEE,
-            minLiquidity: DEFAULT_MIN_LIQUIDITY,
-            shareToAuctionBps: 10_000
-        });
+        return OpeningAuctionTestDefaults.defaultConfig(
+            DEFAULT_AUCTION_DURATION,
+            DEFAULT_MIN_ACCEPTABLE_TICK,
+            DEFAULT_MIN_ACCEPTABLE_TICK,
+            DEFAULT_TICK_SPACING
+        );
     }
 
     /// @notice Deploy OpeningAuction hook with default config
@@ -139,7 +123,7 @@ contract OpeningAuctionBaseTest is Test, Deployers {
     /// @notice Deploy OpeningAuction hook with custom config
     function _deployOpeningAuction(OpeningAuctionConfig memory config, uint256 auctionTokens) public {
         // Calculate hook address with proper flags
-        address hookAddress = address(uint160(getHookFlags()) ^ (0x4444 << 144));
+        address hookAddress = address(uint160(OpeningAuctionTestDefaults.hookFlags()) ^ (0x4444 << 144));
 
         // Deploy hook implementation to the calculated address
         deployCodeTo(
@@ -219,9 +203,11 @@ contract OpeningAuctionBaseTest is Test, Deployers {
         bytes32 salt = keccak256(abi.encode(user, bidNonce++));
 
         vm.startPrank(user);
-        // Approve the router to spend tokens
-        TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
-        TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+        if (!hasApprovedModifyLiquidityRouter[user]) {
+            TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
+            TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
+            hasApprovedModifyLiquidityRouter[user] = true;
+        }
 
         // Add liquidity through router, passing owner in hookData
         modifyLiquidityRouter.modifyLiquidity(

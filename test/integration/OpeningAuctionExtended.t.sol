@@ -10,7 +10,6 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
@@ -18,6 +17,7 @@ import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 contract OpeningAuctionExtendedImpl is OpeningAuction {
@@ -129,16 +129,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
     }
 
     function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
+        return OpeningAuctionTestDefaults.hookFlags();
     }
 
     function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuction) {

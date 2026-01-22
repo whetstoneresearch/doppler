@@ -242,7 +242,7 @@ contract OpeningAuctionStressTest is Test, Deployers {
             uint256 positionId = _addBid(bidder, tickLower, liquidity);
             
             // Remove bid (only if not locked)
-            if (!hook.isPositionLocked(positionId)) {
+            if (!hook.isInRange(positionId)) {
                 vm.startPrank(bidder);
                 modifyLiquidityRouter.modifyLiquidity(
                     poolKey,

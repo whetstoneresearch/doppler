@@ -218,7 +218,9 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         // Validate tick spacing compatibility with Doppler
         // The auction tick spacing must be a multiple of the Doppler tick spacing
         // to ensure the clearing tick is valid for Doppler pool initialization
-        int24 dopplerTickSpacing = _extractDopplerTickSpacing(initData.dopplerData);
+        (, , , , , , , , bool dopplerIsToken0, , , int24 dopplerTickSpacing) = _decodeDopplerInitData(
+            initData.dopplerData
+        );
         if (config.tickSpacing % dopplerTickSpacing != 0) {
             revert IncompatibleTickSpacing(config.tickSpacing, dopplerTickSpacing);
         }
@@ -228,7 +230,6 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         bool isToken0 = asset < numeraire;
 
         // Validate isToken0 in dopplerData matches derived value
-        bool dopplerIsToken0 = _extractDopplerIsToken0(initData.dopplerData);
         if (dopplerIsToken0 != isToken0) {
             revert IsToken0Mismatch();
         }
@@ -358,7 +359,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
 
         // Align clearing tick to Doppler's tick spacing
         // The clearing tick from the auction may not be aligned to Doppler's tick spacing
-        int24 dopplerTickSpacing = _extractDopplerTickSpacing(state.dopplerInitData);
+        (, , , , , , , , , , , int24 dopplerTickSpacing) = _decodeDopplerInitData(state.dopplerInitData);
         int24 alignedClearingTick = alignTick(state.isToken0, clearingTick, dopplerTickSpacing);
         int24 minAligned = alignTickTowardZero(TickMath.MIN_TICK, dopplerTickSpacing);
         int24 maxAligned = alignTickTowardZero(TickMath.MAX_TICK, dopplerTickSpacing);
@@ -517,21 +518,27 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         return getState[asset].openingAuctionHook;
     }
 
-    /// @notice Extract the tick spacing from Doppler init data
+    /// @notice Decode Doppler init data
     /// @param dopplerData The encoded Doppler initialization data
-    /// @return tickSpacing The tick spacing configured for Doppler
-    function _extractDopplerTickSpacing(bytes memory dopplerData) internal pure returns (int24 tickSpacing) {
-        (,,,,,,,,,,, tickSpacing) = abi.decode(
-            dopplerData,
-            (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
-        );
-    }
-
-    /// @notice Extract isToken0 from Doppler init data
-    /// @param dopplerData The encoded Doppler initialization data
-    /// @return isToken0 Whether the asset is token0
-    function _extractDopplerIsToken0(bytes memory dopplerData) internal pure returns (bool isToken0) {
-        (,,,,,,,, isToken0,,,) = abi.decode(
+    function _decodeDopplerInitData(bytes memory dopplerData)
+        internal
+        pure
+        returns (
+            uint256 minimumProceeds,
+            uint256 maximumProceeds,
+            uint256 startingTime,
+            uint256 endingTime,
+            int24 startingTick,
+            int24 endingTick,
+            uint256 epochLength,
+            int24 gamma,
+            bool isToken0,
+            uint256 numPDSlugs,
+            uint24 lpFee,
+            int24 tickSpacing
+        )
+    {
+        return abi.decode(
             dopplerData,
             (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
@@ -558,10 +565,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             uint256 numPDSlugs,
             uint24 lpFee,
             int24 tickSpacing
-        ) = abi.decode(
-            dopplerData,
-            (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
-        );
+        ) = _decodeDopplerInitData(dopplerData);
 
         // Calculate original duration to preserve the intended sale duration
         uint256 originalDuration = endingTime - startingTime;

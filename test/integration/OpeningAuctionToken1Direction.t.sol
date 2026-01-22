@@ -20,6 +20,7 @@ import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
@@ -141,16 +142,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
     }
 
     function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
+        return OpeningAuctionTestDefaults.hookFlags();
     }
 
     function mineHookSalt(

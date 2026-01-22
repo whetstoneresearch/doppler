@@ -24,6 +24,7 @@ import {
     OpeningAuctionStatus
 } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 /// @dev Used for testing to allow deployment at arbitrary addresses
@@ -128,31 +129,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
     /// @notice Get default config for isToken0=false auction
     /// @dev minAcceptableTickToken1 is tick(token0/token1) and enforced as a pool-space ceiling.
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: AUCTION_DURATION,
-            // Token0 floor is unused in these tests (isToken0=false).
-            minAcceptableTickToken0: -887_220,
-            minAcceptableTickToken1: -34_020,
-            incentiveShareBps: 1000, // 10%
-            tickSpacing: 60,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
-    }
-
-    /// @notice Get the hook flags for OpeningAuction
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
+        return OpeningAuctionTestDefaults.defaultConfig(AUCTION_DURATION, -887_220, -34_020, 60);
     }
 
     /// @notice Mine a valid salt for the hook address
@@ -172,7 +149,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
 
         (hookAddress, salt) = HookMiner.find(
             deployer,
-            getHookFlags(),
+            OpeningAuctionTestDefaults.hookFlags(),
             type(OpeningAuctionToken1Impl).creationCode,
             constructorArgs
         );
@@ -870,7 +847,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
 
         // For isToken0=false: position is filled if clearingTick >= tickLower
         bool shouldBeFilled = estimatedClearing >= lowTickBid;
-        bool isLocked = auction.isPositionLocked(posId);
+        bool isLocked = auction.isInRange(posId);
 
         console2.log("Expected filled:", shouldBeFilled);
         console2.log("Actual locked:", isLocked);

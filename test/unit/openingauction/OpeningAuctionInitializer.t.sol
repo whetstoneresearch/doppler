@@ -30,6 +30,7 @@ import {
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer } from "src/initializers/UniswapV4Initializer.sol";
 import { alignTickTowardZero, alignTick } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 struct DopplerData {
     uint256 minimumProceeds;
@@ -122,20 +123,6 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         TestERC20(token1).transfer(bob, 10_000_000 ether);
     }
 
-    /// @notice Get the hook flags for OpeningAuction
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
-    }
-
     /// @notice Mine a valid salt for the hook address
     function mineHookSalt(
         uint256 auctionTokens,
@@ -151,7 +138,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
         (,salt) = HookMiner.find(
             address(auctionDeployer),
-            getHookFlags(),
+            OpeningAuctionTestDefaults.hookFlags(),
             type(OpeningAuction).creationCode,
             constructorArgs
         );
@@ -159,16 +146,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
     /// @notice Create default auction config
     function getDefaultAuctionConfig() internal pure returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: AUCTION_DURATION,
-            minAcceptableTickToken0: -34_020,
-            minAcceptableTickToken1: -34_020,
-            incentiveShareBps: 1000,
-            tickSpacing: 60,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
+        return OpeningAuctionTestDefaults.defaultConfig(AUCTION_DURATION, -34_020, -34_020, 60);
     }
 
     /// @notice Create Doppler data

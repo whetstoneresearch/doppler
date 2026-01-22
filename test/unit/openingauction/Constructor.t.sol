@@ -7,6 +7,7 @@ import { PoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation for testing
 contract OpeningAuctionTestImpl is OpeningAuction {
@@ -29,16 +30,7 @@ contract ConstructorTest is Test {
     }
 
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: 1 days,
-            minAcceptableTickToken0: -99_960, // Aligned to tick spacing 60
-            minAcceptableTickToken1: -99_960,
-            incentiveShareBps: 1000, // 10%
-            tickSpacing: 60,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
+        return OpeningAuctionTestDefaults.defaultConfig(1 days, -99_960, -99_960, 60);
     }
 
     function test_constructor_SetsParametersCorrectly() public {

@@ -10,7 +10,6 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
@@ -23,6 +22,7 @@ import {
     OpeningAuctionStatus
 } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 contract OpeningAuctionImpl is OpeningAuction {
@@ -111,30 +111,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
     }
 
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: AUCTION_DURATION,
-            minAcceptableTickToken0: -34_020, // ~0.033 price floor (e.g., 10k USD min raise at 3k ETH for 100 tokens)
-            minAcceptableTickToken1: -34_020,
-            incentiveShareBps: 1000, // 10%
-            tickSpacing: 60,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
-    }
-
-    /// @notice Get the hook flags for OpeningAuction
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
+        return OpeningAuctionTestDefaults.defaultConfig(AUCTION_DURATION, -34_020, -34_020, 60);
     }
 
     /// @notice Mine a valid salt for the hook address
@@ -154,7 +131,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         (hookAddress, salt) = HookMiner.find(
             deployer,
-            getHookFlags(),
+            OpeningAuctionTestDefaults.hookFlags(),
             type(OpeningAuctionImpl).creationCode,
             constructorArgs
         );

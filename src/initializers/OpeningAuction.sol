@@ -11,7 +11,6 @@ import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.s
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { SqrtPriceMath } from "@v4-core/libraries/SqrtPriceMath.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
@@ -288,13 +287,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
     }
 
-    /// @notice Check if a position is currently locked (backwards-compatible helper)
-    /// @param positionId The position to check
-    /// @return True if position would be filled if settled now
-    function isPositionLocked(uint256 positionId) public view returns (bool) {
-        return isInRange(positionId);
-    }
-
     /// @notice Get a position's earned time (liquidity-weighted seconds)
     /// @param positionId The position to check
     /// @return earnedSeconds The position's earned time in liquidity-weighted seconds
@@ -463,9 +455,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         // Execute the settlement swap only if there are bids to absorb tokens
         if (shouldSwap) {
             _executeSettlementSwap(tokensToSell);
-        }
-
-        if (shouldSwap) {
             (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolKey.toId());
             int24 finalTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
             clearingTick = finalTick;
@@ -475,9 +464,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         incentivesClaimDeadline = block.timestamp + INCENTIVE_CLAIM_WINDOW;
 
-        AuctionPhase closedPhase = phase;
         phase = AuctionPhase.Settled;
-        emit PhaseChanged(closedPhase, AuctionPhase.Settled);
+        emit PhaseChanged(AuctionPhase.Closed, AuctionPhase.Settled);
 
         emit AuctionSettled(clearingTick, totalTokensSold, totalProceeds);
     }
@@ -1229,27 +1217,13 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
         int24 tickSpacing = poolKey.tickSpacing;
 
-        if (isToken0) {
-            // Price moves down (clearing tick decreases)
-            // Ticks enter range when: clearingTick < tick + tickSpacing
-            // Walk from ticks that just entered range (near the new clearing tick)
-            if (newClearingTick < oldClearingTick) {
-                // More ticks are now filled - walk ticks that entered range
-                _walkTicksEnteringRange(oldClearingTick, newClearingTick, tickSpacing);
-            } else if (newClearingTick > oldClearingTick) {
-                // Fewer ticks are now filled - walk ticks that exited range
-                _walkTicksExitingRange(oldClearingTick, newClearingTick, tickSpacing);
-            }
+        bool enteringRange = isToken0 ? newClearingTick < oldClearingTick : newClearingTick > oldClearingTick;
+        if (enteringRange) {
+            // More ticks are now filled - walk ticks that entered range
+            _walkTicksEnteringRange(oldClearingTick, newClearingTick, tickSpacing);
         } else {
-            // Price moves up (clearing tick increases)
-            // Ticks enter range when: clearingTick >= tickLower
-            if (newClearingTick > oldClearingTick) {
-                // More ticks are now filled - walk ticks that entered range
-                _walkTicksEnteringRange(oldClearingTick, newClearingTick, tickSpacing);
-            } else if (newClearingTick < oldClearingTick) {
-                // Fewer ticks are now filled - walk ticks that exited range
-                _walkTicksExitingRange(oldClearingTick, newClearingTick, tickSpacing);
-            }
+            // Fewer ticks are now filled - walk ticks that exited range
+            _walkTicksExitingRange(oldClearingTick, newClearingTick, tickSpacing);
         }
     }
 
@@ -1275,33 +1249,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             endTick = newClearingTick;
         }
 
-        int24 startAligned = _ceilToSpacing(startTick, tickSpacing);
-        int24 endAligned = _floorToSpacing(endTick, tickSpacing);
-        if (startAligned > endAligned) return;
-
-        int24 startCompressed = _compressTick(startAligned);
-        int24 endCompressed = _compressTick(endAligned);
-
-        // Clamp to active tick bounds (compressed)
-        if (startCompressed < minActiveTick) startCompressed = minActiveTick;
-        if (endCompressed > maxActiveTick) endCompressed = maxActiveTick;
-        if (startCompressed > endCompressed) return;
-
-        // Walk through the bitmap
-        int24 iterTick = startCompressed;
-        while (iterTick <= endCompressed) {
-            (int24 nextCompressed, bool found) = _nextInitializedTick(iterTick - 1, false, endCompressed + 1);
-            if (!found || nextCompressed > endCompressed) break;
-
-            int24 nextTick = _decompressTick(nextCompressed);
-            TickTimeState storage tickState = tickTimeStates[nextTick];
-            tickState.lastUpdateTime = block.timestamp;
-            tickState.isInRange = true;
-            
-            emit TickEnteredRange(nextTick, liquidityAtTick[nextTick]);
-
-            iterTick = nextCompressed + 1;
-        }
+        _walkTicksRange(startTick, endTick, tickSpacing, true);
     }
 
     /// @notice Walk ticks that are exiting the filled range and update their time states
@@ -1325,6 +1273,10 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             endTick = oldClearingTick;
         }
 
+        _walkTicksRange(startTick, endTick, tickSpacing, false);
+    }
+
+    function _walkTicksRange(int24 startTick, int24 endTick, int24 tickSpacing, bool entering) internal {
         int24 startAligned = _ceilToSpacing(startTick, tickSpacing);
         int24 endAligned = _floorToSpacing(endTick, tickSpacing);
         if (startAligned > endAligned) return;
@@ -1345,11 +1297,16 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
             int24 nextTick = _decompressTick(nextCompressed);
             TickTimeState storage tickState = tickTimeStates[nextTick];
-            // Finalize accumulator before changing state
-            _updateTickAccumulator(nextTick);
-            tickState.isInRange = false;
-            
-            emit TickExitedRange(nextTick, liquidityAtTick[nextTick]);
+            if (entering) {
+                tickState.lastUpdateTime = block.timestamp;
+                tickState.isInRange = true;
+                emit TickEnteredRange(nextTick, liquidityAtTick[nextTick]);
+            } else {
+                // Finalize accumulator before changing state
+                _updateTickAccumulator(nextTick);
+                tickState.isInRange = false;
+                emit TickExitedRange(nextTick, liquidityAtTick[nextTick]);
+            }
 
             iterTick = nextCompressed + 1;
         }

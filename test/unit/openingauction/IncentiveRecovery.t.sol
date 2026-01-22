@@ -10,7 +10,6 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
@@ -19,6 +18,7 @@ import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfa
 import { IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 contract OpeningAuctionRecoveryImpl is OpeningAuction {
@@ -124,19 +124,6 @@ contract IncentiveRecoveryTest is Test, Deployers {
         TestERC20(token1).transfer(user, amount1);
     }
 
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
-    }
-
     function mineHookSalt(
         address deployer,
         address caller,
@@ -152,7 +139,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
         (hookAddress, salt) = HookMiner.find(
             deployer,
-            getHookFlags(),
+            OpeningAuctionTestDefaults.hookFlags(),
             type(OpeningAuctionRecoveryImpl).creationCode,
             constructorArgs
         );
@@ -215,16 +202,12 @@ contract IncentiveRecoveryTest is Test, Deployers {
     }
 
     function getDefaultConfig() internal view returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: AUCTION_DURATION,
-            minAcceptableTickToken0: minAcceptableTick,
-            minAcceptableTickToken1: minAcceptableTick,
-            incentiveShareBps: 1000, // 10%
-            tickSpacing: tickSpacing,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
+        return OpeningAuctionTestDefaults.defaultConfig(
+            AUCTION_DURATION,
+            minAcceptableTick,
+            minAcceptableTick,
+            tickSpacing
+        );
     }
 
     // ============ Recovery Success Scenarios ============

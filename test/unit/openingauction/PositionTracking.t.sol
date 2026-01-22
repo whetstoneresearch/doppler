@@ -118,7 +118,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
         uint256 positionId = _addBid(alice, tickLower, 1 ether);
 
         assertFalse(hook.isInRange(positionId), "Position should be out of range");
-        assertFalse(hook.isPositionLocked(positionId), "Position should not be locked");
+        assertFalse(hook.isInRange(positionId), "Position should not be locked");
     }
 
     function test_position_HasZeroAccumulatedTimeInitially() public {

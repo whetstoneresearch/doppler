@@ -5,7 +5,6 @@ import { Test, console2 } from "forge-std/Test.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
@@ -21,6 +20,7 @@ import {
     OpeningAuctionDeployer,
     OpeningAuctionInitData
 } from "src/OpeningAuctionInitializer.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 contract OpeningAuctionTransitionImpl is OpeningAuction {
@@ -114,16 +114,7 @@ contract DopplerTransitionTest is Test, Deployers {
     }
 
     function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
+        return OpeningAuctionTestDefaults.hookFlags();
     }
 
     function deployAuction(uint256 incentiveShareBps) internal returns (OpeningAuction) {

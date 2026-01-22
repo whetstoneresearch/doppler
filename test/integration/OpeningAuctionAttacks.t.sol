@@ -19,6 +19,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @title OpeningAuctionAttacksTest
 /// @notice Security tests for flash loan attacks and MEV sandwich attacks
@@ -76,34 +77,12 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         TestERC20(asset).transfer(creator, AUCTION_TOKENS);
     }
 
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
-    }
-
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
-        return OpeningAuctionConfig({
-            auctionDuration: AUCTION_DURATION,
-            minAcceptableTickToken0: -34_020,
-            minAcceptableTickToken1: -34_020,
-            incentiveShareBps: 1000,
-            tickSpacing: 60,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
+        return OpeningAuctionTestDefaults.defaultConfig(AUCTION_DURATION, -34_020, -34_020, 60);
     }
 
     function _deployAuction(OpeningAuctionConfig memory config) internal {
-        address hookAddress = address(uint160(getHookFlags()) ^ (0x6666 << 144));
+        address hookAddress = address(uint160(OpeningAuctionTestDefaults.hookFlags()) ^ (0x6666 << 144));
 
         deployCodeTo(
             "OpeningAuctionAttacks.t.sol:OpeningAuctionImpl",
@@ -179,7 +158,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         uint256 attackerPosId = _addBid(attacker, attackerTickLower, 1_000_000 ether);
 
         AuctionPosition memory pos = hook.positions(attackerPosId);
-        bool isLocked = hook.isPositionLocked(attackerPosId);
+        bool isLocked = hook.isInRange(attackerPosId);
         assertTrue(isLocked, "Attacker position should be locked near clearing tick");
 
         // Attacker tries to remove bid in same block (should revert)
@@ -289,7 +268,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 
         // Check if position is locked
         AuctionPosition memory pos = hook.positions(attackerPosId);
-        bool isLocked = hook.isPositionLocked(attackerPosId);
+        bool isLocked = hook.isInRange(attackerPosId);
         assertTrue(isLocked, "Position should be locked near clearing range");
 
         // Attacker cannot remove locked position

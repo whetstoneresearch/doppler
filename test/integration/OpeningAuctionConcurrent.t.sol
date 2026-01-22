@@ -10,12 +10,12 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.sol";
-import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
+import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @title OpeningAuctionConcurrentTest
 /// @notice Tests for multiple concurrent auctions running simultaneously
@@ -71,31 +71,9 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         }
     }
 
-    function getHookFlags() internal pure returns (uint160) {
-        return uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG
-            | Hooks.AFTER_INITIALIZE_FLAG
-            | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
-            | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-            | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_DONATE_FLAG
-        );
-    }
-
     function getDefaultConfig() internal pure returns (OpeningAuctionConfig memory) {
         int24 minTick = alignTickTowardZero(TickMath.MIN_TICK, 60);
-        return OpeningAuctionConfig({
-            auctionDuration: AUCTION_DURATION,
-            minAcceptableTickToken0: minTick,
-            minAcceptableTickToken1: minTick,
-            incentiveShareBps: 1000,
-            tickSpacing: 60,
-            fee: 3000,
-            minLiquidity: 1e15,
-            shareToAuctionBps: 10_000
-        });
+        return OpeningAuctionTestDefaults.defaultConfig(AUCTION_DURATION, minTick, minTick, 60);
     }
 
     function _deployAuction(
@@ -108,7 +86,7 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         bool isToken0 = asset < NUMERAIRE;
 
         uint160 base = uint160(uint256(keccak256(abi.encode(asset, hookSalt))));
-        address hookAddress = address((base & ~FLAG_MASK) | getHookFlags());
+        address hookAddress = address((base & ~FLAG_MASK) | OpeningAuctionTestDefaults.hookFlags());
 
         deployCodeTo(
             "OpeningAuctionConcurrent.t.sol:OpeningAuctionImpl",
