@@ -50,6 +50,9 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     /// @notice Address of the initializer contract
     address public immutable initializer;
 
+    /// @notice Authorized position manager (router) for liquidity modifications
+    address public positionManager;
+
     // ============ Auction Configuration ============
 
     /// @notice Duration of the auction in seconds
@@ -669,11 +672,15 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @inheritdoc BaseHook
     function _beforeAddLiquidity(
-        address,
+        address sender,
         PoolKey calldata key,
         IPoolManager.ModifyLiquidityParams calldata params,
         bytes calldata
     ) internal view override returns (bytes4) {
+        if (sender != address(this)) {
+            _requirePositionManager(sender);
+        }
+
         if (phase != AuctionPhase.Active) revert AuctionNotActive();
 
         // Block new bids after auction end time (before settlement)
@@ -790,6 +797,8 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
             return BaseHook.beforeRemoveLiquidity.selector;
         }
 
+        _requirePositionManager(sender);
+
         if (phase == AuctionPhase.Active) {
             // Require owner address in hookData to match position key from creation
             address owner = _decodeOwner(hookData);
@@ -888,6 +897,23 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         }
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+    }
+
+    /// @notice Set the authorized position manager (callable once by initializer)
+    function setPositionManager(address manager) external {
+        if (msg.sender != initializer) revert SenderNotInitializer();
+        if (manager == address(0)) revert InvalidPositionManager();
+        if (positionManager != address(0)) {
+            if (positionManager != manager) revert PositionManagerAlreadySet();
+            return;
+        }
+        positionManager = manager;
+    }
+
+    function _requirePositionManager(address sender) internal view {
+        address manager = positionManager;
+        if (manager == address(0)) revert PositionManagerNotSet();
+        if (sender != manager) revert SenderNotPositionManager();
     }
 
     /// @inheritdoc BaseHook

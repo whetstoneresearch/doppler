@@ -30,7 +30,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
 
         vm.prank(address(manager));
         bytes4 selector = hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -51,7 +51,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         vm.prank(address(manager));
         vm.expectRevert(IOpeningAuction.NotSingleTickPosition.selector);
         hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -71,7 +71,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         vm.prank(address(manager));
         vm.expectRevert(IOpeningAuction.BidBelowMinimumPrice.selector);
         hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -88,7 +88,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
 
         vm.prank(address(manager));
         bytes4 selector = hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -107,7 +107,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
 
         vm.prank(address(manager));
         bytes4 selector = hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -128,7 +128,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         vm.prank(address(manager));
         vm.expectRevert(IOpeningAuction.BidBelowMinimumLiquidity.selector);
         hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -153,7 +153,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         vm.prank(address(manager));
         vm.expectRevert(IOpeningAuction.AuctionNotActive.selector);
         hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -178,7 +178,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         vm.prank(address(manager));
         vm.expectRevert(IOpeningAuction.BiddingClosed.selector);
         hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,
@@ -202,7 +202,7 @@ contract BeforeAddLiquidityTest is OpeningAuctionBaseTest {
         // Should still be allowed
         vm.prank(address(manager));
         bytes4 selector = hook.beforeAddLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,

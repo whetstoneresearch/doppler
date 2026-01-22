@@ -119,13 +119,17 @@ contract TokenOrderingTest is Test, Deployers {
         _deployAuction(true);
 
         // First call should succeed
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(true);
+        vm.stopPrank();
 
         // Second call should revert
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         vm.expectRevert(IOpeningAuction.IsToken0AlreadySet.selector);
         hook.setIsToken0(false);
+        vm.stopPrank();
     }
 
     /// @notice Test that setIsToken0 cannot be called after initialization
@@ -134,6 +138,7 @@ contract TokenOrderingTest is Test, Deployers {
 
         // Set isToken0 and initialize
         vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(true);
 
         PoolKey memory poolKey = PoolKey({
@@ -149,9 +154,11 @@ contract TokenOrderingTest is Test, Deployers {
         vm.stopPrank();
 
         // Now try to call setIsToken0 - should revert
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         vm.expectRevert(IOpeningAuction.AlreadyInitialized.selector);
         hook.setIsToken0(false);
+        vm.stopPrank();
     }
 
     /// @notice Test that _beforeInitialize reverts if isToken0 was not set
@@ -193,8 +200,10 @@ contract TokenOrderingTest is Test, Deployers {
         (address asset, address numeraire) = _deployAuction(true);
 
         // Set isToken0 = true
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(true);
+        vm.stopPrank();
 
         // Verify before initialization
         assertEq(hook.isToken0(), true, "isToken0 should be true before init");
@@ -227,8 +236,10 @@ contract TokenOrderingTest is Test, Deployers {
         (address asset, address numeraire) = _deployAuction(false);
 
         // Set isToken0 = false (because asset is token1)
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(false);
+        vm.stopPrank();
 
         // Verify before initialization
         assertEq(hook.isToken0(), false, "isToken0 should be false before init");
@@ -290,8 +301,10 @@ contract TokenOrderingTest is Test, Deployers {
         TestERC20(asset).transfer(address(hook), AUCTION_TOKENS);
 
         // Set isToken0 = false
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(false);
+        vm.stopPrank();
 
         // Create pool key
         PoolKey memory poolKey = PoolKey({
@@ -366,8 +379,10 @@ contract TokenOrderingTest is Test, Deployers {
         // Deploy with asset as token1
         (address asset, address numeraire) = _deployAuction(false);
 
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(false);
+        vm.stopPrank();
 
         PoolKey memory poolKey = PoolKey({
             currency0: Currency.wrap(numeraire),

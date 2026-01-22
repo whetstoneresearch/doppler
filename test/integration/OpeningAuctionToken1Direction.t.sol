@@ -184,6 +184,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         TestERC20(asset).transfer(address(_auction), AUCTION_TOKENS);
         
         // KEY DIFFERENCE: Set isToken0 to FALSE
+        _auction.setPositionManager(address(modifyLiquidityRouter));
         _auction.setIsToken0(false);
 
         poolKey = PoolKey({
@@ -494,6 +495,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         );
 
         TestERC20(asset).transfer(address(auction), smallAuctionTokens);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         poolKey = PoolKey({

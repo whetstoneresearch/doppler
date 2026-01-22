@@ -161,6 +161,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
 
         TestERC20(asset).transfer(address(_auction), AUCTION_TOKENS);
+        _auction.setPositionManager(address(modifyLiquidityRouter));
         _auction.setIsToken0(true);
 
         poolKey = PoolKey({
@@ -284,6 +285,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
 
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(true);
 
         poolKey = PoolKey({
@@ -616,6 +618,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
 
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(true);
 
         poolKey = PoolKey({

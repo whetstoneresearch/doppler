@@ -157,6 +157,7 @@ contract DynamicRangeTrackingTest is Test, Deployers {
 
         // Set isToken0 and initialize
         vm.startPrank(creator);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(true);
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(maxTick));
         vm.stopPrank();

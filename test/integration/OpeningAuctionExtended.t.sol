@@ -148,6 +148,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         );
 
         TestERC20(asset).transfer(address(_auction), AUCTION_TOKENS);
+        _auction.setPositionManager(address(modifyLiquidityRouter));
         _auction.setIsToken0(true);
 
         poolKey = PoolKey({
@@ -376,6 +377,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         vm.startPrank(creator);
         auction = auctionDeployer.deploy(smallerTokens, salt, abi.encode(config));
         TestERC20(asset).transfer(address(auction), smallerTokens);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(true);
 
         poolKey = PoolKey({

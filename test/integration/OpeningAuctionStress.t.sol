@@ -109,14 +109,15 @@ contract OpeningAuctionStressTest is Test, Deployers {
             tickSpacing: config.tickSpacing,
             hooks: IHooks(address(hook))
         });
-        
+
+        // Deploy router
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+
         // Set isToken0 and initialize pool
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(true);
         int24 startingTick = alignTickTowardZero(TickMath.MAX_TICK, config.tickSpacing);
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
-        
-        // Deploy router
-        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
     }
 
     /// @notice Helper to add a bid

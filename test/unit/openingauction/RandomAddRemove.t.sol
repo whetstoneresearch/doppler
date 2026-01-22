@@ -33,6 +33,9 @@ contract RandomAddRemoveSequencesTest is OpeningAuctionBaseTest {
         swapRouter = new PoolSwapTest(manager);
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
+        vm.prank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
+
         TestERC20(token0).approve(address(swapRouter), type(uint256).max);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(swapRouter), type(uint256).max);

@@ -115,9 +115,14 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
 
         auctionDeployer = new OpeningAuctionDeployer(manager);
         dopplerDeployer = new DopplerDeployerHookMiner(manager);
-        initializer = new OpeningAuctionInitializer(airlock, manager, auctionDeployer, dopplerDeployer);
-
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+        initializer = new OpeningAuctionInitializer(
+            airlock,
+            manager,
+            auctionDeployer,
+            dopplerDeployer,
+            address(modifyLiquidityRouter)
+        );
 
         TestERC20(asset).approve(address(initializer), type(uint256).max);
 

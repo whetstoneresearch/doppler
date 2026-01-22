@@ -70,15 +70,18 @@ contract OpeningAuctionGas is OpeningAuctionBaseTest {
         // Deploy tokens
         _deployTokens();
 
+        // Deploy router before hook so we can authorize it
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+        vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
+
         // Deploy opening auction with gas test config
         _deployOpeningAuction(getGasTestConfig(), DEFAULT_AUCTION_TOKENS);
+        vm.prank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
 
         // Deploy routers
         swapRouter = new PoolSwapTest(manager);
         vm.label(address(swapRouter), "SwapRouter");
-
-        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
-        vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
 
         // Approve routers
         TestERC20(token0).approve(address(swapRouter), type(uint256).max);

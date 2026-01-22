@@ -99,18 +99,19 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
         auctionDeployer = new OpeningAuctionDeployer(manager);
         dopplerDeployer = new DopplerDeployer(manager);
 
+        // Deploy modify liquidity router
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+        vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
+
         // Deploy initializer with this contract as airlock
         initializer = new OpeningAuctionInitializer(
             airlock,
             manager,
             auctionDeployer,
-            IDopplerDeployer(address(dopplerDeployer))
+            IDopplerDeployer(address(dopplerDeployer)),
+            address(modifyLiquidityRouter)
         );
         vm.label(address(initializer), "Initializer");
-
-        // Deploy modify liquidity router
-        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
-        vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
 
         // Approve initializer to spend tokens
         TestERC20(asset).approve(address(initializer), type(uint256).max);

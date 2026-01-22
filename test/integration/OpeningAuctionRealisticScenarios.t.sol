@@ -161,6 +161,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         vm.startPrank(creator);
         OpeningAuction _auction = auctionDeployer.deploy(auctionTokens, salt, abi.encode(config));
         TestERC20(asset).transfer(address(_auction), auctionTokens);
+        _auction.setPositionManager(address(modifyLiquidityRouter));
         _auction.setIsToken0(true);
 
         poolKey = PoolKey({

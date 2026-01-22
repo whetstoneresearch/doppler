@@ -65,9 +65,14 @@ contract OpeningAuctionInitializerIncentiveRecoveryTest is Test, Deployers {
         airlock = new Airlock(airlockOwner);
         auctionDeployer = new OpeningAuctionDeployer(manager);
         dopplerDeployer = new DopplerDeployerMock();
-        initializer = new OpeningAuctionInitializer(address(airlock), manager, auctionDeployer, dopplerDeployer);
-
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+        initializer = new OpeningAuctionInitializer(
+            address(airlock),
+            manager,
+            auctionDeployer,
+            dopplerDeployer,
+            address(modifyLiquidityRouter)
+        );
 
         TestERC20(asset).transfer(address(airlock), AUCTION_TOKENS);
 

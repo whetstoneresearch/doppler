@@ -123,6 +123,8 @@ contract InitializerTickSpacingTest is Test, Deployers {
         // First deploy the airlock mock
         airlock = new MockAirlock(initializerAddr);
 
+        address positionManager = address(0x1234);
+
         // Deploy the initializer to the calculated address
         deployCodeTo(
             "OpeningAuctionInitializer.sol:OpeningAuctionInitializer",
@@ -130,7 +132,8 @@ contract InitializerTickSpacingTest is Test, Deployers {
                 address(airlock),
                 address(manager),
                 address(auctionDeployer),
-                address(dopplerDeployer)
+                address(dopplerDeployer),
+                positionManager
             ),
             initializerAddr
         );

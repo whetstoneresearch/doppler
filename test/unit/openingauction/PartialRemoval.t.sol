@@ -130,6 +130,7 @@ contract PartialRemovalTest is Test, Deployers {
         });
 
         vm.startPrank(creator);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(true);
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(maxTick));
         vm.stopPrank();

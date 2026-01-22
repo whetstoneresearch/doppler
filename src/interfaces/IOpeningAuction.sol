@@ -161,6 +161,18 @@ interface IOpeningAuction {
     /// @notice Thrown when hookData does not contain owner address
     error HookDataMissingOwner();
 
+    /// @notice Thrown when the position manager has not been set
+    error PositionManagerNotSet();
+
+    /// @notice Thrown when caller is not the position manager
+    error SenderNotPositionManager();
+
+    /// @notice Thrown when attempting to set the position manager more than once
+    error PositionManagerAlreadySet();
+
+    /// @notice Thrown when an invalid position manager is provided
+    error InvalidPositionManager();
+
     /// @notice Thrown when settlement clearing tick is worse than minimum acceptable
     error SettlementPriceTooLow();
 

@@ -175,6 +175,9 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     /// @notice Address of the DopplerDeployer contract
     IDopplerDeployer public immutable dopplerDeployer;
 
+    /// @notice Address of the position manager authorized to modify auction liquidity
+    address public immutable positionManager;
+
     /// @notice State for each asset's opening auction
     mapping(address asset => OpeningAuctionState state) public getState;
 
@@ -192,11 +195,13 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         address airlock_,
         IPoolManager poolManager_,
         OpeningAuctionDeployer auctionDeployer_,
-        IDopplerDeployer dopplerDeployer_
+        IDopplerDeployer dopplerDeployer_,
+        address positionManager_
     ) ImmutableAirlock(airlock_) {
         poolManager = poolManager_;
         auctionDeployer = auctionDeployer_;
         dopplerDeployer = dopplerDeployer_;
+        positionManager = positionManager_;
     }
 
     /// @inheritdoc IPoolInitializer
@@ -249,6 +254,8 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
             salt,
             abi.encode(config)
         );
+
+        auctionHook.setPositionManager(positionManager);
 
         // Set isToken0 on the hook
         auctionHook.setIsToken0(isToken0);

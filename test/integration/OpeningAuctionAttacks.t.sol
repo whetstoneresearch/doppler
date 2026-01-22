@@ -105,6 +105,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
         });
 
         vm.startPrank(creator);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(true);
         int24 startingTick = alignTickTowardZero(TickMath.MAX_TICK, config.tickSpacing);
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));

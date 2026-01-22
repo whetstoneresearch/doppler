@@ -153,14 +153,16 @@ contract MigrateReentrancyTest is Test, Deployers {
             hooks: IHooks(address(hook))
         });
 
-        vm.prank(initializer);
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(true);
+        vm.stopPrank();
 
         int24 startingTick = alignTickTowardZero(TickMath.MAX_TICK, config.tickSpacing);
         vm.prank(initializer);
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
-
-        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
 
         TestERC20(token0).transfer(alice, 1_000_000 ether);
         ReentrantERC20(token1).transfer(alice, 1_000_000 ether);

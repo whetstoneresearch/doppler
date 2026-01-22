@@ -180,6 +180,9 @@ contract OpeningAuctionBaseTest is Test, Deployers {
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
         vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
 
+        vm.prank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
+
         // Approve routers
         TestERC20(token0).approve(address(swapRouter), type(uint256).max);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);

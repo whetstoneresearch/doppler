@@ -178,6 +178,7 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
 
         // Set isToken0 (asset is token0 if asset < numeraire)
         bool isToken0 = asset == token0;
+        newAuction.setPositionManager(address(modifyLiquidityRouter));
         newAuction.setIsToken0(isToken0);
 
         // Create pool key

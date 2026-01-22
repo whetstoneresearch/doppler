@@ -569,10 +569,10 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
         vm.label(token0, "Token0");
         vm.label(token1, "Token1");
 
-        _deployOpeningAuction();
-
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
         vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
+
+        _deployOpeningAuction();
 
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -649,8 +649,10 @@ contract OpeningAuctionInvariantsTest is Test, Deployers {
 
         poolId = key.toId();
 
-        vm.prank(initializer);
+        vm.startPrank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(isToken0);
+        vm.stopPrank();
 
         int24 startingTick = alignTickTowardZero(isToken0 ? TickMath.MAX_TICK : TickMath.MIN_TICK, config.tickSpacing);
 

@@ -31,6 +31,9 @@ contract HookDataDecodingTest is OpeningAuctionBaseTest {
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
         vm.label(address(modifyLiquidityRouter), "ModifyLiquidityRouter");
 
+        vm.prank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
+
         // Approve routers
         TestERC20(token0).approve(address(swapRouter), type(uint256).max);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -113,7 +116,7 @@ contract HookDataDecodingTest is OpeningAuctionBaseTest {
         vm.prank(address(manager));
         vm.expectRevert(IOpeningAuction.HookDataMissingOwner.selector);
         hook.beforeRemoveLiquidity(
-            alice,
+            address(modifyLiquidityRouter),
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: tickLower,

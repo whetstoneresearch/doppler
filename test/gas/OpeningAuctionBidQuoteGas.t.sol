@@ -31,9 +31,11 @@ contract OpeningAuctionBidQuoteGas is OpeningAuctionBaseTest {
     function setUp() public override {
         manager = new PoolManager(address(this));
         _deployTokens();
-        _deployOpeningAuction(getGasTestConfig(), 1_000_000 ether);
 
         modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+        _deployOpeningAuction(getGasTestConfig(), 1_000_000 ether);
+        vm.prank(initializer);
+        hook.setPositionManager(address(modifyLiquidityRouter));
 
         TestERC20(token0).transfer(alice, 100_000_000 ether);
         TestERC20(token1).transfer(alice, 100_000_000 ether);

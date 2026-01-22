@@ -207,6 +207,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
 
         // CRITICAL: Set isToken0=false because asset (TOKEN_HIGH) is token1
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
         assertEq(auction.isToken0(), false, "isToken0 should be false");
         assertEq(auction.isToken0Set(), true, "isToken0Set should be true after setIsToken0");
@@ -259,6 +260,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -323,6 +325,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -386,6 +389,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -459,6 +463,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -552,6 +557,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -668,6 +674,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
 
         // CRITICAL: Set isToken0=false for token1 as asset
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -804,6 +811,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({
@@ -876,6 +884,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             abi.encode(config)
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(false);
 
         PoolKey memory poolKey = PoolKey({

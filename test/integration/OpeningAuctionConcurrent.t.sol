@@ -108,6 +108,7 @@ contract OpeningAuctionConcurrentTest is Test, Deployers {
         });
 
         vm.startPrank(creator);
+        hook.setPositionManager(address(modifyLiquidityRouter));
         hook.setIsToken0(isToken0);
         int24 startingTick = alignTickTowardZero(
             isToken0 ? TickMath.MAX_TICK : TickMath.MIN_TICK,

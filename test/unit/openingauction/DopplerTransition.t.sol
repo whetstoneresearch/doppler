@@ -162,6 +162,7 @@ contract DopplerTransitionTest is Test, Deployers {
         });
 
         // Must set isToken0 before initialization (this contract is the initializer)
+        auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(isToken0);
 
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startTick));
