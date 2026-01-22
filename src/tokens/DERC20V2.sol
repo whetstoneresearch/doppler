@@ -341,18 +341,6 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     }
 
     /**
-     * @notice Returns the vesting schedule parameters for a given schedule ID
-     * @param scheduleId The schedule ID
-     * @return cliff Seconds after vestingStart until tokens become claimable
-     * @return duration Seconds after vestingStart until fully vested
-     */
-    function getVestingSchedule(uint256 scheduleId) external view returns (uint64 cliff, uint64 duration) {
-        require(scheduleId < vestingSchedules.length, UnknownScheduleId(scheduleId));
-        VestingSchedule memory s = vestingSchedules[scheduleId];
-        return (s.cliff, s.duration);
-    }
-
-    /**
      * @notice Returns the list of schedule IDs for a beneficiary
      * @param beneficiary The beneficiary address
      * @return Array of schedule IDs
