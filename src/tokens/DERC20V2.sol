@@ -367,11 +367,8 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
     function computeAvailableVestedAmount(address beneficiary) public view returns (uint256 total) {
         uint256[] memory ids = _scheduleIdsOf[beneficiary];
         uint256 length = ids.length;
-        for (uint256 i; i < length;) {
+        for (uint256 i; i < length; i++) {
             total += _available(beneficiary, ids[i]);
-            unchecked {
-                ++i;
-            }
         }
     }
 
