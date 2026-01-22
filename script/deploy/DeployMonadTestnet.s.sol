@@ -9,6 +9,7 @@ import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol"
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
@@ -59,7 +60,10 @@ contract DeployMonadTestnetScript is Script {
             mineDopplerHookInitializer(MineDopplerHookInitializerParams({ sender: msg.sender, deployer: msg.sender }));
 
         DopplerHookInitializer dopplerHookInitializer = new DopplerHookInitializer{ salt: salt }(
-            airlock, IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e)
+            airlock,
+            IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e),
+            StreamableFeesLockerV2(payable(address(0))), // TODO: Deploy locker for Monad
+            address(0) // TODO: Deploy migrator for Monad
         );
 
         require(

@@ -16,6 +16,9 @@ uint256 constant ON_SWAP_FLAG = 1 << 1;
 /// @dev Flag for the `onGraduation` callback
 uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
+/// @dev Flag indicating the hook requires dynamic LP fees
+uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 3;
+
 /// @notice Thrown when the `msg.sender` is not the DopplerHookInitializer contract
 error SenderNotInitializer();
 
