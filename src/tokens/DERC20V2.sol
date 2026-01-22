@@ -476,13 +476,10 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         require(total > 0, NoReleasableAmount());
 
         // Second pass: update state and emit events
-        for (uint256 i; i < length;) {
+        for (uint256 i; i < length; i++) {
             if (amounts[i] > 0) {
                 vestingOf[beneficiary][ids[i]].releasedAmount += amounts[i];
                 emit TokensReleased(beneficiary, ids[i], amounts[i]);
-            }
-            unchecked {
-                ++i;
             }
         }
 
