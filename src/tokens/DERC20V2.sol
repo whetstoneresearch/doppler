@@ -465,12 +465,9 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         // First pass: compute available amounts and total
         uint256[] memory amounts = new uint256[](length);
         uint256 total;
-        for (uint256 i; i < length;) {
+        for (uint256 i; i < length; i++) {
             amounts[i] = _available(beneficiary, ids[i]);
             total += amounts[i];
-            unchecked {
-                ++i;
-            }
         }
 
         require(total > 0, NoReleasableAmount());
