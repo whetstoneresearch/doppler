@@ -186,7 +186,7 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
                 (s.duration == 0 || s.duration >= MIN_VESTING_DURATION) && s.cliff <= s.duration, InvalidSchedule(i)
             );
             vestingSchedules.push(s);
-            emit VestingScheduleCreated(i, s.cliff, s.duration);
+            emit VestingScheduleCreated(vestingSchedules.length - 1, s.cliff, s.duration);
         }
 
         // Compute caps
