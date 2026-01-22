@@ -6,6 +6,7 @@ import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import { ERC20Votes } from "@openzeppelin/token/ERC20/extensions/ERC20Votes.sol";
 import { Nonces } from "@openzeppelin/utils/Nonces.sol";
+import { WAD } from "src/types/Wad.sol";
 
 /// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
@@ -190,8 +191,8 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         }
 
         // Compute caps
-        uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
-        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+        uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / WAD;
+        uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / WAD;
 
         // Process allocations
         uint256 vestedTokens;
