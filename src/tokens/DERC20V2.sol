@@ -278,7 +278,7 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         // Handle any outstanding full years
         while (block.timestamp > currentYearStart_ + 365 days) {
             timeLeftInCurrentYear = (currentYearStart_ + 365 days - lastMintTimestamp_);
-            yearMint = (supply * yearlyMintRate_ * timeLeftInCurrentYear) / (1 ether * 365 days);
+            yearMint = (supply * yearlyMintRate_ * timeLeftInCurrentYear) / (WAD * 365 days);
             supply += yearMint;
             mintableAmount += yearMint;
             currentYearStart_ += 365 days;
@@ -288,7 +288,7 @@ contract DERC20V2 is ERC20, ERC20Votes, ERC20Permit, Ownable {
         // Handle partial current year
         if (block.timestamp > lastMintTimestamp_) {
             uint256 partialYearMint =
-                (supply * yearlyMintRate_ * (block.timestamp - lastMintTimestamp_)) / (1 ether * 365 days);
+                (supply * yearlyMintRate_ * (block.timestamp - lastMintTimestamp_)) / (WAD * 365 days);
             mintableAmount += partialYearMint;
         }
 
