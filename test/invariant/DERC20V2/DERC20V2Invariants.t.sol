@@ -212,17 +212,17 @@ contract DERC20V2InvariantsTest is Test {
      */
     function invariant_VestingSchedulesImmutable() public view {
         // Schedule 0: 30 days cliff, 365 days duration
-        (uint64 cliff0, uint64 duration0) = token.getVestingSchedule(0);
+        (uint64 cliff0, uint64 duration0) = token.vestingSchedules(0);
         assertEq(cliff0, 30 days, "Schedule 0 cliff changed");
         assertEq(duration0, 365 days, "Schedule 0 duration changed");
 
         // Schedule 1: 0 cliff, 180 days duration
-        (uint64 cliff1, uint64 duration1) = token.getVestingSchedule(1);
+        (uint64 cliff1, uint64 duration1) = token.vestingSchedules(1);
         assertEq(cliff1, 0, "Schedule 1 cliff changed");
         assertEq(duration1, 180 days, "Schedule 1 duration changed");
 
         // Schedule 2: 90 days cliff, 730 days duration
-        (uint64 cliff2, uint64 duration2) = token.getVestingSchedule(2);
+        (uint64 cliff2, uint64 duration2) = token.vestingSchedules(2);
         assertEq(cliff2, 90 days, "Schedule 2 cliff changed");
         assertEq(duration2, 730 days, "Schedule 2 duration changed");
     }

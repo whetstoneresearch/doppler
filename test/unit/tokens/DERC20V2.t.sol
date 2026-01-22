@@ -115,11 +115,11 @@ contract DERC20V2Test is Test {
         assertEq(token.vestingScheduleCount(), 2, "Wrong schedule count");
 
         // Schedule details
-        (uint64 cliff0, uint64 duration0) = token.getVestingSchedule(0);
+        (uint64 cliff0, uint64 duration0) = token.vestingSchedules(0);
         assertEq(cliff0, 180 days, "Wrong cliff for schedule 0");
         assertEq(duration0, 365 days, "Wrong duration for schedule 0");
 
-        (uint64 cliff1, uint64 duration1) = token.getVestingSchedule(1);
+        (uint64 cliff1, uint64 duration1) = token.vestingSchedules(1);
         assertEq(cliff1, 365 days, "Wrong cliff for schedule 1");
         assertEq(duration1, 730 days, "Wrong duration for schedule 1");
 
