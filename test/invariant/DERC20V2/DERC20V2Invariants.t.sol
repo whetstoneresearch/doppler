@@ -23,14 +23,9 @@ contract DERC20V2InvariantsTest is Test {
     DERC20V2 public token;
     DERC20V2Handler public handler;
 
-    // Test parameters
     uint256 initialSupply;
     uint256 yearlyMintRate;
 
-    // Beneficiaries
-    address public alice = makeAddr("alice");
-    address public bob = makeAddr("bob");
-    address public charlie = makeAddr("charlie");
     address public owner = makeAddr("owner");
     address public recipient = makeAddr("recipient");
 
