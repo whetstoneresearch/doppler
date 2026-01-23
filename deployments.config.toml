@@ -1,5 +1,5 @@
 [1]
-endpoint_url = "${MAINNET_RPC_URL}"
+endpoint_url = "${ETH_MAINNET_RPC_URL}"
 
 [1.bool]
 is_testnet = false
@@ -8,9 +8,10 @@ is_testnet = false
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
 uniswap_v4_pool_manager = "0x000000000004444c5dc75cB358380D2e3dE08A90"
+airlock_multisig = ""
 
 [11155111]
-endpoint_url = "${SEPOLIA_RPC_URL}"
+endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
 
 [11155111.bool]
 is_testnet = true

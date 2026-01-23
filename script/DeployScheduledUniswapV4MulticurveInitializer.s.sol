@@ -110,3 +110,29 @@ contract DeployUniswapV4ScheduledMulticurveInitializerUnichainSepoliaScript is
         });
     }
 }
+
+/// @dev forge script DeployUniswapV4ScheduledMulticurveInitializerMainnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $ETH_MAINNET_RPC_URL
+contract DeployUniswapV4ScheduledMulticurveInitializerMainnetScript is
+    DeployUniswapV4ScheduledMulticurveInitializerScript
+{
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+/// @dev forge script DeployUniswapV4ScheduledMulticurveInitializerSepoliaScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $ETH_SEPOLIA_RPC_URL
+contract DeployUniswapV4ScheduledMulticurveInitializerSepoliaScript is
+    DeployUniswapV4ScheduledMulticurveInitializerScript
+{
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            poolManager: 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
