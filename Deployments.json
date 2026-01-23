@@ -168,5 +168,8 @@
     "UniswapV4ScheduledMulticurveInitializer": "0x5c10d3e14aae2ef95619b25e907e013260e832e4",
     "UniswapV4ScheduledMulticurveInitializerHook": "0x5d663f9c993deff2d17ce4232d75f347df7dadc0",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
+  },
+  "11155111": {
+    "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426"
   }
 }
