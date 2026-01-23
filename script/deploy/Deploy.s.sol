@@ -162,7 +162,7 @@ abstract contract DeployScript is Script {
         );
 
         // Whitelisting the initial modules
-        address[] memory modules = new address[](7);
+        address[] memory modules = new address[](9);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV3Initializer);
         modules[2] = address(governanceFactory);
@@ -173,7 +173,7 @@ abstract contract DeployScript is Script {
         modules[7] = address(noOpGovernanceFactory);
         modules[8] = address(noOpMigrator);
 
-        ModuleState[] memory states = new ModuleState[](7);
+        ModuleState[] memory states = new ModuleState[](9);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.PoolInitializer;
         states[2] = ModuleState.GovernanceFactory;
