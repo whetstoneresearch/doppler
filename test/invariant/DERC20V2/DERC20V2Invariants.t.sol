@@ -12,6 +12,7 @@ import {
     VestingSchedule
 } from "src/tokens/DERC20V2.sol";
 import { WAD } from "src/types/Wad.sol";
+import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { DERC20V2Handler } from "test/invariant/DERC20V2/DERC20V2Handler.sol";
 
 /**
@@ -20,6 +21,8 @@ import { DERC20V2Handler } from "test/invariant/DERC20V2/DERC20V2Handler.sol";
  * @dev Tests critical properties that must always hold regardless of action sequence
  */
 contract DERC20V2InvariantsTest is Test {
+    using LibAddressSet for AddressSet;
+
     DERC20V2 public token;
     DERC20V2Handler public handler;
 
@@ -33,6 +36,8 @@ contract DERC20V2InvariantsTest is Test {
     VestingSchedule[] public schedules;
     uint256[] public scheduleIds;
     uint256[] public amounts;
+
+    AddressSet internal filteredBeneficiaries;
 
     function setUp() public {
         initialSupply = vm.randomUint(1e18, 1e30);
@@ -51,7 +56,13 @@ contract DERC20V2InvariantsTest is Test {
         uint256 preMintLeft = maxTotalPreMint;
 
         for (uint256 i; i < vm.randomUint(0, 100); i++) {
-            beneficiaries.push(vm.randomAddress());
+            address beneficiary = vm.randomAddress();
+            beneficiaries.push(beneficiary);
+
+            if (!filteredBeneficiaries.contains(beneficiary)) {
+                filteredBeneficiaries.add(beneficiary);
+            }
+
             scheduleIds.push(vm.randomUint(0, schedules.length - 1));
             uint256 amount = vm.randomUint(1, maxPreMintPerAddress > preMintLeft ? preMintLeft : maxPreMintPerAddress);
             amounts.push(amount);
@@ -78,7 +89,7 @@ contract DERC20V2InvariantsTest is Test {
         );
 
         // Deploy handler
-        handler = new DERC20V2Handler(token, beneficiaries);
+        handler = new DERC20V2Handler(token, filteredBeneficiaries.addrs);
 
         // Configure fuzzer
         bytes4[] memory selectors = new bytes4[](5);
@@ -138,5 +149,14 @@ contract DERC20V2InvariantsTest is Test {
         uint256 contractTotal = handler.getContractTotalReleased();
 
         assertEq(ghostTotal, contractTotal, "Ghost total released doesn't match contract state");
+    }
+
+    function invariant_BalanceDoesNotExceedVestedAmount() public view {
+        for (uint256 i; i < filteredBeneficiaries.count(); i++) {
+            address beneficiary = filteredBeneficiaries.addrs[i];
+            uint256 balance = token.balanceOf(beneficiary);
+            uint256 vestedAmount = token.totalAllocatedOf(beneficiary);
+            assertLe(balance, vestedAmount, "Beneficiary balance exceeds vested amount");
+        }
     }
 }
