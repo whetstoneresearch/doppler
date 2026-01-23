@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { DERC20V2, VestingData, VestingSchedule } from "src/tokens/DERC20V2.sol";
+import { DERC20V2, NoReleasableAmount, VestingData, VestingSchedule } from "src/tokens/DERC20V2.sol";
 
 /**
  * @title DERC20V2Handler
@@ -79,7 +79,7 @@ contract DERC20V2Handler is Test {
 
         if (availableBefore == 0) {
             // Expect revert
-            vm.expectRevert();
+            vm.expectRevert(NoReleasableAmount.selector);
             token.release(scheduleId);
             return;
         }
@@ -101,7 +101,7 @@ contract DERC20V2Handler is Test {
 
         if (availableBefore == 0) {
             // Expect revert
-            vm.expectRevert();
+            vm.expectRevert(NoReleasableAmount.selector);
             token.release();
             return;
         }
@@ -141,7 +141,7 @@ contract DERC20V2Handler is Test {
         uint256 availableBefore = token.computeAvailableVestedAmount(beneficiary, scheduleId);
 
         if (availableBefore == 0) {
-            vm.expectRevert();
+            vm.expectRevert(NoReleasableAmount.selector);
             token.releaseFor(beneficiary, scheduleId);
             return;
         }
