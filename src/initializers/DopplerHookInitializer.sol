@@ -8,12 +8,18 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import {
+    ON_GRADUATION_FLAG,
+    ON_INITIALIZATION_FLAG,
+    ON_SWAP_FLAG,
+    REQUIRES_DYNAMIC_LP_FEE_FLAG
+} from "src/base/BaseDopplerHook.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -43,6 +49,9 @@ event SetDopplerHook(address indexed asset, address indexed dopplerHook);
 
 /// @notice Emitted when a pool graduates
 event Graduate(address indexed asset);
+
+/// @notice Emitted when a migration pool is initialized
+event InitializeMigrationPool(address indexed asset, address indexed numeraire, PoolKey poolKey);
 
 /**
  * @notice Emitted when liquidity is modified
@@ -112,6 +121,15 @@ error UnreachableFarTick();
 /// @notice Thrown when the provided LP fee is above the maximum allowed
 error LPFeeTooHigh(uint24 maxFee, uint256 fee);
 
+/// @notice Thrown when attempting to exit liquidity from a migration pool
+error CannotExitMigrationPool();
+
+/// @notice Thrown when a hook requires dynamic fees but pool uses fixed fees
+error HookRequiresDynamicFee();
+
+/// @notice Thrown when the caller is not the approved migrator
+error OnlyMigrator();
+
 /**
  * @notice Data used to initialize the Uniswap V4 pool
  * @param fee Fee of the Uniswap V4 pool (capped at 1_000_000), use a dynamic fee if a Doppler Hook is provided
@@ -154,6 +172,7 @@ enum PoolStatus {
  * @param status Current status of the pool
  * @param poolKey Key of the Uniswap V4 pool
  * @param farTick Farthest tick that must be reached to allow exiting liquidity
+ * @param isMigrationPool True if the pool was created via migration (liquidity owned by locker)
  */
 struct PoolState {
     address numeraire;
@@ -165,6 +184,7 @@ struct PoolState {
     PoolStatus status;
     PoolKey poolKey;
     int24 farTick;
+    bool isMigrationPool;
 }
 
 /// @dev Maximum LP fee allowed (1_000_000 = 100%)
@@ -182,6 +202,12 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
+
+    /// @notice Address of the StreamableFeesLockerV2 contract for migration pools
+    StreamableFeesLockerV2 public immutable locker;
+
+    /// @notice Address of the approved migrator contract
+    address public immutable migrator;
 
     /// @notice Returns the state of a pool
     mapping(address asset => PoolState state) public getState;
@@ -201,8 +227,18 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
      * and avoid the `Base constructor arguments given twice` error due to both parents inheriting from the same child
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of the Uniswap V4 pool manager
+     * @param locker_ Address of the StreamableFeesLockerV2 contract
+     * @param migrator_ Address of the approved migrator contract
      */
-    constructor(address airlock_, IPoolManager poolManager_) ImmutableAirlock(airlock_) ImmutableState(poolManager_) { }
+    constructor(
+        address airlock_,
+        IPoolManager poolManager_,
+        StreamableFeesLockerV2 locker_,
+        address migrator_
+    ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) {
+        locker = locker_;
+        migrator = migrator_;
+    }
 
     /// @inheritdoc IPoolInitializer
     function initialize(
@@ -308,10 +344,99 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             graduationDopplerHookCalldata: initData.graduationDopplerHookCalldata,
             status: initData.beneficiaries.length != 0 ? PoolStatus.Locked : PoolStatus.Initialized,
             poolKey: poolKey,
-            farTick: initData.farTick
+            farTick: initData.farTick,
+            isMigrationPool: false
         });
 
         getState[asset] = state;
+    }
+
+    /**
+     * @notice Initializes a migration pool with support for Doppler hooks
+     * @dev Only callable by the approved migrator contract. The pool's liquidity will be
+     * managed by the StreamableFeesLockerV2 contract rather than this initializer.
+     * @param asset Address of the asset token
+     * @param numeraire Address of the numeraire token
+     * @param poolKey Key of the Uniswap V4 pool (must have hooks set to this contract)
+     * @param sqrtPriceX96 Initial sqrt price for the pool
+     * @param farTick Farthest tick that must be reached for graduation
+     * @param feeOrInitialDynamicFee Fee for the pool (used as initial dynamic fee if useDynamicFee is true)
+     * @param useDynamicFee Whether to use dynamic fees (required if dopplerHook has REQUIRES_DYNAMIC_LP_FEE_FLAG)
+     * @param dopplerHook Address of the Doppler hook (can be address(0))
+     * @param onInitializationCalldata Calldata passed to Doppler hook on initialization
+     * @param onGraduationCalldata Calldata passed to Doppler hook on graduation
+     */
+    function initializeMigrationPool(
+        address asset,
+        address numeraire,
+        PoolKey calldata poolKey,
+        uint160 sqrtPriceX96,
+        int24 farTick,
+        uint24 feeOrInitialDynamicFee,
+        bool useDynamicFee,
+        address dopplerHook,
+        bytes calldata onInitializationCalldata,
+        bytes calldata onGraduationCalldata
+    ) external {
+        require(msg.sender == migrator, OnlyMigrator());
+        require(
+            getState[asset].status == PoolStatus.Uninitialized,
+            WrongPoolStatus(PoolStatus.Uninitialized, getState[asset].status)
+        );
+        require(address(poolKey.hooks) == address(this), OnlyInitializer());
+
+        uint256 dopplerHookFlag = isDopplerHookEnabled[dopplerHook];
+
+        // Validate doppler hook if provided
+        if (dopplerHook != address(0)) {
+            require(dopplerHookFlag > 0, DopplerHookNotEnabled());
+
+            // If hook requires dynamic fees, ensure pool uses dynamic fees
+            if (dopplerHookFlag & REQUIRES_DYNAMIC_LP_FEE_FLAG != 0) {
+                require(useDynamicFee, HookRequiresDynamicFee());
+            }
+        }
+
+        // Validate fee matches expected format
+        if (useDynamicFee) {
+            require(poolKey.fee == LPFeeLibrary.DYNAMIC_FEE_FLAG, LPFeeTooHigh(MAX_LP_FEE, poolKey.fee));
+        } else {
+            LPFeeLibrary.validate(poolKey.fee);
+        }
+
+        // Initialize the pool
+        poolManager.initialize(poolKey, sqrtPriceX96);
+
+        // Set dynamic fee if using dynamic fees
+        if (useDynamicFee && dopplerHook != address(0)) {
+            poolManager.updateDynamicLPFee(poolKey, feeOrInitialDynamicFee);
+        }
+
+        PoolId poolId = poolKey.toId();
+        getAsset[poolId] = asset;
+
+        // Store pool state - note: no curves or positions since locker manages liquidity
+        PoolState memory state = PoolState({
+            numeraire: numeraire,
+            beneficiaries: new BeneficiaryData[](0), // Beneficiaries managed by locker
+            adjustedCurves: new Curve[](0), // No curves stored - locker manages positions
+            totalTokensOnBondingCurve: 0, // Not applicable for migration pools
+            dopplerHook: dopplerHook,
+            graduationDopplerHookCalldata: onGraduationCalldata,
+            status: PoolStatus.Locked, // Migration pools start as Locked
+            poolKey: poolKey,
+            farTick: farTick,
+            isMigrationPool: true
+        });
+
+        getState[asset] = state;
+
+        emit InitializeMigrationPool(asset, numeraire, poolKey);
+
+        // Call Doppler hook initialization if flag is set
+        if (dopplerHookFlag & ON_INITIALIZATION_FLAG != 0) {
+            IDopplerHook(dopplerHook).onInitialization(asset, poolKey, onInitializationCalldata);
+        }
     }
 
     /// @inheritdoc IPoolInitializer
@@ -329,6 +454,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     {
         require(msg.sender == address(airlock), SenderNotAirlock());
         PoolState memory state = getState[asset];
+        require(!state.isMigrationPool, CannotExitMigrationPool());
         require(state.status == PoolStatus.Initialized, WrongPoolStatus(PoolStatus.Initialized, state.status));
         getState[asset].status = PoolStatus.Exited;
 
@@ -384,6 +510,11 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         if (dopplerHook != address(0)) {
             require(dopplerHookFlag > 0, DopplerHookNotEnabled());
+
+            // If hook requires dynamic fees, ensure pool uses dynamic fees
+            if (dopplerHookFlag & REQUIRES_DYNAMIC_LP_FEE_FLAG != 0) {
+                require(state.poolKey.fee == LPFeeLibrary.DYNAMIC_FEE_FLAG, HookRequiresDynamicFee());
+            }
         }
 
         getState[asset].dopplerHook = dopplerHook;
@@ -478,7 +609,14 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         address asset = getAsset[poolId];
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
-        fees = _collect(state.poolKey, getPositions(asset));
+
+        // For migration pools, forward fee collection to the locker which owns the positions
+        if (state.isMigrationPool) {
+            (uint128 fees0, uint128 fees1) = locker.collectFees(poolId);
+            fees = toBalanceDelta(int128(fees0), int128(fees1));
+        } else {
+            fees = _collect(state.poolKey, getPositions(asset));
+        }
     }
 
     /**
