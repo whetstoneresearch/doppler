@@ -214,10 +214,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
                 BalanceDelta liquidityDelta =
                     _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
-                balance0 =
-                    uint256(int256(zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut) + liquidityDelta.amount0());
-                balance1 =
-                    uint256(int256(zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn) + liquidityDelta.amount1());
+                balance0 = uint256(
+                    int256(zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut) + liquidityDelta.amount0()
+                );
+                balance1 = uint256(
+                    int256(zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn) + liquidityDelta.amount1()
+                );
             }
         }
 
@@ -656,8 +658,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         PoolKey memory key,
         PoolId poolId
     ) internal returns (Currency feeCurrency, int128 feeDelta) {
-        bool outputIsToken0 = params.zeroForOne ? false : true;
-        int256 outputAmount = outputIsToken0 ? delta.amount0() : delta.amount1();
+        int256 outputAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
 
         if (outputAmount <= 0) {
             return (feeCurrency, feeDelta);
@@ -666,19 +667,15 @@ contract RehypeDopplerHook is BaseDopplerHook {
         bool exactInput = params.amountSpecified < 0;
 
         // Fee is always taken from the unspecified token:
-        if (exactInput) {
-            feeCurrency = outputIsToken0 ? key.currency0 : key.currency1;
-        } else {
-            feeCurrency = params.zeroForOne ? key.currency0 : key.currency1;
-        }
+        feeCurrency = params.zeroForOne == exactInput ? key.currency1 : key.currency0;
 
-        // Compute fee based on the feeCurrency amount 
+        // Compute fee based on the feeCurrency amount
         uint256 feeBase;
         if (exactInput) {
             // For exact input, fee is of output
             feeBase = uint256(outputAmount);
         } else {
-            // For exact output, fee is of input 
+            // For exact output, fee is of input
             int256 inputAmount = params.zeroForOne ? delta.amount0() : delta.amount1();
             feeBase = uint256(-inputAmount);
         }
