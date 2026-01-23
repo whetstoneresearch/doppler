@@ -136,3 +136,39 @@ contract DeployV4MigratorMonadTestnetScript is DeployV4MigratorScript {
         });
     }
 }
+
+/// @dev forge script DeployV4MigratorMonadMainnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $MONAD_MAINNET_RPC_URL
+contract DeployV4MigratorMonadMainnetScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
+            poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e,
+            positionManager: 0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorMainnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $ETH_MAINNET_RPC_URL
+contract DeployV4MigratorMainnetScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorSepoliaScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $ETH_SEPOLIA_RPC_URL
+contract DeployV4MigratorSepoliaScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}

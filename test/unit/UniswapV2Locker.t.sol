@@ -23,7 +23,7 @@ contract UniswapV2LockerTest is Test {
     TestERC20 public tokenBar;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
 
         tokenFoo = new TestERC20(1e25);
         tokenBar = new TestERC20(1e25);
