@@ -1,3 +1,26 @@
+[1]
+endpoint_url = "${MAINNET_RPC_URL}"
+
+[1.bool]
+is_testnet = false
+
+[1.address]
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+uniswap_v4_pool_manager = "0x000000000004444c5dc75cB358380D2e3dE08A90"
+
+[11155111]
+endpoint_url = "${SEPOLIA_RPC_URL}"
+
+[11155111.bool]
+is_testnet = true
+
+[11155111.address]
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+uniswap_v4_pool_manager = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
+airlock_multisig = "0x988a74511FCcAC0B07e893C08f23674125703E82"
+
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
 
