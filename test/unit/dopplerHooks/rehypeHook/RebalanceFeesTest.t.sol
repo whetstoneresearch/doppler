@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.26;
 
+import { RehypeDopplerHookHarness } from "./RehypeDopplerHookHarness.sol";
 import { Quoter } from "@quoter/Quoter.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 import { EPSILON } from "src/dopplerHooks/RehypeDopplerHook.sol";
-import { RehypeDopplerHookHarness } from "./RehypeDopplerHookHarness.sol";
-import { MockQuoter } from "./mocks/MockQuoter.sol";
+import { MockQuoter } from "test/unit/dopplerHooks/rehypeHook/MockQuoter.sol";
 
 /// @notice Minimal mock pool manager for harness construction
 contract MockPoolManager { }
@@ -24,7 +24,7 @@ contract RebalanceFeesTest is Test {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// @notice Price = 1 (sqrtPrice = 2^96)
-    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    uint160 internal constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
 
     /// @notice EPSILON from RehypeDopplerHook
     uint128 internal constant TEST_EPSILON = 1e6;
@@ -71,8 +71,9 @@ contract RebalanceFeesTest is Test {
         uint256 lpAmount1 = 1e18;
         uint160 sqrtPriceX96 = SQRT_PRICE_1_1;
 
-        (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "shouldSwap should be false when both excess below EPSILON");
         assertFalse(zeroForOne, "zeroForOne should be false (default)");
@@ -96,8 +97,9 @@ contract RebalanceFeesTest is Test {
         assertEq(excess0, 0, "Precondition: excess0 should be 0");
         assertEq(excess1, 0, "Precondition: excess1 should be 0");
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "shouldSwap should be false when excess at or below EPSILON");
     }
@@ -122,8 +124,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap, bool zeroForOne,,, ) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "shouldSwap should be true when excess0 > EPSILON");
         assertTrue(zeroForOne, "zeroForOne should be true when swapping token0 for token1");
@@ -149,8 +152,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap, bool zeroForOne,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "shouldSwap should be true when excess1 > EPSILON");
         assertFalse(zeroForOne, "zeroForOne should be false when swapping token1 for token0");
@@ -174,8 +178,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,, ) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "shouldSwap should be true when both excess > EPSILON");
     }
@@ -201,8 +206,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (, bool zeroForOne,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(zeroForOne, "zeroForOne should be true when excess0 > excess1");
     }
@@ -223,8 +229,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (, bool zeroForOne,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(zeroForOne, "zeroForOne should be false when excess1 > excess0");
     }
@@ -248,8 +255,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (, bool zeroForOne,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         // When excess0 >= excess1, zeroForOne should be true
         if (excess0 >= excess1) {
@@ -279,8 +287,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,, uint256 amountIn,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,, uint256 amountIn,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should find a valid swap");
         assertGt(amountIn, 0, "amountIn should be > 0");
@@ -303,8 +312,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "shouldSwap should be true - returns best found");
     }
@@ -318,16 +328,13 @@ contract RebalanceFeesTest is Test {
         // Configure quoter to always fail
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "shouldSwap should be false when all simulations fail");
     }
@@ -346,7 +353,9 @@ contract RebalanceFeesTest is Test {
         uint160 sqrtPriceX96 = SQRT_PRICE_1_1;
 
         // The test passes if it doesn't revert
-        harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
     }
 
     /// @notice RF-D02: When high=1 and sim fails, loop breaks
@@ -357,16 +366,13 @@ contract RebalanceFeesTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "Should return false when high=1 and sim fails");
     }
@@ -379,16 +385,13 @@ contract RebalanceFeesTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "Should return false when high reduces to 0");
     }
@@ -400,8 +403,9 @@ contract RebalanceFeesTest is Test {
         uint256 lpAmount1 = 1e18;
         uint160 sqrtPriceX96 = SQRT_PRICE_1_1;
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "Should return false with no excess");
     }
@@ -423,8 +427,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should return best result");
     }
@@ -445,8 +450,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should find a swap");
     }
@@ -465,11 +471,7 @@ contract RebalanceFeesTest is Test {
         // Default response is a revert
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
@@ -490,8 +492,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         // May or may not find swap depending on which amounts are tried
         assertTrue(shouldSwap || !shouldSwap, "Should complete without reverting");
@@ -505,16 +508,13 @@ contract RebalanceFeesTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "Should return false when smallest swap fails");
     }
@@ -537,8 +537,9 @@ contract RebalanceFeesTest is Test {
         );
 
         // Should not revert, just return shouldSwap=false
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "Quoter revert should be handled gracefully");
     }
@@ -564,8 +565,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,, uint256 amountIn, uint256 amountOut,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,, uint256 amountIn, uint256 amountOut,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should find swap");
         assertGt(amountIn, 0, "amountIn should be > 0");
@@ -588,11 +590,13 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap1, bool zeroForOne1, uint256 amountIn1, uint256 amountOut1, uint160 sqrtPrice1) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap1, bool zeroForOne1, uint256 amountIn1, uint256 amountOut1, uint160 sqrtPrice1) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
-        (bool shouldSwap2, bool zeroForOne2, uint256 amountIn2, uint256 amountOut2, uint160 sqrtPrice2) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap2, bool zeroForOne2, uint256 amountIn2, uint256 amountOut2, uint160 sqrtPrice2) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertEq(shouldSwap1, shouldSwap2, "shouldSwap should be deterministic");
         assertEq(zeroForOne1, zeroForOne2, "zeroForOne should be deterministic");
@@ -622,8 +626,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap, bool zeroForOne,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should find swap");
         assertTrue(zeroForOne, "Should be zeroForOne when excess0 > excess1");
@@ -645,8 +650,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should converge and return result");
     }
@@ -672,8 +678,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap, bool zeroForOne,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap, bool zeroForOne,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should find swap");
         assertFalse(zeroForOne, "Should be oneForZero when excess1 > excess0");
@@ -695,8 +702,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should converge and return result");
     }
@@ -723,8 +731,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,,) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,,) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         // Invalid response should be treated as failure
         assertFalse(shouldSwap, "Invalid quoter response should be handled");
@@ -747,8 +756,9 @@ contract RebalanceFeesTest is Test {
             })
         );
 
-        (bool shouldSwap,,,, uint160 returnedSqrtPrice) =
-            harness.exposed_rebalanceFeesWithQuoter(Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96);
+        (bool shouldSwap,,,, uint160 returnedSqrtPrice) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertTrue(shouldSwap, "Should find swap");
         assertEq(returnedSqrtPrice, newSqrtPrice, "Should return new sqrt price from quoter");

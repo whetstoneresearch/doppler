@@ -737,7 +737,7 @@ contract Doppler is BaseHook {
             _computePriceDiscoverySlugsData(key, upperSlug, tickUpper, assetRemaining);
 
         // Get new positions
-        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + numPDSlugs);
+        Position[] memory newPositions = new Position[](NUM_DEFAULT_SLUGS - 1 + priceDiscoverySlugs.length);
         newPositions[0] = Position({
             tickLower: lowerSlug.tickLower,
             tickUpper: lowerSlug.tickUpper,
