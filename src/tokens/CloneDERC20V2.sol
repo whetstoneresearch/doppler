@@ -84,7 +84,7 @@ contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
     address public pool;
 
     /// @notice Whether the pool can receive tokens (unlocked) or not
-    bool public isPoolUnlocked;
+    bool public isPoolLocked;
 
     /// @notice Maximum rate of tokens that can be minted in a year
     uint256 public yearlyMintRate;
@@ -205,7 +205,7 @@ contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
 
         // Enforce total premint cap
         require(vestedTokens <= maxTotalPreMint, MaxTotalPreMintExceeded(vestedTokens, maxTotalPreMint));
-        require(vestedTokens < initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
+        require(vestedTokens <= initialSupply, MaxTotalVestedExceeded(vestedTokens, initialSupply));
 
         vestedTotalAmount = vestedTokens;
 
@@ -226,12 +226,12 @@ contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
      */
     function lockPool(address pool_) external onlyOwner {
         pool = pool_;
-        isPoolUnlocked = false;
+        isPoolLocked = true;
     }
 
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
-        isPoolUnlocked = true;
+        isPoolLocked = false;
         currentYearStart = lastMintTimestamp = block.timestamp;
     }
 
@@ -484,7 +484,7 @@ contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
 
     /// @inheritdoc ERC20
     function _beforeTokenTransfer(address, address to, uint256) internal view override {
-        if (to == pool && isPoolUnlocked == false) revert PoolLocked();
+        if (to == pool && isPoolLocked) revert PoolLocked();
     }
 
     /// @inheritdoc ERC20
