@@ -286,7 +286,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         if (isToken0) {
             startTick = lowerTickBoundary;
-            require(initData.farTick >= startTick && initData.farTick <= upperTickBoundary, UnreachableFarTick());
+            require(initData.farTick >= startTick && initData.farTick < upperTickBoundary, UnreachableFarTick());
         } else {
             startTick = upperTickBoundary;
             initData.farTick = -initData.farTick;
