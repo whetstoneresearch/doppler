@@ -43,7 +43,7 @@ contract LockableUniswapV3InitializerTest is Test {
 
     function setUp() public {
         // vm.createSelectFork(vm.envString("BASE_SEPOLIA_RPC_URL"), 28_099_832);
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         initializer = new LockableUniswapV3Initializer(
             address(this), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984)
         );
@@ -358,15 +358,15 @@ contract LockableUniswapV3InitializerTest is Test {
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: numeraire,
-                    tokenOut: asset,
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: amountIn,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: 0
-                })
+                tokenIn: numeraire,
+                tokenOut: asset,
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
             );
 
         uint256 expectedFees1 = amountIn - amountIn * 3000 / 1_000_000;
@@ -429,15 +429,15 @@ contract LockableUniswapV3InitializerTest is Test {
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                    tokenOut: address(token),
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                tokenOut: address(token),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         // (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
@@ -569,29 +569,29 @@ contract LockableUniswapV3InitializerTest is Test {
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                    tokenOut: address(isToken0),
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
-                })
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                tokenOut: address(isToken0),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+            })
             );
 
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-                    tokenOut: address(notIsToken0),
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
-                })
+                tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                tokenOut: address(notIsToken0),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
+            })
             );
 
         uint256 isToken0Balance = isToken0.balanceOf(address(0x666));

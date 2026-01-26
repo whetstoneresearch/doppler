@@ -13,8 +13,9 @@ contract DeployAirlockScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](1);
-        targets[0] = ChainIds.MONAD_TESTNET;
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
@@ -36,7 +37,6 @@ contract DeployAirlockScript is Script, Config {
             ICreateX(createX).deployCreate3(salt, abi.encodePacked(type(Airlock).creationCode, abi.encode(multisig)));
         require(airlock == predictedAddress, "Unexpected deployed address");
 
-        console.log("Airlock deployed to:", airlock);
         config.set("airlock", airlock);
         vm.stopBroadcast();
     }

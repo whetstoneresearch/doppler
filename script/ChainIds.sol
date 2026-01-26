@@ -5,6 +5,7 @@ import { LibString } from "@solmate/utils/LibString.sol";
 
 library ChainIds {
     uint256 constant ETH_MAINNET = 1;
+    uint256 constant ETH_SEPOLIA = 11_155_111;
     uint256 constant UNICHAIN_MAINNET = 130;
     uint256 constant UNICHAIN_SEPOLIA = 1301;
     uint256 constant INK_MAINNET = 57_073;

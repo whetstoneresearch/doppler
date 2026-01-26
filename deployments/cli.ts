@@ -73,6 +73,16 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://megaeth-testnet-v2.blockscout.com',
     isTestnet: true,
   },
+  1: {
+    name: 'Ethereum Mainnet',
+    explorerUrl: 'https://etherscan.io',
+    isTestnet: false,
+  },
+  11155111: {
+    name: 'Sepolia',
+    explorerUrl: 'https://sepolia.etherscan.io',
+    isTestnet: true,
+  },
 };
 
 type Transaction = {
