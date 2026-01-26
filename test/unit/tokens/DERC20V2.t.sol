@@ -11,10 +11,12 @@ import {
     InvalidSchedule,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
+    MAX_YEARLY_MINT_RATE_WAD,
     MIN_VESTING_DURATION,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
     MaxTotalVestedExceeded,
+    MaxYearlyMintRateExceeded,
     MintingNotStartedYet,
     NoMintableAmount,
     NoReleasableAmount,
@@ -349,6 +351,28 @@ contract DERC20V2Test is Test {
 
         vm.expectRevert(abi.encodeWithSelector(MaxTotalPreMintExceeded.selector, perAddress * 2, maxTotal));
         _createToken(schedules, beneficiaries, scheduleIds, amounts);
+    }
+
+    function test_constructor_RevertsWhenYearlyMintRateExceedsMax() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MaxYearlyMintRateExceeded.selector, MAX_YEARLY_MINT_RATE_WAD + 1, MAX_YEARLY_MINT_RATE_WAD
+            )
+        );
+
+        new DERC20V2(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            OWNER,
+            MAX_YEARLY_MINT_RATE_WAD + 1,
+            new VestingSchedule[](0),
+            new address[](0),
+            new uint256[](0),
+            new uint256[](0),
+            ""
+        );
     }
 
     // =========================================================================
