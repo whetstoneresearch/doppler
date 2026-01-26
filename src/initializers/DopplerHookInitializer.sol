@@ -286,7 +286,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         if (isToken0) {
             startTick = lowerTickBoundary;
-            require(initData.farTick >= startTick && initData.farTick <= upperTickBoundary, UnreachableFarTick());
+            require(initData.farTick >= startTick && initData.farTick < upperTickBoundary, UnreachableFarTick());
         } else {
             startTick = upperTickBoundary;
             initData.farTick = -initData.farTick;
@@ -489,7 +489,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
      */
     function _canGraduateOrMigrate(PoolId poolId, bool isToken0, int24 farTick) internal view {
         (, int24 tick,,) = poolManager.getSlot0(poolId);
-        require(isToken0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
+        require(isToken0 ? tick >= farTick : tick < farTick, CannotMigrateInsufficientTick(farTick, tick));
     }
 
     /// @inheritdoc BaseHook

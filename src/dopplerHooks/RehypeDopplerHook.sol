@@ -204,18 +204,23 @@ contract RehypeDopplerHook is BaseDopplerHook {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
 
         Position storage position = getPosition[poolId];
-        (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut, uint160 postSwapSqrtPrice) =
+        (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut,) =
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
         if (shouldSwap && swapAmountIn > 0) {
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
             if (outputCurrency.balanceOf(address(poolManager)) > swapAmountOut) {
+                uint160 postSwapSqrtPrice;
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
                 lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
                 lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
-                (uint256 amount0Added, uint256 amount1Added) =
+                BalanceDelta liquidityDelta =
                     _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
-                balance0 = zeroForOne ? balance0 - swapAmountIn - amount0Added : balance0 + swapAmountOut - amount0Added;
-                balance1 = zeroForOne ? balance1 + swapAmountOut - amount1Added : balance1 - swapAmountIn - amount1Added;
+                balance0 = uint256(
+                    int256(zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut) + liquidityDelta.amount0()
+                );
+                balance1 = uint256(
+                    int256(zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn) + liquidityDelta.amount1()
+                );
             }
         }
 
@@ -360,8 +365,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param amount0 Amount of currency0 to add
      * @param amount1 Amount of currency1 to add
      * @param sqrtPriceX96 Current square root price of the pool
-     * @return amount0Added Actual amount of currency0 added
-     * @return amount1Added Actual amount of currency1 added
+     * @return callerDelta The balance delta (negative = paid, positive = received fees)
      */
     function _addFullRangeLiquidity(
         PoolKey memory key,
@@ -369,7 +373,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 amount0,
         uint256 amount1,
         uint160 sqrtPriceX96
-    ) internal returns (uint256 amount0Added, uint256 amount1Added) {
+    ) internal returns (BalanceDelta callerDelta) {
         uint128 liquidityDelta;
 
         if (amount0 >= 1 && amount1 >= 1) {
@@ -383,10 +387,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
 
         if (liquidityDelta == 0) {
-            return (0, 0);
+            return toBalanceDelta(0, 0);
         }
 
-        (BalanceDelta balanceDelta, BalanceDelta feeDelta) = poolManager.modifyLiquidity(
+        (callerDelta,) = poolManager.modifyLiquidity(
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: position.tickLower,
@@ -397,16 +401,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
             new bytes(0)
         );
 
-        // subtract the fees to avoid overflow when casting to uint
-        BalanceDelta realizedDelta = balanceDelta - feeDelta;
-
-        _settleDelta(key, balanceDelta);
-        _collectDelta(key, balanceDelta);
+        _settleDelta(key, callerDelta);
+        _collectDelta(key, callerDelta);
 
         position.liquidity += liquidityDelta;
-
-        amount0Added = uint256(uint128(-realizedDelta.amount0()));
-        amount1Added = uint256(uint128(-realizedDelta.amount1()));
     }
 
     /**
@@ -604,12 +602,12 @@ contract RehypeDopplerHook is BaseDopplerHook {
         fees1 = getHookFees[poolId].airlockOwnerFees1;
 
         if (fees0 > 0) {
-            poolKey.currency0.transfer(msg.sender, fees0);
             getHookFees[poolId].airlockOwnerFees0 = 0;
+            poolKey.currency0.transfer(msg.sender, fees0);
         }
         if (fees1 > 0) {
-            poolKey.currency1.transfer(msg.sender, fees1);
             getHookFees[poolId].airlockOwnerFees1 = 0;
+            poolKey.currency1.transfer(msg.sender, fees1);
         }
 
         emit AirlockOwnerFeesClaimed(poolId, msg.sender, fees0, fees1);
@@ -652,7 +650,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param delta BalanceDelta of the swap
      * @param key Uniswap V4 pool key
      * @param poolId Uniswap V4 poolId (to save gas)
-     * @return feeCurrency Currency in which the fee was collected
+     * @return feeCurrency Currency in which the fee was collected (always the unspecified token)
      * @return feeDelta Amount of fee collected in feeCurrency
      */
     function _collectSwapFees(
@@ -661,21 +659,29 @@ contract RehypeDopplerHook is BaseDopplerHook {
         PoolKey memory key,
         PoolId poolId
     ) internal returns (Currency feeCurrency, int128 feeDelta) {
-        bool outputIsToken0 = params.zeroForOne ? false : true;
-        int256 outputAmount = outputIsToken0 ? delta.amount0() : delta.amount1();
+        int256 outputAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
 
         if (outputAmount <= 0) {
             return (feeCurrency, feeDelta);
         }
 
-        if (params.amountSpecified < 0) {
-            feeCurrency = outputIsToken0 ? key.currency0 : key.currency1;
+        bool exactInput = params.amountSpecified < 0;
+
+        // Fee is always taken from the unspecified token:
+        feeCurrency = params.zeroForOne == exactInput ? key.currency1 : key.currency0;
+
+        // Compute fee based on the feeCurrency amount
+        uint256 feeBase;
+        if (exactInput) {
+            // For exact input, fee is of output
+            feeBase = uint256(outputAmount);
         } else {
-            bool inputIsToken0 = params.zeroForOne ? true : false;
-            feeCurrency = inputIsToken0 ? key.currency0 : key.currency1;
+            // For exact output, fee is of input
+            int256 inputAmount = params.zeroForOne ? delta.amount0() : delta.amount1();
+            feeBase = uint256(-inputAmount);
         }
 
-        uint256 feeAmount = FullMath.mulDiv(uint256(outputAmount), getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
