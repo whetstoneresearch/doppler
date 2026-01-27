@@ -1,4 +1,7 @@
 {
+  "1": {
+    "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa"
+  },
   "130": {
     "Airlock": "0x77ebfbae15ad200758e9e2e61597c0b07d731254",
     "Bundler": "0x91231cDdD8d6C86Df602070a3081478e074b97b7",
@@ -170,6 +173,7 @@
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
   },
   "11155111": {
+    "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426"
   }
 }

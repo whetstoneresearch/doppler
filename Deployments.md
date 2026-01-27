@@ -6,7 +6,7 @@ icon: pen-field
 
 Here are the networks that Doppler is officially deployed to:
 
-- Mainnets: Unichain, Monad Mainnet, MegaETH Mainnet, Base, Ink
+- Mainnets: Ethereum Mainnet, Unichain, Monad Mainnet, MegaETH Mainnet, Base, Ink
 - Testnets: Unichain Sepolia, World Chain Sepolia, MegaETH Testnet, Monad Testnet, Base Sepolia, Sepolia
 
 {% hint style="danger" %}
@@ -14,6 +14,10 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 {% endhint %}
 
 ## Mainnet Deployments
+### Ethereum Mainnet (1)
+| Contract | Address | Transaction | Commit |
+|---|---|---|---|
+| Airlock | [0xde35...9dfa](https://etherscan.io/address/0xde3599a2ec440b296373a983c85c365da55d9dfa) | [0x7542...eb79](https://etherscan.io/tx/0x7542807009d53ce3fb34710c6025c690617183a27247fddca95ff3fdaf6ceb79) | [afc1226](https://github.com/whetstoneresearch/doppler/commit/afc1226) | 
 ### Unichain (130)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
@@ -199,5 +203,6 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 ### Sepolia (11155111)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
+| Airlock | [0xde35...9dfa](https://sepolia.etherscan.io/address/0xde3599a2ec440b296373a983c85c365da55d9dfa) | [0x20e2...ca2f](https://sepolia.etherscan.io/tx/0x20e2e3e4e38bd26ca2b78cdd007f86b583812a6c18e712ecdb34c1e66b4dca2f) | [afc1226](https://github.com/whetstoneresearch/doppler/commit/afc1226) | 
 | AirlockMultisigTestnet | [0x0abc...4426](https://sepolia.etherscan.io/address/0x0abcf819fd57c9f0141628410ffc273405e44426) | [0x8ab6...17cd](https://sepolia.etherscan.io/tx/0x8ab67aa9dbbe6b5fdf10f454b2e4b2b5459a63fcebcec622a890e6074ab017cd) | [e0bc3a0](https://github.com/whetstoneresearch/doppler/commit/e0bc3a0) | 
 
