@@ -84,6 +84,9 @@ error AuctionNotInitialized();
 /// @notice Thrown when an asset has not been initialized
 error AssetNotInitialized();
 
+/// @notice Thrown when the caller is not the Airlock owner
+error SenderNotAirlockOwner();
+
 /// @notice Emitted when an opening auction transitions to Doppler
 event AuctionCompleted(
     address indexed asset,
@@ -202,6 +205,12 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         auctionDeployer = auctionDeployer_;
         dopplerDeployer = dopplerDeployer_;
         positionManager = positionManager_;
+    }
+
+    /// @notice Throws `SenderNotAirlockOwner` if the caller is not the Airlock owner
+    modifier onlyAirlockOwner() {
+        if (msg.sender != airlock.owner()) revert SenderNotAirlockOwner();
+        _;
     }
 
     /// @inheritdoc IPoolInitializer
@@ -451,7 +460,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     /// @notice Sweep unclaimed auction incentives after the claim window
     /// @param asset The asset token address
     /// @param recipient The recipient of swept incentives
-    function sweepAuctionIncentives(address asset, address recipient) external onlyAirlock {
+    function sweepAuctionIncentives(address asset, address recipient) external onlyAirlockOwner {
         OpeningAuction auction = _openingAuctionOrRevert(asset, false);
         auction.sweepUnclaimedIncentives(recipient);
     }
@@ -459,7 +468,7 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
     /// @notice Recover incentive tokens when no positions earned time
     /// @param asset The asset token address
     /// @param recipient The recipient of recovered incentives
-    function recoverAuctionIncentives(address asset, address recipient) external onlyAirlock {
+    function recoverAuctionIncentives(address asset, address recipient) external onlyAirlockOwner {
         OpeningAuction auction = _openingAuctionOrRevert(asset, false);
         auction.recoverIncentives(recipient);
     }

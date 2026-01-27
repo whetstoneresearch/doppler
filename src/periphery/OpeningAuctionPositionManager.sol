@@ -41,7 +41,7 @@ contract OpeningAuctionPositionManager is IUnlockCallback {
         PoolKey memory key,
         IPoolManager.ModifyLiquidityParams memory params,
         bytes calldata hookData
-    ) external payable returns (BalanceDelta delta) {
+    ) external returns (BalanceDelta delta) {
         address owner = _decodeOwner(hookData);
         if (owner != msg.sender) revert HookDataOwnerMismatch();
         delta = _modifyLiquidity(key, params, hookData, msg.sender);
@@ -50,7 +50,7 @@ contract OpeningAuctionPositionManager is IUnlockCallback {
     function modifyLiquidity(
         PoolKey memory key,
         IPoolManager.ModifyLiquidityParams memory params
-    ) external payable returns (BalanceDelta delta) {
+    ) external returns (BalanceDelta delta) {
         delta = _modifyLiquidity(key, params, abi.encode(msg.sender), msg.sender);
     }
 
@@ -75,11 +75,6 @@ contract OpeningAuctionPositionManager is IUnlockCallback {
             poolManager.unlock(abi.encode(CallbackData(sender, key, params, hookData))),
             (BalanceDelta)
         );
-
-        uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0) {
-            SafeTransferLib.safeTransferETH(sender, ethBalance);
-        }
     }
 
     function _settleDeltas(PoolKey memory key, address payer, BalanceDelta delta) internal {
@@ -101,11 +96,6 @@ contract OpeningAuctionPositionManager is IUnlockCallback {
 
     function _settleCurrency(Currency currency, address payer, uint256 amount) internal {
         if (amount == 0) return;
-
-        if (currency.isAddressZero()) {
-            poolManager.settle{ value: amount }();
-            return;
-        }
 
         poolManager.sync(currency);
         if (payer != address(this)) {
