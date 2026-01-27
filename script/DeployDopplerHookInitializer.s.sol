@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { console } from "forge-std/console.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
@@ -39,8 +38,7 @@ contract DeployDopplerHookInitializerScript is Script, Config {
                 salt, abi.encodePacked(type(DopplerHookInitializer).creationCode, abi.encode(airlock, poolManager))
             );
         require(dopplerHookInitializer == deployedTo, "Unexpected deployed address");
-        console.log("DopplerHookInitializer deployed to:", dopplerHookInitializer);
-        config.set("doppler_hook_initializer", dopplerHookInitializer);
         vm.stopBroadcast();
+        config.set("doppler_hook_initializer", dopplerHookInitializer);
     }
 }

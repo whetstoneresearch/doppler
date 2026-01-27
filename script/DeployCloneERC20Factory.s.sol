@@ -36,7 +36,7 @@ contract DeployCloneERC20FactoryScript is Script, Config {
             .deployCreate3(salt, abi.encodePacked(type(CloneERC20Factory).creationCode, abi.encode(airlock)));
         require(cloneERC20Factory == expectedAddress, "Unexpected deployed address");
 
-        config.set("clone_erc20_factory", cloneERC20Factory);
         vm.stopBroadcast();
+        config.set("clone_erc20_factory", cloneERC20Factory);
     }
 }

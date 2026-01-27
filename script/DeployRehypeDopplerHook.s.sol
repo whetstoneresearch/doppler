@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { console } from "forge-std/console.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
@@ -41,9 +40,8 @@ contract DeployRehypeHookScript is Script, Config {
             );
         require(rehypeDopplerHook == expectedAddress, "Unexpected deployed address");
 
-        console.log("rehypeDopplerHook deployed to:", rehypeDopplerHook);
-        config.set("rehype_doppler_hook", rehypeDopplerHook);
         vm.stopBroadcast();
+        config.set("rehype_doppler_hook", rehypeDopplerHook);
     }
 }
 

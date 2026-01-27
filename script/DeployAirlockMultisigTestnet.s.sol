@@ -36,21 +36,18 @@ contract DeployAirlockMultisigTestnetScript is Script, Config {
         bytes32 salt = bytes32(uint256(uint160(msg.sender)) << 96 | 0xdeadbeef);
         address expectedAddress = computeCreate3Address(computeGuardedSalt(salt, msg.sender), address(createX));
 
-        // We skip deployment if it already exists
-        if (expectedAddress.code.length == 0) {
-            address[] memory signers = new address[](5);
-            signers[0] = msg.sender;
-            signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
-            signers[2] = 0x00D1C1c523D0058359850F8A1E49504ef78541cE;
-            signers[3] = 0xdF95Cc445469816234Ad95f702c79d25BCE401a7;
-            signers[4] = 0xD877ca966bA431102B6aB217A899fa686D7Fa639;
+        address[] memory signers = new address[](5);
+        signers[0] = msg.sender;
+        signers[1] = 0x88C23B886580FfAd04C66055edB6c777f5F74a08;
+        signers[2] = 0x00D1C1c523D0058359850F8A1E49504ef78541cE;
+        signers[3] = 0xdF95Cc445469816234Ad95f702c79d25BCE401a7;
+        signers[4] = 0xD877ca966bA431102B6aB217A899fa686D7Fa639;
 
-            address airlockMultisigTestnet = ICreateX(createX)
-                .deployCreate3(salt, abi.encodePacked(type(AirlockMultisigTestnet).creationCode, abi.encode(signers)));
-            require(airlockMultisigTestnet == expectedAddress, "Unexpected deployed address");
-            config.set("airlock_multisig", airlockMultisigTestnet);
-        }
-
+        address airlockMultisigTestnet = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(AirlockMultisigTestnet).creationCode, abi.encode(signers)));
+        require(airlockMultisigTestnet == expectedAddress, "Unexpected deployed address");
         vm.stopBroadcast();
+
+        config.set("airlock_multisig", airlockMultisigTestnet);
     }
 }
