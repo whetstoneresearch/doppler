@@ -429,12 +429,12 @@ User/Periphery
 if (tickUpper - tickLower != tickSpacing) revert BidMustBeSingleTick();
 ```
 
-- Bid tick must respect the minimum acceptable price:
+- Bid tick must respect the minimum acceptable price (for token1 auctions, the ceiling applies to `tickUpper`):
 
 ```solidity
 int24 limit = _auctionPriceLimitTick();
 if (isToken0 && tickLower < limit) revert BidBelowMinimumPrice();
-if (!isToken0 && tickLower > limit) revert BidBelowMinimumPrice();
+if (!isToken0 && tickUpper > limit) revert BidBelowMinimumPrice();
 ```
 
 - Bid liquidity must be above `minLiquidity`:

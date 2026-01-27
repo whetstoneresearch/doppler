@@ -56,19 +56,19 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     // ============ Auction Configuration ============
 
     /// @notice Duration of the auction in seconds
-    uint256 public auctionDuration;
+    uint256 public immutable auctionDuration;
 
     /// @notice Minimum acceptable tick for bids when selling token0
-    int24 public minAcceptableTickToken0;
+    int24 public immutable minAcceptableTickToken0;
 
     /// @notice Minimum acceptable tick for bids when selling token1 (tick(token0/token1))
-    int24 public minAcceptableTickToken1;
+    int24 public immutable minAcceptableTickToken1;
 
     /// @notice Share of tokens for LP incentives (basis points)
-    uint256 public incentiveShareBps;
+    uint256 public immutable incentiveShareBps;
 
     /// @notice Minimum liquidity per position (prevents dust bid griefing)
-    uint128 public minLiquidity;
+    uint128 public immutable minLiquidity;
 
     /// @notice True if the asset being sold is token0
     bool public isToken0;
@@ -105,7 +105,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     uint256 public totalProceeds;
 
     /// @notice Total tokens allocated for the auction (including incentives)
-    uint256 public totalAuctionTokens;
+    uint256 public immutable totalAuctionTokens;
 
     /// @notice Tokens reserved for LP incentives
     uint256 public incentiveTokensTotal;
@@ -697,7 +697,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         if (isToken0) {
             if (params.tickLower < limitTick) revert BidBelowMinimumPrice();
         } else {
-            if (params.tickLower > limitTick) revert BidBelowMinimumPrice();
+            if (params.tickUpper > limitTick) revert BidBelowMinimumPrice();
         }
 
         // Validate minimum liquidity to prevent dust bid griefing

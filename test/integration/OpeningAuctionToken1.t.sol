@@ -67,7 +67,7 @@ contract OpeningAuctionDeployerToken1Impl is OpeningAuctionDeployer {
 ///      - The asset token has a LARGER address than numeraire
 ///      - Pool starts at MIN_TICK (lowest price for token1)
 ///      - Price moves UP as tokens are sold (clearing tick increases)
-///      - Bids are validated with tickLower <= minAcceptableTick() (pool-space ceiling)
+///      - Bids are validated with tickUpper <= minAcceptableTick() (pool-space ceiling)
 ///      - "Filled" means clearing tick >= tickLower
 contract OpeningAuctionToken1FlowTest is Test, Deployers {
     // Token addresses - arranged so asset (TOKEN_HIGH) > numeraire (TOKEN_LOW)
@@ -241,8 +241,8 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
 
     /// @notice Test bid placement with reversed token ordering
     /// @dev For isToken0=false:
-    ///      - Bid validation: tickLower <= minAcceptableTick()
-    ///      - Bids with tickLower > minAcceptableTick() are rejected
+    ///      - Bid validation: tickUpper <= minAcceptableTick()
+    ///      - Bids with tickUpper > minAcceptableTick() are rejected
     function test_placeBid_Token1AsAsset() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
@@ -276,7 +276,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.stopPrank();
 
         int24 limitTick = auction.minAcceptableTick();
-        int24 tickLower = limitTick - config.tickSpacing; // Better than the ceiling
+        int24 tickLower = limitTick - config.tickSpacing; // Upper bound equals the ceiling
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -307,7 +307,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
     }
 
     /// @notice Test that invalid bids are rejected for isToken0=false
-    /// @dev Bids with tickLower > minAcceptableTick should be rejected
+    /// @dev Bids with tickUpper > minAcceptableTick should be rejected
     function test_placeBid_RejectsInvalidTickForToken1() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
 
@@ -341,7 +341,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.stopPrank();
 
         int24 limitTick = auction.minAcceptableTick();
-        int24 invalidTickLower = limitTick + config.tickSpacing;
+        int24 invalidTickLower = limitTick; // tickUpper will exceed the ceiling
 
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -418,7 +418,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         TestERC20(token1).approve(address(modifyLiquidityRouter), type(uint256).max);
 
         bytes32 bidSalt = keccak256(abi.encode(alice, bidNonce++));
-        if (offset > 0) {
+        if (offset >= 0) {
             vm.expectRevert(
                 abi.encodeWithSelector(
                     CustomRevert.WrappedError.selector,

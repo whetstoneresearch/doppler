@@ -381,7 +381,7 @@ contract OpeningAuctionSettlementFailureTest is Test, Deployers {
     }
 
     /// @notice Test settlement with isToken0=false and high minAcceptableTick floor
-    /// @dev Bid validation enforces tickLower <= minAcceptableTick, so settlement should succeed
+    /// @dev Bid validation enforces tickUpper <= minAcceptableTick, so settlement should succeed
     function test_settlementFailure_PriceTooHigh_isToken0False() public {
         // For isToken0=false tests, we need asset to be token1
         // Redeploy with swapped tokens
