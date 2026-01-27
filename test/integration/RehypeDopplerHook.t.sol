@@ -73,7 +73,11 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 ))
         );
 
-        deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
+        deployCodeTo(
+            "DopplerHookInitializer",
+            abi.encode(address(airlock), address(manager), address(0), address(0)),
+            address(initializer)
+        );
 
         rehypeDopplerHook = new RehypeDopplerHook(address(initializer), manager);
         vm.label(address(rehypeDopplerHook), "RehypeDopplerHook");
@@ -108,7 +112,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bytes32 salt = bytes32(uint256(1));
         (, address asset) = _createToken(salt);
 
-        (address storedNumeraire,,,, PoolStatus status,,) = initializer.getState(asset);
+        (address storedNumeraire,,,, PoolStatus status,,,) = initializer.getState(asset);
 
         assertEq(uint256(status), uint256(PoolStatus.Locked), "Pool should be locked");
     }
@@ -701,7 +705,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         vm.label(asset, "Asset");
         isToken0 = asset < address(numeraire);
 
-        (,,,,, poolKey,) = initializer.getState(asset);
+        (,,,,, poolKey,,) = initializer.getState(asset);
         poolId = poolKey.toId();
 
         numeraire.approve(address(swapRouter), type(uint256).max);
@@ -757,7 +761,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         vm.label(asset, "Asset");
         isToken0 = asset < address(numeraire);
 
-        (,,,,, poolKey,) = initializer.getState(asset);
+        (,,,,, poolKey,,) = initializer.getState(asset);
         poolId = poolKey.toId();
 
         numeraire.approve(address(swapRouter), type(uint256).max);

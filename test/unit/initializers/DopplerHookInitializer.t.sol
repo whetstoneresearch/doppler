@@ -89,7 +89,11 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
                     ) ^ (0x4444 << 144)
                 ))
         );
-        deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
+        deployCodeTo(
+            "DopplerHookInitializer",
+            abi.encode(address(airlock), address(manager), address(0), address(0)),
+            address(initializer)
+        );
         dopplerHook = new MockDopplerHook();
         vm.label(address(dopplerHook), "DopplerHook");
 
@@ -174,7 +178,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
             initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
         assertEq(returnedAsset, asset, "Returned asset address is incorrect");
 
-        (,,,, PoolStatus status,,) = initializer.getState(asset);
+        (,,,, PoolStatus status,,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be Initialized");
     }
 
@@ -189,7 +193,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
-        (,,,, PoolStatus status,,) = initializer.getState(asset);
+        (,,,, PoolStatus status,,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Locked), "Pool status should be locked");
 
         BeneficiaryData[] memory beneficiaries = initializer.getBeneficiaries(asset);
@@ -209,7 +213,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
-        (,, address dopplerHookAddress, bytes memory graduationDopplerHookCalldata,, PoolKey memory key,) =
+        (,, address dopplerHookAddress, bytes memory graduationDopplerHookCalldata,, PoolKey memory key,,) =
             initializer.getState(asset);
         assertEq32(PoolId.unwrap(key.toId()), PoolId.unwrap(poolId), "Pool Ids not matching");
         assertEq(dopplerHookAddress, address(dopplerHook), "Incorrect dopplerHook address");
@@ -272,7 +276,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
     function test_initialize_StoresPoolState(InitDataParams memory params, bool isToken0) public {
         InitData memory initData = test_initialize_InitializesPool(params, isToken0);
 
-        (address returnedNumeraire,,,, PoolStatus status, PoolKey memory key, int24 farTick) =
+        (address returnedNumeraire,,,, PoolStatus status, PoolKey memory key, int24 farTick,) =
             initializer.getState(asset);
 
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool status should be initialized");
@@ -292,7 +296,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
     function test_exitLiquidity(InitDataParams memory params, bool isToken0) public {
         test_initialize_InitializesPool(params, isToken0);
 
-        (,,,,,, int24 farTick) = initializer.getState(asset);
+        (,,,,,,int24 farTick,) = initializer.getState(asset);
         _buyUntilFarTick(isToken0);
         vm.prank(address(airlock));
         (uint160 sqrtPriceX96,,,,,,) = initializer.exitLiquidity(asset);
@@ -300,7 +304,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         // TODO: Check if the currentTick is at least the farTick
         assertEq(sqrtPriceX96, TickMath.getSqrtPriceAtTick(farTick), "Incorrect returned sqrtPriceX96");
 
-        (,,,, PoolStatus status,,) = initializer.getState(asset);
+        (,,,, PoolStatus status,,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Exited), "Pool status should be Exited");
 
         assertEq(currency0.balanceOf(address(initializer)), 0, "Initializer should have zero balance of token0");
@@ -341,7 +345,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
 
     function test_exitLiquidity_RevertsWhenInsufficientTick(InitDataParams memory params, bool isToken0) public {
         test_initialize_InitializesPool(params, isToken0);
-        (,,,,,, int24 farTick) = initializer.getState(asset);
+        (,,,,,, int24 farTick,) = initializer.getState(asset);
         (, int24 tick,,) = manager.getSlot0(poolId);
 
         vm.prank(address(airlock));
@@ -474,7 +478,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         emit SetDopplerHook(asset, address(dopplerHook));
         initializer.setDopplerHook(asset, address(dopplerHook), onInitializationCalldata, onGraduationCalldata);
 
-        (,, address dopplerHookAddress, bytes memory storedOnGraduationCalldata,,,) = initializer.getState(asset);
+        (,, address dopplerHookAddress, bytes memory storedOnGraduationCalldata,,,,) = initializer.getState(asset);
         assertEq(dopplerHookAddress, address(dopplerHook), "Incorrect dopplerHook address");
         assertEq(storedOnGraduationCalldata, onGraduationCalldata, "Incorrect graduation dopplerHook calldata");
     }
@@ -562,7 +566,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.prank(address(airlock));
         initializer.graduate(asset);
 
-        (,,,, PoolStatus status,,) = initializer.getState(asset);
+        (,,,, PoolStatus status,,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Graduated), "Pool status should be Graduated");
     }
 
@@ -576,7 +580,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
 
     function test_graduate_RevertsWhenFarTickNotReached(InitDataParams memory params, bool isToken0) public {
         test_initialize_LocksPoolWithDopplerHook(params, isToken0);
-        (,,,,,, int24 farTick) = initializer.getState(asset);
+        (,,,,,, int24 farTick,) = initializer.getState(asset);
         (, int24 tick,,) = manager.getSlot0(poolId);
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, farTick, tick));

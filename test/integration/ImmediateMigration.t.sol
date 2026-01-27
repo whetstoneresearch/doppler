@@ -163,7 +163,7 @@ contract ImmediateMigrationTest is Deployers {
         (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
 
         // Verify pool was created and is in Initialized state
-        (,,,, PoolStatus status,,) = initializer.getState(asset);
+        (,,,, PoolStatus status,,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool should be Initialized");
 
         // Record balances before migration
@@ -178,7 +178,7 @@ contract ImmediateMigrationTest is Deployers {
         airlock.migrate(asset);
 
         // Step 3: Verify migration succeeded
-        (,,,, PoolStatus statusAfter,,) = initializer.getState(asset);
+        (,,,, PoolStatus statusAfter,,,) = initializer.getState(asset);
         assertEq(uint8(statusAfter), uint8(PoolStatus.Exited), "Pool should be Exited after migration");
 
         // Step 4: Verify token distribution
@@ -261,7 +261,7 @@ contract ImmediateMigrationTest is Deployers {
         (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
 
         // Get pool key for swapping
-        (,,,, PoolStatus status, PoolKey memory poolKey,) = initializer.getState(asset);
+        (,,,, PoolStatus status, PoolKey memory poolKey,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool should be Initialized");
 
         // Do a swap - buy some asset tokens with ETH
@@ -286,7 +286,7 @@ contract ImmediateMigrationTest is Deployers {
         airlock.migrate(asset);
 
         // Verify migration succeeded
-        (,,,, PoolStatus statusAfter,,) = initializer.getState(asset);
+        (,,,, PoolStatus statusAfter,,,) = initializer.getState(asset);
         assertEq(uint8(statusAfter), uint8(PoolStatus.Exited), "Pool should be Exited");
 
         // Migrator should have received some ETH (proceeds from swap minus fees)

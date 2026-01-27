@@ -568,7 +568,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @return fees Collected fees as a BalanceDelta
      */
     function collectFees(address asset) external returns (BalanceDelta fees) {
-        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        (,,,,, PoolKey memory poolKey,,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
         HookFees memory hookFees = getHookFees[poolId];
         address beneficiary = getPoolInfo[poolId].buybackDst;
@@ -597,7 +597,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
         require(msg.sender == airlockOwner, SenderNotAirlockOwner());
 
-        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        (,,,,, PoolKey memory poolKey,,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
 
         fees0 = getHookFees[poolId].airlockOwnerFees0;
