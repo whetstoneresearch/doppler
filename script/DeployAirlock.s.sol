@@ -36,8 +36,8 @@ contract DeployAirlockScript is Script, Config {
         address airlock =
             ICreateX(createX).deployCreate3(salt, abi.encodePacked(type(Airlock).creationCode, abi.encode(multisig)));
         require(airlock == predictedAddress, "Unexpected deployed address");
+        vm.stopBroadcast();
 
         config.set("airlock", airlock);
-        vm.stopBroadcast();
     }
 }
