@@ -66,7 +66,9 @@
     "UniswapV4Migrator": "0xb6d69eaa98e657beeff7ca4452768e6f707aa6b1",
     "UniswapV4MigratorHook": "0xfb0671ec46190b09255776d2d77744fa101ba500",
     "UniswapV4MulticurveInitializer": "0xac7939f1b4079d55a7fa4dfa314ac0173a77ba40",
-    "UniswapV4MulticurveInitializerHook": "0x11b55a121a38fdab8faf16f9f1a4f124e3f42d40"
+    "UniswapV4MulticurveInitializerHook": "0x11b55a121a38fdab8faf16f9f1a4f124e3f42d40",
+    "UniswapV4ScheduledMulticurveInitializer": "0xf84378c9f39e0ff267f3101c88773359c5393876",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0xc6a562cb5cbfa29bcb1bdccf903b8b8f2e4a2dc0"
   },
   "4326": {
     "Airlock": "0xDe3599a2eC440B296373a983C85C365DA55d9dFA",
@@ -174,8 +176,8 @@
     "UniswapV4MigratorHook": "0x127caaad598ffa97577940b0a5c3b6150019e500",
     "UniswapV4MulticurveInitializer": "0x1718405e58c61425cdc0083262bc9f72198f5232",
     "UniswapV4MulticurveInitializerHook": "0x6a1061fc558dde1e6fd0efd641b370d435b56d40",
-    "UniswapV4ScheduledMulticurveInitializer": "0x5c10d3e14aae2ef95619b25e907e013260e832e4",
-    "UniswapV4ScheduledMulticurveInitializerHook": "0x5d663f9c993deff2d17ce4232d75f347df7dadc0",
+    "UniswapV4ScheduledMulticurveInitializer": "0xf84378c9f39e0ff267f3101c88773359c5393876",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0xc6a562cb5cbfa29bcb1bdccf903b8b8f2e4a2dc0",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
   },
   "11155111": {
