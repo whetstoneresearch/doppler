@@ -1,34 +1,53 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
+import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { Airlock } from "src/Airlock.sol";
-import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
-import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
 
-struct ScriptData {
-    uint256 chainId;
-    address airlock;
-    address uniswapV2Factory;
-    address uniswapV2Router;
-}
-
-abstract contract DeployUniV2MigratorScript is Script {
-    ScriptData internal _scriptData;
-
-    function setUp() public virtual;
-
+contract DeployUniV2MigratorScript is Script, Config {
     function run() public {
+        _loadConfigAndForks("./deployments.config.toml", true);
+
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
+        }
+    }
+
+    function deployToChain(uint256 chainId) internal {
+        vm.selectFork(forkOf[chainId]);
+
+        address airlock = config.get("airlock").toAddress();
+        address createX = config.get("create_x").toAddress();
+        address uniswapV2Factory = config.get("uniswap_v2_factory").toAddress();
+        address uniswapV2Router = config.get("uniswap_v2_router").toAddress();
+        address airlockOwner = Airlock(payable(airlock)).owner();
+
         vm.startBroadcast();
-        require(_scriptData.chainId == block.chainid, "Incorrect chainId");
-        UniswapV2Migrator uniV2Migrator = new UniswapV2Migrator(
-            _scriptData.airlock,
-            IUniswapV2Factory(_scriptData.uniswapV2Factory),
-            IUniswapV2Router02(_scriptData.uniswapV2Router),
-            Airlock(payable(_scriptData.airlock)).owner()
-        );
+        bytes32 salt = generateCreate3Salt(msg.sender, type(UniswapV2Migrator).name);
+        address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+
+        address migrator = ICreateX(createX)
+            .deployCreate3(
+                salt,
+                abi.encodePacked(
+                    type(UniswapV2Migrator).creationCode,
+                    abi.encode(airlock, uniswapV2Factory, uniswapV2Router, airlockOwner)
+                )
+            );
+
+        require(migrator == deployedTo, "Unexpected deployed address");
+
         vm.stopBroadcast();
+        config.set("uniswap_v2_migrator", migrator);
     }
 }

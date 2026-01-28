@@ -16,6 +16,9 @@ no_op_governance_factory = "0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638"
 no_op_migrator = "0x233A71A7bB928b1357A1Ebf454298320989Ca5B5"
 uniswap_v4_scheduled_multicurve_hook = "0xc6a562cb5CbFA29BCB1bDCCF903b8B8f2E4A2DC0"
 uniswap_v4_scheduled_multicurve_initializer = "0xF84378C9F39e0FF267f3101c88773359c5393876"
+uniswap_v2_router = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+uniswap_v2_factory = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
+uniswap_v2_migrator = "0x765875bff87614cE0581ee73B9fa663B71F3DfF2"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -35,6 +38,9 @@ no_op_governance_factory = "0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638"
 no_op_migrator = "0x233A71A7bB928b1357A1Ebf454298320989Ca5B5"
 uniswap_v4_scheduled_multicurve_hook = "0xc6a562cb5CbFA29BCB1bDCCF903b8B8f2E4A2DC0"
 uniswap_v4_scheduled_multicurve_initializer = "0xF84378C9F39e0FF267f3101c88773359c5393876"
+uniswap_v2_router = "0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3"
+uniswap_v2_factory = "0xF62c03E08ada871A0bEb309762E260a7a6a880E6"
+uniswap_v2_migrator = "0x765875bff87614cE0581ee73B9fa663B71F3DfF2"
 
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
