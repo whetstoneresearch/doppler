@@ -22,6 +22,7 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | CloneERC20Factory | [0xe7df...ba6e](https://etherscan.io/address/0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e) | [0xacaa...57dc](https://etherscan.io/tx/0xacaa0cffc279b6e54ccfb6f251c510f85b5fa5d3dddd7e7323de8f0cf92a57dc) | [6c67b7e](https://github.com/whetstoneresearch/doppler/commit/6c67b7e) | 
 | CloneERC20Votes | [0xa8d0...7cdf](https://etherscan.io/address/0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf) | [0x96a7...36bf](https://etherscan.io/tx/0x96a79cd1e9a637230766d9554c40c3528911577946bc307a0619b6d9c68e36bf) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
 | CloneERC20VotesFactory | [0x5a92...483e](https://etherscan.io/address/0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e) | [0x96a7...36bf](https://etherscan.io/tx/0x96a79cd1e9a637230766d9554c40c3528911577946bc307a0619b6d9c68e36bf) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
+| NoOpGovernanceFactory | [0xddae...b638](https://etherscan.io/address/0xddae8b3ed08184682f7bc32b74d943ceefeab638) | [0xf243...b557](https://etherscan.io/tx/0xf2433fc6c439311f49e728aca9406c0f94eb10a16a3547012905971b2bb5b557) | [074a3b8](https://github.com/whetstoneresearch/doppler/commit/074a3b8) | 
 ### Unichain (130)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
@@ -213,4 +214,5 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | CloneERC20Factory | [0xe7df...ba6e](https://sepolia.etherscan.io/address/0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e) | [0x644b...8148](https://sepolia.etherscan.io/tx/0x644be9cbd737b18630163589af303b2c9fb25c1b8ab70ee6992859484c3a8148) | [6c67b7e](https://github.com/whetstoneresearch/doppler/commit/6c67b7e) | 
 | CloneERC20Votes | [0xa8d0...7cdf](https://sepolia.etherscan.io/address/0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf) | [0x135a...b0fa](https://sepolia.etherscan.io/tx/0x135ad8604212c4fa4dbc69318dd24b147c5818a2fad32c0c534ebbbf7903b0fa) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
 | CloneERC20VotesFactory | [0x5a92...483e](https://sepolia.etherscan.io/address/0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e) | [0x135a...b0fa](https://sepolia.etherscan.io/tx/0x135ad8604212c4fa4dbc69318dd24b147c5818a2fad32c0c534ebbbf7903b0fa) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
+| NoOpGovernanceFactory | [0xddae...b638](https://sepolia.etherscan.io/address/0xddae8b3ed08184682f7bc32b74d943ceefeab638) | [0x56e6...24ec](https://sepolia.etherscan.io/tx/0x56e6363a7830bd9190075c532ce795986cb46262993dc0e77c806ece7c7724ec) | [074a3b8](https://github.com/whetstoneresearch/doppler/commit/074a3b8) | 
 
