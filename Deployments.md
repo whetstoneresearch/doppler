@@ -23,6 +23,7 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | CloneERC20Votes | [0xa8d0...7cdf](https://etherscan.io/address/0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf) | [0x96a7...36bf](https://etherscan.io/tx/0x96a79cd1e9a637230766d9554c40c3528911577946bc307a0619b6d9c68e36bf) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
 | CloneERC20VotesFactory | [0x5a92...483e](https://etherscan.io/address/0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e) | [0x96a7...36bf](https://etherscan.io/tx/0x96a79cd1e9a637230766d9554c40c3528911577946bc307a0619b6d9c68e36bf) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
 | NoOpGovernanceFactory | [0xddae...b638](https://etherscan.io/address/0xddae8b3ed08184682f7bc32b74d943ceefeab638) | [0xf243...b557](https://etherscan.io/tx/0xf2433fc6c439311f49e728aca9406c0f94eb10a16a3547012905971b2bb5b557) | [074a3b8](https://github.com/whetstoneresearch/doppler/commit/074a3b8) | 
+| NoOpMigrator | [0x233a...a5b5](https://etherscan.io/address/0x233a71a7bb928b1357a1ebf454298320989ca5b5) | [0x2425...7652](https://etherscan.io/tx/0x2425c8b9f7c4fe9cea80e2cc09d424c5b3c92f6af9407bfb1d3f872923c47652) | [bc477e4](https://github.com/whetstoneresearch/doppler/commit/bc477e4) | 
 ### Unichain (130)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
@@ -215,4 +216,5 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | CloneERC20Votes | [0xa8d0...7cdf](https://sepolia.etherscan.io/address/0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf) | [0x135a...b0fa](https://sepolia.etherscan.io/tx/0x135ad8604212c4fa4dbc69318dd24b147c5818a2fad32c0c534ebbbf7903b0fa) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
 | CloneERC20VotesFactory | [0x5a92...483e](https://sepolia.etherscan.io/address/0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e) | [0x135a...b0fa](https://sepolia.etherscan.io/tx/0x135ad8604212c4fa4dbc69318dd24b147c5818a2fad32c0c534ebbbf7903b0fa) | [502f898](https://github.com/whetstoneresearch/doppler/commit/502f898) | 
 | NoOpGovernanceFactory | [0xddae...b638](https://sepolia.etherscan.io/address/0xddae8b3ed08184682f7bc32b74d943ceefeab638) | [0x56e6...24ec](https://sepolia.etherscan.io/tx/0x56e6363a7830bd9190075c532ce795986cb46262993dc0e77c806ece7c7724ec) | [074a3b8](https://github.com/whetstoneresearch/doppler/commit/074a3b8) | 
+| NoOpMigrator | [0x233a...a5b5](https://sepolia.etherscan.io/address/0x233a71a7bb928b1357a1ebf454298320989ca5b5) | [0x3419...8314](https://sepolia.etherscan.io/tx/0x3419a9cdca0cba48ccfcd729fdecf63bd090d0090902a4dcd78472efb6b88314) | [bc477e4](https://github.com/whetstoneresearch/doppler/commit/bc477e4) | 
 
