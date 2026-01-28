@@ -6,7 +6,9 @@
     "CloneERC20Votes": "0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf",
     "CloneERC20VotesFactory": "0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e",
     "NoOpGovernanceFactory": "0xddae8b3ed08184682f7bc32b74d943ceefeab638",
-    "NoOpMigrator": "0x233a71a7bb928b1357a1ebf454298320989ca5b5"
+    "NoOpMigrator": "0x233a71a7bb928b1357a1ebf454298320989ca5b5",
+    "UniswapV4ScheduledMulticurveInitializer": "0xf84378c9f39e0ff267f3101c88773359c5393876",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0xc6a562cb5cbfa29bcb1bdccf903b8b8f2e4a2dc0"
   },
   "130": {
     "Airlock": "0x77ebfbae15ad200758e9e2e61597c0b07d731254",
@@ -188,6 +190,8 @@
     "CloneERC20Votes": "0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf",
     "CloneERC20VotesFactory": "0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e",
     "NoOpGovernanceFactory": "0xddae8b3ed08184682f7bc32b74d943ceefeab638",
-    "NoOpMigrator": "0x233a71a7bb928b1357a1ebf454298320989ca5b5"
+    "NoOpMigrator": "0x233a71a7bb928b1357a1ebf454298320989ca5b5",
+    "UniswapV4ScheduledMulticurveInitializer": "0xf84378c9f39e0ff267f3101c88773359c5393876",
+    "UniswapV4ScheduledMulticurveInitializerHook": "0xc6a562cb5cbfa29bcb1bdccf903b8b8f2e4a2dc0"
   }
 }
