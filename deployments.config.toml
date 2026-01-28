@@ -23,6 +23,8 @@ uniswap_v2_migrator = "0x765875bff87614cE0581ee73B9fa663B71F3DfF2"
 streamable_fees_locker = "0xe24FC2F7191e850e2D4514aBb4d39305b1871eC6"
 uniswap_v4_migrator = "0x0820A4D0173C17Ece283f7bDaAF0f8876eB205f5"
 uniswap_v4_migrator_hook = "0x4053D4fa966cbdCC20Ec62070aC8814De8bEE500"
+uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
+doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -49,6 +51,8 @@ uniswap_v2_migrator = "0x765875bff87614cE0581ee73B9fa663B71F3DfF2"
 streamable_fees_locker = "0xe24FC2F7191e850e2D4514aBb4d39305b1871eC6"
 uniswap_v4_migrator = "0x0820A4D0173C17Ece283f7bDaAF0f8876eB205f5"
 uniswap_v4_migrator_hook = "0x4053D4fa966cbdCC20Ec62070aC8814De8bEE500"
+uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
+doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
