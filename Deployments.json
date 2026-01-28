@@ -2,7 +2,9 @@
   "1": {
     "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
     "CloneERC20": "0x215b2ce3dd8d110394e94a868580d61a77adec4a",
-    "CloneERC20Factory": "0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e"
+    "CloneERC20Factory": "0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e",
+    "CloneERC20Votes": "0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf",
+    "CloneERC20VotesFactory": "0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e"
   },
   "130": {
     "Airlock": "0x77ebfbae15ad200758e9e2e61597c0b07d731254",
@@ -178,6 +180,8 @@
     "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "CloneERC20": "0x215b2ce3dd8d110394e94a868580d61a77adec4a",
-    "CloneERC20Factory": "0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e"
+    "CloneERC20Factory": "0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e",
+    "CloneERC20Votes": "0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf",
+    "CloneERC20VotesFactory": "0x5a92bffbc01ea0396a9c7d4154d36d4eaf2e483e"
   }
 }
