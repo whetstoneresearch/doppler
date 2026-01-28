@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IHooks, IPoolManager, PoolKey } from "@v4-core/PoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
@@ -15,6 +16,14 @@ error InvalidTokenOrder();
 contract DopplerDeployer {
     // These variables are purposely not immutable to avoid hitting the contract size limit
     IPoolManager public poolManager;
+
+    uint160 internal constant FLAG_MASK = 0x3FFF;
+    uint160 internal constant DOPPLER_HOOK_FLAGS = uint160(
+        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+            | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG
+    );
+
+    error InvalidDopplerSalt(bytes32 salt, address hook);
 
     constructor(IPoolManager poolManager_) {
         poolManager = poolManager_;
@@ -37,6 +46,33 @@ contract DopplerDeployer {
             data, (uint256, uint256, uint256, uint256, int24, int24, uint256, int24, bool, uint256, uint24, int24)
         );
 
+        bytes32 initHash = keccak256(
+            abi.encodePacked(
+                type(Doppler).creationCode,
+                abi.encode(
+                    poolManager,
+                    numTokensToSell,
+                    minimumProceeds,
+                    maximumProceeds,
+                    startingTime,
+                    endingTime,
+                    startingTick,
+                    endingTick,
+                    epochLength,
+                    gamma,
+                    isToken0,
+                    numPDSlugs,
+                    msg.sender,
+                    lpFee
+                )
+            )
+        );
+
+        address hook = _computeCreate2Address(salt, initHash, address(this));
+        if (uint160(hook) & FLAG_MASK != DOPPLER_HOOK_FLAGS || hook.code.length != 0) {
+            revert InvalidDopplerSalt(salt, hook);
+        }
+
         Doppler doppler = new Doppler{ salt: salt }(
             poolManager,
             numTokensToSell,
@@ -55,6 +91,14 @@ contract DopplerDeployer {
         );
 
         return doppler;
+    }
+
+    function _computeCreate2Address(bytes32 salt, bytes32 initCodeHash, address deployer)
+        internal
+        pure
+        returns (address)
+    {
+        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
     }
 }
 

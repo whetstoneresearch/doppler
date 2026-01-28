@@ -1,0 +1,6 @@
+#+title: Notes
+
+* opening auction things to fix/review
+** 30 day incentive claim window? or just forever?
+forever means we dont have to worry about recovery, but also means potentially stuck tokens forever
+** finalize what quoter we use for calculating clearing tick during auction
