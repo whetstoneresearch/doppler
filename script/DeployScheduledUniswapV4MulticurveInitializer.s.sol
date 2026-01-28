@@ -24,8 +24,8 @@ contract DeployUniswapV4ScheduledMulticurveInitializerScript is Script, Config {
         _loadConfigAndForks("./deployments.config.toml", true);
 
         uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.BASE_SEPOLIA;
-        targets[1] = ChainIds.UNICHAIN_SEPOLIA;
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
