@@ -160,6 +160,29 @@ function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) v
     revert("AirlockMiner: could not find salt");
 }
 
+function mineV4ScheduledMulticurveHookCreate3(address sender, address deployer) view returns (bytes32, address) {
+    bytes32 baseSalt = bytes32(uint256(uint160(sender))) << 96
+        | keccak256(abi.encode(type(UniswapV4ScheduledMulticurveInitializerHook).name)) >> 168;
+
+    for (uint256 seed; seed < 100_000; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address hook = computeCreate3Address(guardedSalt, deployer);
+        if (
+            uint160(hook) & Hooks.ALL_HOOK_MASK
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
+        ) {
+            return (salt, hook);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
+
 /* -------------------------------------------------------------------- */
 /*                                Doppler                               */
 /* -------------------------------------------------------------------- */

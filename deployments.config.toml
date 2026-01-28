@@ -106,6 +106,8 @@ clone_erc20_factory = "0xbf4Ca4D527c9760A884df31292f72E9AcA503045"
 clone_erc20_votes_factory = "0x9a497a9fB78e49984B9d260abA1F4AD6321D4D92"
 doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
+uniswap_v4_scheduled_multicurve_hook = "0xc6a562cb5CbFA29BCB1bDCCF903b8B8f2E4A2DC0"
+uniswap_v4_scheduled_multicurve_initializer = "0xF84378C9F39e0FF267f3101c88773359c5393876"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
@@ -120,6 +122,8 @@ airlock = "0x0d2f38d807bfad5c18e430516e10ab560d300caf"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 airlock_multisig = "0x0abCf819FD57C9f0141628410fFC273405E44426"
 uniswap_v4_pool_manager = "0x00b036b58a818b1bc34d502d3fe730db729e62ac"
+uniswap_v4_scheduled_multicurve_hook = "0xc6a562cb5CbFA29BCB1bDCCF903b8B8f2E4A2DC0"
+uniswap_v4_scheduled_multicurve_initializer = "0xF84378C9F39e0FF267f3101c88773359c5393876"
 
 [10143]
 endpoint_url = "${MONAD_TESTNET_RPC_URL}"
