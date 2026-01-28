@@ -18,6 +18,8 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
 | Airlock | [0xde35...9dfa](https://etherscan.io/address/0xde3599a2ec440b296373a983c85c365da55d9dfa) | [0x7542...eb79](https://etherscan.io/tx/0x7542807009d53ce3fb34710c6025c690617183a27247fddca95ff3fdaf6ceb79) | [afc1226](https://github.com/whetstoneresearch/doppler/commit/afc1226) | 
+| CloneERC20 | [0x215b...ec4a](https://etherscan.io/address/0x215b2ce3dd8d110394e94a868580d61a77adec4a) | [0xacaa...57dc](https://etherscan.io/tx/0xacaa0cffc279b6e54ccfb6f251c510f85b5fa5d3dddd7e7323de8f0cf92a57dc) | [6c67b7e](https://github.com/whetstoneresearch/doppler/commit/6c67b7e) | 
+| CloneERC20Factory | [0xe7df...ba6e](https://etherscan.io/address/0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e) | [0xacaa...57dc](https://etherscan.io/tx/0xacaa0cffc279b6e54ccfb6f251c510f85b5fa5d3dddd7e7323de8f0cf92a57dc) | [6c67b7e](https://github.com/whetstoneresearch/doppler/commit/6c67b7e) | 
 ### Unichain (130)
 | Contract | Address | Transaction | Commit |
 |---|---|---|---|
@@ -205,4 +207,6 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 |---|---|---|---|
 | Airlock | [0xde35...9dfa](https://sepolia.etherscan.io/address/0xde3599a2ec440b296373a983c85c365da55d9dfa) | [0x20e2...ca2f](https://sepolia.etherscan.io/tx/0x20e2e3e4e38bd26ca2b78cdd007f86b583812a6c18e712ecdb34c1e66b4dca2f) | [afc1226](https://github.com/whetstoneresearch/doppler/commit/afc1226) | 
 | AirlockMultisigTestnet | [0x0abc...4426](https://sepolia.etherscan.io/address/0x0abcf819fd57c9f0141628410ffc273405e44426) | [0x8ab6...17cd](https://sepolia.etherscan.io/tx/0x8ab67aa9dbbe6b5fdf10f454b2e4b2b5459a63fcebcec622a890e6074ab017cd) | [e0bc3a0](https://github.com/whetstoneresearch/doppler/commit/e0bc3a0) | 
+| CloneERC20 | [0x215b...ec4a](https://sepolia.etherscan.io/address/0x215b2ce3dd8d110394e94a868580d61a77adec4a) | [0x644b...8148](https://sepolia.etherscan.io/tx/0x644be9cbd737b18630163589af303b2c9fb25c1b8ab70ee6992859484c3a8148) | [6c67b7e](https://github.com/whetstoneresearch/doppler/commit/6c67b7e) | 
+| CloneERC20Factory | [0xe7df...ba6e](https://sepolia.etherscan.io/address/0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e) | [0x644b...8148](https://sepolia.etherscan.io/tx/0x644be9cbd737b18630163589af303b2c9fb25c1b8ab70ee6992859484c3a8148) | [6c67b7e](https://github.com/whetstoneresearch/doppler/commit/6c67b7e) | 
 
