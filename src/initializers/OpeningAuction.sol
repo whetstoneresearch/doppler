@@ -24,6 +24,7 @@ import {
 } from "src/interfaces/IOpeningAuction.sol";
 import { QuoterMath } from "src/libraries/QuoterMath.sol";
 import { BitMath } from "@v3-core/libraries/BitMath.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
 
 /// @dev Basis points denominator
 uint256 constant BPS = 10_000;
@@ -1215,7 +1216,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     function _updateClearingTickAndTimeStates() internal {
         int24 oldClearingTick = estimatedClearingTick;
         int24 newClearingTick = _calculateEstimatedClearingTick();
-        newClearingTick = _floorToSpacing(newClearingTick, poolKey.tickSpacing);
+        newClearingTick = alignTick(isToken0, newClearingTick, poolKey.tickSpacing);
 
         if (newClearingTick == oldClearingTick) return;
 
