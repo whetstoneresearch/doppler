@@ -35,7 +35,8 @@ contract ForkDebugTest is Test {
             return;
         }
         vm.startPrank(SENDER);
-        RECEIVER.call(error_calldata);
+        (bool success,) = RECEIVER.call(error_calldata);
+        require(success, "ForkDebugTest call failed");
         vm.stopPrank();
     }
 }

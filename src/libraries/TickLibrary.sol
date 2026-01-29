@@ -64,3 +64,16 @@ function isTickSpacingValid(int24 tickSpacing) pure {
     require(tickSpacing <= TickMath.MAX_TICK_SPACING, IPoolManager.TickSpacingTooLarge(tickSpacing));
     require(tickSpacing >= TickMath.MIN_TICK_SPACING, IPoolManager.TickSpacingTooSmall(tickSpacing));
 }
+
+/// @notice Aligns a tick to the nearest valid boundary toward zero
+/// @dev Solidity's signed division truncates toward zero, and signed modulo
+///      preserves the dividend's sign. Together, `tick - (tick % spacing)`
+///      always rounds toward zero, giving us the nearest valid tick between
+///      the input and zero. Used for aligning MIN_TICK/MAX_TICK to valid
+///      pool initialization ticks.
+/// @param tick The tick to align
+/// @param tickSpacing The tick spacing to align to
+/// @return The aligned tick (rounded toward zero)
+function alignTickTowardZero(int24 tick, int24 tickSpacing) pure returns (int24) {
+    return tick - (tick % tickSpacing);
+}
