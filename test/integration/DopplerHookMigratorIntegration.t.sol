@@ -1,0 +1,595 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
+
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHook.sol";
+import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import {
+    DopplerHookMigrator,
+    DopplerHookNotEnabled,
+    PoolStatus as MigratorStatus
+} from "src/migrators/DopplerHookMigrator.sol";
+import { DopplerHookMigratorHook } from "src/migrators/DopplerHookMigratorHook.sol";
+import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { WAD } from "src/types/Wad.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+
+contract MockDopplerHook is IDopplerHook {
+    address public lastAsset;
+    PoolId public lastPoolId;
+    bytes public lastData;
+    uint256 public initCalls;
+
+    function onInitialization(address asset, PoolKey calldata poolKey, bytes calldata data) external {
+        lastAsset = asset;
+        lastPoolId = poolKey.toId();
+        lastData = data;
+        initCalls += 1;
+    }
+
+    function onSwap(
+        address,
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata,
+        BalanceDelta,
+        bytes calldata
+    ) external returns (Currency, int128) { }
+
+    function onGraduation(address, PoolKey calldata, bytes calldata) external { }
+}
+
+contract DopplerHookMigratorIntegrationTest is Deployers {
+    using StateLibrary for IPoolManager;
+    address internal constant AIRLOCK_OWNER = address(0xA111);
+    address internal constant BENEFICIARY_1 = address(0x1111);
+
+    Airlock public airlock;
+    DopplerHookInitializer public initializer;
+    CloneERC20Factory public tokenFactory;
+    NoOpGovernanceFactory public governanceFactory;
+    StreamableFeesLockerV2 public locker;
+    DopplerHookMigratorHook public migratorHook;
+    DopplerHookMigrator public migrator;
+    MockDopplerHook public dopplerHook;
+
+    function setUp() public {
+        deployFreshManagerAndRouters();
+
+        airlock = new Airlock(AIRLOCK_OWNER);
+        tokenFactory = new CloneERC20Factory(address(airlock));
+        governanceFactory = new NoOpGovernanceFactory();
+
+        initializer = DopplerHookInitializer(
+            payable(address(
+                    uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+                    ) ^ (0x4444 << 144)
+                ))
+        );
+        deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
+
+        locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
+
+        uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        migratorHook = DopplerHookMigratorHook(payable(address(uint160(hookFlags) ^ (0x4444 << 144))));
+        migrator = new DopplerHookMigrator(address(airlock), manager, migratorHook, locker);
+        deployCodeTo(
+            "DopplerHookMigratorHook",
+            abi.encode(address(airlock), address(manager), address(migrator)),
+            address(migratorHook)
+        );
+
+        dopplerHook = new MockDopplerHook();
+
+        address[] memory modules = new address[](4);
+        modules[0] = address(tokenFactory);
+        modules[1] = address(initializer);
+        modules[2] = address(governanceFactory);
+        modules[3] = address(migrator);
+
+        ModuleState[] memory states = new ModuleState[](4);
+        states[0] = ModuleState.TokenFactory;
+        states[1] = ModuleState.PoolInitializer;
+        states[2] = ModuleState.GovernanceFactory;
+        states[3] = ModuleState.LiquidityMigrator;
+
+        vm.startPrank(AIRLOCK_OWNER);
+        airlock.setModuleState(modules, states);
+        locker.approveMigrator(address(migrator));
+        vm.stopPrank();
+    }
+
+    function test_fullFlow_CreateAndMigrate_FixedFee() public {
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,, address timelock,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(1))
+            })
+        );
+
+        (, PoolKey memory poolKey,, bool useDynamicFee,,,,) = migrator.getAssetData(address(0), asset);
+        assertEq(address(poolKey.hooks), address(migratorHook));
+        assertEq(useDynamicFee, false);
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        (,,,, MigratorStatus status) = migrator.getState(asset);
+        assertEq(uint8(status), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+
+        (PoolKey memory streamKey, address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) =
+            locker.streams(poolKey.toId());
+        assertEq(address(streamKey.hooks), address(migratorHook));
+        assertEq(recipient, timelock);
+        assertEq(lockDuration, 30 days);
+        assertEq(isUnlocked, false);
+        assertEq(startDate > 0, true);
+    }
+
+    function test_fullFlow_CreateAndMigrate_WithHookInitialization() public {
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(dopplerHook);
+        flags[0] = ON_INITIALIZATION_FLAG;
+        vm.prank(AIRLOCK_OWNER);
+        migrator.setDopplerHookState(dopplerHooks, flags);
+
+        bytes memory initData = _defaultPoolInitializerData();
+        bytes memory hookData = hex"1234";
+        bytes memory migratorData = _defaultMigratorData(false, address(dopplerHook), hookData);
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: initData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(2))
+            })
+        );
+
+        assertEq(dopplerHook.initCalls(), 0);
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+        assertEq(dopplerHook.initCalls(), 1);
+        assertEq(dopplerHook.lastAsset(), asset);
+        assertEq(dopplerHook.lastData(), hookData);
+    }
+
+    function test_fullFlow_CreateAndMigrate_DynamicFee() public {
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(true, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(3))
+            })
+        );
+
+        (, PoolKey memory poolKey,, bool useDynamicFee,,,,) = migrator.getAssetData(address(0), asset);
+        assertEq(poolKey.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
+        assertEq(useDynamicFee, true);
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        (, , uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
+        assertEq(protocolFee, 0);
+        assertEq(lpFee, 3000);
+    }
+
+    function test_fullFlow_CreateAndMigrate_CustomBeneficiaries() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.9e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x2222), shares: 0.05e18 });
+        beneficiaries[2] = BeneficiaryData({ beneficiary: AIRLOCK_OWNER, shares: 0.05e18 });
+
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _migratorDataWithBeneficiaries(false, address(0), new bytes(0), beneficiaries, 7 days);
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,, address timelock,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(4))
+            })
+        );
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        (, address recipient,, uint32 lockDuration, bool isUnlocked) = locker.streams(poolKey.toId());
+        assertEq(recipient, timelock);
+        assertEq(lockDuration, 7 days);
+        assertEq(isUnlocked, false);
+    }
+
+    function test_fullFlow_CreateAndMigrate_TracksIntegratorFees() public {
+        address integrator = address(0xBEEF);
+        bytes memory poolInitializerData = _poolInitializerDataWithFee(3000);
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: integrator,
+                salt: bytes32(uint256(5))
+            })
+        );
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        uint256 protocolFees = airlock.getProtocolFees(address(0));
+        uint256 integratorFees = airlock.getIntegratorFees(integrator, address(0));
+        assertGt(protocolFees + integratorFees, 0);
+    }
+
+    /// forge-config: default.fuzz.runs = 32
+    function testFuzz_fullFlow_CreateAndMigrate_TickSpacing(uint256 tickSpacingSeed) public {
+        int24 tickSpacing = int24(uint24(bound(tickSpacingSeed, 1, 100)));
+        bytes memory poolInitializerData = _poolInitializerDataWithTickSpacing(tickSpacing);
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(6) ^ uint256(tickSpacingSeed))
+            })
+        );
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+    }
+
+    function test_fullFlow_Migrate_RevertIfHookDisabledAfterInitialize() public {
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(dopplerHook);
+        flags[0] = ON_INITIALIZATION_FLAG;
+        vm.prank(AIRLOCK_OWNER);
+        migrator.setDopplerHookState(dopplerHooks, flags);
+
+        bytes memory initData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(dopplerHook), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: initData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(7))
+            })
+        );
+
+        flags[0] = 0;
+        vm.prank(AIRLOCK_OWNER);
+        migrator.setDopplerHookState(dopplerHooks, flags);
+
+        _swapOnInitializerPool(asset);
+        vm.expectRevert(DopplerHookNotEnabled.selector);
+        airlock.migrate(asset);
+    }
+
+    function testFuzz_fullFlow_CreateAndMigrate_SwapDirection(bool reverse) public {
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(8))
+            })
+        );
+
+        _swapOnInitializerPoolBidirectional(asset, reverse);
+        airlock.migrate(asset);
+    }
+
+    function testFuzz_fullFlow_CreateAndMigrate_FeeTier(uint256 feeSeed) public {
+        uint24 fee = _pickFeeTier(feeSeed);
+        bytes memory poolInitializerData = _poolInitializerDataWithFee(fee);
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(9) ^ uint256(feeSeed))
+            })
+        );
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+    }
+    function _defaultTokenFactoryData() internal pure returns (bytes memory) {
+        return abi.encode(
+            "Doppler Hook Migrator Test Token",
+            "DHMT",
+            0,
+            0,
+            new address[](0),
+            new uint256[](0),
+            "TOKEN_URI"
+        );
+    }
+
+    function _defaultPoolInitializerData() internal pure returns (bytes memory) {
+        Curve[] memory curves = new Curve[](1);
+        curves[0] = Curve({ tickLower: 160_000, tickUpper: 240_000, numPositions: 10, shares: WAD });
+
+        return abi.encode(
+            InitData({
+                fee: 0,
+                tickSpacing: 8,
+                curves: curves,
+                beneficiaries: new BeneficiaryData[](0),
+                dopplerHook: address(0),
+                onInitializationDopplerHookCalldata: new bytes(0),
+                graduationDopplerHookCalldata: new bytes(0),
+                farTick: 160_000
+            })
+        );
+    }
+
+    function _defaultMigratorData(
+        bool useDynamicFee,
+        address hook,
+        bytes memory onInitializationCalldata
+    ) internal pure returns (bytes memory) {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: AIRLOCK_OWNER, shares: 0.05e18 });
+
+        return abi.encode(
+            uint24(3000),
+            int24(8),
+            uint32(30 days),
+            beneficiaries,
+            useDynamicFee,
+            hook,
+            onInitializationCalldata,
+            new bytes(0)
+        );
+    }
+
+    function _migratorDataWithBeneficiaries(
+        bool useDynamicFee,
+        address hook,
+        bytes memory onInitializationCalldata,
+        BeneficiaryData[] memory beneficiaries,
+        uint32 lockDuration
+    ) internal pure returns (bytes memory) {
+        return abi.encode(
+            uint24(3000),
+            int24(8),
+            lockDuration,
+            beneficiaries,
+            useDynamicFee,
+            hook,
+            onInitializationCalldata,
+            new bytes(0)
+        );
+    }
+
+    function _poolInitializerDataWithFee(uint24 fee) internal pure returns (bytes memory) {
+        Curve[] memory curves = new Curve[](1);
+        curves[0] = Curve({ tickLower: 160_000, tickUpper: 240_000, numPositions: 10, shares: WAD });
+
+        return abi.encode(
+            InitData({
+                fee: fee,
+                tickSpacing: 8,
+                curves: curves,
+                beneficiaries: new BeneficiaryData[](0),
+                dopplerHook: address(0),
+                onInitializationDopplerHookCalldata: new bytes(0),
+                graduationDopplerHookCalldata: new bytes(0),
+                farTick: 160_000
+            })
+        );
+    }
+
+    function _poolInitializerDataWithTickSpacing(int24 tickSpacing) internal pure returns (bytes memory) {
+        int24 tickLower = int24(int256(tickSpacing) * -100);
+        int24 tickUpper = int24(int256(tickSpacing) * 100);
+
+        Curve[] memory curves = new Curve[](1);
+        curves[0] = Curve({ tickLower: tickLower, tickUpper: tickUpper, numPositions: 10, shares: WAD });
+
+        return abi.encode(
+            InitData({
+                fee: 0,
+                tickSpacing: tickSpacing,
+                curves: curves,
+                beneficiaries: new BeneficiaryData[](0),
+                dopplerHook: address(0),
+                onInitializationDopplerHookCalldata: new bytes(0),
+                graduationDopplerHookCalldata: new bytes(0),
+                farTick: tickLower
+            })
+        );
+    }
+
+    function _swapOnInitializerPool(address asset) internal {
+        (,,,, PoolStatus status, PoolKey memory poolKey,) = initializer.getState(asset);
+        assertEq(uint8(status), uint8(PoolStatus.Initialized));
+
+        uint256 swapAmount = 0.1 ether;
+        deal(address(this), swapAmount);
+
+        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(swapAmount),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap{ value: swapAmount }(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
+    }
+
+    function _swapOnInitializerPoolBidirectional(address asset, bool reverse) internal {
+        (,,,, PoolStatus status, PoolKey memory poolKey,) = initializer.getState(asset);
+        assertEq(uint8(status), uint8(PoolStatus.Initialized));
+
+        uint256 swapAmount = 0.1 ether;
+        deal(address(this), swapAmount);
+
+        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
+        IPoolManager.SwapParams memory buyParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(swapAmount),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        BalanceDelta buyDelta =
+            swapRouter.swap{ value: swapAmount }(poolKey, buyParams, PoolSwapTest.TestSettings(false, false), "");
+
+        if (reverse) {
+            ERC20(asset).approve(address(swapRouter), type(uint256).max);
+            int256 amountToSwapBack = isToken0
+                ? -int256(uint256(uint128(buyDelta.amount0())) / 2)
+                : -int256(uint256(uint128(buyDelta.amount1())) / 2);
+
+            IPoolManager.SwapParams memory sellParams = IPoolManager.SwapParams({
+                zeroForOne: isToken0,
+                amountSpecified: amountToSwapBack,
+                sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            });
+
+            swapRouter.swap(poolKey, sellParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        }
+    }
+
+    function _pickFeeTier(uint256 feeSeed) internal pure returns (uint24) {
+        uint256 index = feeSeed % 4;
+        if (index == 0) return 0;
+        if (index == 1) return 500;
+        if (index == 2) return 3000;
+        return 10_000;
+    }
+}
