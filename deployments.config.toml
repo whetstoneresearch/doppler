@@ -26,6 +26,7 @@ uniswap_v4_migrator_hook = "0x4053D4fa966cbdCC20Ec62070aC8814De8bEE500"
 uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
 doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 doppler_hook_initializer = "0xAA096F558f3d4c9226De77E7Cc05f18E180B2544"
+rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -55,6 +56,7 @@ uniswap_v4_migrator_hook = "0x4053D4fa966cbdCC20Ec62070aC8814De8bEE500"
 uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
 doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 doppler_hook_initializer = "0xAA096F558f3d4c9226De77E7Cc05f18E180B2544"
+rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
@@ -71,6 +73,7 @@ uniswap_v4_pool_manager = "0x498581ff718922c3f8e6a244956af099b2652b2b"
 doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
 doppler_hook_initializer = "0xAA096F558f3d4c9226De77E7Cc05f18E180B2544"
+rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 
 [130]
 endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
@@ -100,6 +103,7 @@ uniswap_v4_pool_manager = "0x188d586ddcf52439676ca21a244753fa19f9ea8e"
 doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
 doppler_hook_initializer = "0xAA096F558f3d4c9226De77E7Cc05f18E180B2544"
+rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 
 [4326]
 endpoint_url = "${MEGAETH_MAINNET_RPC_URL}"
@@ -135,6 +139,7 @@ uniswap_v4_initializer = "0x53b4c21a6Cb61D64F636ABBfa6E8E90E6558e8ad"
 uniswap_v4_scheduled_multicurve_hook = "0xc6a562cb5CbFA29BCB1bDCCF903b8B8f2E4A2DC0"
 uniswap_v4_scheduled_multicurve_initializer = "0xF84378C9F39e0FF267f3101c88773359c5393876"
 doppler_hook_initializer = "0xAA096F558f3d4c9226De77E7Cc05f18E180B2544"
+rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
