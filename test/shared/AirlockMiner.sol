@@ -29,10 +29,11 @@ struct MineDopplerHookInitializerParams {
 }
 
 function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory params) view returns (bytes32, address) {
-    bytes32 salt = bytes32((uint256(uint160(params.sender)) << 96));
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(msg.sender)) << 96) | (keccak256(abi.encode(type(DopplerHookInitializer).name)) >> 168);
 
     for (uint96 seed; seed < type(uint96).max; seed++) {
-        salt = bytes32((uint256(uint160(params.sender)) << 96)) | bytes32(uint256(seed));
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
         bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
 
         address initializer = computeCreate3Address(guardedSalt, params.deployer);
