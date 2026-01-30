@@ -1,6 +1,8 @@
 {
   "1": {
     "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
+    "CloneDERC20VotesV2": "0x4bbfed1c27cde12ef6638251d81ab4e3be7556b7",
+    "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "CloneERC20": "0x215b2ce3dd8d110394e94a868580d61a77adec4a",
     "CloneERC20Factory": "0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e",
     "CloneERC20Votes": "0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf",
@@ -41,6 +43,8 @@
   "143": {
     "Airlock": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12",
     "Bundler": "0xc99b485499f78995c6f1640dbb1413c57f8ba684",
+    "CloneDERC20VotesV2": "0x4bbfed1c27cde12ef6638251d81ab4e3be7556b7",
+    "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
     "DopplerHookInitializer": "0xaa096f558f3d4c9226de77e7cc05f18e180b2544",
     "GovernanceFactory": "0xfaafde6a5b658684cc5eb0c5c2c755b00a246f45",
@@ -106,6 +110,8 @@
   "8453": {
     "Airlock": "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12",
     "Bundler": "0x136191B46478cAB023cbC01a36160C4Aad81677a",
+    "CloneDERC20VotesV2": "0x4bbfed1c27cde12ef6638251d81ab4e3be7556b7",
+    "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
     "DopplerHookInitializer": "0xaa096f558f3d4c9226de77e7cc05f18e180b2544",
     "DopplerLensQuoter": "0x43d0d97ec9241a8f05a264f94b82a1d2e600f2b3",
@@ -169,6 +175,8 @@
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "BasicMultisig": "0x6f645fa08b7eadad620cec85634204b1d7a46dc2",
     "Bundler": "0xab7bacb0d5c2c10152f92d34e07f530eb3cb0fb1",
+    "CloneDERC20VotesV2": "0x4bbfed1c27cde12ef6638251d81ab4e3be7556b7",
+    "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "CloneERC20": "0xe7f1cc50cca68975ed6e56ee4b0aaf171d02732a",
     "CloneERC20Factory": "0xbf4ca4d527c9760a884df31292f72e9aca503045",
     "CloneERC20Votes": "0x52831e40151a79fe2e74549b0974d44a10ac30ad",
@@ -201,6 +209,8 @@
   "11155111": {
     "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
+    "CloneDERC20VotesV2": "0x4bbfed1c27cde12ef6638251d81ab4e3be7556b7",
+    "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "CloneERC20": "0x215b2ce3dd8d110394e94a868580d61a77adec4a",
     "CloneERC20Factory": "0xe7df2a4520c26a2d4dedb3a7585bfbcd30eaba6e",
     "CloneERC20Votes": "0xa8d0e8036d3fae21c7af075ad41942bc1f807cdf",
