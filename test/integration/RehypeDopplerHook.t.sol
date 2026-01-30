@@ -557,6 +557,40 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         );
     }
 
+    function test_swap_ExactOutput_FeesInInputToken() public {
+        bytes32 salt = bytes32(uint256(18));
+        (bool isToken0,) = _createToken(salt);
+
+        IPoolManager.SwapParams memory setupSwap = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, setupSwap, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,,,, uint128 airlockOwnerFees0Before, uint128 airlockOwnerFees1Before,) = rehypeDopplerHook.getHookFees(poolId);
+
+        IPoolManager.SwapParams memory exactOutputSwap = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 0.5 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, exactOutputSwap, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,,,, uint128 airlockOwnerFees0After, uint128 airlockOwnerFees1After,) = rehypeDopplerHook.getHookFees(poolId);
+
+        uint128 deltaFees0 = airlockOwnerFees0After - airlockOwnerFees0Before;
+        uint128 deltaFees1 = airlockOwnerFees1After - airlockOwnerFees1Before;
+
+        if (!isToken0) {
+            assertGt(deltaFees0, 0, "Input token0 fees should increase");
+            assertEq(deltaFees1, 0, "Input token1 fees should not increase");
+        } else {
+            assertGt(deltaFees1, 0, "Input token1 fees should increase");
+            assertEq(deltaFees0, 0, "Input token0 fees should not increase");
+        }
+    }
+
     function _prepareInitData(address token) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
