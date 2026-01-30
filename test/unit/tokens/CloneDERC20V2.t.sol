@@ -23,6 +23,8 @@ import {
     NoReleasableAmount,
     PoolLocked,
     UnknownScheduleId,
+    UpdateMintRate,
+    UpdateTokenURI,
     VestingSchedule
 } from "src/tokens/CloneDERC20V2.sol";
 
@@ -78,9 +80,9 @@ contract CloneDERC20V2Test is Test {
         );
     }
 
-    // =========================================================================
-    // Initialize Tests
-    // =========================================================================
+    /* -------------------------------------------------------------------------- */
+    /*                                initialize()                                */
+    /* -------------------------------------------------------------------------- */
 
     function test_initialize_BasicSetup() public {
         // Two schedules: 1 year with 6 month cliff, 2 years with 1 year cliff
@@ -453,6 +455,8 @@ contract CloneDERC20V2Test is Test {
 
         string memory newURI = "ipfs://QmTest123";
 
+        vm.expectEmit();
+        emit UpdateTokenURI(newURI);
         vm.prank(OWNER);
         token.updateTokenURI(newURI);
 
@@ -2259,6 +2263,8 @@ contract CloneDERC20V2Test is Test {
         token.unlockPool();
 
         uint256 newRate = 0.01e18; // Half the original rate
+        vm.expectEmit();
+        emit UpdateMintRate(newRate);
         token.updateMintRate(newRate);
         vm.stopPrank();
 
