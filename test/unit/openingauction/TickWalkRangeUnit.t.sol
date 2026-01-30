@@ -182,6 +182,38 @@ contract TickWalkRangeUnitTest is Test {
         assertEq(ticks[1], int24(256 * 60));
     }
 
+    function test_walkTicksRange_ClampsToActiveBounds() public {
+        // Active ticks only in [60, 180]. Walking a huge range should emit only these.
+        h.__insertTick(60);
+        h.__insertTick(180);
+
+        vm.recordLogs();
+        h.__walk(-1_000_000, 1_000_000, true);
+        int24[] memory ticks = _collectTicks(TICK_ENTERED);
+
+        assertEq(ticks.length, 2);
+        assertEq(ticks[0], 60);
+        assertEq(ticks[1], 180);
+    }
+
+    function test_walkTicksRange_HandlesUnalignedRangeAndNegativeTicks() public {
+        // spacing 60; include negative ticks and unaligned start/end to exercise ceil/floor.
+        // Insert ticks at -120, 0, 120
+        h.__insertTick(-120);
+        h.__insertTick(0);
+        h.__insertTick(120);
+
+        // start/end are intentionally unaligned.
+        // With spacing=60: ceil(-119)=-60 and floor(121)=120, so -120 is *out of range*.
+        vm.recordLogs();
+        h.__walk(-119, 121, true);
+        int24[] memory ticks = _collectTicks(TICK_ENTERED);
+
+        assertEq(ticks.length, 2);
+        assertEq(ticks[0], 0);
+        assertEq(ticks[1], 120);
+    }
+
     function testFuzz_walkTicksRange_VisitsExactlyInsertedTicks(int256 seed) public {
         h.__setTickSpacing(1);
 
