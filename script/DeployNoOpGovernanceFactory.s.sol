@@ -35,8 +35,8 @@ contract DeployNoOpGovernanceFactoryScript is Script, Config {
             ICreateX(createX).deployCreate3(salt, abi.encodePacked(type(NoOpGovernanceFactory).creationCode));
         require(noOpGovernanceFactory == expectedAddress, "Unexpected deployed address");
 
-        config.set("no_op_governance_factory", noOpGovernanceFactory);
         vm.stopBroadcast();
+        config.set("no_op_governance_factory", noOpGovernanceFactory);
     }
 }
 
