@@ -1,62 +1,83 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { Script, console } from "forge-std/Script.sol";
+import { Config } from "forge-std/Config.sol";
+import { Script } from "forge-std/Script.sol";
+import { ChainIds } from "script/ChainIds.sol";
+import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { UniswapV4ScheduledMulticurveInitializer } from "src/initializers/UniswapV4ScheduledMulticurveInitializer.sol";
 import {
     UniswapV4ScheduledMulticurveInitializerHook
 } from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
-import { MineV4MigratorHookParams, mineV4ScheduledMulticurveHook } from "test/shared/AirlockMiner.sol";
-
-struct ScriptData {
-    address airlock;
-    address poolManager;
-    address create2Factory;
-}
+import {
+    MineV4MigratorHookParams,
+    mineV4ScheduledMulticurveHook,
+    mineV4ScheduledMulticurveHookCreate3
+} from "test/shared/AirlockMiner.sol";
 
 /**
  * @title Doppler Uniswap V4 Multicurve Initializer Deployment Script
  */
-abstract contract DeployUniswapV4ScheduledMulticurveInitializerScript is Script {
-    ScriptData internal _scriptData;
-
-    function setUp() public virtual;
-
+contract DeployUniswapV4ScheduledMulticurveInitializerScript is Script, Config {
     function run() public {
-        console.log(unicode"🚀 Deploying on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
+        _loadConfigAndForks("./deployments.config.toml", true);
+
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
+        }
+    }
+
+    function deployToChain(uint256 chainId) internal {
+        vm.selectFork(forkOf[chainId]);
+
+        address airlock = config.get("airlock").toAddress();
+        address createX = config.get("create_x").toAddress();
+        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
+        (bytes32 hookSalt, address hookDeployedTo) = mineV4ScheduledMulticurveHookCreate3(msg.sender, createX);
 
-        // Using `CREATE` we can pre-compute the UniswapV4ScheduledMulticurveInitializer address for mining the hook address
-        address precomputedInitializer = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
+        bytes32 initializerSalt = generateCreate3Salt(msg.sender, type(UniswapV4ScheduledMulticurveInitializer).name);
+        address initializerDeployedTo =
+            computeCreate3Address(computeCreate3GuardedSalt(initializerSalt, msg.sender), createX);
 
-        /// Mine salt for Multicurve hook address
-        (bytes32 salt, address minedHook) = mineV4ScheduledMulticurveHook(
-            MineV4MigratorHookParams({
-                poolManager: _scriptData.poolManager,
-                migrator: precomputedInitializer,
-                hookDeployer: _scriptData.create2Factory
-            })
-        );
+        address hook = ICreateX(createX)
+            .deployCreate3(
+                hookSalt,
+                abi.encodePacked(
+                    type(UniswapV4ScheduledMulticurveInitializerHook).creationCode,
+                    abi.encode(poolManager, initializerDeployedTo)
+                )
+            );
 
-        // Deploy migrator with pre-mined hook address
-        UniswapV4ScheduledMulticurveInitializer initializer = new UniswapV4ScheduledMulticurveInitializer(
-            _scriptData.airlock, IPoolManager(_scriptData.poolManager), IHooks(minedHook)
-        );
+        address initializer = ICreateX(createX)
+            .deployCreate3(
+                initializerSalt,
+                abi.encodePacked(
+                    type(UniswapV4ScheduledMulticurveInitializer).creationCode, abi.encode(airlock, poolManager, hook)
+                )
+            );
 
-        // Deploy hook with deployed migrator address
-        UniswapV4ScheduledMulticurveInitializerHook hook = new UniswapV4ScheduledMulticurveInitializerHook{
-            salt: salt
-        }(
-            IPoolManager(_scriptData.poolManager), address(initializer)
-        );
-
-        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
-        require(address(initializer.HOOK()) == address(hook), "Multicurve hook is not the expected address");
+        require(hook == hookDeployedTo, "Unexpected Hook deployed address");
+        require(initializer == initializerDeployedTo, "Unexpected Initializer deployed address");
 
         vm.stopBroadcast();
+        config.set("uniswap_v4_scheduled_multicurve_hook", hook);
+        config.set("uniswap_v4_scheduled_multicurve_initializer", initializer);
     }
+}
+
+/*
+struct ScriptData {
+    address airlock;
+    address poolManager;
+    address create2Factory;
 }
 
 /// @dev forge script DeployUniswapV4ScheduledMulticurveInitializerBaseScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $BASE_MAINNET_RPC_URL
@@ -117,7 +138,7 @@ contract DeployUniswapV4ScheduledMulticurveInitializerMainnetScript is
 {
     function setUp() public override {
         _scriptData = ScriptData({
-            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            airlock: 0xDe3599a2eC440B296373a983C85C365DA55d9dFA,
             poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
         });
@@ -130,9 +151,10 @@ contract DeployUniswapV4ScheduledMulticurveInitializerSepoliaScript is
 {
     function setUp() public override {
         _scriptData = ScriptData({
-            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            airlock: 0xDe3599a2eC440B296373a983C85C365DA55d9dFA,
             poolManager: 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
         });
     }
 }
+*/

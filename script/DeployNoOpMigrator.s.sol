@@ -36,7 +36,7 @@ contract DeployNoOpMigratorScript is Script, Config {
             .deployCreate3(salt, abi.encodePacked(type(NoOpMigrator).creationCode, abi.encode(airlock)));
         require(noOpMigrator == expectedAddress, "Unexpected deployed address");
 
-        config.set("no_op_migrator", noOpMigrator);
         vm.stopBroadcast();
+        config.set("no_op_migrator", noOpMigrator);
     }
 }
