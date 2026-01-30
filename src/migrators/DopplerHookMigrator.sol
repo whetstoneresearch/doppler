@@ -2,24 +2,35 @@
 pragma solidity ^0.8.26;
 
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
+import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, REQUIRES_DYNAMIC_LP_FEE_FLAG } from "src/base/BaseDopplerHook.sol";
+import {
+    ON_GRADUATION_FLAG,
+    ON_INITIALIZATION_FLAG,
+    ON_SWAP_FLAG,
+    REQUIRES_DYNAMIC_LP_FEE_FLAG
+} from "src/base/BaseDopplerHook.sol";
+import { BaseHook } from "src/base/BaseHook.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { DopplerHookMigratorHook } from "src/migrators/DopplerHookMigratorHook.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
+import { WAD } from "src/types/Wad.sol";
 
 /**
  * @notice Data to use for the migration
@@ -85,6 +96,9 @@ error LPFeeTooHigh(uint24 maxFee, uint256 fee);
 /// @notice Thrown when the hook is not provided but migration is attempted
 error CannotMigratePoolNoProvidedDopplerHook();
 
+/// @notice Thrown when the migrator is not the initializer
+error OnlySelf();
+
 
 /**
  * @notice Emitted when an asset is migrated
@@ -113,6 +127,26 @@ event SetDopplerHook(address indexed asset, address indexed dopplerHook);
 
 /// @notice Emitted when a pool graduates
 event Graduate(address indexed asset);
+
+/**
+ * @notice Emitted when a Swap occurs
+ * @param sender Address calling the PoolManager
+ * @param poolKey Key of the related pool
+ * @param poolId Id of the related pool
+ * @param params Parameters of the swap
+ * @param amount0 Balance denominated in token0
+ * @param amount1 Balance denominated in token1
+ * @param hookData Data passed to the hook
+ */
+event Swap(
+    address indexed sender,
+    PoolKey indexed poolKey,
+    PoolId indexed poolId,
+    IPoolManager.SwapParams params,
+    int128 amount0,
+    int128 amount1,
+    bytes hookData
+);
 
 /**
  * @notice Emitted when a user delegates their pool authority to another address
@@ -154,12 +188,8 @@ uint24 constant MAX_LP_FEE = 150_000;
  * @notice Migrates liquidity into a fresh Uniswap V4 pool using a migrator hook for initialization,
  * and distributes liquidity across multiple positions.
  */
-contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
-    /// @notice Address of the Uniswap V4 Pool Manager contract
-    IPoolManager public immutable poolManager;
-
-    /// @notice Address of the Doppler Hook Migrator hook
-    DopplerHookMigratorHook public immutable migratorHook;
+contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
+    using CurrencyLibrary for Currency;
 
     /// @notice Address of the StreamableFeesLockerV2 contract
     StreamableFeesLockerV2 public immutable locker;
@@ -168,7 +198,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
 
     /// @notice Returns the state of a pool
-    mapping(address asset => PoolState state) public getState;
+    mapping(address asset => PoolState state) private _state;
 
     /// @notice Maps a Uniswap V4 poolId to its associated asset
     mapping(PoolId poolId => address asset) public getAsset;
@@ -182,17 +212,12 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of Uniswap V4 PoolManager contract
-     * @param migratorHook_ Address of the Migrator hook
      * @param locker_ Address of the StreamableFeesLockerV2 contract (must be approved)
      */
-    constructor(
-        address airlock_,
-        IPoolManager poolManager_,
-        DopplerHookMigratorHook migratorHook_,
-        StreamableFeesLockerV2 locker_
-    ) ImmutableAirlock(airlock_) {
-        poolManager = poolManager_;
-        migratorHook = migratorHook_;
+    constructor(address airlock_, IPoolManager poolManager_, StreamableFeesLockerV2 locker_)
+        ImmutableAirlock(airlock_)
+        ImmutableState(poolManager_)
+    {
         locker = locker_;
     }
 
@@ -229,7 +254,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
         PoolKey memory poolKey = PoolKey({
             currency0: asset < numeraire ? Currency.wrap(asset) : Currency.wrap(numeraire),
             currency1: asset < numeraire ? Currency.wrap(numeraire) : Currency.wrap(asset),
-            hooks: migratorHook,
+            hooks: IHooks(address(this)),
             fee: useDynamicFee ? LPFeeLibrary.DYNAMIC_FEE_FLAG : feeOrInitialDynamicFee,
             tickSpacing: tickSpacing
         });
@@ -249,7 +274,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
             }
         }
 
-        PoolState memory state = getState[asset];
+        PoolState memory state = _state[asset];
         if (state.status != PoolStatus.Uninitialized) {
             revert WrongPoolStatus(uint8(PoolStatus.Uninitialized), uint8(state.status));
         }
@@ -283,7 +308,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         address asset = isToken0 ? token0 : token1;
         address numeraire = isToken0 ? token1 : token0;
-        PoolState memory state = getState[asset];
+        PoolState memory state = _state[asset];
         if (state.status != PoolStatus.Uninitialized) {
             revert WrongPoolStatus(uint8(PoolStatus.Uninitialized), uint8(state.status));
         }
@@ -300,7 +325,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
         poolManager.initialize(data.poolKey, sqrtPriceX96);
         PoolId poolId = data.poolKey.toId();
         getAsset[poolId] = asset;
-        getState[asset] = PoolState({
+        _state[asset] = PoolState({
             numeraire: numeraire,
             poolKey: data.poolKey,
             dopplerHook: data.dopplerHook,
@@ -311,7 +336,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
         emit InitializeMigrationPool(asset, numeraire, data.poolKey);
 
         if (data.useDynamicFee) {
-            migratorHook.updateDynamicLPFee(data.poolKey, data.feeOrInitialDynamicFee);
+            poolManager.updateDynamicLPFee(data.poolKey, data.feeOrInitialDynamicFee);
         }
 
         if (data.dopplerHook != address(0) && flags & ON_INITIALIZATION_FLAG != 0) {
@@ -374,7 +399,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
         bytes calldata onInitializationCalldata,
         bytes calldata onGraduationCalldata
     ) external {
-        PoolState memory state = getState[asset];
+        PoolState memory state = _state[asset];
         if (state.status != PoolStatus.Locked) {
             revert WrongPoolStatus(uint8(PoolStatus.Locked), uint8(state.status));
         }
@@ -391,8 +416,8 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
             }
         }
 
-        getState[asset].dopplerHook = dopplerHook;
-        getState[asset].onGraduationCalldata = onGraduationCalldata;
+        _state[asset].dopplerHook = dopplerHook;
+        _state[asset].onGraduationCalldata = onGraduationCalldata;
         emit SetDopplerHook(asset, dopplerHook);
 
         if (dopplerHook != address(0) && flags & ON_INITIALIZATION_FLAG != 0) {
@@ -422,14 +447,14 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
      * @param lpFee New dynamic LP fee to set
      */
     function updateDynamicLPFee(address asset, uint24 lpFee) external {
-        PoolState memory state = getState[asset];
+        PoolState memory state = _state[asset];
         if (state.status != PoolStatus.Locked) {
             revert WrongPoolStatus(uint8(PoolStatus.Locked), uint8(state.status));
         }
         if (state.poolKey.fee != LPFeeLibrary.DYNAMIC_FEE_FLAG) revert PoolNotDynamicFee();
         if (msg.sender != state.dopplerHook) revert SenderNotAuthorized();
         if (lpFee > MAX_LP_FEE) revert LPFeeTooHigh(MAX_LP_FEE, lpFee);
-        migratorHook.updateDynamicLPFee(state.poolKey, lpFee);
+        poolManager.updateDynamicLPFee(state.poolKey, lpFee);
     }
 
     /**
@@ -437,7 +462,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
      * @param asset Address of the asset to graduate
      */
     function graduate(address asset) external {
-        PoolState memory state = getState[asset];
+        PoolState memory state = _state[asset];
         if (state.status != PoolStatus.Locked) {
             revert WrongPoolStatus(uint8(PoolStatus.Locked), uint8(state.status));
         }
@@ -448,10 +473,114 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock {
             revert CannotMigratePoolNoProvidedDopplerHook();
         }
 
-        getState[asset].status = PoolStatus.Graduated;
+        _state[asset].status = PoolStatus.Graduated;
         emit Graduate(asset);
 
         IDopplerHook(dopplerHook).onGraduation(asset, state.poolKey, state.onGraduationCalldata);
+    }
+
+    function getMigratorState(address asset) external view returns (PoolState memory) {
+        return _state[asset];
+    }
+
+    function getState(address asset)
+        external
+        view
+        returns (
+            address numeraire,
+            BeneficiaryData[] memory beneficiaries,
+            Curve[] memory adjustedCurves,
+            uint256 totalTokensOnBondingCurve,
+            address dopplerHook,
+            bytes memory graduationCalldata,
+            PoolStatus status,
+            PoolKey memory poolKey,
+            int24 farTick
+        )
+    {
+        PoolState memory state = _state[asset];
+        if (state.poolKey.tickSpacing != 0) {
+            address token0 = Currency.unwrap(state.poolKey.currency0);
+            address token1 = Currency.unwrap(state.poolKey.currency1);
+            beneficiaries = getAssetData[token0][token1].beneficiaries;
+
+            adjustedCurves = new Curve[](1);
+            adjustedCurves[0] = Curve({
+                tickLower: TickMath.minUsableTick(state.poolKey.tickSpacing),
+                tickUpper: TickMath.maxUsableTick(state.poolKey.tickSpacing),
+                numPositions: 1,
+                shares: WAD
+            });
+        }
+        return (
+            state.numeraire,
+            beneficiaries,
+            adjustedCurves,
+            0,
+            state.dopplerHook,
+            state.onGraduationCalldata,
+            state.status,
+            state.poolKey,
+            0
+        );
+    }
+
+    function _beforeInitialize(address sender, PoolKey calldata, uint160) internal view override returns (bytes4) {
+        if (sender != address(this)) revert OnlySelf();
+        return BaseHook.beforeInitialize.selector;
+    }
+
+    function _afterSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta balanceDelta,
+        bytes calldata data
+    ) internal override returns (bytes4, int128) {
+        address asset = getAsset[key.toId()];
+        PoolState memory state = _state[asset];
+        address dopplerHook = state.dopplerHook;
+
+        int128 delta;
+
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
+            Currency feeCurrency;
+            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+
+            if (delta > 0) {
+                poolManager.take(feeCurrency, address(this), uint128(delta));
+                poolManager.sync(feeCurrency);
+
+                if (feeCurrency.isAddressZero()) {
+                    poolManager.settleFor{ value: uint128(delta) }(dopplerHook);
+                } else {
+                    feeCurrency.transfer(address(poolManager), uint128(delta));
+                    poolManager.settleFor(dopplerHook);
+                }
+            }
+        }
+
+        emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
+        return (BaseHook.afterSwap.selector, delta);
+    }
+
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+        return Hooks.Permissions({
+            beforeInitialize: true,
+            afterInitialize: false,
+            beforeAddLiquidity: false,
+            afterAddLiquidity: false,
+            beforeRemoveLiquidity: false,
+            afterRemoveLiquidity: false,
+            beforeSwap: false,
+            afterSwap: true,
+            beforeDonate: false,
+            afterDonate: false,
+            beforeSwapReturnDelta: false,
+            afterSwapReturnDelta: true,
+            afterAddLiquidityReturnDelta: false,
+            afterRemoveLiquidityReturnDelta: false
+        });
     }
 
     /// @dev Dummy function to pass to `storeBeneficiaries` since we only want to validate the beneficiaries here
