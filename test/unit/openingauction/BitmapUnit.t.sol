@@ -192,6 +192,67 @@ contract BitmapHarness {
         }
     }
 
+    // ============ Walk Helpers (mimic OpeningAuction iteration patterns) ============
+
+    /// @notice Walk active ticks between [startCompressed, endCompressed] inclusive
+    /// @dev Mimics OpeningAuction._walkTicksRange iteration pattern:
+    ///      iterTick starts at startCompressed; then calls nextInitializedTick(iterTick-1, lte=false, bound=end+1)
+    ///      and advances iterTick = nextCompressed + 1.
+    /// @param startCompressed Inclusive start (compressed tick)
+    /// @param endCompressed Inclusive end (compressed tick)
+    /// @param maxOut Safety cap to avoid runaway; must be >= expected count
+    function walkPatternA(int24 startCompressed, int24 endCompressed, uint256 maxOut)
+        public
+        view
+        returns (int24[] memory out, uint256 outLen)
+    {
+        out = new int24[](maxOut);
+        int24 iterTick = startCompressed;
+        while (iterTick <= endCompressed) {
+            (int24 nextTick, bool found) = nextInitializedTick(
+                _decompressTick(iterTick - 1),
+                false,
+                _decompressTick(endCompressed + 1)
+            );
+            if (!found) break;
+
+            int24 nextCompressed = _compressTick(nextTick);
+            if (nextCompressed > endCompressed) break;
+
+            if (outLen >= maxOut) revert("walk overflow");
+            out[outLen++] = nextCompressed;
+
+            iterTick = nextCompressed + 1;
+        }
+    }
+
+    /// @notice Alternative walk pattern: iterTick = nextCompressed (reviewer suggestion)
+    /// @dev Included to demonstrate potential duplicates/infinite loops if used incorrectly.
+    function walkPatternB(int24 startCompressed, int24 endCompressed, uint256 maxOut)
+        public
+        view
+        returns (int24[] memory out, uint256 outLen)
+    {
+        out = new int24[](maxOut);
+        int24 iterTick = startCompressed;
+        while (iterTick <= endCompressed) {
+            (int24 nextTick, bool found) = nextInitializedTick(
+                _decompressTick(iterTick - 1),
+                false,
+                _decompressTick(endCompressed + 1)
+            );
+            if (!found) break;
+
+            int24 nextCompressed = _compressTick(nextTick);
+            if (nextCompressed > endCompressed) break;
+
+            if (outLen >= maxOut) revert("walk overflow");
+            out[outLen++] = nextCompressed;
+
+            iterTick = nextCompressed; // differs
+        }
+    }
+
     // ============ Test Helpers ============
 
     /// @notice Direct access to set a word in the bitmap (for testing)
@@ -1054,4 +1115,101 @@ contract BitmapUnitTest is Test {
         uint256 expectedMask = type(uint256).max << 100;
         assertEq(mask, expectedMask, "GTE mask calculation incorrect");
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SECTION X: Tick-walk iteration regression tests (skip/duplicate detection)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function test_walkPatternA_NoSkip_ConsecutiveCompressedTicks() public {
+        harness.setTickSpacing(60);
+
+        // Insert ticks whose compressed values are consecutive: 0,1,2,3
+        // (ticks are decompressed here because insertTick takes real ticks)
+        harness.insertTick(0);
+        harness.insertTick(60);
+        harness.insertTick(120);
+        harness.insertTick(180);
+
+        (int24[] memory out, uint256 len) = harness.walkPatternA(0, 3, 16);
+        assertEq(len, 4, "should visit all 4 ticks");
+        assertEq(out[0], 0);
+        assertEq(out[1], 1);
+        assertEq(out[2], 2);
+        assertEq(out[3], 3);
+    }
+
+    function test_walkPatternA_NoSkip_SparseAndEdges() public {
+        harness.setTickSpacing(60);
+        // compressed ticks: -2, 0, 5, 255, 256
+        harness.insertTick(-120);
+        harness.insertTick(0);
+        harness.insertTick(300);
+        harness.insertTick(15300); // 255*60
+        harness.insertTick(15360); // 256*60 (word boundary)
+
+        (int24[] memory out, uint256 len) = harness.walkPatternA(-5, 300, 32);
+        // expected visited compressed within bounds
+        int24[] memory exp = new int24[](5);
+        exp[0] = -2;
+        exp[1] = 0;
+        exp[2] = 5;
+        exp[3] = 255;
+        exp[4] = 256;
+        assertEq(len, exp.length);
+        for (uint256 i = 0; i < len; i++) {
+            assertEq(out[i], exp[i]);
+        }
+    }
+
+    function test_walkPatternB_DemonstratesDuplicateRisk() public {
+        harness.setTickSpacing(60);
+        harness.insertTick(0);
+        harness.insertTick(60);
+
+        // PatternB does not advance past nextCompressed and can loop.
+        // Our harness guards with a maxOut cap and reverts with "walk overflow".
+        vm.expectRevert(bytes("walk overflow"));
+        harness.walkPatternB(0, 1, 4);
+    }
+
+    function testFuzz_walkPatternA_VisitsExactlyActiveTicks(int256 seed) public {
+        harness.setTickSpacing(1);
+
+        // Bounded compressed range [-32, 32]
+        int24 minC = -32;
+        int24 maxC = 32;
+
+        // Build a pseudo-random set of active ticks from seed (no external RNG)
+        // Use a 65-bit bitmap in memory (uint256) for expected membership.
+        uint256 expectedMask = 0;
+        for (int24 c = minC; c <= maxC; c++) {
+            // simple hash: mix seed and c
+            uint256 h = uint256(keccak256(abi.encode(seed, c)));
+            bool take = (h & 7) == 0; // ~1/8 density
+            if (take) {
+                harness.insertTick(c); // tickSpacing=1 => tick==compressed
+                expectedMask |= (1 << uint24(uint24(int24(c - minC))));
+            }
+        }
+
+        (int24[] memory out, uint256 len) = harness.walkPatternA(minC, maxC, 128);
+
+        // 1) ensure strictly increasing and within bounds
+        for (uint256 i = 0; i < len; i++) {
+            assertTrue(out[i] >= minC && out[i] <= maxC, "out of bounds");
+            if (i > 0) assertTrue(out[i] > out[i - 1], "not strictly increasing");
+        }
+
+        // 2) ensure visited set equals expected set
+        uint256 seenMask = 0;
+        for (uint256 i = 0; i < len; i++) {
+            uint256 bit = 1 << uint24(uint24(int24(out[i] - minC)));
+            seenMask |= bit;
+            assertTrue((expectedMask & bit) != 0, "visited tick not expected");
+        }
+        // every expected tick should have been seen
+        assertEq(seenMask, expectedMask, "mismatch: skip or missing tick");
+    }
+
 }
+
