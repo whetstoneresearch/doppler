@@ -6,7 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     ArrayLengthsMismatch,
-    CloneDERC20V2,
+    CloneDERC20VotesV2,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
     MAX_YEARLY_MINT_RATE_WAD,
@@ -16,16 +16,16 @@ import {
     MintingNotStartedYet,
     NoMintableAmount,
     VestingSchedule
-} from "src/tokens/CloneDERC20V2.sol";
-import { CloneDERC20V2Factory } from "src/tokens/CloneDERC20V2Factory.sol";
+} from "src/tokens/CloneDERC20VotesV2.sol";
+import { CloneDERC20VotesV2Factory } from "src/tokens/CloneDERC20VotesV2Factory.sol";
 import { generateRecipients } from "test/unit/tokens/CloneERC20Votes.t.sol";
 
 contract CloneDERC20V20VotesFactoryTest is Test {
     address internal AIRLOCK = makeAddr("Airlock");
-    CloneDERC20V2Factory internal factory;
+    CloneDERC20VotesV2Factory internal factory;
 
     function setUp() public {
-        factory = new CloneDERC20V2Factory(AIRLOCK);
+        factory = new CloneDERC20VotesV2Factory(AIRLOCK);
     }
 
     /* --------------------------------------------------------------------------- */
@@ -73,9 +73,10 @@ contract CloneDERC20V20VotesFactoryTest is Test {
         );
 
         vm.prank(AIRLOCK);
-        vm.startSnapshotGas("TokenFactory", "CloneDERC20V2/Recipients");
-        CloneDERC20V2 token = CloneDERC20V2(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
-        vm.stopSnapshotGas("TokenFactory", "CloneDERC20V2/Recipients");
+        vm.startSnapshotGas("TokenFactory", "CloneDERC20VotesV2/Recipients");
+        CloneDERC20VotesV2 token =
+            CloneDERC20VotesV2(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
+        vm.stopSnapshotGas("TokenFactory", "CloneDERC20VotesV2/Recipients");
 
         address asset = LibClone.predictDeterministicAddress(factory.IMPLEMENTATION(), bytes32(seed), address(factory));
         require(address(token) == asset, "Asset address mismatch");

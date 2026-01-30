@@ -3,28 +3,28 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import {
-    CloneDERC20V2,
+    CloneDERC20VotesV2,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
     MAX_YEARLY_MINT_RATE_WAD,
     MIN_VESTING_DURATION,
     VestingData,
     VestingSchedule
-} from "src/tokens/CloneDERC20V2.sol";
+} from "src/tokens/CloneDERC20VotesV2.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
-import { CloneDERC20V2Handler } from "test/invariant/CloneDERC20V2/CloneDERC20V2Handler.sol";
+import { CloneDERC20VotesV2Handler } from "test/invariant/CloneDERC20VotesV2/CloneDERC20VotesV2Handler.sol";
 
 /**
  * @title CloneDERC20V2InvariantsTest
- * @notice Invariant tests for CloneDERC20V2 multi-schedule vesting
+ * @notice Invariant tests for CloneDERC20VotesV2 multi-schedule vesting
  * @dev Tests critical properties that must always hold regardless of action sequence
  */
 contract CloneDERC20V2InvariantsTest is Test {
     using LibAddressSet for AddressSet;
 
-    CloneDERC20V2 public token;
-    CloneDERC20V2Handler public handler;
+    CloneDERC20VotesV2 public token;
+    CloneDERC20VotesV2Handler public handler;
 
     uint256 initialSupply;
     uint256 yearlyMintRate;
@@ -73,7 +73,7 @@ contract CloneDERC20V2InvariantsTest is Test {
             }
         }
 
-        token = new CloneDERC20V2();
+        token = new CloneDERC20VotesV2();
 
         // Deploy token
         token.initialize(
@@ -91,7 +91,7 @@ contract CloneDERC20V2InvariantsTest is Test {
         );
 
         // Deploy handler
-        handler = new CloneDERC20V2Handler(token, filteredBeneficiaries.addrs);
+        handler = new CloneDERC20VotesV2Handler(token, filteredBeneficiaries.addrs);
 
         // Configure fuzzer
         bytes4[] memory selectors = new bytes4[](5);

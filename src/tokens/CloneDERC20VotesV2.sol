@@ -66,11 +66,11 @@ event UpdateMintRate(uint256 newMintRate);
 /**
  * @title Clonable DERC20 V2
  * @author Whetstone Research
- * @notice Clonable ERC20 token with multi-schedule vesting, inflation, pool lock, and Permit2 support
+ * @notice Clonable ERC20 token with multi-schedule vesting, inflation, pool lock, votes and Permit2 support
  * @dev This contract is designed to be cloned using the ERC1167 minimal proxy pattern
  * @custom:security-contact security@whetstone.cc
  */
-contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
+contract CloneDERC20VotesV2 is ERC20, Initializable, Ownable, ERC20Votes {
     /// @dev Name of the token
     string private _name;
 

@@ -7,7 +7,7 @@ import { Initializable } from "@solady/utils/Initializable.sol";
 import { Test } from "forge-std/Test.sol";
 import {
     ArrayLengthsMismatch,
-    CloneDERC20V2,
+    CloneDERC20VotesV2,
     InvalidAllocation,
     InvalidSchedule,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
@@ -26,7 +26,7 @@ import {
     UpdateMintRate,
     UpdateTokenURI,
     VestingSchedule
-} from "src/tokens/CloneDERC20V2.sol";
+} from "src/tokens/CloneDERC20VotesV2.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
 uint256 constant YEARLY_MINT_RATE = 0.02e18;
@@ -37,10 +37,10 @@ address constant OWNER = address(0xb0b);
 string constant TOKEN_URI = "ipfs://QmInitialURI";
 
 contract CloneDERC20V2Test is Test {
-    CloneDERC20V2 public token;
+    CloneDERC20VotesV2 public token;
 
     function setUp() public {
-        token = new CloneDERC20V2();
+        token = new CloneDERC20VotesV2();
     }
 
     // =========================================================================

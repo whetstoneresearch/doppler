@@ -2,15 +2,20 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { CloneDERC20V2, NoReleasableAmount, VestingData, VestingSchedule } from "src/tokens/CloneDERC20V2.sol";
+import {
+    CloneDERC20VotesV2,
+    NoReleasableAmount,
+    VestingData,
+    VestingSchedule
+} from "src/tokens/CloneDERC20VotesV2.sol";
 
 /**
  * @title DERC20V2Handler
- * @notice Handler for invariant testing of CloneDERC20V2 multi-schedule vesting
+ * @notice Handler for invariant testing of CloneDERC20VotesV2 multi-schedule vesting
  * @dev Exposes bounded actions and tracks ghost variables for invariant assertions
  */
-contract CloneDERC20V2Handler is Test {
-    CloneDERC20V2 public token;
+contract CloneDERC20VotesV2Handler is Test {
+    CloneDERC20VotesV2 public token;
 
     // =========================================================================
     // Ghost Variables (mimic expected state for invariant checks)
@@ -45,7 +50,7 @@ contract CloneDERC20V2Handler is Test {
     // Constructor
     // =========================================================================
 
-    constructor(CloneDERC20V2 token_, address[] memory beneficiaries_) {
+    constructor(CloneDERC20VotesV2 token_, address[] memory beneficiaries_) {
         token = token_;
         beneficiaries = beneficiaries_;
         scheduleCount = token.vestingScheduleCount();
