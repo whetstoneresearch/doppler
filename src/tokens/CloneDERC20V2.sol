@@ -57,6 +57,12 @@ event VestingAllocated(address indexed beneficiary, uint256 indexed scheduleId, 
 /// @notice Emitted when tokens are released to a beneficiary
 event TokensReleased(address indexed beneficiary, uint256 indexed scheduleId, uint256 amount);
 
+/// @notice Emitted when the token URI is updated
+event UpdateTokenURI(string tokenURI);
+
+/// @notice Emitted when the yearly mint rate is updated
+event UpdateMintRate(uint256 newMintRate);
+
 /**
  * @title Clonable DERC20 V2
  * @author Whetstone Research
@@ -299,6 +305,7 @@ contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
         }
 
         yearlyMintRate = newMintRate;
+        emit UpdateMintRate(newMintRate);
     }
 
     /**
@@ -307,6 +314,7 @@ contract CloneDERC20V2 is ERC20, Initializable, Ownable, ERC20Votes {
      */
     function updateTokenURI(string memory tokenURI_) external onlyOwner {
         tokenURI = tokenURI_;
+        emit UpdateTokenURI(tokenURI_);
     }
 
     /* ----------------------------------------------------------------------------- */
