@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { ReentrancyGuardTransient } from "@solady/utils/ReentrancyGuardTransient.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 
 // ============ Errors ============
@@ -36,7 +38,6 @@ error UnderlyingNotForwarded();
 error UnderlyingNotLockerApproved();
 
 /// @notice Thrown when hook's migrator doesn't match underlying (optional preflight)
-error UnderlyingHookMismatch();
 
 // ============ Events ============
 
@@ -60,27 +61,17 @@ event WrappedMigration(
     address indexed underlying, address indexed token0, address indexed token1, uint160 sqrtPriceX96
 );
 
+/// @notice Emitted when top-up sources are configured for a pair
+event TopUpSourceConfigured(address indexed token0, address indexed token1, address source);
+
+/// @notice Emitted when a top-up succeeds
+event TopUpPulled(address indexed source, address indexed numeraire, uint256 amount);
+
 // ============ Interfaces ============
 
 /// @notice Interface to check if a contract has an airlock() accessor
 interface IHasAirlock {
     function airlock() external view returns (Airlock);
-}
-
-/// @notice Interface for V4 migrator preflight checks
-interface IV4MigratorPreflight {
-    function locker() external view returns (address);
-    function migratorHook() external view returns (address);
-}
-
-/// @notice Interface for StreamableFeesLocker approval check
-interface ILockerApproval {
-    function approvedMigrators(address) external view returns (bool);
-}
-
-/// @notice Interface for hook migrator binding check
-interface IHookMigrator {
-    function migrator() external view returns (address);
 }
 
 // ============ Storage ============
@@ -115,11 +106,14 @@ uint256 constant MAX_DISTRIBUTION_WAD = 5e17;
  * @notice Wrapper migrator that distributes a share of numeraire proceeds before forwarding to underlying migrator
  * @custom:security-contact security@whetstone.cc
  */
-contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
+contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock, ReentrancyGuardTransient {
     using SafeTransferLib for ERC20;
 
     /// @notice Configuration for each token pair
     mapping(address token0 => mapping(address token1 => DistributionConfig)) public getDistributionConfig;
+
+    /// @notice Optional top-up source configured per token pair
+    mapping(address token0 => mapping(address token1 => address)) internal getTopUpSource;
 
     /**
      * @notice Constructor
@@ -142,6 +136,11 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
     receive() external payable onlyAirlock { }
 
     /**
+     * @notice Accepts ETH from a top-up source during pull step
+     */
+    function acceptTopUpETH() external payable { }
+
+    /**
      * @notice Initializes distribution config and forwards to underlying migrator
      * @param asset The asset token address
      * @param numeraire The numeraire token address (address(0) for ETH)
@@ -154,8 +153,13 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
         bytes calldata data
     ) external onlyAirlock returns (address migrationPool) {
         // Decode payload
-        (address payout, uint256 percentWad, address underlyingMigrator, bytes memory underlyingData) =
-            abi.decode(data, (address, uint256, address, bytes));
+        (
+            address payout,
+            uint256 percentWad,
+            address underlyingMigrator,
+            bytes memory underlyingData,
+            address topUpSource
+        ) = abi.decode(data, (address, uint256, address, bytes, address));
 
         // Basic validation
         if (payout == address(0)) revert InvalidPayout();
@@ -178,10 +182,6 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
             revert UnderlyingNotForwarded();
         }
 
-        // Optional V4 preflight checks (fail-fast for V4 migrators)
-        // These are SHOULD checks per spec - helps catch misconfiguration early
-        _performV4PreflightChecks(underlyingMigrator);
-
         // Store config with BOTH asset and numeraire explicitly (underlyingData is NOT stored per spec)
         // Storing both enables explicit validation in migrate() - prevents ordering spoofing
         getDistributionConfig[token0][token1] = DistributionConfig({
@@ -191,6 +191,11 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
             asset: asset,
             numeraire: numeraire
         });
+
+        if (topUpSource != address(0)) {
+            getTopUpSource[token0][token1] = topUpSource;
+            emit TopUpSourceConfigured(token0, token1, topUpSource);
+        }
 
         // Forward initialize to underlying migrator
         migrationPool = ILiquidityMigrator(underlyingMigrator).initialize(asset, numeraire, underlyingData);
@@ -209,7 +214,7 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
         address token0,
         address token1,
         address recipient
-    ) external payable onlyAirlock returns (uint256 liquidity) {
+    ) external payable onlyAirlock nonReentrant returns (uint256 liquidity) {
         // Look up config using sorted key
         DistributionConfig memory config = getDistributionConfig[token0][token1];
         if (config.payout == address(0)) revert PoolNotInitialized();
@@ -220,20 +225,10 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
             || (config.asset == token1 && config.numeraire == token0);
         if (!validPair) revert TokenPairMismatch();
 
-        // Use stored numeraire directly (no derivation needed - more secure)
         address numeraire = config.numeraire;
+        address topUpSource = getTopUpSource[token0][token1];
 
-        // CEI Pattern: Delete config BEFORE external calls to prevent reentrancy
-        // We've already loaded config into memory, so this is safe
-        delete getDistributionConfig[token0][token1];
-
-        // Compute numeraire balance and distribution
-        uint256 numeraireBalance;
-        if (numeraire == address(0)) {
-            numeraireBalance = address(this).balance;
-        } else {
-            numeraireBalance = ERC20(numeraire).balanceOf(address(this));
-        }
+        uint256 numeraireBalance = _numeraireBalance(numeraire);
 
         uint256 distribution = (numeraireBalance * config.percentWad) / WAD;
 
@@ -246,6 +241,8 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
             }
             emit Distribution(config.payout, numeraire, distribution, config.percentWad);
         }
+
+        _pullSupplementalLiquidity(config, topUpSource, numeraire);
 
         // Forward remaining balances to underlying migrator
         address underlying = address(config.underlying);
@@ -269,42 +266,29 @@ contract DistributionMigrator is ILiquidityMigrator, ImmutableAirlock {
 
         emit WrappedMigration(underlying, token0, token1, sqrtPriceX96);
 
-        // Call underlying migrate
         liquidity = config.underlying.migrate{ value: ethToForward }(sqrtPriceX96, token0, token1, recipient);
     }
 
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Performs optional V4 preflight checks for fail-fast validation
-     * @dev These are SHOULD checks per spec - helps catch misconfiguration at create-time rather than migrate-time
-     * @param underlyingMigrator Address of the underlying migrator to check
-     */
-    function _performV4PreflightChecks(address underlyingMigrator) internal view {
-        // Try to get locker and check approval (V4 migrators only)
-        try IV4MigratorPreflight(underlyingMigrator).locker() returns (address locker) {
-            if (locker != address(0)) {
-                try ILockerApproval(locker).approvedMigrators(underlyingMigrator) returns (bool approved) {
-                    if (!approved) revert UnderlyingNotLockerApproved();
-                } catch {
-                    // Locker doesn't have approvedMigrators - skip check
-                }
-            }
-        } catch {
-            // Not a V4 migrator or doesn't have locker() - skip check
+    function _numeraireBalance(address numeraire) internal view returns (uint256) {
+        if (numeraire == address(0)) {
+            return address(this).balance;
         }
+        return ERC20(numeraire).balanceOf(address(this));
+    }
 
-        // Try to get hook and check migrator binding (V4 migrators only)
-        try IV4MigratorPreflight(underlyingMigrator).migratorHook() returns (address hook) {
-            if (hook != address(0)) {
-                try IHookMigrator(hook).migrator() returns (address hookMigrator) {
-                    if (hookMigrator != underlyingMigrator) revert UnderlyingHookMismatch();
-                } catch {
-                    // Hook doesn't have migrator() - skip check
-                }
-            }
-        } catch {
-            // Not a V4 migrator or doesn't have migratorHook() - skip check
-        }
+    function _pullSupplementalLiquidity(
+        DistributionConfig memory config,
+        address supplementalSource,
+        address numeraire
+    ) private {
+        if (supplementalSource == address(0)) return;
+
+        uint256 preBalance = _numeraireBalance(numeraire);
+        uint256 reported = IDistributionTopUpSource(supplementalSource).pullTopUp(config.asset, numeraire);
+        uint256 postBalance = _numeraireBalance(numeraire);
+
+        uint256 delta = postBalance > preBalance ? postBalance - preBalance : 0;
+        if (delta == 0 && reported == 0) return;
+        emit TopUpPulled(supplementalSource, numeraire, delta == 0 ? reported : delta);
     }
 }

@@ -19,6 +19,7 @@ import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol"
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import {
     IUniswapV2Factory,
@@ -130,14 +131,38 @@ function deployForwardedUniswapV4Migrator(
     vm.stopPrank();
 }
 
+/// @notice Simple numeraire-only top-up source used in integration tests
+contract IntegrationTopUpSource is IDistributionTopUpSource {
+    TestERC20 public immutable numeraireToken;
+    mapping(address asset => uint256 amount) public available;
+
+    constructor(TestERC20 numeraire_) {
+        numeraireToken = numeraire_;
+    }
+
+    function fund(address asset, uint256 amount) external {
+        numeraireToken.transferFrom(msg.sender, address(this), amount);
+        available[asset] += amount;
+    }
+
+    function pullTopUp(address asset, address numeraire) external override returns (uint256 amount) {
+        if (numeraire != address(numeraireToken)) return 0;
+        amount = available[asset];
+        if (amount == 0) return 0;
+        available[asset] = 0;
+        numeraireToken.transfer(msg.sender, amount);
+    }
+}
+
 /// @notice Encodes distribution migrator initialization data
 function prepareDistributionMigratorData(
     address payout,
     uint256 percentWad,
     address underlyingMigrator,
-    bytes memory underlyingData
+    bytes memory underlyingData,
+    address topUpSource
 ) pure returns (bytes memory) {
-    return abi.encode(payout, percentWad, underlyingMigrator, underlyingData);
+    return abi.encode(payout, percentWad, underlyingMigrator, underlyingData, topUpSource);
 }
 
 /// @notice Prepares standard V4 migrator data with default beneficiaries
@@ -215,9 +240,13 @@ abstract contract DistributionMigratorV4BaseTest is BaseIntegrationTest {
 
     /// @notice Configures the distribution migrator with given parameters
     function _configureDistributor(address payout, uint256 percentWad) internal {
+        _configureDistributorWithSource(payout, percentWad, address(0));
+    }
+
+    function _configureDistributorWithSource(address payout, uint256 percentWad, address topUpSource) internal {
         bytes memory underlyingData = prepareForwardedUniswapV4MigratorData(airlock);
         bytes memory distributionData =
-            prepareDistributionMigratorData(payout, percentWad, address(forwardedV4Migrator), underlyingData);
+            prepareDistributionMigratorData(payout, percentWad, address(forwardedV4Migrator), underlyingData, topUpSource);
         createParams.liquidityMigrator = distributor;
         createParams.liquidityMigratorData = distributionData;
     }
@@ -278,6 +307,7 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
     uint256 public percentWad = 1e17; // 10%
 
     TestERC20 internal numeraire;
+    IntegrationTopUpSource internal topUpSource;
 
     function setUp() public override {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
@@ -286,6 +316,7 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
         name = "DistributionMigratorV2Integration";
 
         numeraire = new TestERC20(0);
+        topUpSource = new IntegrationTopUpSource(numeraire);
 
         TokenFactory tokenFactory = deployTokenFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.tokenFactory = tokenFactory;
@@ -311,7 +342,7 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
         );
 
         bytes memory distributionData =
-            prepareDistributionMigratorData(payout, percentWad, address(forwardedV2Migrator), "");
+            prepareDistributionMigratorData(payout, percentWad, address(forwardedV2Migrator), "", address(0));
         createParams.liquidityMigrator = distributor;
         createParams.liquidityMigratorData = distributionData;
 
@@ -367,6 +398,27 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
         address v2Pair = IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(asset, address(numeraire));
         assertTrue(v2Pair != address(0), "V2 pair should exist");
         assertTrue(IUniswapV2Pair(v2Pair).totalSupply() > 0, "V2 pair should have liquidity");
+    }
+
+    function test_fullFlow_V2_WithTopUpSource() public {
+        createParams.liquidityMigratorData =
+            prepareDistributionMigratorData(payout, percentWad, address(forwardedV2Migrator), "", address(topUpSource));
+
+        (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
+
+        uint256 topUpAmount = 1_000 ether;
+        numeraire.mint(address(this), topUpAmount);
+        numeraire.approve(address(topUpSource), topUpAmount);
+        topUpSource.fund(asset, topUpAmount);
+
+        uint256 payoutBalanceBefore = numeraire.balanceOf(payout);
+        _beforeMigrate();
+        uint256 proceedsBefore = numeraire.balanceOf(address(distributor));
+        airlock.migrate(asset);
+
+        uint256 expectedDistribution = (proceedsBefore * percentWad) / WAD;
+        assertEq(numeraire.balanceOf(payout) - payoutBalanceBefore, expectedDistribution, "Top-up should not be skimmed");
+        assertEq(topUpSource.available(asset), 0, "Top-up source should be drained");
     }
 }
 

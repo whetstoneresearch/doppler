@@ -17,12 +17,11 @@ import {
     MAX_DISTRIBUTION_WAD,
     PoolNotInitialized,
     TokenPairMismatch,
-    UnderlyingHookMismatch,
     UnderlyingNotForwarded,
-    UnderlyingNotLockerApproved,
     UnderlyingNotWhitelisted,
     WAD
 } from "src/migrators/distribution/DistributionMigrator.sol";
+import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
 
 /// @notice Mock underlying migrator for testing
 contract MockForwardedMigrator is ILiquidityMigrator {
@@ -86,49 +85,6 @@ contract MockRevertingMigrator is ILiquidityMigrator {
     }
 }
 
-/// @notice Mock V4 migrator with locker and hook for preflight checks
-contract MockV4Migrator is ILiquidityMigrator {
-    address public airlock;
-    address public locker;
-    address public migratorHook;
-    address public returnPool;
-
-    constructor(address airlock_, address locker_, address hook_, address returnPool_) {
-        airlock = airlock_;
-        locker = locker_;
-        migratorHook = hook_;
-        returnPool = returnPool_;
-    }
-
-    function initialize(address, address, bytes calldata) external view returns (address) {
-        return returnPool;
-    }
-
-    function migrate(uint160, address, address, address) external payable returns (uint256) {
-        return 1000 ether;
-    }
-
-    receive() external payable { }
-}
-
-/// @notice Mock locker for V4 preflight tests
-contract MockLocker {
-    mapping(address => bool) public approvedMigrators;
-
-    function setApproval(address migrator, bool approved) external {
-        approvedMigrators[migrator] = approved;
-    }
-}
-
-/// @notice Mock hook for V4 preflight tests
-contract MockHook {
-    address public migrator;
-
-    function setMigrator(address migrator_) external {
-        migrator = migrator_;
-    }
-}
-
 /// @notice Mock forwarded migrator WITH onlyAirlock modifier (for security tests)
 /// @dev This mock properly simulates the real ForwardedMigrator behavior
 contract MockForwardedMigratorWithGuard is ILiquidityMigrator {
@@ -156,6 +112,52 @@ contract MockForwardedMigratorWithGuard is ILiquidityMigrator {
     }
 
     receive() external payable { }
+}
+
+/// @notice Mock ERC20 top-up source that transfers preset amounts
+contract MockTopUpSourceERC20 is IDistributionTopUpSource {
+    mapping(address => uint256) public available;
+    TestERC20 public immutable token;
+
+    constructor(TestERC20 token_) {
+        token = token_;
+    }
+
+    function setAmount(address asset, uint256 amount) external {
+        available[asset] = amount;
+    }
+
+    function pullTopUp(address asset, address numeraire) external override returns (uint256 amount) {
+        if (numeraire != address(token)) return 0;
+        amount = available[asset];
+        if (amount == 0) return 0;
+        available[asset] = 0;
+        token.transfer(msg.sender, amount);
+    }
+}
+
+/// @notice Mock ETH top-up source that forwards stored ETH through acceptTopUpETH
+contract MockTopUpSourceETH is IDistributionTopUpSource {
+    mapping(address => uint256) public available;
+
+    function fund(address asset) external payable {
+        available[asset] += msg.value;
+    }
+
+    function pullTopUp(address asset, address numeraire) external override returns (uint256 amount) {
+        if (numeraire != address(0)) return 0;
+        amount = available[asset];
+        if (amount == 0) return 0;
+        available[asset] = 0;
+        DistributionMigrator(payable(msg.sender)).acceptTopUpETH{ value: amount }();
+    }
+}
+
+/// @notice Mock top-up source that always reverts
+contract MockRevertingTopUpSource is IDistributionTopUpSource {
+    function pullTopUp(address, address) external pure override returns (uint256) {
+        revert("topup revert");
+    }
 }
 
 contract DistributionMigratorTest is Test {
@@ -236,34 +238,34 @@ contract DistributionMigratorTest is Test {
     // ============ initialize() Validation Tests ============
 
     function test_initialize_RevertsWhenNotAirlock() public {
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.expectRevert(SenderNotAirlock.selector);
         distributor.initialize(address(asset), address(numeraire), data);
     }
 
     function test_initialize_RevertsWhenPayoutIsZero() public {
-        bytes memory data = abi.encode(address(0), PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(address(0), PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert(InvalidPayout.selector);
         distributor.initialize(address(asset), address(numeraire), data);
     }
 
     function test_initialize_RevertsWhenUnderlyingIsZero() public {
-        bytes memory data = abi.encode(payout, PERCENT_10, address(0), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(0), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert(InvalidUnderlying.selector);
         distributor.initialize(address(asset), address(numeraire), data);
     }
 
     function test_initialize_RevertsWhenUnderlyingIsSelf() public {
-        bytes memory data = abi.encode(payout, PERCENT_10, address(distributor), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(distributor), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert(InvalidUnderlying.selector);
         distributor.initialize(address(asset), address(numeraire), data);
     }
 
     function test_initialize_RevertsWhenPercentExceedsMax() public {
-        bytes memory data = abi.encode(payout, PERCENT_50 + 1, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_50 + 1, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert(InvalidPercent.selector);
         distributor.initialize(address(asset), address(numeraire), data);
@@ -273,7 +275,7 @@ contract DistributionMigratorTest is Test {
         // Deploy non-whitelisted mock
         MockForwardedMigrator nonWhitelisted = new MockForwardedMigrator(address(distributor), address(0), 0);
 
-        bytes memory data = abi.encode(payout, PERCENT_10, address(nonWhitelisted), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(nonWhitelisted), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert(UnderlyingNotWhitelisted.selector);
         distributor.initialize(address(asset), address(numeraire), data);
@@ -291,14 +293,14 @@ contract DistributionMigratorTest is Test {
         vm.prank(owner);
         airlock.setModuleState(modules, states);
 
-        bytes memory data = abi.encode(payout, PERCENT_10, address(wrongAirlock), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(wrongAirlock), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert(UnderlyingNotForwarded.selector);
         distributor.initialize(address(asset), address(numeraire), data);
     }
 
     function test_initialize_RevertsOnOverwrite() public {
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
 
         // First initialization succeeds
         vm.prank(address(airlock));
@@ -322,7 +324,7 @@ contract DistributionMigratorTest is Test {
         vm.prank(owner);
         airlock.setModuleState(modules, states);
 
-        bytes memory data = abi.encode(payout, PERCENT_10, address(revertingMock), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(revertingMock), "", address(0));
         vm.prank(address(airlock));
         vm.expectRevert("UNDERLYING_FAILED");
         distributor.initialize(address(asset), address(numeraire), data);
@@ -331,8 +333,8 @@ contract DistributionMigratorTest is Test {
     // ============ initialize() Success Tests ============
 
     function test_initialize_StoresConfig() public {
-        bytes memory underlyingData = abi.encode("test data");
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), underlyingData);
+        bytes memory underlyingData = abi.encode("test data", new address[](0));
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), underlyingData, address(0));
 
         vm.prank(address(airlock));
         address pool = distributor.initialize(address(asset), address(numeraire), data);
@@ -361,8 +363,8 @@ contract DistributionMigratorTest is Test {
     }
 
     function test_initialize_ForwardsToUnderlying() public {
-        bytes memory underlyingData = abi.encode("test data");
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), underlyingData);
+        bytes memory underlyingData = abi.encode("test data", new address[](0));
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), underlyingData, address(0));
 
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
@@ -392,7 +394,7 @@ contract DistributionMigratorTest is Test {
 
     function test_migrate_RevertsWhenTokenPairMismatch_WrongKeyLookup() public {
         // Initialize config with (asset, numeraire)
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -422,7 +424,7 @@ contract DistributionMigratorTest is Test {
         // or collision. The explicit check ensures we fail safely even in those cases.
 
         // Initialize config
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -448,7 +450,7 @@ contract DistributionMigratorTest is Test {
 
     function test_migrate_DistributesNumeraireOnly() public {
         // Initialize
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -476,9 +478,96 @@ contract DistributionMigratorTest is Test {
         assertEq(numeraire.balanceOf(address(mockUnderlying)), numeraireAmount - expectedDistribution);
     }
 
+    function test_migrate_PullsERC20TopUpsWithoutSkimming() public {
+        MockTopUpSourceERC20 topUpSource = new MockTopUpSourceERC20(numeraire);
+        address topUpAddr = address(topUpSource);
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", topUpAddr);
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        uint256 proceeds = 500 ether;
+        uint256 topUpAmount = 200 ether;
+        asset.mint(address(distributor), 1000 ether);
+        numeraire.mint(address(distributor), proceeds);
+        numeraire.mint(address(topUpSource), topUpAmount);
+        topUpSource.setAmount(address(asset), topUpAmount);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        uint256 expectedDistribution = (proceeds * PERCENT_10) / WAD;
+        assertEq(numeraire.balanceOf(payout), expectedDistribution);
+        assertEq(
+            numeraire.balanceOf(address(mockUnderlying)), proceeds - expectedDistribution + topUpAmount
+        );
+        assertEq(numeraire.balanceOf(address(topUpSource)), 0);
+    }
+
+    function test_migrate_PullsETHTopUps() public {
+        // fresh underlying for ETH path
+        MockForwardedMigrator ethMock = new MockForwardedMigrator(address(distributor), address(0x9999), 42 ether);
+        address[] memory modules = new address[](1);
+        modules[0] = address(ethMock);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.LiquidityMigrator;
+        vm.prank(owner);
+        airlock.setModuleState(modules, states);
+
+        MockTopUpSourceETH topUpSource = new MockTopUpSourceETH();
+        address topUpAddr = address(topUpSource);
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(ethMock), "", topUpAddr);
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(0), data);
+
+        uint256 proceeds = 10 ether;
+        uint256 topUpAmount = 3 ether;
+        asset.mint(address(distributor), 500 ether);
+        vm.deal(address(airlock), proceeds);
+        vm.prank(address(airlock));
+        (bool sent,) = address(distributor).call{ value: proceeds }("");
+        assertTrue(sent);
+        topUpSource.fund{ value: topUpAmount }(address(asset));
+
+        address token0 = address(0);
+        address token1 = address(asset);
+
+        uint256 payoutBefore = payout.balance;
+        vm.prank(address(airlock));
+        distributor.migrate(1e18, token0, token1, recipient);
+
+        uint256 expectedDistribution = (proceeds * PERCENT_10) / WAD;
+        assertEq(payout.balance - payoutBefore, expectedDistribution);
+        assertEq(address(ethMock).balance, proceeds - expectedDistribution + topUpAmount);
+    }
+
+    function test_migrate_RevertsWhenTopUpSourceReverts() public {
+        address topUpAddr = address(new MockRevertingTopUpSource());
+
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", topUpAddr);
+        vm.prank(address(airlock));
+        distributor.initialize(address(asset), address(numeraire), data);
+
+        numeraire.mint(address(distributor), 200 ether);
+        asset.mint(address(distributor), 50 ether);
+
+        (address token0, address token1) = address(asset) < address(numeraire)
+            ? (address(asset), address(numeraire))
+            : (address(numeraire), address(asset));
+
+        vm.prank(address(airlock));
+        vm.expectRevert(bytes("topup revert"));
+        distributor.migrate(1e18, token0, token1, recipient);
+    }
+
     function test_migrate_RoundingFavorsProtocol() public {
         // Initialize with 10%
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -517,7 +606,7 @@ contract DistributionMigratorTest is Test {
         airlock.setModuleState(modules, states);
 
         // Initialize with ETH as numeraire (token0 since address(0) < any other address)
-        bytes memory data = abi.encode(payout, PERCENT_10, address(ethMock), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(ethMock), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), ethNumeraire, data);
 
@@ -548,9 +637,9 @@ contract DistributionMigratorTest is Test {
         assertEq(asset.balanceOf(address(ethMock)), assetAmount);
     }
 
-    function test_migrate_DeletesConfigAfterMigration() public {
+    function test_migrate_ConfigPersistsAfterMigration() public {
         // Initialize
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -564,14 +653,14 @@ contract DistributionMigratorTest is Test {
         vm.prank(address(airlock));
         distributor.migrate(1e18, token0, token1, recipient);
 
-        // Check config was deleted
+        // Check config still exists for post-migration inspection
         (address storedPayout,,,,) = distributor.getDistributionConfig(token0, token1);
-        assertEq(storedPayout, address(0));
+        assertEq(storedPayout, payout);
     }
 
     function test_migrate_ForwardsToUnderlying() public {
         // Initialize
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -605,7 +694,7 @@ contract DistributionMigratorTest is Test {
         percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
 
         // Initialize
-        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -629,7 +718,7 @@ contract DistributionMigratorTest is Test {
 
     /// @notice Test with zero numeraire balance - distribution should be 0
     function test_migrate_ZeroNumeraireBalance() public {
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -652,7 +741,7 @@ contract DistributionMigratorTest is Test {
 
     /// @notice Test with very large balance to check overflow safety
     function test_migrate_LargeBalanceNoOverflow() public {
-        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -685,7 +774,7 @@ contract DistributionMigratorTest is Test {
         vm.prank(owner);
         airlock.setModuleState(modules, states);
 
-        bytes memory data = abi.encode(payout, PERCENT_10, address(revertingMock), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(revertingMock), "", address(0));
         vm.prank(address(airlock));
         // Note: initialize will also revert since the mock reverts on initialize, and the error bubbles up
         vm.expectRevert("MIGRATE_FAILED");
@@ -694,7 +783,7 @@ contract DistributionMigratorTest is Test {
 
     /// @notice Test event emission when distribution is zero (percentWad = 0)
     function test_migrate_NoEventWhenZeroDistribution() public {
-        bytes memory data = abi.encode(payout, 0, address(mockUnderlying), ""); // 0%
+        bytes memory data = abi.encode(payout, 0, address(mockUnderlying), "", address(0)); // 0%
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -724,7 +813,7 @@ contract DistributionMigratorTest is Test {
 
     /// @notice Test that asset balance is never affected by distribution
     function test_migrate_AssetBalanceUnaffected() public {
-        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -751,7 +840,7 @@ contract DistributionMigratorTest is Test {
         balance = bound(balance, 1, type(uint128).max);
         percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
 
-        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -778,7 +867,7 @@ contract DistributionMigratorTest is Test {
         numAmt = bound(numAmt, 0, type(uint128).max);
         percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
 
-        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -807,7 +896,7 @@ contract DistributionMigratorTest is Test {
         }
 
         // Initialize pool 1 with 10%
-        bytes memory data1 = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+        bytes memory data1 = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data1);
 
@@ -822,7 +911,7 @@ contract DistributionMigratorTest is Test {
         airlock.setModuleState(modules, states);
 
         // Initialize pool 2 with 50%
-        bytes memory data2 = abi.encode(payout, PERCENT_50, address(mockUnderlying2), "");
+        bytes memory data2 = abi.encode(payout, PERCENT_50, address(mockUnderlying2), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset2), address(numeraire2), data2);
 
@@ -870,7 +959,7 @@ contract DistributionMigratorTest is Test {
         uint256 maxSafeBalance = type(uint256).max / WAD; // ~1.15e59
         balance = bound(balance, type(uint128).max, maxSafeBalance);
 
-        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, PERCENT_50, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -895,7 +984,7 @@ contract DistributionMigratorTest is Test {
         balance = bound(balance, 1, type(uint128).max);
         percentWad = bound(percentWad, 0, MAX_DISTRIBUTION_WAD);
 
-        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "");
+        bytes memory data = abi.encode(payout, percentWad, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -913,10 +1002,9 @@ contract DistributionMigratorTest is Test {
         assertLe(distribution, balance / 2 + 1, "Distribution exceeded 50%"); // +1 for rounding
     }
 
-    /// @notice Test CEI pattern - config is deleted before external calls (reentrancy protection)
-    function test_migrate_ConfigDeletedBeforeExternalCalls() public {
-        // This test verifies CEI pattern by checking config is gone even if we could re-enter
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
+    /// @notice Config remains accessible after migrate for telemetry/reading
+    function test_migrate_ConfigPersistsForInspection() public {
+        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "", address(0));
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -933,14 +1021,14 @@ contract DistributionMigratorTest is Test {
         vm.prank(address(airlock));
         distributor.migrate(1e18, token0, token1, recipient);
 
-        // After migrate - config should be deleted
+        // After migrate - config should remain for offchain inspection
         (address storedPayoutAfter,,,,) = distributor.getDistributionConfig(token0, token1);
-        assertEq(storedPayoutAfter, address(0), "Config should be deleted after migrate");
+        assertEq(storedPayoutAfter, payout, "Config should persist after migrate");
     }
 
     /// @notice Test with zero percent - no distribution should occur
     function test_migrate_ZeroPercent() public {
-        bytes memory data = abi.encode(payout, 0, address(mockUnderlying), ""); // 0%
+        bytes memory data = abi.encode(payout, 0, address(mockUnderlying), "", address(0)); // 0%
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -962,7 +1050,7 @@ contract DistributionMigratorTest is Test {
 
     /// @notice Test exact max percent (50%)
     function test_migrate_ExactMaxPercent() public {
-        bytes memory data = abi.encode(payout, MAX_DISTRIBUTION_WAD, address(mockUnderlying), ""); // exactly 50%
+        bytes memory data = abi.encode(payout, MAX_DISTRIBUTION_WAD, address(mockUnderlying), "", address(0)); // exactly 50%
         vm.prank(address(airlock));
         distributor.initialize(address(asset), address(numeraire), data);
 
@@ -980,109 +1068,6 @@ contract DistributionMigratorTest is Test {
         assertEq(numeraire.balanceOf(payout), balance / 2);
         // Underlying should receive exactly 50%
         assertEq(numeraire.balanceOf(address(mockUnderlying)), balance / 2);
-    }
-
-    // ============ V4 Preflight Check Tests ============
-
-    /// @notice Test V4 preflight - reverts when locker has not approved migrator
-    function test_initialize_RevertsWhenLockerNotApproved() public {
-        // Deploy mock locker and hook
-        MockLocker mockLocker = new MockLocker();
-        MockHook mockHook = new MockHook();
-
-        // Deploy V4 mock migrator with locker and hook
-        MockV4Migrator v4Mock =
-            new MockV4Migrator(address(distributor), address(mockLocker), address(mockHook), address(0x1234));
-
-        // Set hook's migrator correctly
-        mockHook.setMigrator(address(v4Mock));
-
-        // DON'T approve the migrator in locker (this should cause revert)
-        // mockLocker.setApproval(address(v4Mock), true); // Intentionally NOT called
-
-        // Whitelist the V4 mock
-        address[] memory modules = new address[](1);
-        modules[0] = address(v4Mock);
-        ModuleState[] memory states = new ModuleState[](1);
-        states[0] = ModuleState.LiquidityMigrator;
-        vm.prank(owner);
-        airlock.setModuleState(modules, states);
-
-        bytes memory data = abi.encode(payout, PERCENT_10, address(v4Mock), "");
-        vm.prank(address(airlock));
-        vm.expectRevert(UnderlyingNotLockerApproved.selector);
-        distributor.initialize(address(asset), address(numeraire), data);
-    }
-
-    /// @notice Test V4 preflight - reverts when hook's migrator doesn't match
-    function test_initialize_RevertsWhenHookMigratorMismatch() public {
-        // Deploy mock locker and hook
-        MockLocker mockLocker = new MockLocker();
-        MockHook mockHook = new MockHook();
-
-        // Deploy V4 mock migrator with locker and hook
-        MockV4Migrator v4Mock =
-            new MockV4Migrator(address(distributor), address(mockLocker), address(mockHook), address(0x1234));
-
-        // Approve the migrator in locker
-        mockLocker.setApproval(address(v4Mock), true);
-
-        // Set hook's migrator to WRONG address
-        mockHook.setMigrator(address(0xdead)); // Wrong migrator!
-
-        // Whitelist the V4 mock
-        address[] memory modules = new address[](1);
-        modules[0] = address(v4Mock);
-        ModuleState[] memory states = new ModuleState[](1);
-        states[0] = ModuleState.LiquidityMigrator;
-        vm.prank(owner);
-        airlock.setModuleState(modules, states);
-
-        bytes memory data = abi.encode(payout, PERCENT_10, address(v4Mock), "");
-        vm.prank(address(airlock));
-        vm.expectRevert(UnderlyingHookMismatch.selector);
-        distributor.initialize(address(asset), address(numeraire), data);
-    }
-
-    /// @notice Test V4 preflight - succeeds when locker approved and hook matches
-    function test_initialize_V4PreflightSuccess() public {
-        // Deploy mock locker and hook
-        MockLocker mockLocker = new MockLocker();
-        MockHook mockHook = new MockHook();
-
-        // Deploy V4 mock migrator with locker and hook
-        MockV4Migrator v4Mock =
-            new MockV4Migrator(address(distributor), address(mockLocker), address(mockHook), address(0x1234));
-
-        // Approve the migrator in locker
-        mockLocker.setApproval(address(v4Mock), true);
-
-        // Set hook's migrator correctly
-        mockHook.setMigrator(address(v4Mock));
-
-        // Whitelist the V4 mock
-        address[] memory modules = new address[](1);
-        modules[0] = address(v4Mock);
-        ModuleState[] memory states = new ModuleState[](1);
-        states[0] = ModuleState.LiquidityMigrator;
-        vm.prank(owner);
-        airlock.setModuleState(modules, states);
-
-        bytes memory data = abi.encode(payout, PERCENT_10, address(v4Mock), "");
-        vm.prank(address(airlock));
-        // Should succeed
-        address pool = distributor.initialize(address(asset), address(numeraire), data);
-        assertEq(pool, address(0x1234));
-    }
-
-    /// @notice Test that non-V4 migrators (without locker/hook) still work
-    function test_initialize_NonV4MigratorSkipsPreflight() public {
-        // mockUnderlying doesn't have locker() or migratorHook(), so preflight should be skipped
-        bytes memory data = abi.encode(payout, PERCENT_10, address(mockUnderlying), "");
-        vm.prank(address(airlock));
-        // Should succeed - no preflight checks triggered for non-V4 migrators
-        address pool = distributor.initialize(address(asset), address(numeraire), data);
-        assertEq(pool, address(0x1234));
     }
 
     // ============ Security: ForwardedMigrator Direct Use Protection ============
@@ -1127,7 +1112,7 @@ contract DistributionMigratorTest is Test {
         airlock.setModuleState(modules, states);
 
         // Now use it through the proper flow: Airlock → Distributor → ForwardedMigrator
-        bytes memory data = abi.encode(payout, PERCENT_10, address(guardedMock), "");
+        bytes memory data = abi.encode(payout, PERCENT_10, address(guardedMock), "", address(0));
         vm.prank(address(airlock));
         // Airlock calls Distributor, Distributor calls guardedMock
         // guardedMock.airlock = distributor, msg.sender = distributor → SUCCESS
