@@ -1,15 +1,80 @@
 /// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
-import { Script, console } from "forge-std/Script.sol";
+import { Config } from "forge-std/Config.sol";
+import { Script } from "forge-std/Script.sol";
+import { ChainIds } from "script/ChainIds.sol";
+import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { Airlock } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
 import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
-import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
+import { mineV4MigratorHookCreate3 } from "test/shared/AirlockMiner.sol";
 
+contract DeployV4MigratorScript is Script, Config {
+    function run() public {
+        _loadConfigAndForks("./deployments.config.toml", true);
+
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
+        }
+    }
+
+    function deployToChain(uint256 chainId) internal {
+        vm.selectFork(forkOf[chainId]);
+
+        address airlock = config.get("airlock").toAddress();
+        address multisig = config.get("airlock_multisig").toAddress();
+        address createX = config.get("create_x").toAddress();
+        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
+        address positionManager = config.get("uniswap_v4_position_manager").toAddress();
+
+        vm.startBroadcast();
+        (bytes32 hookSalt, address hookDeployedTo) = mineV4MigratorHookCreate3(msg.sender, createX);
+
+        bytes32 lockerSalt = generateCreate3Salt(msg.sender, type(StreamableFeesLocker).name);
+        address lockerDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(lockerSalt, msg.sender), createX);
+
+        bytes32 migratorSalt = generateCreate3Salt(msg.sender, type(UniswapV4Migrator).name);
+        address migratorDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(migratorSalt, msg.sender), createX);
+
+        address locker = ICreateX(createX)
+            .deployCreate3(
+                lockerSalt,
+                abi.encodePacked(type(StreamableFeesLocker).creationCode, abi.encode(positionManager, multisig))
+            );
+
+        address migrator = ICreateX(createX)
+            .deployCreate3(
+                migratorSalt,
+                abi.encodePacked(
+                    type(UniswapV4Migrator).creationCode,
+                    abi.encode(airlock, poolManager, positionManager, locker, hookDeployedTo)
+                )
+            );
+
+        address migratorHook = ICreateX(createX)
+            .deployCreate3(
+                hookSalt, abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(poolManager, migrator))
+            );
+        require(locker == lockerDeployedTo, "Unexpected Locker deployed address");
+        require(migrator == migratorDeployedTo, "Unexpected Migrator deployed address");
+        require(migratorHook == hookDeployedTo, "Unexpected Migrator Hook deployed address");
+
+        vm.stopBroadcast();
+        config.set("streamable_fees_locker", locker);
+        config.set("uniswap_v4_migrator", migrator);
+        config.set("uniswap_v4_migrator_hook", migratorHook);
+    }
+}
+
+/*
 struct ScriptData {
     address airlock;
     address poolManager;
@@ -17,10 +82,6 @@ struct ScriptData {
     address create2Factory;
 }
 
-/**
- * @title Doppler V4 Migrator Deployment Script
- * @notice Use this script if the rest of the protocol (Airlock and co) is already deployed
- */
 abstract contract DeployV4MigratorScript is Script {
     ScriptData internal _scriptData;
 
@@ -136,3 +197,40 @@ contract DeployV4MigratorMonadTestnetScript is DeployV4MigratorScript {
         });
     }
 }
+
+/// @dev forge script DeployV4MigratorMonadMainnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $MONAD_MAINNET_RPC_URL
+contract DeployV4MigratorMonadMainnetScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12,
+            poolManager: 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e,
+            positionManager: 0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorMainnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $ETH_MAINNET_RPC_URL
+contract DeployV4MigratorMainnetScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+
+/// @dev forge script DeployV4MigratorSepoliaScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $ETH_SEPOLIA_RPC_URL
+contract DeployV4MigratorSepoliaScript is DeployV4MigratorScript {
+    function setUp() public override {
+        _scriptData = ScriptData({
+            airlock: 0x0000000000000000000000000000000000000000, // TODO: Replace me!
+            poolManager: 0x000000000004444c5dc75cB358380D2e3dE08A90,
+            positionManager: 0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e,
+            create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C
+        });
+    }
+}
+*/

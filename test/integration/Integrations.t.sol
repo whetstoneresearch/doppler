@@ -338,7 +338,7 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
     bool internal isToken0;
 
     function setUp() public override {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         super.setUp();
 
         name = "TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4Migrator";
@@ -379,15 +379,15 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: address(numeraire),
-                    tokenOut: asset,
-                    fee: uint24(3000),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1e48,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
-                })
+                tokenIn: address(numeraire),
+                tokenOut: asset,
+                fee: uint24(3000),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1e48,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
+            })
             );
     }
 }

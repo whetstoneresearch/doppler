@@ -207,11 +207,11 @@ contract CloneERC20 is ERC20, Initializable, Ownable {
     }
 
     /**
-     * @notice Burns `amount` of tokens from the address `owner`
+     * @notice Burns `amount` of tokens from the caller's balance
      * @param amount Amount of tokens to burn
      */
-    function burn(uint256 amount) external onlyOwner {
-        _burn(owner(), amount);
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
     }
 
     /**

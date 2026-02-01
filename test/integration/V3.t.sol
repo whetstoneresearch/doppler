@@ -47,7 +47,7 @@ contract V3Test is Test {
     GovernanceFactory public governanceFactory;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
@@ -153,30 +153,30 @@ contract V3Test is Test {
         uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(asset),
-                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 80 : targetTick - 80);
         amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(asset),
-                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         assertGt(amountOut, 0, "Amount out is 0");
@@ -300,15 +300,15 @@ contract V3Test is Test {
         uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(asset),
-                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
         assertEq(amountOut, DERC20(asset).balanceOf(address(this)));
 

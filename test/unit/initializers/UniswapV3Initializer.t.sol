@@ -32,7 +32,7 @@ contract UniswapV3InitializerTest is Test {
     UniswapV3Initializer public initializer;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         initializer = new UniswapV3Initializer(address(this), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
     }
 
@@ -162,15 +162,15 @@ contract UniswapV3InitializerTest is Test {
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(token),
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(token),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         // (, currentTick,,,,,) = IUniswapV3Pool(pool).slot0();
@@ -286,29 +286,29 @@ contract UniswapV3InitializerTest is Test {
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(isToken0),
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(isToken0),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_UPPER_TICK)
+            })
             );
 
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(notIsToken0),
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(notIsToken0),
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(DEFAULT_LOWER_TICK)
+            })
             );
 
         uint256 isToken0Balance = isToken0.balanceOf(address(0x666));

@@ -1,58 +1,45 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
-import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
-import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
-import { Script, console } from "forge-std/Script.sol";
+import { Config } from "forge-std/Config.sol";
+import { Script } from "forge-std/Script.sol";
+import { ChainIds } from "script/ChainIds.sol";
+import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { Airlock } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
 
-struct DeployBundlerScriptData {
-    address airlock;
-    address quoterV2;
-    address quoterV4;
-    address router;
-}
+contract DeployBundlerScript is Script, Config {
+    function run() public {
+        _loadConfigAndForks("./deployments.config.toml", true);
 
-contract DeployBundlerScript is Script {
-    function _deployBundler(Airlock airlock, UniversalRouter router, IQuoterV2 quoter, IV4Quoter quoterV4)
-        internal
-        returns (Bundler)
-    {
-        vm.startBroadcast();
-        Bundler bundler = new Bundler(airlock, router, quoter, quoterV4);
-        vm.stopBroadcast();
-        return bundler;
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
+        }
     }
 
-    function run() public {
-        console.log(
-            unicode"🚀 Deploying Bundler on chain %s with sender %s...", vm.toString(block.chainid), msg.sender
-        );
+    function deployToChain(uint256 chainId) internal {
+        vm.selectFork(forkOf[chainId]);
 
-        // Let's check if we have the script data for this chain
-        string memory path = "./script/legacy/addresses.toml";
-        string memory raw = vm.readFile(path);
-        bool exists = vm.keyExistsToml(raw, string.concat(".", vm.toString(block.chainid)));
-        require(exists, string.concat("Missing script data for chain id", vm.toString(block.chainid)));
+        address airlock = config.get("airlock").toAddress();
+        address quoter = config.get("quoter").toAddress();
+        address router = config.get("universal_router").toAddress();
+        address createX = config.get("create_x").toAddress();
 
-        bytes memory data = vm.parseToml(raw, string.concat(".", vm.toString(block.chainid)));
-        DeployBundlerScriptData memory scriptData = abi.decode(data, (DeployBundlerScriptData));
+        vm.startBroadcast();
+        bytes32 salt = generateCreate3Salt(msg.sender, type(Bundler).name);
+        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
-        _deployBundler(
-            Airlock(payable(scriptData.airlock)),
-            UniversalRouter(payable(scriptData.router)),
-            IQuoterV2(scriptData.quoterV2),
-            IV4Quoter(scriptData.quoterV4)
-        );
+        address bundler = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(Bundler).creationCode, abi.encode(airlock, router, quoter)));
+        require(bundler == expectedAddress, "Unexpected deployed address");
 
-        /*
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| Contract Name              | Address                                    |");
-        console.log("+----------------------------+--------------------------------------------+");
-        console.log("| Bundler                    | %s |", address(bundler));
-        console.log("+----------------------------+--------------------------------------------+");
-        */
+        vm.stopBroadcast();
+        config.set("bundler", bundler);
     }
 }

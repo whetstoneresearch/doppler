@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { console } from "forge-std/console.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { TokenFactory80 } from "src/tokens/TokenFactory80.sol";
 
@@ -28,8 +27,7 @@ contract DeployTokenFactory80Script is Script, Config {
         address tokenFactory = ICreateX(createX)
             .deployCreate3(salt, abi.encodePacked(type(TokenFactory80).creationCode, abi.encode(airlock)));
 
-        console.log("TokenFactory80 deployed to:", tokenFactory);
-        config.set("token_factory_80", tokenFactory);
         vm.stopBroadcast();
+        config.set("token_factory_80", tokenFactory);
     }
 }
