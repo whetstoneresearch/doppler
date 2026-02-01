@@ -19,6 +19,8 @@ struct HookFees {
     uint128 fees1;
     uint128 beneficiaryFees0;
     uint128 beneficiaryFees1;
+    uint128 airlockOwnerFees0;
+    uint128 airlockOwnerFees1;
     uint24 customFee;
 }
 

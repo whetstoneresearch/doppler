@@ -3,24 +3,22 @@ pragma solidity ^0.8.24;
 
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { console } from "forge-std/console.sol";
+import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt } from "script/utils/CreateX.sol";
 import { Airlock } from "src/Airlock.sol";
-import { computeCreate3Address, efficientHash } from "test/shared/AirlockMiner.sol";
 
 contract DeployAirlockScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        for (uint256 i; i < chainIds.length; i++) {
-            uint256 chainId = chainIds[i];
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
 
-            // Right now we're only deploying to MegaETH chains since Airlock is already deployed on others
-            // MegaETH Mainnet 4326
-            // MegaETH Testnet 6343
-            if (chainId == 6343 || chainId == 4326) {
-                deployToChain(chainId);
-            }
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
         }
     }
 
@@ -32,16 +30,13 @@ contract DeployAirlockScript is Script, Config {
 
         vm.startBroadcast();
         bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xb16b055));
-        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
-
-        address predictedAddress = computeCreate3Address(guardedSalt, createX);
+        address predictedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
         address airlock =
             ICreateX(createX).deployCreate3(salt, abi.encodePacked(type(Airlock).creationCode, abi.encode(multisig)));
         require(airlock == predictedAddress, "Unexpected deployed address");
-
-        console.log("Airlock deployed to:", airlock);
-        config.set("airlock", airlock);
         vm.stopBroadcast();
+
+        config.set("airlock", airlock);
     }
 }

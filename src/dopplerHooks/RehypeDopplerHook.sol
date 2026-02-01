@@ -13,8 +13,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { FeeDistributionInfo, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -22,13 +22,36 @@ import { WAD } from "src/types/Wad.sol";
 /// @notice Thrown when the fee distribution does not add up to WAD (1e18)
 error FeeDistributionMustAddUpToWAD();
 
-/// @notice Thrown when the sender is not a beneficiary of the pool
-error SenderNotBeneficiary();
+/// @notice Thrown when the sender is not authorized to perform an action
+error SenderNotAuthorized();
+
+/// @notice Thrown when the sender is not the airlock owner
+error SenderNotAirlockOwner();
+
+/**
+ * @notice Emitted when Airlock owner claims fees
+ * @param poolId Pool from which fees were claimed
+ * @param airlockOwner Address that received the fees
+ * @param fees0 Amount of currency0 claimed
+ * @param fees1 Amount of currency1 claimed
+ */
+event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
 
 // Constants
+/// @dev Maximum swap fee denominator (1e6 = 100%)
 uint256 constant MAX_SWAP_FEE = 1e6;
+
+/// @dev Epsilon trigger for rebalancing swaps
 uint128 constant EPSILON = 1e6;
+
+/// @dev Maximum iterations for rebalancing swap calculation
 uint256 constant MAX_REBALANCE_ITERATIONS = 15;
+
+/// @dev Airlock owner fee in basis points (5% = 500 BPS)
+uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
+
+/// @dev Basis points denominator
+uint256 constant BPS_DENOMINATOR = 10_000;
 
 /**
  * @title Rehype Doppler Hook
@@ -57,6 +80,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /// @notice Pool info for each pool
     mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
+
+    receive() external payable { }
 
     /**
      * @param initializer Address of the DopplerHookInitializer contract
@@ -179,18 +204,23 @@ contract RehypeDopplerHook is BaseDopplerHook {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
 
         Position storage position = getPosition[poolId];
-        (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut, uint160 postSwapSqrtPrice) =
+        (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut,) =
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
         if (shouldSwap && swapAmountIn > 0) {
             Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
             if (outputCurrency.balanceOf(address(poolManager)) > swapAmountOut) {
+                uint160 postSwapSqrtPrice;
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
                 lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
                 lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
-                (uint256 amount0Added, uint256 amount1Added) =
+                BalanceDelta liquidityDelta =
                     _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
-                balance0 = zeroForOne ? balance0 - swapAmountIn - amount0Added : balance0 + swapAmountOut - amount0Added;
-                balance1 = zeroForOne ? balance1 + swapAmountOut - amount1Added : balance1 - swapAmountIn - amount1Added;
+                balance0 = uint256(
+                    int256(zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut) + liquidityDelta.amount0()
+                );
+                balance1 = uint256(
+                    int256(zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn) + liquidityDelta.amount1()
+                );
             }
         }
 
@@ -335,8 +365,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param amount0 Amount of currency0 to add
      * @param amount1 Amount of currency1 to add
      * @param sqrtPriceX96 Current square root price of the pool
-     * @return amount0Added Actual amount of currency0 added
-     * @return amount1Added Actual amount of currency1 added
+     * @return callerDelta The balance delta (negative = paid, positive = received fees)
      */
     function _addFullRangeLiquidity(
         PoolKey memory key,
@@ -344,7 +373,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 amount0,
         uint256 amount1,
         uint160 sqrtPriceX96
-    ) internal returns (uint256 amount0Added, uint256 amount1Added) {
+    ) internal returns (BalanceDelta callerDelta) {
         uint128 liquidityDelta;
 
         if (amount0 >= 1 && amount1 >= 1) {
@@ -358,10 +387,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
 
         if (liquidityDelta == 0) {
-            return (0, 0);
+            return toBalanceDelta(0, 0);
         }
 
-        (BalanceDelta balanceDelta, BalanceDelta feeDelta) = poolManager.modifyLiquidity(
+        (callerDelta,) = poolManager.modifyLiquidity(
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: position.tickLower,
@@ -372,16 +401,10 @@ contract RehypeDopplerHook is BaseDopplerHook {
             new bytes(0)
         );
 
-        // subtract the fees to avoid overflow when casting to uint
-        BalanceDelta realizedDelta = balanceDelta - feeDelta;
-
-        _settleDelta(key, realizedDelta);
-        _collectDelta(key, realizedDelta);
+        _settleDelta(key, callerDelta);
+        _collectDelta(key, callerDelta);
 
         position.liquidity += liquidityDelta;
-
-        amount0Added = uint256(uint128(-realizedDelta.amount0()));
-        amount1Added = uint256(uint128(-realizedDelta.amount1()));
     }
 
     /**
@@ -551,15 +574,43 @@ contract RehypeDopplerHook is BaseDopplerHook {
         fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
 
         if (hookFees.beneficiaryFees0 > 0) {
-            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
             getHookFees[poolId].beneficiaryFees0 = 0;
+            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
         }
         if (hookFees.beneficiaryFees1 > 0) {
-            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
             getHookFees[poolId].beneficiaryFees1 = 0;
+            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
         }
 
         return fees;
+    }
+
+    /**
+     * @notice Claims accumulated airlock owner fees for a pool
+     * @param asset Asset address to identify the pool
+     * @return fees0 Amount of currency0 claimed
+     * @return fees1 Amount of currency1 claimed
+     */
+    function claimAirlockOwnerFees(address asset) external returns (uint128 fees0, uint128 fees1) {
+        address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
+        require(msg.sender == airlockOwner, SenderNotAirlockOwner());
+
+        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        PoolId poolId = poolKey.toId();
+
+        fees0 = getHookFees[poolId].airlockOwnerFees0;
+        fees1 = getHookFees[poolId].airlockOwnerFees1;
+
+        if (fees0 > 0) {
+            getHookFees[poolId].airlockOwnerFees0 = 0;
+            poolKey.currency0.transfer(msg.sender, fees0);
+        }
+        if (fees1 > 0) {
+            getHookFees[poolId].airlockOwnerFees1 = 0;
+            poolKey.currency1.transfer(msg.sender, fees1);
+        }
+
+        emit AirlockOwnerFeesClaimed(poolId, msg.sender, fees0, fees1);
     }
 
     /**
@@ -576,52 +627,14 @@ contract RehypeDopplerHook is BaseDopplerHook {
         uint256 numeraireBuybackPercentWad,
         uint256 beneficiaryPercentWad,
         uint256 lpPercentWad
-    ) external onlyInitializer {
-        require(
-            assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad == WAD,
-            FeeDistributionMustAddUpToWAD()
-        );
-
-        getFeeDistributionInfo[poolId] = FeeDistributionInfo({
-            assetBuybackPercentWad: assetBuybackPercentWad,
-            numeraireBuybackPercentWad: numeraireBuybackPercentWad,
-            beneficiaryPercentWad: beneficiaryPercentWad,
-            lpPercentWad: lpPercentWad
-        });
-    }
-
-    /**
-     * @notice Updates the fee distribution for a pool, callable by any beneficiary
-     * @param poolId Uniswap V4 poolId
-     * @param assetBuybackPercentWad Percentage for asset buyback (in WAD)
-     * @param numeraireBuybackPercentWad Percentage for numeraire buyback (in WAD)
-     * @param beneficiaryPercentWad Percentage for beneficiary (in WAD)
-     * @param lpPercentWad Percentage for LP reinvestment (in WAD)
-     */
-    function setFeeDistributionByBeneficiary(
-        PoolId poolId,
-        uint256 assetBuybackPercentWad,
-        uint256 numeraireBuybackPercentWad,
-        uint256 beneficiaryPercentWad,
-        uint256 lpPercentWad
     ) external {
+        address buybackDst = getPoolInfo[poolId].buybackDst;
+        require(msg.sender == buybackDst, SenderNotAuthorized());
+
         require(
             assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad == WAD,
             FeeDistributionMustAddUpToWAD()
         );
-
-        // Get asset from pool info and verify sender is a beneficiary
-        address asset = getPoolInfo[poolId].asset;
-        BeneficiaryData[] memory beneficiaries = DopplerHookInitializer(payable(INITIALIZER)).getBeneficiaries(asset);
-
-        bool isBeneficiary = false;
-        for (uint256 i = 0; i < beneficiaries.length; i++) {
-            if (beneficiaries[i].beneficiary == msg.sender) {
-                isBeneficiary = true;
-                break;
-            }
-        }
-        require(isBeneficiary, SenderNotBeneficiary());
 
         getFeeDistributionInfo[poolId] = FeeDistributionInfo({
             assetBuybackPercentWad: assetBuybackPercentWad,
@@ -637,7 +650,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param delta BalanceDelta of the swap
      * @param key Uniswap V4 pool key
      * @param poolId Uniswap V4 poolId (to save gas)
-     * @return feeCurrency Currency in which the fee was collected
+     * @return feeCurrency Currency in which the fee was collected (always the unspecified token)
      * @return feeDelta Amount of fee collected in feeCurrency
      */
     function _collectSwapFees(
@@ -646,21 +659,29 @@ contract RehypeDopplerHook is BaseDopplerHook {
         PoolKey memory key,
         PoolId poolId
     ) internal returns (Currency feeCurrency, int128 feeDelta) {
-        bool outputIsToken0 = params.zeroForOne ? false : true;
-        int256 outputAmount = outputIsToken0 ? delta.amount0() : delta.amount1();
+        int256 outputAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
 
         if (outputAmount <= 0) {
             return (feeCurrency, feeDelta);
         }
 
-        if (params.amountSpecified < 0) {
-            feeCurrency = outputIsToken0 ? key.currency0 : key.currency1;
+        bool exactInput = params.amountSpecified < 0;
+
+        // Fee is always taken from the unspecified token:
+        feeCurrency = params.zeroForOne == exactInput ? key.currency1 : key.currency0;
+
+        // Compute fee based on the feeCurrency amount
+        uint256 feeBase;
+        if (exactInput) {
+            // For exact input, fee is of output
+            feeBase = uint256(outputAmount);
         } else {
-            bool inputIsToken0 = params.zeroForOne ? true : false;
-            feeCurrency = inputIsToken0 ? key.currency0 : key.currency1;
+            // For exact output, fee is of input
+            int256 inputAmount = params.zeroForOne ? delta.amount0() : delta.amount1();
+            feeBase = uint256(-inputAmount);
         }
 
-        uint256 feeAmount = FullMath.mulDiv(uint256(outputAmount), getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
@@ -669,10 +690,16 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         poolManager.take(feeCurrency, address(this), feeAmount);
 
+        // Calculate airlock owner fee (5% of total fee)
+        uint256 airlockOwnerFee = FullMath.mulDiv(feeAmount, AIRLOCK_OWNER_FEE_BPS, BPS_DENOMINATOR);
+        uint256 remainingFee = feeAmount - airlockOwnerFee;
+
         if (feeCurrency == key.currency0) {
-            getHookFees[poolId].fees0 += uint128(feeAmount);
+            getHookFees[poolId].airlockOwnerFees0 += uint128(airlockOwnerFee);
+            getHookFees[poolId].fees0 += uint128(remainingFee);
         } else {
-            getHookFees[poolId].fees1 += uint128(feeAmount);
+            getHookFees[poolId].airlockOwnerFees1 += uint128(airlockOwnerFee);
+            getHookFees[poolId].fees1 += uint128(remainingFee);
         }
 
         return (feeCurrency, int128(uint128(feeAmount)));
