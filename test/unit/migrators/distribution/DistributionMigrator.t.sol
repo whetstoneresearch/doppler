@@ -6,6 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import {
     AlreadyInitialized,
@@ -21,7 +22,6 @@ import {
     UnderlyingNotWhitelisted,
     WAD
 } from "src/migrators/distribution/DistributionMigrator.sol";
-import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
 
 /// @notice Mock underlying migrator for testing
 contract MockForwardedMigrator is ILiquidityMigrator {
@@ -502,9 +502,7 @@ contract DistributionMigratorTest is Test {
 
         uint256 expectedDistribution = (proceeds * PERCENT_10) / WAD;
         assertEq(numeraire.balanceOf(payout), expectedDistribution);
-        assertEq(
-            numeraire.balanceOf(address(mockUnderlying)), proceeds - expectedDistribution + topUpAmount
-        );
+        assertEq(numeraire.balanceOf(address(mockUnderlying)), proceeds - expectedDistribution + topUpAmount);
         assertEq(numeraire.balanceOf(address(topUpSource)), 0);
     }
 
