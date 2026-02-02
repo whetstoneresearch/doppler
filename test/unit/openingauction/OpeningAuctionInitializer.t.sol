@@ -307,7 +307,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     /// @dev Proceeds forwarding is covered in integration tests with valid hook addresses.
     function test_completeAuction_RevertsWithInvalidDopplerSalt() public {
         OpeningAuctionConfig memory config = getDefaultAuctionConfig();
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
 
         bytes32 salt = mineHookSalt(AUCTION_TOKENS, config);
 
@@ -425,7 +425,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     /// @dev Prevents orphaning of first auction hook and ensures single active auction per asset
     function test_initialize_revertsWhenAssetAlreadyInitialized() public {
         OpeningAuctionConfig memory config = getDefaultAuctionConfig();
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         
         // Mine salt for first init
         bytes32 salt1 = mineHookSalt(AUCTION_TOKENS, config);
@@ -463,7 +463,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
     /// @notice Test that initialize reverts when asset and numeraire are the same
     function test_initialize_revertsWhenAssetEqualsNumeraire() public {
         OpeningAuctionConfig memory config = getDefaultAuctionConfig();
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         bytes32 salt = mineHookSalt(AUCTION_TOKENS, config);
 
         vm.expectRevert(InvalidTokenOrder.selector);
@@ -517,7 +517,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
     /// @notice Test exitLiquidity reverts when auction is still active (not transitioned to Doppler)
     function test_exitLiquidity_revertsWhenAuctionActive() public {
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
         
         // Initialize auction
@@ -537,7 +537,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
     /// @notice Test exitLiquidity reverts when called with invalid target
     function test_exitLiquidity_revertsWithInvalidTarget() public {
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
         
         // Initialize auction
@@ -557,7 +557,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
 
     /// @notice Test state transitions are correctly tracked
     function test_stateTransitions_auctionToSettled() public {
-        OpeningAuctionInitData memory initData = getInitData(60);
+        OpeningAuctionInitData memory initData = getInitData(30);
         bytes32 salt = mineHookSalt(AUCTION_TOKENS, initData.auctionConfig);
         
         // Initialize auction

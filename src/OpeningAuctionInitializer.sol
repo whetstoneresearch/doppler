@@ -87,6 +87,30 @@ error AssetNotInitialized();
 /// @notice Thrown when the caller is not the Airlock owner
 error SenderNotAirlockOwner();
 
+/// @notice Thrown when the number of price discovery slugs is invalid (0 or > 15)
+error InvalidNumPDSlugs();
+
+/// @notice Thrown when the proceeds limits are invalid (min > max)
+error InvalidProceedLimits();
+
+/// @notice Thrown when the gamma value is invalid (<= 0 or inconsistent with epochs)
+error InvalidGamma();
+
+/// @notice Thrown when the Doppler tick spacing is invalid (> 30)
+error InvalidDopplerTickSpacing();
+
+/// @notice Thrown when gamma is not divisible by tick spacing
+error GammaNotDivisibleByTickSpacing();
+
+/// @notice Thrown when the tick range direction is invalid for isToken0
+error InvalidTickRange();
+
+/// @notice Thrown when the time range is invalid (start >= end)
+error InvalidTimeRange();
+
+/// @notice Thrown when the epoch length is invalid (time range not divisible by epoch length)
+error InvalidEpochLength();
+
 /// @notice Emitted when an opening auction transitions to Doppler
 event AuctionCompleted(
     address indexed asset,
@@ -246,6 +270,62 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         // Validate isToken0 in dopplerData matches derived value
         if (dopplerIsToken0 != isToken0) {
             revert IsToken0Mismatch();
+        }
+
+        // Pre-validate Doppler constructor parameters to prevent locked proceeds
+        // if Doppler deployment fails in completeAuction()
+        {
+            (
+                uint256 dopplerMinProceeds,
+                uint256 dopplerMaxProceeds,
+                uint256 dopplerStartTime,
+                uint256 dopplerEndTime,
+                int24 dopplerStartTick,
+                int24 dopplerEndTick,
+                uint256 dopplerEpochLength,
+                int24 dopplerGamma,
+                ,
+                uint256 dopplerNumPDSlugs,
+                ,
+                int24 dopplerTickSpacing_
+            ) = _decodeDopplerInitData(initData.dopplerData);
+
+            // Check numPDSlugs: must be > 0 and <= 15
+            if (dopplerNumPDSlugs == 0 || dopplerNumPDSlugs > 15) revert InvalidNumPDSlugs();
+
+            // Check proceed limits: minimum must not exceed maximum
+            if (dopplerMinProceeds > dopplerMaxProceeds) revert InvalidProceedLimits();
+
+            // Check gamma: must be > 0
+            if (dopplerGamma <= 0) revert InvalidGamma();
+
+            // Check tick spacing: must be <= 30
+            if (dopplerTickSpacing_ > 30) revert InvalidDopplerTickSpacing();
+
+            // Check gamma divisibility by tick spacing
+            if (dopplerGamma % dopplerTickSpacing_ != 0) revert GammaNotDivisibleByTickSpacing();
+
+            // Check tick range direction based on isToken0
+            // When isToken0=true, startingTick must be >= endingTick (price decreases)
+            // When isToken0=false, startingTick must be <= endingTick (price increases)
+            if (dopplerStartTick != dopplerEndTick) {
+                if (dopplerIsToken0 && dopplerStartTick < dopplerEndTick) revert InvalidTickRange();
+                if (!dopplerIsToken0 && dopplerStartTick > dopplerEndTick) revert InvalidTickRange();
+            }
+
+            // Check time range: startingTime must be less than endingTime
+            if (dopplerStartTime >= dopplerEndTime) revert InvalidTimeRange();
+
+            // Check epoch length: (endingTime - startingTime) must be divisible by epochLength
+            uint256 dopplerTimeDelta = dopplerEndTime - dopplerStartTime;
+            if (dopplerTimeDelta % dopplerEpochLength != 0) revert InvalidEpochLength();
+
+            // Check that gamma is consistent with epoch timing (upperSlugRange must be >= 1)
+            // This mirrors the Doppler constructor check for InvalidGamma
+            uint256 normalizedEpochDelta = FullMath.mulDiv(dopplerEpochLength, 1e18, dopplerTimeDelta);
+            if (FullMath.mulDiv(normalizedEpochDelta, uint256(int256(dopplerGamma)), 1e18) == 0) {
+                revert InvalidGamma();
+            }
         }
 
         uint256 shareToAuctionBps = config.shareToAuctionBps;

@@ -626,7 +626,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     function _beforeInitialize(
         address sender,
         PoolKey calldata key,
-        uint160 sqrtPriceX96
+        uint160
     ) internal override returns (bytes4) {
         if (sender != initializer) revert SenderNotInitializer();
         if (isInitialized) revert AlreadyInitialized();
@@ -646,7 +646,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         address,
         PoolKey calldata,
         uint160,
-        int24 tick
+        int24
     ) internal override returns (bytes4) {
         auctionStartTime = block.timestamp;
         auctionEndTime = block.timestamp + auctionDuration;
@@ -721,7 +721,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     ) internal override returns (bytes4, BalanceDelta) {
         // Track position during active auction
         if (phase == AuctionPhase.Active) {
-            // Require owner address in hookData - no fallback to sender (which is typically a router)
+            // Extract owner from hookData (validated by OpeningAuctionPositionManager)
             address owner = _decodeOwner(hookData);
 
             // Get liquidity (params.liquidityDelta is positive for adds)
