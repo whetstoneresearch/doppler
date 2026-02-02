@@ -7,6 +7,7 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { WAD } from "src/types/WAD.sol";
 
 // ============ Errors ============
 
@@ -33,9 +34,6 @@ error UnderlyingNotWhitelisted();
 
 /// @notice Thrown when underlying migrator's airlock is not this contract
 error UnderlyingNotForwarded();
-
-/// @notice Thrown when underlying V4 migrator is not approved in locker (optional preflight)
-error UnderlyingNotLockerApproved();
 
 // ============ Events ============
 
@@ -91,9 +89,6 @@ struct DistributionConfig {
 }
 
 // ============ Constants ============
-
-/// @dev 1e18 - used for percentage calculations
-uint256 constant WAD = 1e18;
 
 /// @dev Maximum distribution percentage (50%)
 uint256 constant MAX_DISTRIBUTION_WAD = 5e17;
