@@ -6,9 +6,10 @@ import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 import { Airlock, CreateParams } from "src/Airlock.sol";
+import { IBundleCallback, CreateResult, Transfer, Call } from "src/interfaces/IBundleCallback.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { UniswapV4MulticurveInitializer } from "src/UniswapV4MulticurveInitializer.sol";
+import { UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
 
 /// @dev Thrown when an invalid address is passed as a contructor parameter
 error InvalidAddresses();
@@ -24,6 +25,9 @@ error AssetNotInPool();
 
 /// @dev Thrown when the provided exact amount is zero
 error ExactAmountZero();
+
+/// @dev Thrown when a planned call fails
+error CallFailed();
 
 /**
  * @author Whetstone
@@ -154,7 +158,7 @@ contract Bundler {
         returns (address asset, PoolKey memory poolKey, bool zeroForOne)
     {
         (asset,,,,) = airlock.create(createData);
-        (, , poolKey,) = UniswapV4MulticurveInitializer(address(createData.poolInitializer)).getState(asset);
+        (, , poolKey,) = UniswapV4MulticurveInitializer(payable(address(createData.poolInitializer))).getState(asset);
 
         address currency0 = Currency.unwrap(poolKey.currency0);
         address currency1 = Currency.unwrap(poolKey.currency1);
@@ -198,13 +202,78 @@ contract Bundler {
         uint256 balance = address(this).balance;
         router.execute{ value: balance }(commands, inputs);
 
+        _sweep(asset, createData.numeraire, msg.sender);
+    }
+
+    /**
+     * @notice Bundle with callback for complex flows (e.g., prebuy to vault)
+     * @param createData Creation parameters
+     * @param commands Router commands
+     * @param inputs Router inputs
+     * @param callback Contract to plan post-execution actions
+     * @param callbackData Data for callback planning
+     */
+    function bundleWithPlan(
+        CreateParams calldata createData,
+        bytes calldata commands,
+        bytes[] calldata inputs,
+        IBundleCallback callback,
+        bytes calldata callbackData
+    ) external payable {
+        (address asset, address pool, address governance, address timelock, address migrationPool) = airlock.create(
+            createData
+        );
+        
+        // Execute router (tokens end up in bundler)
+        router.execute{ value: address(this).balance }(commands, inputs);
+
+        // Get callback plan
+        CreateResult memory result = CreateResult({
+            asset: asset,
+            pool: pool,
+            governance: governance,
+            timelock: timelock,
+            migrationPool: migrationPool
+        });
+        
+        (Transfer[] memory transfers, Call[] memory calls) = callback.plan(result, callbackData);
+
+        // Execute transfers (e.g., send tokens to vault)
+        for (uint256 i = 0; i < transfers.length; i++) {
+            Transfer memory transfer = transfers[i];
+            if (transfer.amount > 0) {
+                SafeTransferLib.safeTransfer(transfer.token, transfer.to, transfer.amount);
+            }
+        }
+
+        // Execute calls (e.g., vault records deposit)
+        for (uint256 i = 0; i < calls.length; i++) {
+            Call memory plannedCall = calls[i];
+            (bool success,) = plannedCall.target.call{ value: plannedCall.value }(plannedCall.data);
+            if (!success) revert CallFailed();
+        }
+
+        // Sweep remaining tokens to caller
+        _sweep(asset, createData.numeraire, msg.sender);
+    }
+
+    /**
+     * @notice Sweep all token balances to recipient
+     * @param asset Asset token to sweep
+     * @param numeraire Numeraire token to sweep
+     * @param recipient Address to receive swept tokens
+     */
+    function _sweep(address asset, address numeraire, address recipient) internal {
+        // Sweep ETH
         uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0) SafeTransferLib.safeTransferETH(msg.sender, ethBalance);
+        if (ethBalance > 0) SafeTransferLib.safeTransferETH(recipient, ethBalance);
 
+        // Sweep asset
         uint256 assetBalance = SafeTransferLib.balanceOf(asset, address(this));
-        if (assetBalance > 0) SafeTransferLib.safeTransfer(asset, msg.sender, assetBalance);
+        if (assetBalance > 0) SafeTransferLib.safeTransfer(asset, recipient, assetBalance);
 
-        uint256 numeraireBalance = SafeTransferLib.balanceOf(createData.numeraire, address(this));
-        if (numeraireBalance > 0) SafeTransferLib.safeTransfer(createData.numeraire, msg.sender, numeraireBalance);
+        // Sweep numeraire
+        uint256 numeraireBalance = SafeTransferLib.balanceOf(numeraire, address(this));
+        if (numeraireBalance > 0) SafeTransferLib.safeTransfer(numeraire, recipient, numeraireBalance);
     }
 }

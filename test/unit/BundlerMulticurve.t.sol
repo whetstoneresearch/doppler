@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { Bundler } from "src/Bundler.sol";
 import { Airlock, CreateParams } from "src/Airlock.sol";
-import { ITokenFactory } from "src/TokenFactory.sol";
+import { ITokenFactory } from "src/tokens/TokenFactory.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
@@ -13,7 +13,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
-import { PoolStatus } from "src/UniswapV4MulticurveInitializer.sol";
+import { PoolStatus } from "src/initializers/UniswapV4MulticurveInitializer.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 
