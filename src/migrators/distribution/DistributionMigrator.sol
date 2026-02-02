@@ -37,8 +37,6 @@ error UnderlyingNotForwarded();
 /// @notice Thrown when underlying V4 migrator is not approved in locker (optional preflight)
 error UnderlyingNotLockerApproved();
 
-/// @notice Thrown when hook's migrator doesn't match underlying (optional preflight)
-
 // ============ Events ============
 
 /**
