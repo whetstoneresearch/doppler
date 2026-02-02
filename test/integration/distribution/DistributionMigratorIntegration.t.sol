@@ -18,8 +18,8 @@ import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
-import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IDistributionTopUpSource } from "src/interfaces/IDistributionTopUpSource.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import {
     IUniswapV2Factory,
@@ -245,8 +245,9 @@ abstract contract DistributionMigratorV4BaseTest is BaseIntegrationTest {
 
     function _configureDistributorWithSource(address payout, uint256 percentWad, address topUpSource) internal {
         bytes memory underlyingData = prepareForwardedUniswapV4MigratorData(airlock);
-        bytes memory distributionData =
-            prepareDistributionMigratorData(payout, percentWad, address(forwardedV4Migrator), underlyingData, topUpSource);
+        bytes memory distributionData = prepareDistributionMigratorData(
+            payout, percentWad, address(forwardedV4Migrator), underlyingData, topUpSource
+        );
         createParams.liquidityMigrator = distributor;
         createParams.liquidityMigratorData = distributionData;
     }
@@ -297,7 +298,7 @@ abstract contract DistributionMigratorV4BaseTest is BaseIntegrationTest {
 /**
  * @title DistributionMigrator + UniswapV2 Integration Test
  * @notice Tests full create → migrate flow with V2 underlying migrator
- * @dev Requires MAINNET_RPC_URL environment variable
+ * @dev Requires ETH_MAINNET_RPC_URL environment variable
  */
 contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
     DistributionMigrator public distributor;
@@ -310,7 +311,7 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
     IntegrationTopUpSource internal topUpSource;
 
     function setUp() public override {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         super.setUp();
 
         name = "DistributionMigratorV2Integration";
@@ -406,7 +407,7 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
 
         (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
 
-        uint256 topUpAmount = 1_000 ether;
+        uint256 topUpAmount = 1000 ether;
         numeraire.mint(address(this), topUpAmount);
         numeraire.approve(address(topUpSource), topUpAmount);
         topUpSource.fund(asset, topUpAmount);
@@ -417,7 +418,9 @@ contract DistributionMigratorV2IntegrationTest is BaseIntegrationTest {
         airlock.migrate(asset);
 
         uint256 expectedDistribution = (proceedsBefore * percentWad) / WAD;
-        assertEq(numeraire.balanceOf(payout) - payoutBalanceBefore, expectedDistribution, "Top-up should not be skimmed");
+        assertEq(
+            numeraire.balanceOf(payout) - payoutBalanceBefore, expectedDistribution, "Top-up should not be skimmed"
+        );
         assertEq(topUpSource.available(asset), 0, "Top-up source should be drained");
     }
 }
