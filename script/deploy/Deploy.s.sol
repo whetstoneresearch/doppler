@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IStateView } from "@v4-periphery/lens/StateView.sol";
 import { Script, console } from "forge-std/Script.sol";
@@ -30,6 +31,7 @@ struct ScriptData {
     address poolManager;
     address protocolOwner;
     address quoterV2;
+    address quoterV4;
     address uniswapV2Factory;
     address uniswapV2Router02;
     address uniswapV3Factory;
@@ -198,8 +200,13 @@ abstract contract DeployScript is Script {
     function _deployBundler(ScriptData memory scriptData, Airlock airlock) internal returns (Bundler bundler) {
         require(scriptData.universalRouter != address(0), "Cannot find UniversalRouter address!");
         require(scriptData.quoterV2 != address(0), "Cannot find QuoterV2 address!");
-        bundler =
-            new Bundler(airlock, UniversalRouter(payable(scriptData.universalRouter)), IQuoterV2(scriptData.quoterV2));
+        require(scriptData.quoterV4 != address(0), "Cannot find QuoterV4 address!");
+        bundler = new Bundler(
+            airlock,
+            UniversalRouter(payable(scriptData.universalRouter)),
+            IQuoterV2(scriptData.quoterV2),
+            IV4Quoter(scriptData.quoterV4)
+        );
     }
 
     function _deployLens(ScriptData memory scriptData) internal returns (DopplerLensQuoter lens) {
