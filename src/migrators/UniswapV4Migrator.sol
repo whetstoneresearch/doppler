@@ -16,7 +16,7 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { Airlock } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { ProceedsSplitter } from "src/base/ProceedsSplitter.sol";
+import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
@@ -141,10 +141,10 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock, ProceedsSpli
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
             AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
 
-        if (share > 0) {
+        if (proceedsShare > 0) {
             _setSplit(
-                Currency.unwrap(currency0),
-                Currency.unwrap(current1),
+                Currency.unwrap(poolKey.currency0),
+                Currency.unwrap(poolKey.currency1),
                 SplitConfiguration({ recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare })
             );
         }
