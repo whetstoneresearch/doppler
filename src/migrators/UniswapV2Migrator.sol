@@ -3,10 +3,9 @@ pragma solidity ^0.8.24;
 
 import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
-import { FullMath } from "@v4-core/libraries/FullMath.sol";
-import { Airlock } from "src/Airlock.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
@@ -18,17 +17,25 @@ import { MigrationMath } from "src/libraries/MigrationMath.sol";
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
+contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
     using SafeTransferLib for ERC20;
 
+    /// @notice Address of the Uniswap V2 factory
     IUniswapV2Factory public immutable factory;
+
+    /// @notice Address of the WETH contract
     IWETH public immutable weth;
+
+    /// @notice Address of the Uniswap V2 locker
     UniswapV2Locker public immutable locker;
 
+    /// @notice Fallback function to receive ETH
     receive() external payable onlyAirlock { }
 
     /**
+     * @param airlock_ Address of the Airlock contract
      * @param factory_ Address of the Uniswap V2 factory
+     * @param router Address of the Uniswap V2 router
      */
     constructor(
         address airlock_,
@@ -65,7 +72,7 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
         return _migrate(sqrtPriceX96, token0, token1, recipient);
     }
 
-    function _initialize(address asset, address numeraire, bytes calldata) internal virtual returns (address) {
+    function _initialize(address asset, address numeraire, bytes calldata data) internal virtual returns (address) {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         if (token0 == address(0)) token0 = address(weth);
@@ -74,6 +81,14 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         if (pool == address(0)) {
             pool = factory.createPair(token0, token1);
+        }
+
+        (address recipient, uint256 share) = abi.decode(data, (address, uint256));
+
+        if (share > 0) {
+            _setSplit(
+                token0, token1, SplitConfiguration({ recipient: recipient, isToken0: asset < numeraire, share: share })
+            );
         }
 
         return pool;
@@ -94,6 +109,10 @@ contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock {
             balance0 = weth.balanceOf(address(this));
         } else {
             balance0 = ERC20(token0).balanceOf(address(this));
+        }
+
+        if (splitConfigurationOf[token0][token1].share > 0) {
+            _distributeSplit(token0, token1, balance0, balance1);
         }
 
         (uint256 depositAmount0, uint256 depositAmount1) =
