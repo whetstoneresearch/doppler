@@ -8,6 +8,7 @@ struct SplitConfiguration {
     address recipient;
     bool isToken0; // True if the asset is token0
     uint256 share;
+    uint256 donated;
 }
 
 /// @dev Maximum share that can be allocated (50%)
@@ -22,6 +23,18 @@ event DistributeSplit(address indexed token0, address indexed token1, address in
 abstract contract ProceedsSplitter {
     /// @notice Configuration of proceeds split, stored by asset since they are unique
     mapping(address token0 => mapping(address token1 => SplitConfiguration config)) public splitConfigurationOf;
+
+    function donate(address token0, address token1, uint256 amount) external payable {
+        SplitConfiguration storage config = splitConfigurationOf[token0][token1];
+
+        if (token0 == address(0)) {
+            require(msg.value == 0, "Wrong ETH amount");
+        } else {
+            SafeTransferLib.safeTransferFrom(config.isToken0 ? token1 : token0, msg.sender, address(this), amount);
+        }
+
+        config.donated += amount;
+    }
 
     function _setSplit(address token0, address token1, SplitConfiguration memory config) internal {
         require(config.recipient != address(0), InvalidSplitRecipient());
@@ -55,6 +68,7 @@ abstract contract ProceedsSplitter {
         }
 
         if (splitAmount == 0) return (balance0, balance1);
+        if (config.donated > 0) splitAmount += config.donated;
 
         emit DistributeSplit(token0, token1, config.recipient, splitAmount);
 
