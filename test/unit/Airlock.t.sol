@@ -430,7 +430,7 @@ contract AirlockTest is Test, Deployers {
                 uniswapV3Initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
-                new bytes(0),
+                abi.encode(address(0), 0),
                 address(0xb0b),
                 bytes32(uint256(0xbeef))
             )

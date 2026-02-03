@@ -51,6 +51,10 @@ contract UniswapV2MigratorTest is Test {
         assertGt(depositAmount1, 0, "depositAmount is zero");
     }
 
+    /* ----------------------------------------------------------------------- */
+    /*                                receive()                                */
+    /* ----------------------------------------------------------------------- */
+
     function test_receive_ReceivesETHFromAirlock() public {
         uint256 preBalance = address(migrator).balance;
         deal(address(this), 1 ether);
@@ -65,17 +69,21 @@ contract UniswapV2MigratorTest is Test {
         payable(address(migrator)).transfer(1 ether);
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                                initialize()                                */
+    /* -------------------------------------------------------------------------- */
+
     function test_initialize_CreatesPair() public {
         address token0 = address(0x1111);
         address token1 = address(0x2222);
-        address pair = migrator.initialize(token0, token1, new bytes(0));
+        address pair = migrator.initialize(token0, token1, _getData());
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token0, token1), "Wrong pair");
     }
 
     function test_initialize_UsesWETHWhenToken0IsZero() public {
         address token0 = address(0);
         address token1 = address(0x2222);
-        address pair = migrator.initialize(token0, token1, new bytes(0));
+        address pair = migrator.initialize(token0, token1, _getData());
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token1, WETH_MAINNET), "Wrong pair");
     }
 
@@ -83,9 +91,13 @@ contract UniswapV2MigratorTest is Test {
         address token0 = address(0x1111);
         address token1 = address(0x2222);
         IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).createPair(token0, token1);
-        address pair = migrator.initialize(token0, token1, new bytes(0));
+        address pair = migrator.initialize(token0, token1, _getData());
         assertEq(pair, IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).getPair(token0, token1), "Wrong pair");
     }
+
+    /* ----------------------------------------------------------------------- */
+    /*                                migrate()                                */
+    /* ----------------------------------------------------------------------- */
 
     function test_migrate_RevertsWhenSenderNotAirlock() public {
         vm.prank(address(0xbeef));
@@ -97,7 +109,7 @@ contract UniswapV2MigratorTest is Test {
         TestERC20 token0 = new TestERC20(1000 ether);
         TestERC20 token1 = new TestERC20(1000 ether);
 
-        address pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+        address pool = migrator.initialize(address(token0), address(token1), _getData());
 
         token0.transfer(address(migrator), 1000 ether);
         token1.transfer(address(migrator), 1000 ether);
@@ -120,7 +132,7 @@ contract UniswapV2MigratorTest is Test {
 
         uint160 sqrtPriceX96 = 3_893_493_510_706_508_098_175_185;
 
-        address pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+        address pool = migrator.initialize(address(token0), address(token1), _getData());
 
         token0.transfer(address(migrator), 13_126_140_926_538_532_799_794);
         token1.transfer(address(migrator), 16_622_742_685_037);
@@ -143,7 +155,7 @@ contract UniswapV2MigratorTest is Test {
         TestERC20 token0 = new TestERC20(balance0);
         TestERC20 token1 = new TestERC20(balance1);
 
-        address pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+        address pool = migrator.initialize(address(token0), address(token1), _getData());
 
         token0.transfer(address(migrator), balance0);
         token1.transfer(address(migrator), balance1);
@@ -172,7 +184,7 @@ contract UniswapV2MigratorTest is Test {
             abi.encode(pool)
         );
 
-        migrator.initialize(token0, token1, new bytes(0));
+        migrator.initialize(token0, token1, _getData());
 
         vm.mockCall(token0, abi.encodeWithSelector(ERC20.balanceOf.selector, address(migrator)), abi.encode(1000 ether));
 
@@ -198,7 +210,7 @@ contract UniswapV2MigratorTest is Test {
 
     function test_migrate_WrapsETH() public {
         TestERC20 token1 = new TestERC20(1000 ether);
-        address pool = migrator.initialize(address(0), address(token1), new bytes(0));
+        address pool = migrator.initialize(address(0), address(token1), _getData());
 
         deal(address(migrator), 100 ether);
         token1.transfer(address(migrator), 100 ether);
@@ -210,10 +222,18 @@ contract UniswapV2MigratorTest is Test {
         assertEq(TestERC20(WETH_MAINNET).balanceOf(address(pool)), nativeBalanceBefore, "Pool WETH balance is wrong");
     }
 
+    /* --------------------------------------------------------------------- */
+    /*                                Helpers                                */
+    /* --------------------------------------------------------------------- */
+
     function _initialize() public returns (address pool, TestERC20 token0, TestERC20 token1) {
         token0 = new TestERC20(1000 ether);
         token1 = new TestERC20(1000 ether);
         (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
-        pool = migrator.initialize(address(token0), address(token1), new bytes(0));
+        pool = migrator.initialize(address(token0), address(token1), _getData());
+    }
+
+    function _getData() internal view returns (bytes memory data) {
+        data = abi.encode(address(0xbeef), 0);
     }
 }

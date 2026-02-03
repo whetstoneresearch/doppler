@@ -51,10 +51,12 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     address constant BENEFICIARY_2 = address(0x2222);
     address constant BENEFICIARY_3 = address(0x3333);
     address constant RECIPIENT = address(0x4444);
+    address constant PROCEEDS_RECIPIENT = address(0x5555);
 
     int24 constant TICK_SPACING = 8;
     uint24 constant FEE = 3000;
     uint32 constant LOCK_DURATION = 30 days;
+    uint256 constant PROCEEDS_SHARE = 0.0; // 10%
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -97,7 +99,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
 
         vm.prank(address(airlock));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
 
         (PoolKey memory poolKey, uint256 lockDuration) = migrator.getAssetData(token0, token1);
@@ -129,7 +133,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
 
         vm.prank(address(airlock));
-        migrator.initialize(asset, numeraire, abi.encode(FEE, 1, LOCK_DURATION, beneficiaries));
+        migrator.initialize(
+            asset, numeraire, abi.encode(FEE, 1, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
+        );
 
         isUsingETH ? deal(address(migrator), balance0) : TestERC20(token0).mint(address(migrator), balance0);
         TestERC20(token1).mint(address(migrator), balance1);
@@ -162,7 +168,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(UnorderedBeneficiaries.selector));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
     }
 
@@ -173,7 +181,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidShares.selector));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
     }
 
@@ -189,7 +199,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidTotalShares.selector));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
     }
 
@@ -202,7 +214,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
 
         vm.prank(address(airlock));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
     }
 
@@ -216,7 +230,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
             abi.encodeWithSelector(InvalidProtocolOwnerShares.selector, MIN_PROTOCOL_OWNER_SHARES, 0.049e18)
         );
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
     }
 
@@ -228,7 +244,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerBeneficiary.selector));
         migrator.initialize(
-            address(asset), address(numeraire), abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries)
+            address(asset),
+            address(numeraire),
+            abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
     }
 }

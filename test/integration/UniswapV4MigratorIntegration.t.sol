@@ -55,7 +55,7 @@ function prepareUniswapV4MigratorData(Airlock airlock) view returns (bytes memor
 
     int24 tickSpacing = 8;
 
-    return abi.encode(2000, tickSpacing, 30 days, beneficiaries);
+    return abi.encode(2000, tickSpacing, 30 days, beneficiaries, address(0), 0);
 }
 
 function sortBeneficiaries(BeneficiaryData[] memory beneficiaries) pure returns (BeneficiaryData[] memory) {

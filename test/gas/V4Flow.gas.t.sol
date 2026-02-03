@@ -106,7 +106,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xb0b), shares: 0.9e18 });
         beneficiaries = sortBeneficiaries(beneficiaries);
 
-        bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries);
+        bytes memory migratorData = abi.encode(2000, 8, 30 days, beneficiaries, address(0), 0);
 
         MineV4Params memory params = MineV4Params({
             airlock: address(airlock),

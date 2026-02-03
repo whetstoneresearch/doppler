@@ -128,8 +128,15 @@ contract DopplerFixtures is Deployers {
 
     /// @dev Create a default auction
     function _airlockCreate(address _numeraire, bool _isAssetToken0) internal returns (address, PoolKey memory) {
-        return
-            _airlockCreate(_numeraire, _isAssetToken0, address(this), DEFAULT_FEE, DEFAULT_TICK_SPACING, migrator, "");
+        return _airlockCreate(
+            _numeraire,
+            _isAssetToken0,
+            address(this),
+            DEFAULT_FEE,
+            DEFAULT_TICK_SPACING,
+            migrator,
+            abi.encode(address(0), 0)
+        );
     }
 
     function _airlockCreate(
@@ -138,7 +145,9 @@ contract DopplerFixtures is Deployers {
         uint24 fee,
         int24 tickSpacing
     ) internal returns (address, PoolKey memory) {
-        return _airlockCreate(_numeraire, _isAssetToken0, address(this), fee, tickSpacing, migrator, "");
+        return _airlockCreate(
+            _numeraire, _isAssetToken0, address(this), fee, tickSpacing, migrator, abi.encode(address(0), 0)
+        );
     }
 
     /// @dev Create an auction with custom parameters

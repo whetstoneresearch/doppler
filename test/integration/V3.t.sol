@@ -132,7 +132,7 @@ contract V3Test is Test {
                 initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
-                "",
+                abi.encode(address(0), 0),
                 address(this),
                 salt
             )
@@ -275,7 +275,7 @@ contract V3Test is Test {
                 initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
-                "",
+                abi.encode(address(0), 0),
                 address(this),
                 tokenSalt
             )
