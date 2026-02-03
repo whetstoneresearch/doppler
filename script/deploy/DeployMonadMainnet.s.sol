@@ -21,7 +21,11 @@ import {
     UniswapV4ScheduledMulticurveInitializerHook
 } from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Router02,
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineV4MigratorHookParams, mineV4ScheduledMulticurveHook } from "test/shared/AirlockMiner.sol";
 
@@ -43,7 +47,7 @@ contract DeployMonadMainnetScript is Script {
         signers[0] = msg.sender;
         AirlockMultisigTestnet airlockMultisig = new AirlockMultisigTestnet(signers);
 
-        UniswapV2Migrator uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        UniswapV2MigratorSplit uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
             airlock,
             IUniswapV2Factory(0x182a927119D56008d921126764bF884221b10f59),
             IUniswapV2Router02(0x4B2ab38DBF28D31D467aA8993f6c2585981D6804),
@@ -83,7 +87,7 @@ contract DeployMonadMainnetScript is Script {
             IPoolManager(0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e), address(v4Initializer)
         );
 
-        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        /// Verify that the hook was set correctly in the UniswapV4MigratorSplit constructor
         require(address(v4Initializer.HOOK()) == address(hook), "Multicurve hook is not the expected address");
 
         // Whitelisting the initial modules

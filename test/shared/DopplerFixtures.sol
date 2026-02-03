@@ -17,7 +17,11 @@ import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Router02,
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
@@ -66,7 +70,7 @@ contract DopplerFixtures is Deployers {
     Airlock public airlock;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
-    UniswapV2Migrator public migrator;
+    UniswapV2MigratorSplit public migrator;
 
     IUniswapV2Factory public uniswapV2Factory = IUniswapV2Factory(UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA);
     IUniswapV2Router02 public uniswapV2Router = IUniswapV2Router02(UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA);
@@ -91,7 +95,7 @@ contract DopplerFixtures is Deployers {
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
+        migrator = new UniswapV2MigratorSplit(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);

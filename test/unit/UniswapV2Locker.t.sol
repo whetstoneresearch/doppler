@@ -9,12 +9,12 @@ import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2LockerTest is Test {
     UniswapV2Locker public locker;
-    UniswapV2Migrator public migrator = UniswapV2Migrator(payable(address(0x88888)));
+    UniswapV2MigratorSplit public migrator = UniswapV2MigratorSplit(payable(address(0x88888)));
     IUniswapV2Pair public pool;
 
     Airlock public airlock = Airlock(payable(address(0xdeadbeef)));

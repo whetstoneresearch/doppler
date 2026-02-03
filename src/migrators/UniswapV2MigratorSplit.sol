@@ -17,7 +17,7 @@ import { MigrationMath } from "src/libraries/MigrationMath.sol";
  * @notice Takes care of migrating liquidity into a Uniswap V2 pool
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV2Migrator is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
+contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
     using SafeTransferLib for ERC20;
 
     /// @notice Address of the Uniswap V2 factory

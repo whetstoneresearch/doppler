@@ -18,8 +18,8 @@ import {
     IUniswapV2Factory,
     IUniswapV2Pair,
     IUniswapV2Router02,
-    UniswapV2Migrator
-} from "src/migrators/UniswapV2Migrator.sol";
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
@@ -42,7 +42,7 @@ function adjustTick(int24 tick, int24 tickSpacing) pure returns (int24) {
 contract V3Test is Test {
     UniswapV3Initializer public initializer;
     Airlock public airlock;
-    UniswapV2Migrator public uniswapV2LiquidityMigrator;
+    UniswapV2MigratorSplit public uniswapV2LiquidityMigrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
 
@@ -51,7 +51,7 @@ contract V3Test is Test {
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),

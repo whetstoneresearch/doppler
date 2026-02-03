@@ -9,32 +9,34 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 
-function deployUniswapV4Migrator(
+function deployUniswapV4MigratorSplit(
     Vm vm,
     function(string memory, bytes memory, address) deployCodeTo,
     Airlock airlock,
     address airlockOwner,
     address poolManager,
     address positionManager
-) returns (StreamableFeesLocker locker, UniswapV4MigratorHook migratorHook, UniswapV4Migrator migrator) {
+) returns (StreamableFeesLocker locker, UniswapV4MigratorSplitHook migratorHook, UniswapV4MigratorSplit migrator) {
     locker = new StreamableFeesLocker(IPositionManager(positionManager), airlockOwner);
-    migratorHook = UniswapV4MigratorHook(
+    migratorHook = UniswapV4MigratorSplitHook(
         address(
             uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG)
             ^ (0x4444 << 144)
         )
     );
-    migrator = new UniswapV4Migrator(
+    migrator = new UniswapV4MigratorSplit(
         address(airlock),
         IPoolManager(poolManager),
         PositionManager(payable(positionManager)),
         locker,
         IHooks(migratorHook)
     );
-    deployCodeTo("UniswapV4MigratorHook", abi.encode(address(poolManager), address(migrator)), address(migratorHook));
+    deployCodeTo(
+        "UniswapV4MigratorSplitHook", abi.encode(address(poolManager), address(migrator)), address(migratorHook)
+    );
 
     address[] memory modules = new address[](1);
     modules[0] = address(migrator);
@@ -46,7 +48,7 @@ function deployUniswapV4Migrator(
     vm.stopPrank();
 }
 
-function prepareUniswapV4MigratorData(Airlock airlock) view returns (bytes memory) {
+function prepareUniswapV4MigratorSplitData(Airlock airlock) view returns (bytes memory) {
     BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
     beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
     beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbeef), shares: 0.05e18 });

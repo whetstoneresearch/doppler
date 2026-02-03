@@ -61,12 +61,12 @@ error TickOutOfRange();
 error ZeroLiquidity();
 
 /**
- * @title Uniswap V4 Migrator
+ * @title Uniswap V4 Migrator Split
  * @author Whetstone Research
  * @notice Module contract to migrate liquidity from a Doppler Dutch auction pool to a
  * regular Uniswap V4 pool
  */
-contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
+contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 

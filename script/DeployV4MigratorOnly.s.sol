@@ -5,8 +5,8 @@ import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { Script, console } from "forge-std/Script.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 
 struct ScriptData {
@@ -21,8 +21,8 @@ struct ScriptData {
  * @title Doppler V4 Migrator (and hook) Deployment Script
  * @notice Use this script if the rest of the protocol (Airlock and co) is already deployed
  * @dev Note that after deploying, the following steps must be performed:
- * - Approve the `UniswapV4Migrator` as a `LiquidityMigrator` module in the Airlock
- * - Approve the `UniswapV4Migrator` as a migrator in the `StreamableFeesLocker`
+ * - Approve the `UniswapV4MigratorSplit` as a `LiquidityMigrator` module in the Airlock
+ * - Approve the `UniswapV4MigratorSplit` as a migrator in the `StreamableFeesLocker`
  */
 abstract contract DeployV4MigratorOnlyScript is Script {
     ScriptData internal _scriptData;
@@ -34,7 +34,7 @@ abstract contract DeployV4MigratorOnlyScript is Script {
 
         vm.startBroadcast();
 
-        // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
+        // Using `CREATE` we can pre-compute the UniswapV4MigratorSplit address for mining the hook address
         address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
 
         /// Mine salt for migrator hook address
@@ -47,7 +47,7 @@ abstract contract DeployV4MigratorOnlyScript is Script {
         );
 
         // Deploy migrator with pre-mined hook address
-        UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
+        UniswapV4MigratorSplit uniswapV4Migrator = new UniswapV4MigratorSplit(
             _scriptData.airlock,
             IPoolManager(_scriptData.poolManager),
             PositionManager(payable(_scriptData.positionManager)),
@@ -56,10 +56,10 @@ abstract contract DeployV4MigratorOnlyScript is Script {
         );
 
         // Deploy hook with deployed migrator address
-        UniswapV4MigratorHook migratorHook =
-            new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+        UniswapV4MigratorSplitHook migratorHook =
+            new UniswapV4MigratorSplitHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
 
-        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        /// Verify that the hook was set correctly in the UniswapV4MigratorSplit constructor
         require(
             address(uniswapV4Migrator.migratorHook()) == address(migratorHook),
             "Migrator hook is not the expected address"

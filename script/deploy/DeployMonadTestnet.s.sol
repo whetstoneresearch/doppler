@@ -16,7 +16,11 @@ import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.
 import { LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
 import { IUniswapV3Factory, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Router02,
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineDopplerHookInitializerParams, mineDopplerHookInitializer } from "test/shared/AirlockMiner.sol";
 
@@ -37,7 +41,7 @@ contract DeployMonadTestnetScript is Script {
         signers[0] = msg.sender;
         AirlockMultisigTestnet airlockMultisig = new AirlockMultisigTestnet(signers);
 
-        UniswapV2Migrator uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        UniswapV2MigratorSplit uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
             airlock,
             IUniswapV2Factory(0x733E88f248b742db6C14C0b1713Af5AD7fDd59D0),
             IUniswapV2Router02(0xfB8e1C3b833f9E67a71C859a132cf783b645e436),

@@ -9,18 +9,18 @@ import {
     IUniswapV2Factory,
     IUniswapV2Pair,
     IUniswapV2Router02,
-    UniswapV2Migrator
-} from "src/migrators/UniswapV2Migrator.sol";
-import { MigrationMath } from "src/migrators/UniswapV2Migrator.sol";
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { MigrationMath } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 
 /// forge-lint: disable-next-item(erc20-unchecked-transfer)
 contract UniswapV2MigratorTest is Test {
-    UniswapV2Migrator public migrator;
+    UniswapV2MigratorSplit public migrator;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
-        migrator = new UniswapV2Migrator(
+        migrator = new UniswapV2MigratorSplit(
             address(this),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),

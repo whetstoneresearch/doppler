@@ -8,8 +8,8 @@ import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { Airlock } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { mineV4MigratorHookCreate3 } from "test/shared/AirlockMiner.sol";
 
 contract DeployV4MigratorScript is Script, Config {
@@ -41,7 +41,7 @@ contract DeployV4MigratorScript is Script, Config {
         bytes32 lockerSalt = generateCreate3Salt(msg.sender, type(StreamableFeesLocker).name);
         address lockerDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(lockerSalt, msg.sender), createX);
 
-        bytes32 migratorSalt = generateCreate3Salt(msg.sender, type(UniswapV4Migrator).name);
+        bytes32 migratorSalt = generateCreate3Salt(msg.sender, type(UniswapV4MigratorSplit).name);
         address migratorDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(migratorSalt, msg.sender), createX);
 
         address locker = ICreateX(createX)
@@ -54,14 +54,15 @@ contract DeployV4MigratorScript is Script, Config {
             .deployCreate3(
                 migratorSalt,
                 abi.encodePacked(
-                    type(UniswapV4Migrator).creationCode,
+                    type(UniswapV4MigratorSplit).creationCode,
                     abi.encode(airlock, poolManager, positionManager, locker, hookDeployedTo)
                 )
             );
 
         address migratorHook = ICreateX(createX)
             .deployCreate3(
-                hookSalt, abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(poolManager, migrator))
+                hookSalt,
+                abi.encodePacked(type(UniswapV4MigratorSplitHook).creationCode, abi.encode(poolManager, migrator))
             );
         require(locker == lockerDeployedTo, "Unexpected Locker deployed address");
         require(migrator == migratorDeployedTo, "Unexpected Migrator deployed address");
@@ -96,7 +97,7 @@ abstract contract DeployV4MigratorScript is Script {
             IPositionManager(_scriptData.positionManager), Airlock(payable(_scriptData.airlock)).owner()
         );
 
-        // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
+        // Using `CREATE` we can pre-compute the UniswapV4MigratorSplit address for mining the hook address
         address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
 
         /// Mine salt for migrator hook address
@@ -109,7 +110,7 @@ abstract contract DeployV4MigratorScript is Script {
         );
 
         // Deploy migrator with pre-mined hook address
-        UniswapV4Migrator uniswapV4Migrator = new UniswapV4Migrator(
+        UniswapV4MigratorSplit uniswapV4Migrator = new UniswapV4MigratorSplit(
             _scriptData.airlock,
             IPoolManager(_scriptData.poolManager),
             PositionManager(payable(_scriptData.positionManager)),
@@ -118,10 +119,10 @@ abstract contract DeployV4MigratorScript is Script {
         );
 
         // Deploy hook with deployed migrator address
-        UniswapV4MigratorHook migratorHook =
-            new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+        UniswapV4MigratorSplitHook migratorHook =
+            new UniswapV4MigratorSplitHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
 
-        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        /// Verify that the hook was set correctly in the UniswapV4MigratorSplit constructor
         require(
             address(uniswapV4Migrator.migratorHook()) == address(migratorHook),
             "Migrator hook is not the expected address"
@@ -130,11 +131,11 @@ abstract contract DeployV4MigratorScript is Script {
         console.log(unicode"✨ StreamableFeesLocker was successfully deployed!");
         console.log("StreamableFeesLocker address: %s", address(streamableFeesLocker));
 
-        console.log(unicode"✨ UniswapV4MigratorHook was successfully deployed!");
-        console.log("UniswapV4MigratorHook address: %s", address(migratorHook));
+        console.log(unicode"✨ UniswapV4MigratorSplitHook was successfully deployed!");
+        console.log("UniswapV4MigratorSplitHook address: %s", address(migratorHook));
 
-        console.log(unicode"✨ UniswapV4Migrator was successfully deployed!");
-        console.log("UniswapV4Migrator address: %s", address(uniswapV4Migrator));
+        console.log(unicode"✨ UniswapV4MigratorSplit was successfully deployed!");
+        console.log("UniswapV4MigratorSplit address: %s", address(uniswapV4Migrator));
 
         vm.stopBroadcast();
     }

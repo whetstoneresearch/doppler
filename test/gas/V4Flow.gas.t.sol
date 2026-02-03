@@ -24,8 +24,8 @@ import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.
 import { GovernanceFactory, IGovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer, IPoolInitializer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
-import { ILiquidityMigrator, UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { ILiquidityMigrator, UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { ITokenFactory, TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 
@@ -33,8 +33,8 @@ import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 // we need to make sure we cover all the different flows in the different Doppler tests
 contract V4FlowGas is Deployers, DeployPermit2 {
     IAllowanceTransfer public permit2;
-    UniswapV4Migrator public migrator;
-    UniswapV4MigratorHook public migratorHook;
+    UniswapV4MigratorSplit public migrator;
+    UniswapV4MigratorSplitHook public migratorHook;
     IPositionManager public positionManager;
     Airlock public airlock;
     DopplerDeployer public deployer;
@@ -56,21 +56,23 @@ contract V4FlowGas is Deployers, DeployPermit2 {
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
         );
         locker = new StreamableFeesLocker(positionManager, address(this));
-        migratorHook = UniswapV4MigratorHook(
+        migratorHook = UniswapV4MigratorSplitHook(
             address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
                 ) ^ (0x4444 << 144)
             )
         );
-        migrator = new UniswapV4Migrator(
+        migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(manager),
             PositionManager(payable(address(positionManager))),
             locker,
             IHooks(migratorHook)
         );
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(address(manager), address(migrator)), address(migratorHook));
+        deployCodeTo(
+            "UniswapV4MigratorSplitHook", abi.encode(address(manager), address(migrator)), address(migratorHook)
+        );
         locker.approveMigrator(address(migrator));
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));

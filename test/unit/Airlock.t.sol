@@ -23,7 +23,11 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Router02,
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20, ERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
@@ -86,7 +90,7 @@ contract AirlockTest is Test, Deployers {
     DopplerDeployer deployer;
     UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
-    UniswapV2Migrator uniswapV2LiquidityMigrator;
+    UniswapV2MigratorSplit uniswapV2LiquidityMigrator;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
@@ -101,7 +105,7 @@ contract AirlockTest is Test, Deployers {
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),

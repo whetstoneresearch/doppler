@@ -17,8 +17,8 @@ import {
     ILiquidityMigrator,
     IUniswapV2Factory,
     IUniswapV2Router02,
-    UniswapV2Migrator
-} from "src/migrators/UniswapV2Migrator.sol";
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
@@ -170,8 +170,8 @@ function deployUniswapV2Migrator(
     address airlockOwner,
     address uniswapV2Factory,
     address uniswapV2Router
-) returns (UniswapV2Migrator migrator) {
-    migrator = new UniswapV2Migrator(
+) returns (UniswapV2MigratorSplit migrator) {
+    migrator = new UniswapV2MigratorSplit(
         address(airlock), IUniswapV2Factory(uniswapV2Factory), IUniswapV2Router02(uniswapV2Router), airlockOwner
     );
     address[] memory modules = new address[](1);

@@ -10,8 +10,8 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import {
     BeneficiaryData,
     InvalidProtocolOwnerBeneficiary,
@@ -37,8 +37,8 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     MockAirlock public airlock;
     address public protocolOwner = address(0xb055);
 
-    UniswapV4Migrator public migrator;
-    UniswapV4MigratorHook public migratorHook;
+    UniswapV4MigratorSplit public migrator;
+    UniswapV4MigratorSplitHook public migratorHook;
     StreamableFeesLocker public locker;
 
     address public asset;
@@ -63,7 +63,7 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         deployPosm(manager);
 
         airlock = new MockAirlock(protocolOwner);
-        migratorHook = UniswapV4MigratorHook(
+        migratorHook = UniswapV4MigratorSplitHook(
             address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
@@ -71,7 +71,7 @@ contract UniswapV4MigratorTest is PosmTestSetup {
             )
         );
         locker = new StreamableFeesLocker(lpm, address(this));
-        migrator = new UniswapV4Migrator(
+        migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(manager),
             PositionManager(payable(address(lpm))),
@@ -79,7 +79,7 @@ contract UniswapV4MigratorTest is PosmTestSetup {
             IHooks(migratorHook)
         );
         locker.approveMigrator(address(migrator));
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(migratorHook));
+        deployCodeTo("UniswapV4MigratorSplitHook", abi.encode(manager, migrator), address(migratorHook));
     }
 
     function _setUpTokens() internal {

@@ -6,7 +6,11 @@ import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Router02,
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 import {
@@ -18,7 +22,7 @@ import {
 contract V3PocTest is Test {
     UniswapV3Initializer public initializer;
     Airlock public airlock;
-    UniswapV2Migrator public uniswapV2LiquidityMigrator;
+    UniswapV2MigratorSplit public uniswapV2LiquidityMigrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
 
@@ -28,7 +32,7 @@ contract V3PocTest is Test {
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
             address(airlock),
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
             IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),

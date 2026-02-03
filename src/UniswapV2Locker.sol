@@ -8,7 +8,7 @@ import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
-import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 
 contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
     using SafeTransferLib for ERC20;
@@ -19,7 +19,7 @@ contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
     IUniswapV2Factory public immutable factory;
 
     /// @notice Address of the Uniswap V2 migrator
-    UniswapV2Migrator public immutable migrator;
+    UniswapV2MigratorSplit public immutable migrator;
 
     /// @notice Returns the state of a pool
     mapping(address pool => PoolState state) public getState;
@@ -30,7 +30,7 @@ contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
     constructor(
         address airlock_,
         IUniswapV2Factory factory_,
-        UniswapV2Migrator migrator_,
+        UniswapV2MigratorSplit migrator_,
         address owner_
     ) Ownable(owner_) ImmutableAirlock(airlock_) {
         factory = factory_;

@@ -7,7 +7,7 @@ import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { Airlock } from "src/Airlock.sol";
-import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 
 contract DeployUniV2MigratorScript is Script, Config {
     function run() public {
@@ -33,14 +33,14 @@ contract DeployUniV2MigratorScript is Script, Config {
         address airlockOwner = Airlock(payable(airlock)).owner();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(UniswapV2Migrator).name);
+        bytes32 salt = generateCreate3Salt(msg.sender, type(UniswapV2MigratorSplit).name);
         address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
         address migrator = ICreateX(createX)
             .deployCreate3(
                 salt,
                 abi.encodePacked(
-                    type(UniswapV2Migrator).creationCode,
+                    type(UniswapV2MigratorSplit).creationCode,
                     abi.encode(airlock, uniswapV2Factory, uniswapV2Router, airlockOwner)
                 )
             );
