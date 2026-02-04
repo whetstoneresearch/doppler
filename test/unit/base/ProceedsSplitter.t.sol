@@ -177,7 +177,7 @@ contract ProceedsSplitterTest is Test {
     /* ------------------------------------------------------------------------------- */
 
     function test_distributeSplit_withToken0Split() public {
-        // Setup: 25% of token0 goes to recipient
+        // Setup: 25% of numeraire (token1) goes to recipient when asset is token0
         SplitConfiguration memory config =
             SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
@@ -188,35 +188,8 @@ contract ProceedsSplitterTest is Test {
         token0.mint(address(proceedsSplitter), balance0);
         token1.mint(address(proceedsSplitter), balance1);
 
-        uint256 expectedSplit = balance0 * 0.25e18 / WAD; // 250e18
-        uint256 expectedBalanceLeft0 = balance0 - expectedSplit; // 750e18
-
-        // Expect event
-        vm.expectEmit(true, true, true, true);
-        emit DistributeSplit(address(token0), address(token1), recipient, expectedSplit);
-
-        (uint256 balanceLeft0, uint256 balanceLeft1) =
-            proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
-
-        assertEq(balanceLeft0, expectedBalanceLeft0);
-        assertEq(balanceLeft1, balance1); // token1 balance unchanged
-        assertEq(token1.balanceOf(recipient), expectedSplit);
-    }
-
-    function test_distributeSplit_withToken1Split() public {
-        // Setup: 30% of token1 goes to recipient
-        SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: false, share: 0.3e18, donated: 0 });
-        proceedsSplitter.setSplit(address(token0), address(token1), config);
-
-        // Give tokens to the splitter
-        uint256 balance0 = 1000e18;
-        uint256 balance1 = 2000e18;
-        token0.mint(address(proceedsSplitter), balance0);
-        token1.mint(address(proceedsSplitter), balance1);
-
-        uint256 expectedSplit = balance1 * 0.3e18 / WAD; // 600e18
-        uint256 expectedBalanceLeft1 = balance1 - expectedSplit; // 1400e18
+        uint256 expectedSplit = balance1 * 0.25e18 / WAD; // 500e18 (25% of numeraire)
+        uint256 expectedBalanceLeft1 = balance1 - expectedSplit; // 1500e18
 
         // Expect event
         vm.expectEmit(true, true, true, true);
@@ -227,6 +200,33 @@ contract ProceedsSplitterTest is Test {
 
         assertEq(balanceLeft0, balance0); // token0 balance unchanged
         assertEq(balanceLeft1, expectedBalanceLeft1);
+        assertEq(token1.balanceOf(recipient), expectedSplit);
+    }
+
+    function test_distributeSplit_withToken1Split() public {
+        // Setup: 30% of numeraire (token0) goes to recipient when asset is token1
+        SplitConfiguration memory config =
+            SplitConfiguration({ recipient: recipient, isToken0: false, share: 0.3e18, donated: 0 });
+        proceedsSplitter.setSplit(address(token0), address(token1), config);
+
+        // Give tokens to the splitter
+        uint256 balance0 = 1000e18;
+        uint256 balance1 = 2000e18;
+        token0.mint(address(proceedsSplitter), balance0);
+        token1.mint(address(proceedsSplitter), balance1);
+
+        uint256 expectedSplit = balance0 * 0.3e18 / WAD; // 300e18 (30% of numeraire)
+        uint256 expectedBalanceLeft0 = balance0 - expectedSplit; // 700e18
+
+        // Expect event
+        vm.expectEmit(true, true, true, true);
+        emit DistributeSplit(address(token0), address(token1), recipient, expectedSplit);
+
+        (uint256 balanceLeft0, uint256 balanceLeft1) =
+            proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
+
+        assertEq(balanceLeft0, expectedBalanceLeft0);
+        assertEq(balanceLeft1, balance1); // token1 balance unchanged
         assertEq(token0.balanceOf(recipient), expectedSplit);
     }
 
@@ -244,68 +244,68 @@ contract ProceedsSplitterTest is Test {
     }
 
     function test_distributeSplit_zeroSplitAmount() public {
-        // Setup: 25% split but balance is 0
+        // Setup: 25% split but numeraire balance is 0, so no split occurs
         SplitConfiguration memory config =
             SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
-        uint256 balance0 = 0;
-        uint256 balance1 = 2000e18;
+        uint256 balance0 = 1000e18;
+        uint256 balance1 = 0; // Numeraire is zero, so split amount will be 0
 
         (uint256 balanceLeft0, uint256 balanceLeft1) =
             proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
 
-        // Should return original balances
+        // Should return original balances since split amount is 0
         assertEq(balanceLeft0, balance0);
         assertEq(balanceLeft1, balance1);
     }
 
     function test_distributeSplit_withETH() public {
-        // Setup: 20% of token0 (asset) goes to recipient, token1 is ETH (address(0))
+        // Setup: 20% of ETH (numeraire) goes to recipient when asset is token0
+        // Note: address(0) < address(token0), so token0=address(0), token1=address(token0)
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: address(ethReceiver), isToken0: true, share: 0.2e18, donated: 0 });
-        proceedsSplitter.setSplit(address(token0), address(0), config);
+            SplitConfiguration({ recipient: address(ethReceiver), isToken0: false, share: 0.2e18, donated: 0 });
+        proceedsSplitter.setSplit(address(0), address(token0), config);
 
         // Give tokens to the splitter
-        // Split amount will be balance0 * 0.2 = 1000e18 * 0.2 = 200e18
-        // So we need at least 200e18 ETH for the transfer
-        uint256 balance0 = 1000e18;
-        uint256 balance1 = 250 ether; // More than enough for the 200e18 split
-        token0.mint(address(proceedsSplitter), balance0);
-        vm.deal(address(proceedsSplitter), balance1);
+        // Split amount will be balance0 (ETH) * 0.2 = 250e18 * 0.2 = 50e18
+        uint256 balance0 = 250 ether; // ETH (numeraire)
+        uint256 balance1 = 1000e18; // token0 (asset)
+        vm.deal(address(proceedsSplitter), balance0);
+        token0.mint(address(proceedsSplitter), balance1);
 
-        uint256 expectedSplit = balance0 * 0.2e18 / WAD; // 200e18
-        uint256 expectedBalanceLeft0 = balance0 - expectedSplit; // 800e18
+        uint256 expectedSplit = balance0 * 0.2e18 / WAD; // 50e18
+        uint256 expectedBalanceLeft0 = balance0 - expectedSplit; // 200e18
         uint256 recipientBalanceBefore = address(ethReceiver).balance;
 
         // Expect event
         vm.expectEmit(true, true, true, true);
-        emit DistributeSplit(address(token0), address(0), address(ethReceiver), expectedSplit);
+        emit DistributeSplit(address(0), address(token0), address(ethReceiver), expectedSplit);
 
         (uint256 balanceLeft0, uint256 balanceLeft1) =
-            proceedsSplitter.distributeSplit(address(token0), address(0), balance0, balance1);
+            proceedsSplitter.distributeSplit(address(0), address(token0), balance0, balance1);
 
         assertEq(balanceLeft0, expectedBalanceLeft0);
-        assertEq(balanceLeft1, balance1); // ETH balance unchanged
+        assertEq(balanceLeft1, balance1); // token0 balance unchanged
         assertEq(address(ethReceiver).balance, recipientBalanceBefore + expectedSplit);
     }
 
     function test_distributeSplit_withETHAsNumeraire() public {
-        // Setup: 15% of token1 split, paid in ETH (numeraire), token0 is address(0)
+        // Setup: 15% of ETH (numeraire) split, when asset is token1
+        // token0 is address(0)=ETH, token1 is ERC20
         SplitConfiguration memory config =
             SplitConfiguration({ recipient: address(ethReceiver), isToken0: false, share: 0.15e18, donated: 0 });
         proceedsSplitter.setSplit(address(0), address(token1), config);
 
         // Give tokens to the splitter
-        // Split amount will be balance1 * 0.15 = 1000e18 * 0.15 = 150e18
-        // So we need at least 150e18 ETH for the transfer
-        uint256 balance0 = 200 ether; // More than enough for the 150e18 split
-        uint256 balance1 = 1000e18;
+        // Split amount will be balance0 (ETH) * 0.15 = 200e18 * 0.15 = 30e18
+        uint256 balance0 = 200 ether; // ETH (numeraire)
+        uint256 balance1 = 1000e18; // ERC20 (asset)
         vm.deal(address(proceedsSplitter), balance0);
         token1.mint(address(proceedsSplitter), balance1);
 
-        uint256 expectedSplit = balance1 * 0.15e18 / WAD; // 150e18
-        uint256 expectedBalanceLeft1 = balance1 - expectedSplit; // 850e18
+        uint256 expectedSplit = balance0 * 0.15e18 / WAD; // 30e18 (15% of numeraire)
+        uint256 expectedBalanceLeft0 = balance0 - expectedSplit; // 170e18
         uint256 recipientBalanceBefore = address(ethReceiver).balance;
 
         // Expect event
@@ -315,24 +315,52 @@ contract ProceedsSplitterTest is Test {
         (uint256 balanceLeft0, uint256 balanceLeft1) =
             proceedsSplitter.distributeSplit(address(0), address(token1), balance0, balance1);
 
-        assertEq(balanceLeft0, balance0); // ETH balance unchanged
-        assertEq(balanceLeft1, expectedBalanceLeft1);
+        assertEq(balanceLeft0, expectedBalanceLeft0);
+        assertEq(balanceLeft1, balance1); // ERC20 balance unchanged
         assertEq(address(ethReceiver).balance, recipientBalanceBefore + expectedSplit);
     }
 
     function testFuzz_distributeSplit_withToken0Split(uint256 balance0, uint256 balance1, uint256 share) public {
-        vm.assume(balance0 > 0 && balance0 < type(uint128).max);
+        vm.assume(balance1 > 0 && balance1 < type(uint128).max);
         vm.assume(share > 0 && share <= MAX_SPLIT_SHARE);
 
-        // Calculate expected split amount
-        uint256 expectedSplit = balance0 * share / WAD;
+        // Calculate expected split amount from numeraire (token1) when asset is token0
+        uint256 expectedSplit = balance1 * share / WAD;
         vm.assume(expectedSplit > 0);
 
-        // Ensure numeraire (token1) has enough balance for the split
-        vm.assume(balance1 >= expectedSplit && balance1 < type(uint128).max);
+        // Ensure we have enough balance for the split
+        vm.assume(balance0 < type(uint128).max);
 
         SplitConfiguration memory config =
             SplitConfiguration({ recipient: recipient, isToken0: true, share: share, donated: 0 });
+        proceedsSplitter.setSplit(address(token0), address(token1), config);
+
+        token0.mint(address(proceedsSplitter), balance0);
+        token1.mint(address(proceedsSplitter), balance1);
+
+        uint256 expectedBalanceLeft1 = balance1 - expectedSplit;
+
+        (uint256 balanceLeft0, uint256 balanceLeft1) =
+            proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
+
+        assertEq(balanceLeft0, balance0); // token0 unchanged
+        assertEq(balanceLeft1, expectedBalanceLeft1);
+        assertEq(token1.balanceOf(recipient), expectedSplit);
+    }
+
+    function testFuzz_distributeSplit_withToken1Split(uint256 balance0, uint256 balance1, uint256 share) public {
+        vm.assume(balance0 > 0 && balance0 < type(uint128).max);
+        vm.assume(share > 0 && share <= MAX_SPLIT_SHARE);
+
+        // Calculate expected split amount from numeraire (token0) when asset is token1
+        uint256 expectedSplit = balance0 * share / WAD;
+        vm.assume(expectedSplit > 0);
+
+        // Ensure we have enough balance for the split
+        vm.assume(balance1 < type(uint128).max);
+
+        SplitConfiguration memory config =
+            SplitConfiguration({ recipient: recipient, isToken0: false, share: share, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         token0.mint(address(proceedsSplitter), balance0);
@@ -344,40 +372,12 @@ contract ProceedsSplitterTest is Test {
             proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
 
         assertEq(balanceLeft0, expectedBalanceLeft0);
-        assertEq(balanceLeft1, balance1);
-        assertEq(token1.balanceOf(recipient), expectedSplit);
-    }
-
-    function testFuzz_distributeSplit_withToken1Split(uint256 balance0, uint256 balance1, uint256 share) public {
-        vm.assume(balance1 > 0 && balance1 < type(uint128).max);
-        vm.assume(share > 0 && share <= MAX_SPLIT_SHARE);
-
-        // Calculate expected split amount
-        uint256 expectedSplit = balance1 * share / WAD;
-        vm.assume(expectedSplit > 0);
-
-        // Ensure numeraire (token0) has enough balance for the split
-        vm.assume(balance0 >= expectedSplit && balance0 < type(uint128).max);
-
-        SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: false, share: share, donated: 0 });
-        proceedsSplitter.setSplit(address(token0), address(token1), config);
-
-        token0.mint(address(proceedsSplitter), balance0);
-        token1.mint(address(proceedsSplitter), balance1);
-
-        uint256 expectedBalanceLeft1 = balance1 - expectedSplit;
-
-        (uint256 balanceLeft0, uint256 balanceLeft1) =
-            proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
-
-        assertEq(balanceLeft0, balance0);
-        assertEq(balanceLeft1, expectedBalanceLeft1);
+        assertEq(balanceLeft1, balance1); // token1 unchanged
         assertEq(token0.balanceOf(recipient), expectedSplit);
     }
 
     function test_distributeSplit_maxShare() public {
-        // Setup: 50% split (max)
+        // Setup: 50% split (max) of numeraire (token1) when asset is token0
         SplitConfiguration memory config =
             SplitConfiguration({ recipient: recipient, isToken0: true, share: MAX_SPLIT_SHARE, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
@@ -387,14 +387,14 @@ contract ProceedsSplitterTest is Test {
         token0.mint(address(proceedsSplitter), balance0);
         token1.mint(address(proceedsSplitter), balance1);
 
-        uint256 expectedSplit = balance0 * MAX_SPLIT_SHARE / WAD; // 500e18
-        uint256 expectedBalanceLeft0 = balance0 - expectedSplit; // 500e18
+        uint256 expectedSplit = balance1 * MAX_SPLIT_SHARE / WAD; // 1000e18 (50% of numeraire)
+        uint256 expectedBalanceLeft1 = balance1 - expectedSplit; // 1000e18
 
         (uint256 balanceLeft0, uint256 balanceLeft1) =
             proceedsSplitter.distributeSplit(address(token0), address(token1), balance0, balance1);
 
-        assertEq(balanceLeft0, expectedBalanceLeft0);
-        assertEq(balanceLeft1, balance1);
+        assertEq(balanceLeft0, balance0); // token0 unchanged
+        assertEq(balanceLeft1, expectedBalanceLeft1);
         assertEq(token1.balanceOf(recipient), expectedSplit);
     }
 }
