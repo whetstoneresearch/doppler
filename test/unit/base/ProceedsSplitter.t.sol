@@ -2,14 +2,14 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
+import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import {
+    InvalidSplitRecipient,
     MAX_SPLIT_SHARE,
     ProceedsSplitter,
     SplitConfiguration,
-    InvalidSplitRecipient,
     SplitShareTooHigh
 } from "src/base/ProceedsSplitter.sol";
-import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { WAD } from "src/types/WAD.sol";
 
 // Mock ERC20 token for testing
@@ -95,11 +95,11 @@ contract ProceedsSplitterTest is Test {
 
     function test_setSplit_validConfiguration() public {
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18 });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18, donated: 0 });
 
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
-        (address storedRecipient, bool storedIsToken0, uint256 storedShare) =
+        (address storedRecipient, bool storedIsToken0, uint256 storedShare, uint256 storedDonated) =
             proceedsSplitter.splitConfigurationOf(address(token0), address(token1));
 
         assertEq(storedRecipient, recipient);
@@ -109,11 +109,11 @@ contract ProceedsSplitterTest is Test {
 
     function test_setSplit_withToken0() public {
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.3e18 });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.3e18, donated: 0 });
 
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
-        (address storedRecipient, bool storedIsToken0, uint256 storedShare) =
+        (address storedRecipient, bool storedIsToken0, uint256 storedShare, uint256 storedDonated) =
             proceedsSplitter.splitConfigurationOf(address(token0), address(token1));
 
         assertEq(storedRecipient, recipient);
@@ -123,11 +123,11 @@ contract ProceedsSplitterTest is Test {
 
     function test_setSplit_withToken1() public {
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: false, share: 0.2e18 });
+            SplitConfiguration({ recipient: recipient, isToken0: false, share: 0.2e18, donated: 0 });
 
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
-        (address storedRecipient, bool storedIsToken0, uint256 storedShare) =
+        (address storedRecipient, bool storedIsToken0, uint256 storedShare, uint256 storedDonated) =
             proceedsSplitter.splitConfigurationOf(address(token0), address(token1));
 
         assertEq(storedRecipient, recipient);
@@ -137,18 +137,18 @@ contract ProceedsSplitterTest is Test {
 
     function test_setSplit_atMaxShare() public {
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: MAX_SPLIT_SHARE });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: MAX_SPLIT_SHARE, donated: 0 });
 
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
-        (,, uint256 storedShare) = proceedsSplitter.splitConfigurationOf(address(token0), address(token1));
+        (,, uint256 storedShare,) = proceedsSplitter.splitConfigurationOf(address(token0), address(token1));
 
         assertEq(storedShare, MAX_SPLIT_SHARE);
     }
 
     function test_setSplit_revertsOnZeroRecipient() public {
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: address(0), isToken0: true, share: 0.25e18 });
+            SplitConfiguration({ recipient: address(0), isToken0: true, share: 0.25e18, donated: 0 });
 
         vm.expectRevert(InvalidSplitRecipient.selector);
         proceedsSplitter.setSplit(address(token0), address(token1), config);
@@ -157,7 +157,7 @@ contract ProceedsSplitterTest is Test {
     function test_setSplit_revertsOnShareTooHigh() public {
         uint256 tooHighShare = MAX_SPLIT_SHARE + 1;
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: tooHighShare });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: tooHighShare, donated: 0 });
 
         vm.expectRevert(abi.encodeWithSelector(SplitShareTooHigh.selector, tooHighShare, MAX_SPLIT_SHARE));
         proceedsSplitter.setSplit(address(token0), address(token1), config);
@@ -165,7 +165,8 @@ contract ProceedsSplitterTest is Test {
 
     function testFuzz_setSplit_revertsOnShareTooHigh(uint256 share) public {
         vm.assume(share > MAX_SPLIT_SHARE);
-        SplitConfiguration memory config = SplitConfiguration({ recipient: recipient, isToken0: true, share: share });
+        SplitConfiguration memory config =
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: share, donated: 0 });
 
         vm.expectRevert(abi.encodeWithSelector(SplitShareTooHigh.selector, share, MAX_SPLIT_SHARE));
         proceedsSplitter.setSplit(address(token0), address(token1), config);
@@ -178,7 +179,7 @@ contract ProceedsSplitterTest is Test {
     function test_distributeSplit_withToken0Split() public {
         // Setup: 25% of token0 goes to recipient
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18 });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         // Give tokens to the splitter
@@ -205,7 +206,7 @@ contract ProceedsSplitterTest is Test {
     function test_distributeSplit_withToken1Split() public {
         // Setup: 30% of token1 goes to recipient
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: false, share: 0.3e18 });
+            SplitConfiguration({ recipient: recipient, isToken0: false, share: 0.3e18, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         // Give tokens to the splitter
@@ -245,7 +246,7 @@ contract ProceedsSplitterTest is Test {
     function test_distributeSplit_zeroSplitAmount() public {
         // Setup: 25% split but balance is 0
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18 });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         uint256 balance0 = 0;
@@ -262,7 +263,7 @@ contract ProceedsSplitterTest is Test {
     function test_distributeSplit_withETH() public {
         // Setup: 20% of token0 (asset) goes to recipient, token1 is ETH (address(0))
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: address(ethReceiver), isToken0: true, share: 0.2e18 });
+            SplitConfiguration({ recipient: address(ethReceiver), isToken0: true, share: 0.2e18, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(0), config);
 
         // Give tokens to the splitter
@@ -292,7 +293,7 @@ contract ProceedsSplitterTest is Test {
     function test_distributeSplit_withETHAsNumeraire() public {
         // Setup: 15% of token1 split, paid in ETH (numeraire), token0 is address(0)
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: address(ethReceiver), isToken0: false, share: 0.15e18 });
+            SplitConfiguration({ recipient: address(ethReceiver), isToken0: false, share: 0.15e18, donated: 0 });
         proceedsSplitter.setSplit(address(0), address(token1), config);
 
         // Give tokens to the splitter
@@ -330,7 +331,8 @@ contract ProceedsSplitterTest is Test {
         // Ensure numeraire (token1) has enough balance for the split
         vm.assume(balance1 >= expectedSplit && balance1 < type(uint128).max);
 
-        SplitConfiguration memory config = SplitConfiguration({ recipient: recipient, isToken0: true, share: share });
+        SplitConfiguration memory config =
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: share, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         token0.mint(address(proceedsSplitter), balance0);
@@ -357,7 +359,8 @@ contract ProceedsSplitterTest is Test {
         // Ensure numeraire (token0) has enough balance for the split
         vm.assume(balance0 >= expectedSplit && balance0 < type(uint128).max);
 
-        SplitConfiguration memory config = SplitConfiguration({ recipient: recipient, isToken0: false, share: share });
+        SplitConfiguration memory config =
+            SplitConfiguration({ recipient: recipient, isToken0: false, share: share, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         token0.mint(address(proceedsSplitter), balance0);
@@ -376,7 +379,7 @@ contract ProceedsSplitterTest is Test {
     function test_distributeSplit_maxShare() public {
         // Setup: 50% split (max)
         SplitConfiguration memory config =
-            SplitConfiguration({ recipient: recipient, isToken0: true, share: MAX_SPLIT_SHARE });
+            SplitConfiguration({ recipient: recipient, isToken0: true, share: MAX_SPLIT_SHARE, donated: 0 });
         proceedsSplitter.setSplit(address(token0), address(token1), config);
 
         uint256 balance0 = 1000e18;
