@@ -145,7 +145,9 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
             _setSplit(
                 Currency.unwrap(poolKey.currency0),
                 Currency.unwrap(poolKey.currency1),
-                SplitConfiguration({ recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare })
+                SplitConfiguration({
+                    recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare, donated: 0
+                })
             );
         }
 

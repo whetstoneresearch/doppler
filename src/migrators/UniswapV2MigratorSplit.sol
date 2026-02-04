@@ -87,7 +87,9 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
 
         if (share > 0) {
             _setSplit(
-                token0, token1, SplitConfiguration({ recipient: recipient, isToken0: asset < numeraire, share: share })
+                token0,
+                token1,
+                SplitConfiguration({ recipient: recipient, isToken0: asset < numeraire, share: share, donated: 0 })
             );
         }
 
