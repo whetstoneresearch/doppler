@@ -67,8 +67,8 @@ abstract contract ProceedsSplitter {
             balanceLeft0 = balance0 - splitAmount;
         }
 
-        if (splitAmount == 0) return (balance0, balance1);
         if (config.donated > 0) splitAmount += config.donated;
+        if (splitAmount == 0) return (balance0, balance1);
 
         emit DistributeSplit(token0, token1, config.recipient, splitAmount);
 
