@@ -28,7 +28,7 @@ abstract contract ProceedsSplitter {
         SplitConfiguration storage config = splitConfigurationOf[token0][token1];
 
         if (token0 == address(0)) {
-            require(msg.value == 0, "Wrong ETH amount");
+            require(msg.value == amount, "Wrong ETH amount");
         } else {
             SafeTransferLib.safeTransferFrom(config.isToken0 ? token1 : token0, msg.sender, address(this), amount);
         }
