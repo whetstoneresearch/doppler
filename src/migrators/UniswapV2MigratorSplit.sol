@@ -114,7 +114,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         }
 
         if (splitConfigurationOf[token0][token1].share > 0) {
-            _distributeSplit(token0, token1, balance0, balance1);
+            (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
         }
 
         (uint256 depositAmount0, uint256 depositAmount1) =
