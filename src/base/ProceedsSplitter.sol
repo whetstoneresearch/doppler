@@ -18,6 +18,10 @@ error InvalidSplitRecipient();
 
 error SplitShareTooHigh(uint256 actual, uint256 maximum);
 
+error InvalidETHAmount();
+
+event Donate(address indexed token0, address indexed token1, uint256 amount);
+
 event DistributeSplit(address indexed token0, address indexed token1, address indexed recipient, uint256 amount);
 
 abstract contract ProceedsSplitter {
@@ -28,12 +32,13 @@ abstract contract ProceedsSplitter {
         SplitConfiguration storage config = splitConfigurationOf[token0][token1];
 
         if (token0 == address(0)) {
-            require(msg.value == amount, "Wrong ETH amount");
+            require(msg.value == amount, InvalidETHAmount());
         } else {
             SafeTransferLib.safeTransferFrom(config.isToken0 ? token1 : token0, msg.sender, address(this), amount);
         }
 
         config.donated += amount;
+        emit Donate(token0, token1, amount);
     }
 
     function _setSplit(address token0, address token1, SplitConfiguration memory config) internal {
