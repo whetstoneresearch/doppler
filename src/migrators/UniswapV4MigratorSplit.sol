@@ -171,7 +171,7 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         uint256 balance0 = token0 == address(0) ? address(this).balance : ERC20(token0).balanceOf(address(this));
 
         if (splitConfigurationOf[token0][token1].share > 0) {
-            _distributeSplit(token0, token1, balance0, balance1);
+            (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
         }
 
         int24 lowerTick = TickMath.minUsableTick(poolKey.tickSpacing);
