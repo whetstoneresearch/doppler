@@ -56,15 +56,15 @@ abstract contract ProceedsSplitter {
         address numeraire;
         uint256 splitAmount;
 
-        // We use the canonical nomenclature that asset < numeraire for isToken0
+        // We use the canonical nomenclature, `isToken0` refers to asset being token0
         if (config.isToken0) {
             numeraire = token1;
-            splitAmount = balance0 * config.share / WAD;
-            balanceLeft0 = balance0 - splitAmount;
+            splitAmount = balance1 * config.share / WAD;
+            balanceLeft0 = balance1 - splitAmount;
         } else {
             numeraire = token0;
-            splitAmount = balance1 * config.share / WAD;
-            balanceLeft1 = balance1 - splitAmount;
+            splitAmount = balance0 * config.share / WAD;
+            balanceLeft1 = balance0 - splitAmount;
         }
 
         if (splitAmount == 0) return (balance0, balance1);
