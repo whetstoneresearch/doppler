@@ -60,11 +60,11 @@ abstract contract ProceedsSplitter {
         if (config.isToken0) {
             numeraire = token1;
             splitAmount = balance1 * config.share / WAD;
-            balanceLeft0 = balance1 - splitAmount;
+            balanceLeft1 = balance1 - splitAmount;
         } else {
             numeraire = token0;
             splitAmount = balance0 * config.share / WAD;
-            balanceLeft1 = balance0 - splitAmount;
+            balanceLeft0 = balance0 - splitAmount;
         }
 
         if (splitAmount == 0) return (balance0, balance1);
