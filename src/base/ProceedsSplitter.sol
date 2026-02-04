@@ -28,13 +28,15 @@ abstract contract ProceedsSplitter {
     /// @notice Configuration of proceeds split, stored by asset since they are unique
     mapping(address token0 => mapping(address token1 => SplitConfiguration config)) public splitConfigurationOf;
 
-    function donate(address token0, address token1, uint256 amount) external payable {
+    function donate(address asset, address numeraire, uint256 amount) external payable {
+        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+
         SplitConfiguration storage config = splitConfigurationOf[token0][token1];
 
-        if (token0 == address(0)) {
+        if (numeraire == address(0)) {
             require(msg.value == amount, InvalidETHAmount());
         } else {
-            SafeTransferLib.safeTransferFrom(config.isToken0 ? token1 : token0, msg.sender, address(this), amount);
+            SafeTransferLib.safeTransferFrom(numeraire, msg.sender, address(this), amount);
         }
 
         config.donated += amount;
