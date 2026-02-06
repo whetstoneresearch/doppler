@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { WAD } from "src/types/WAD.sol";
 
 struct SplitConfiguration {
     address recipient;
     bool isToken0; // True if the asset is token0
     uint256 share;
-    uint256 donated;
 }
 
 /// @dev Maximum share that can be allocated (50%)
@@ -18,29 +18,16 @@ error InvalidSplitRecipient();
 
 error SplitShareTooHigh(uint256 actual, uint256 maximum);
 
-error InvalidETHAmount();
-
-event Donate(address indexed token0, address indexed token1, uint256 amount);
-
 event DistributeSplit(address indexed token0, address indexed token1, address indexed recipient, uint256 amount);
 
 abstract contract ProceedsSplitter {
+    TopUpDistributor public immutable TOP_UP_DISTRIBUTOR;
+
     /// @notice Configuration of proceeds split, stored by asset since they are unique
     mapping(address token0 => mapping(address token1 => SplitConfiguration config)) public splitConfigurationOf;
 
-    function donate(address asset, address numeraire, uint256 amount) external payable {
-        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
-
-        SplitConfiguration storage config = splitConfigurationOf[token0][token1];
-
-        if (numeraire == address(0)) {
-            require(msg.value == amount, InvalidETHAmount());
-        } else {
-            SafeTransferLib.safeTransferFrom(numeraire, msg.sender, address(this), amount);
-        }
-
-        config.donated += amount;
-        emit Donate(token0, token1, amount);
+    constructor(TopUpDistributor topUpDistributor) {
+        TOP_UP_DISTRIBUTOR = topUpDistributor;
     }
 
     function _setSplit(address token0, address token1, SplitConfiguration memory config) internal {
@@ -74,7 +61,7 @@ abstract contract ProceedsSplitter {
             balanceLeft0 = balance0 - splitAmount;
         }
 
-        if (config.donated > 0) splitAmount += config.donated;
+        TOP_UP_DISTRIBUTOR.pullUp(token0, token1, config.recipient);
         if (splitAmount == 0) return (balance0, balance1);
 
         emit DistributeSplit(token0, token1, config.recipient, splitAmount);
