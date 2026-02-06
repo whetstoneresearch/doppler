@@ -28,6 +28,7 @@ contract DeployUniV2MigratorSplitScript is Script, Config {
         address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
         address uniswapV2Factory = config.get("uniswap_v2_factory").toAddress();
+        address topUpDistributor = config.get("top_up_distributor").toAddress();
         address weth = config.get("weth").toAddress();
 
         vm.startBroadcast();
@@ -37,7 +38,7 @@ contract DeployUniV2MigratorSplitScript is Script, Config {
         address migrator = ICreateX(createX)
             .deployCreate3(
                 salt,
-                abi.encodePacked(type(UniswapV2MigratorSplit).creationCode, abi.encode(airlock, uniswapV2Factory, weth))
+                abi.encodePacked(type(UniswapV2MigratorSplit).creationCode, abi.encode(airlock, uniswapV2Factory, topUpDistributor, weth))
             );
 
         require(migrator == deployedTo, "Unexpected deployed address");

@@ -34,6 +34,7 @@ contract DeployV4MigratorScript is Script, Config {
         address createX = config.get("create_x").toAddress();
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
         address positionManager = config.get("uniswap_v4_position_manager").toAddress();
+        address topUpDistributor = config.get("top_up_distributor").toAddress();
 
         vm.startBroadcast();
         (bytes32 hookSalt, address hookDeployedTo) = mineV4MigratorHookCreate3(msg.sender, createX);
@@ -55,7 +56,7 @@ contract DeployV4MigratorScript is Script, Config {
                 migratorSalt,
                 abi.encodePacked(
                     type(UniswapV4MigratorSplit).creationCode,
-                    abi.encode(airlock, poolManager, positionManager, locker, hookDeployedTo)
+                    abi.encode(airlock, poolManager, positionManager, locker, hookDeployedTo, topUpDistributor)
                 )
             );
 
