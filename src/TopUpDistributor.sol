@@ -86,7 +86,7 @@ contract TopUpDistributor {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         TopUpData storage config = topUpOf[token0][token1];
-        config.isToken0 = asset < numeraire;
+        if (config.amount == 0) config.isToken0 = asset < numeraire;
 
         if (numeraire == address(0)) {
             require(msg.value == amount, InvalidETHAmount());
