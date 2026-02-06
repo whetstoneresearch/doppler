@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { WAD } from "src/types/WAD.sol";
+import { WAD } from "src/types/Wad.sol";
 
 /**
  * @notice Configuration of the proceeds split for an asset / numeraire pair
