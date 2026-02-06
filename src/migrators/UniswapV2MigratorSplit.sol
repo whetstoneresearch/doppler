@@ -36,6 +36,8 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
     /**
      * @param airlock_ Address of the Airlock contract
      * @param factory_ Address of the Uniswap V2 factory
+     * @param topUpDistributor Address of the TopUpDistributor contract
+     * @param weth_ Address of the WETH contract
      */
     constructor(
         address airlock_,
