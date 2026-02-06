@@ -11,6 +11,7 @@ import { console } from "forge-std/console.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
@@ -18,9 +19,9 @@ import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol"
 import { DopplerDeployer } from "src/initializers/UniswapV4Initializer.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
     UNISWAP_V2_FACTORY_BASE,
@@ -35,7 +36,8 @@ import {
     UNISWAP_V4_POOL_MANAGER_MAINNET,
     UNISWAP_V4_POSITION_MANAGER_BASE,
     UNISWAP_V4_POSITION_MANAGER_BASE_SEPOLIA,
-    UNISWAP_V4_POSITION_MANAGER_MAINNET
+    UNISWAP_V4_POSITION_MANAGER_MAINNET,
+    WETH_MAINNET
 } from "test/shared/Addresses.sol";
 
 abstract contract BaseForkTest is Test {
@@ -45,12 +47,13 @@ abstract contract BaseForkTest is Test {
     TokenFactory public tokenFactory;
     UniswapV3Initializer public v3Initializer;
     UniswapV4Initializer public v4Initializer;
-    UniswapV2Migrator public v2Migrator;
-    UniswapV4Migrator public v4Migrator;
-    UniswapV4MigratorHook public v4MigratorHook;
+    UniswapV2MigratorSplit public v2Migrator;
+    UniswapV4MigratorSplit public v4Migrator;
+    UniswapV4MigratorSplitHook public v4MigratorHook;
     StreamableFeesLocker public streamableFeesLocker;
     GovernanceFactory public governanceFactory;
     NoOpGovernanceFactory public noOpGovernanceFactory;
+    TopUpDistributor public topUpDistributor;
 
     function setUp() public virtual {
         _setupFork();
@@ -142,13 +145,13 @@ abstract contract BaseForkTest is Test {
         // Deploy V2 Migrator
         console.log("Using Uniswap V2 Factory at:", v2Factory);
         console.log("Using Uniswap V2 Router at:", v2Router);
-        v2Migrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(v2Factory),
-            IUniswapV2Router02(v2Router),
-            impersonatedAddress // owner for the locker
+
+        topUpDistributor = new TopUpDistributor(address(airlock));
+
+        v2Migrator = new UniswapV2MigratorSplit(
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
-        console.log("UniswapV2Migrator deployed at:", address(v2Migrator));
+        console.log("UniswapV2MigratorSplit deployed at:", address(v2Migrator));
 
         // Deploy V4 Migrator if V4 is available
         if (v4PoolManager != address(0)) {
@@ -176,22 +179,23 @@ abstract contract BaseForkTest is Test {
         // Use a hardcoded hook address that matches the expected pattern
         // The hook must have the BEFORE_INITIALIZE_FLAG set
         address hookAddress = address(uint160(Hooks.BEFORE_INITIALIZE_FLAG) ^ (0x4444 << 144));
-        v4MigratorHook = UniswapV4MigratorHook(hookAddress);
+        v4MigratorHook = UniswapV4MigratorSplitHook(hookAddress);
 
         // Deploy V4 Migrator with the predetermined hook address
-        v4Migrator = new UniswapV4Migrator(
+        v4Migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(v4PoolManager),
             PositionManager(payable(positionManager)),
             streamableFeesLocker,
-            IHooks(hookAddress)
+            IHooks(hookAddress),
+            topUpDistributor
         );
-        console.log("UniswapV4Migrator deployed at:", address(v4Migrator));
+        console.log("UniswapV4MigratorSplit deployed at:", address(v4Migrator));
 
         // Deploy the hook at the predetermined address using deployCodeTo
         vm.etch(hookAddress, address(v4MigratorHook).code);
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(IPoolManager(v4PoolManager), v4Migrator), hookAddress);
-        console.log("UniswapV4MigratorHook deployed at:", hookAddress);
+        deployCodeTo("UniswapV4MigratorSplitHook", abi.encode(IPoolManager(v4PoolManager), v4Migrator), hookAddress);
+        console.log("UniswapV4MigratorSplitHook deployed at:", hookAddress);
 
         // Verify hook was deployed correctly
         require(address(v4Migrator.migratorHook()) == hookAddress, "Migrator hook not set correctly");

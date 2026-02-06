@@ -1,39 +1,26 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { FixedPointMathLib } from "@solmate/utils/FixedPointMathLib.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
-import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 
-contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
+contract UniswapV2Locker is IUniswapV2Locker, ImmutableAirlock {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for uint160;
 
-    /// @notice Address of the Uniswap V2 factory
-    IUniswapV2Factory public immutable factory;
-
     /// @notice Address of the Uniswap V2 migrator
-    UniswapV2Migrator public immutable migrator;
+    UniswapV2MigratorSplit public immutable migrator;
 
     /// @notice Returns the state of a pool
     mapping(address pool => PoolState state) public getState;
 
-    /**
-     * @param factory_ Address of the Uniswap V2 factory
-     */
-    constructor(
-        address airlock_,
-        IUniswapV2Factory factory_,
-        UniswapV2Migrator migrator_,
-        address owner_
-    ) Ownable(owner_) ImmutableAirlock(airlock_) {
-        factory = factory_;
+    constructor(address airlock_, UniswapV2MigratorSplit migrator_) ImmutableAirlock(airlock_) {
         migrator = migrator_;
     }
 
@@ -91,10 +78,10 @@ contract UniswapV2Locker is IUniswapV2Locker, Ownable, ImmutableAirlock {
         address token1 = IUniswapV2Pair(pool).token1();
 
         if (fees0 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token0), owner(), fees0);
+            SafeTransferLib.safeTransfer(ERC20(token0), airlock.owner(), fees0);
         }
         if (fees1 > 0) {
-            SafeTransferLib.safeTransfer(ERC20(token1), owner(), fees1);
+            SafeTransferLib.safeTransfer(ERC20(token1), airlock.owner(), fees1);
         }
 
         uint256 principal0 = fees0 > 0 ? amount0 - fees0 : amount0;

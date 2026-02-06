@@ -11,7 +11,7 @@ import {
     UniswapV4ScheduledMulticurveInitializerHook
 } from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 
 /* ----------------------------------------------------------------------------------- */
@@ -75,7 +75,7 @@ function computeCreate3Address(bytes32 guardedSalt, address deployer) pure retur
 }
 
 /* ---------------------------------------------------------------------------------- */
-/*                                UniswapV4MigratorHook                               */
+/*                                UniswapV4MigratorSplitHook                               */
 /* ---------------------------------------------------------------------------------- */
 
 uint160 constant MIGRATOR_HOOK_FLAGS =
@@ -89,7 +89,7 @@ struct MineV4MigratorHookParams {
 
 function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 migratorHookInitHash = keccak256(
-        abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager, params.migrator))
+        abi.encodePacked(type(UniswapV4MigratorSplitHook).creationCode, abi.encode(params.poolManager, params.migrator))
     );
 
     for (uint256 salt; salt < 200_000; ++salt) {
@@ -103,7 +103,7 @@ function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns
 
 function mineV4MigratorHookCreate3(address sender, address deployer) view returns (bytes32, address) {
     bytes32 baseSalt =
-        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(UniswapV4MigratorHook).name)) >> 168;
+        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(UniswapV4MigratorSplitHook).name)) >> 168;
 
     for (uint256 seed; seed < 100_000; seed++) {
         bytes32 salt = bytes32(uint256(baseSalt) + seed);

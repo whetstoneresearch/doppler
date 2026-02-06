@@ -7,7 +7,7 @@ import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.s
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 
 /// @notice Thrown when the caller is not the Uniswap V4 Migrator
 error OnlyMigrator();
@@ -29,7 +29,7 @@ event ModifyLiquidity(PoolKey key, IPoolManager.ModifyLiquidityParams params);
  * v4 pool to the Uniswap V4 Migrator
  * @custom:security-contact security@whetstone.cc
  */
-contract UniswapV4MigratorHook is BaseHook {
+contract UniswapV4MigratorSplitHook is BaseHook {
     /// @notice Address of the Uniswap V4 Migrator contract
     address public immutable migrator;
 
@@ -43,7 +43,7 @@ contract UniswapV4MigratorHook is BaseHook {
     /// @notice Constructor for the Uniswap V4 Migrator Hook
     /// @param manager Address of the Uniswap V4 Pool Manager
     /// @param migrator_ Address of the Uniswap V4 Migrator contract
-    constructor(IPoolManager manager, UniswapV4Migrator migrator_) BaseHook(manager) {
+    constructor(IPoolManager manager, UniswapV4MigratorSplit migrator_) BaseHook(manager) {
         migrator = address(migrator_);
     }
 

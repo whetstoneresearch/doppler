@@ -10,7 +10,6 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
-import { WETH_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import {
     DEFAULT_ENDING_TIME,
     DEFAULT_EPOCH_LENGTH,
@@ -51,22 +50,17 @@ contract DopplerMigrateTest is DopplerFixtures {
         Doppler doppler = Doppler(payable(address(poolKey.hooks)));
         _mockEarlyExit(doppler);
 
-        (address token0, address token1) =
-            asset < numeraireAddress ? (asset, WETH_UNICHAIN_SEPOLIA) : (WETH_UNICHAIN_SEPOLIA, asset);
+        (address token0, address token1) = asset < numeraireAddress ? (asset, address(weth)) : (address(weth), asset);
         address v2Pool = uniswapV2Factory.getPair(token0, token1);
-        uint256 v2PoolWETHBalanceBefore = IERC20(WETH_UNICHAIN_SEPOLIA).balanceOf(address(v2Pool));
+        uint256 v2PoolWETHBalanceBefore = weth.balanceOf(address(v2Pool));
 
         airlock.migrate(asset);
 
         // native Ether from Doppler was converted to WETH
         assertEq(address(migrator).balance, 0, "Migrator ETH balance is wrong");
-        assertEq(IERC20(WETH_UNICHAIN_SEPOLIA).balanceOf(address(migrator)), 0, "Migrator WETH balance is wrong");
+        assertEq(weth.balanceOf(address(migrator)), 0, "Migrator WETH balance is wrong");
         // TODO: figure out how to assert to exact value
-        assertGt(
-            IERC20(WETH_UNICHAIN_SEPOLIA).balanceOf(address(v2Pool)),
-            v2PoolWETHBalanceBefore,
-            "Pool WETH balance is wrong"
-        );
+        assertGt(weth.balanceOf(address(v2Pool)), v2PoolWETHBalanceBefore, "Pool WETH balance is wrong");
     }
 
     function test_dopplerv4_migrate_all_tokens() public {

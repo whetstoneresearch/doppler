@@ -9,7 +9,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { UniswapV4MulticurveMigrator } from "src/migrators/UniswapV4MulticurveMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -29,7 +29,7 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
     AirlockMock public airlock;
     UniswapV4MulticurveMigrator public migrator;
     StreamableFeesLockerV2 public locker;
-    UniswapV4MigratorHook public hook;
+    UniswapV4MigratorSplitHook public hook;
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -38,7 +38,7 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         vm.label(Currency.unwrap(currency1), "Currency1");
 
         airlock = new AirlockMock(owner);
-        hook = UniswapV4MigratorHook(
+        hook = UniswapV4MigratorSplitHook(
             address(
                 uint160(
                     Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
@@ -47,7 +47,7 @@ contract UniswapV4MulticurveMigratorTest is Deployers {
         );
         locker = new StreamableFeesLockerV2(manager, owner);
         migrator = new UniswapV4MulticurveMigrator(address(airlock), manager, hook, locker);
-        deployCodeTo("UniswapV4MigratorHook", abi.encode(manager, migrator), address(hook));
+        deployCodeTo("UniswapV4MigratorSplitHook", abi.encode(manager, migrator), address(hook));
 
         vm.prank(owner);
         locker.approveMigrator(address(migrator));
