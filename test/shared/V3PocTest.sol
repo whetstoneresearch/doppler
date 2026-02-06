@@ -22,9 +22,9 @@ contract V3PocTest is Test {
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
 
-    // HAVE MAINNET_RPC_URL SET IN .env
+    // HAVE ETH_MAINNET_RPC_URL SET IN .env
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));

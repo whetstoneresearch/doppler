@@ -89,7 +89,7 @@ contract AirlockTest is Test, Deployers {
     UniswapV2Migrator uniswapV2LiquidityMigrator;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
 
         deployFreshManager();

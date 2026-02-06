@@ -20,7 +20,7 @@ import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.so
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve, Multicurve } from "src/libraries/MulticurveLibrary.sol";
+import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 
@@ -286,7 +286,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         if (isToken0) {
             startTick = lowerTickBoundary;
-            require(initData.farTick >= startTick && initData.farTick <= upperTickBoundary, UnreachableFarTick());
+            require(initData.farTick >= startTick && initData.farTick < upperTickBoundary, UnreachableFarTick());
         } else {
             startTick = upperTickBoundary;
             initData.farTick = -initData.farTick;
@@ -455,7 +455,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of positions currently held in the Uniswap V4 pool
      */
-    function getPositions(address asset) public view returns (Position[] memory) {
+    function getPositions(address asset) internal view returns (Position[] memory) {
         PoolState memory state = getState[asset];
         address token0 = Currency.unwrap(state.poolKey.currency0);
         Position[] memory positions = Multicurve.calculatePositions(
@@ -542,11 +542,16 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             Currency feeCurrency;
             (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
 
-            if (delta != 0) {
+            if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
                 poolManager.sync(feeCurrency);
-                feeCurrency.transfer(address(poolManager), uint128(delta));
-                poolManager.settleFor(dopplerHook);
+
+                if (feeCurrency.isAddressZero()) {
+                    poolManager.settleFor{ value: uint128(delta) }(dopplerHook);
+                } else {
+                    feeCurrency.transfer(address(poolManager), uint128(delta));
+                    poolManager.settleFor(dopplerHook);
+                }
             }
         }
 
