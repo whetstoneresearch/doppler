@@ -71,7 +71,7 @@ contract DeployV4MigratorScript is Script, Config {
 
         vm.stopBroadcast();
         config.set("streamable_fees_locker", locker);
-        config.set("uniswap_v4_migrator", migrator);
-        config.set("uniswap_v4_migrator_hook", migratorHook);
+        config.set("uniswap_v4_migrator_split", migrator);
+        config.set("uniswap_v4_migrator_split_hook", migratorHook);
     }
 }

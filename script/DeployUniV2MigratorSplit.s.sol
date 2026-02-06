@@ -38,12 +38,15 @@ contract DeployUniV2MigratorSplitScript is Script, Config {
         address migrator = ICreateX(createX)
             .deployCreate3(
                 salt,
-                abi.encodePacked(type(UniswapV2MigratorSplit).creationCode, abi.encode(airlock, uniswapV2Factory, topUpDistributor, weth))
+                abi.encodePacked(
+                    type(UniswapV2MigratorSplit).creationCode,
+                    abi.encode(airlock, uniswapV2Factory, topUpDistributor, weth)
+                )
             );
 
         require(migrator == deployedTo, "Unexpected deployed address");
 
         vm.stopBroadcast();
-        config.set("uniswap_v2_migrator", migrator);
+        config.set("uniswap_v2_migrator_split", migrator);
     }
 }

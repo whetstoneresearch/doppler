@@ -11,7 +11,7 @@ import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { mineV4MigratorHookCreate3 } from "test/shared/AirlockMiner.sol";
 
-contract DeployV4MigratorOnlyScript is Script, Config {
+contract DeployV4MigratorSplitOnlyScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -58,7 +58,7 @@ contract DeployV4MigratorOnlyScript is Script, Config {
         require(migratorHook == hookDeployedTo, "Unexpected Migrator Hook deployed address");
 
         vm.stopBroadcast();
-        config.set("uniswap_v4_migrator", migrator);
-        config.set("uniswap_v4_migrator_hook", migratorHook);
+        config.set("uniswap_v4_migrator_split", migrator);
+        config.set("uniswap_v4_migrator_split_hook", migratorHook);
     }
 }
