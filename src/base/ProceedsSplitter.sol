@@ -5,9 +5,15 @@ import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { WAD } from "src/types/WAD.sol";
 
+/**
+ * @notice Configuration of the proceeds split for an asset / numeraire pair
+ * @param recipient Address of the recipient of the split
+ * @param isToken0 True if the asset is token0, false otherwise
+ * @param share Share of the split to allocate to the recipient (in WAD)
+ */
 struct SplitConfiguration {
     address recipient;
-    bool isToken0; // True if the asset is token0
+    bool isToken0;
     uint256 share;
 }
 
