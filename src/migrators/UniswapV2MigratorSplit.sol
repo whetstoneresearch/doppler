@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
-import { WETH as IWETH } from "@solmate/tokens/WETH.sol";
+import { WETH } from "@solady/tokens/WETH.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
@@ -24,7 +25,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
     IUniswapV2Factory public immutable factory;
 
     /// @notice Address of the WETH contract
-    IWETH public immutable weth;
+    WETH public immutable weth;
 
     /// @notice Address of the Uniswap V2 locker
     UniswapV2Locker public immutable locker;
@@ -35,17 +36,16 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
     /**
      * @param airlock_ Address of the Airlock contract
      * @param factory_ Address of the Uniswap V2 factory
-     * @param router Address of the Uniswap V2 router
      */
     constructor(
         address airlock_,
         IUniswapV2Factory factory_,
-        IUniswapV2Router02 router,
-        address owner
-    ) ImmutableAirlock(airlock_) {
+        TopUpDistributor topUpDistributor,
+        address weth_
+    ) ImmutableAirlock(airlock_) ProceedsSplitter(topUpDistributor) {
         factory = factory_;
-        weth = IWETH(payable(router.WETH()));
-        locker = new UniswapV2Locker(airlock_, factory, this, owner);
+        weth = WETH(payable(weth_));
+        locker = new UniswapV2Locker(airlock_, this);
     }
 
     function initialize(
@@ -73,9 +73,11 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
     }
 
     function _initialize(address asset, address numeraire, bytes calldata data) internal virtual returns (address) {
-        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        if (numeraire == address(0)) {
+            numeraire = address(weth);
+        }
 
-        if (token0 == address(0)) token0 = address(weth);
+        (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         address pool = factory.getPair(token0, token1);
 
@@ -87,9 +89,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
 
         if (share > 0) {
             _setSplit(
-                token0,
-                token1,
-                SplitConfiguration({ recipient: recipient, isToken0: asset < numeraire, share: share, donated: 0 })
+                token0, token1, SplitConfiguration({ recipient: recipient, isToken0: asset < numeraire, share: share })
             );
         }
 

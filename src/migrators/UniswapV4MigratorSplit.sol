@@ -15,6 +15,7 @@ import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { Airlock } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
@@ -101,8 +102,9 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         IPoolManager poolManager_,
         PositionManager positionManager_,
         StreamableFeesLocker locker_,
-        IHooks migratorHook_
-    ) ImmutableAirlock(airlock_) {
+        IHooks migratorHook_,
+        TopUpDistributor topUpDistributor
+    ) ImmutableAirlock(airlock_) ProceedsSplitter(topUpDistributor) {
         poolManager = poolManager_;
         positionManager = positionManager_;
         locker = locker_;
@@ -145,9 +147,7 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
             _setSplit(
                 Currency.unwrap(poolKey.currency0),
                 Currency.unwrap(poolKey.currency1),
-                SplitConfiguration({
-                    recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare, donated: 0
-                })
+                SplitConfiguration({ recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare })
             );
         }
 
