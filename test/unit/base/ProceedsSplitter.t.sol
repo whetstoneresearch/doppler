@@ -324,4 +324,111 @@ contract ProceedsSplitterTest is Test {
         assertEq(balanceLeft1, expectedBalanceLeft1);
         assertEq(token1.balanceOf(recipient), expectedSplit);
     }
+
+    /* ------------------------------------------------------------------------------- */
+    /*                                constructor()                                    */
+    /* ------------------------------------------------------------------------------- */
+
+    function test_constructor() public view {
+        assertEq(address(proceedsSplitter.TOP_UP_DISTRIBUTOR()), address(topUpDistributor));
+    }
+
+    /* ------------------------------------------------------------------------------- */
+    /*                    distributeSplit() with TopUp integration                      */
+    /* ------------------------------------------------------------------------------- */
+
+    function test_distributeSplit_pullsUpTopUps_ERC20() public {
+        // Sort addresses to match production usage (migrators always pass sorted pairs)
+        (address sorted0, address sorted1) =
+            address(token0) < address(token1) ? (address(token0), address(token1)) : (address(token1), address(token0));
+        TestERC20 asset = TestERC20(sorted0);
+        TestERC20 numeraire = TestERC20(sorted1);
+
+        // Set up a split: asset is sorted0 (isToken0=true), numeraire is sorted1
+        SplitConfiguration memory config = SplitConfiguration({ recipient: recipient, isToken0: true, share: 0.25e18 });
+        proceedsSplitter.setSplit(sorted0, sorted1, config);
+
+        // Top up 50e18 of numeraire for this pair
+        uint256 topUpAmount = 50e18;
+        numeraire.approve(address(topUpDistributor), topUpAmount);
+        topUpDistributor.topUp(sorted0, sorted1, topUpAmount);
+
+        // Fund the splitter with balances for migration
+        uint256 balance0 = 1000e18;
+        uint256 balance1 = 2000e18;
+        asset.mint(address(proceedsSplitter), balance0);
+        numeraire.mint(address(proceedsSplitter), balance1);
+
+        uint256 recipientBalanceBefore = numeraire.balanceOf(recipient);
+
+        proceedsSplitter.distributeSplit(sorted0, sorted1, balance0, balance1);
+
+        uint256 expectedSplit = balance1 * 0.25e18 / WAD;
+        // Recipient gets both the top-up AND the split
+        assertEq(numeraire.balanceOf(recipient), recipientBalanceBefore + topUpAmount + expectedSplit);
+
+        // TopUp amount is cleared
+        (uint256 remaining,) = topUpDistributor.topUpOf(sorted0, sorted1);
+        assertEq(remaining, 0);
+    }
+
+    function test_distributeSplit_pullsUpTopUps_ETH() public {
+        // Set up a split: asset is token1 (isToken0=false), numeraire is ETH (token0=address(0))
+        SplitConfiguration memory config =
+            SplitConfiguration({ recipient: ethRecipient, isToken0: false, share: 0.2e18 });
+        proceedsSplitter.setSplit(address(0), address(token0), config);
+
+        // Top up 5 ETH
+        uint256 topUpAmount = 5 ether;
+        vm.deal(address(this), topUpAmount);
+        topUpDistributor.topUp{ value: topUpAmount }(address(token0), address(0), topUpAmount);
+
+        // Fund the splitter
+        uint256 balance0 = 100 ether;
+        uint256 balance1 = 1000e18;
+        vm.deal(address(proceedsSplitter), balance0);
+        token0.mint(address(proceedsSplitter), balance1);
+
+        uint256 recipientBalanceBefore = ethRecipient.balance;
+
+        proceedsSplitter.distributeSplit(address(0), address(token0), balance0, balance1);
+
+        uint256 expectedSplit = balance0 * 0.2e18 / WAD;
+        // Recipient gets both the ETH top-up AND the ETH split
+        assertEq(ethRecipient.balance, recipientBalanceBefore + topUpAmount + expectedSplit);
+    }
+
+    function test_distributeSplit_pullsUpTopUps_evenWhenSplitIsZero() public {
+        // Sort addresses to match production usage
+        (address sorted0, address sorted1) =
+            address(token0) < address(token1) ? (address(token0), address(token1)) : (address(token1), address(token0));
+        TestERC20 numeraire = TestERC20(sorted1);
+
+        // Set up a split with share that rounds to 0 for the given balance
+        SplitConfiguration memory config = SplitConfiguration({ recipient: recipient, isToken0: true, share: 1 }); // tiny share
+        proceedsSplitter.setSplit(sorted0, sorted1, config);
+
+        // Top up 50e18 of numeraire
+        uint256 topUpAmount = 50e18;
+        numeraire.approve(address(topUpDistributor), topUpAmount);
+        topUpDistributor.topUp(sorted0, sorted1, topUpAmount);
+
+        // balance1 * 1 / WAD = 0 due to rounding
+        uint256 balance0 = 1000e18;
+        uint256 balance1 = 1; // small enough that split rounds to 0
+        TestERC20(sorted0).mint(address(proceedsSplitter), balance0);
+        numeraire.mint(address(proceedsSplitter), balance1);
+
+        (uint256 balanceLeft0, uint256 balanceLeft1) =
+            proceedsSplitter.distributeSplit(sorted0, sorted1, balance0, balance1);
+
+        // Balances unchanged (split was 0, early return)
+        assertEq(balanceLeft0, balance0);
+        assertEq(balanceLeft1, balance1);
+
+        // But top-ups were still pulled and delivered
+        assertEq(numeraire.balanceOf(recipient), topUpAmount);
+        (uint256 remaining,) = topUpDistributor.topUpOf(sorted0, sorted1);
+        assertEq(remaining, 0);
+    }
 }
