@@ -25,7 +25,7 @@ import { NoSellDopplerHook, SellsNotAllowed } from "src/dopplerHooks/NoSellDoppl
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { IPredictionMigrator } from "src/interfaces/IPredictionMigrator.sol";
-import { Curve } from "src/libraries/MulticurveLibrary.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import { PredictionMigrator } from "src/migrators/PredictionMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -74,11 +74,6 @@ contract PredictionMarketIntegrationTest is BaseIntegrationTest {
 
     function setUp() public override {
         super.setUp();
-        // Note: We intentionally don't set `name` here. This causes the inherited
-        // test_create() and test_migrate() from BaseIntegrationTest to fail early
-        // with "Name is not set" - effectively skipping them since they require
-        // createParams which doesn't fit the prediction market setup flow.
-        // Our custom tests (test_predictionMarket_*) test the full prediction market flow.
         numeraire = address(0); // Use ETH as numeraire
 
         // Deploy oracle
@@ -99,6 +94,25 @@ contract PredictionMarketIntegrationTest is BaseIntegrationTest {
 
         // Deploy PredictionMigrator
         predictionMigrator = _deployPredictionMigrator();
+
+        // Configure base integration params so inherited test_create/test_migrate are well-formed.
+        // test_migrate still skips via BaseIntegrationTest._beforeMigrate.
+        name = "PredictionMarketIntegration";
+        createParams = CreateParams({
+            initialSupply: 1_000_000 ether,
+            numTokensToSell: 1_000_000 ether,
+            numeraire: numeraire,
+            tokenFactory: tokenFactory,
+            tokenFactoryData: abi.encode("Base Entry", "BENT", 0, 0, new address[](0), new uint256[](0), ""),
+            governanceFactory: governanceFactory,
+            governanceFactoryData: new bytes(0),
+            poolInitializer: dopplerInitializer,
+            poolInitializerData: _preparePoolInitializerData(),
+            liquidityMigrator: predictionMigrator,
+            liquidityMigratorData: abi.encode(address(oracle), entryIdA),
+            integrator: address(0),
+            salt: keccak256("prediction_market_base_create")
+        });
     }
 
     function _deployDopplerHookInitializer() internal returns (DopplerHookInitializer initializer) {
@@ -456,6 +470,15 @@ contract PredictionMarketFullFlowTest is Deployers {
         string memory tokenName,
         string memory tokenSymbol
     ) internal returns (address token) {
+        return _createEntryWithOracle(address(oracle), entryId, tokenName, tokenSymbol);
+    }
+
+    function _createEntryWithOracle(
+        address oracleAddress,
+        bytes32 entryId,
+        string memory tokenName,
+        string memory tokenSymbol
+    ) internal returns (address token) {
         CreateParams memory params = CreateParams({
             initialSupply: 1_000_000 ether,
             numTokensToSell: 1_000_000 ether,
@@ -467,7 +490,7 @@ contract PredictionMarketFullFlowTest is Deployers {
             poolInitializer: dopplerInitializer,
             poolInitializerData: _preparePoolInitializerData(),
             liquidityMigrator: predictionMigrator,
-            liquidityMigratorData: abi.encode(address(oracle), entryId),
+            liquidityMigratorData: abi.encode(oracleAddress, entryId),
             integrator: address(0),
             salt: keccak256(abi.encodePacked(tokenName, block.timestamp))
         });
@@ -722,6 +745,83 @@ contract PredictionMarketFullFlowTest is Deployers {
         market = predictionMigrator.getMarket(address(oracle));
         console.log("Total claimed:", market.totalClaimed);
         assertEq(market.totalClaimed, aliceReceived, "Total claimed should match Alice's claim");
+    }
+
+    function test_fullFlow_CrossMarketSharedNumeraire_ContributionUsesObservedDelta() public {
+        MockPredictionOracle oracle2 = new MockPredictionOracle();
+        bytes32 marketAEntryId = keccak256("market_a_entry");
+        bytes32 marketBEntryId = keccak256("market_b_entry");
+
+        address marketAEntry = _createEntryWithOracle(address(oracle), marketAEntryId, "Market A Entry", "MKA");
+        address marketBEntry = _createEntryWithOracle(address(oracle2), marketBEntryId, "Market B Entry", "MKB");
+
+        // Drive both pools so each migration has non-zero proceeds.
+        _buyTokens(marketAEntry, alice, 100 ether);
+        _buyTokens(marketBEntry, bob, 50 ether);
+
+        oracle.setWinner(marketAEntry);
+        oracle2.setWinner(marketBEntry);
+
+        uint256 balanceBeforeA = testNumeraire.balanceOf(address(predictionMigrator));
+        vm.prank(AIRLOCK_OWNER);
+        airlock.migrate(marketAEntry);
+        uint256 balanceAfterA = testNumeraire.balanceOf(address(predictionMigrator));
+        uint256 deltaA = balanceAfterA - balanceBeforeA;
+
+        IPredictionMigrator.EntryView memory entryAView = predictionMigrator.getEntry(address(oracle), marketAEntryId);
+        assertGt(deltaA, 0, "Market A delta should be non-zero");
+        assertEq(entryAView.contribution, deltaA, "Market A contribution should equal observed migration delta");
+
+        uint256 balanceBeforeB = testNumeraire.balanceOf(address(predictionMigrator));
+        vm.prank(AIRLOCK_OWNER);
+        airlock.migrate(marketBEntry);
+        uint256 balanceAfterB = testNumeraire.balanceOf(address(predictionMigrator));
+        uint256 deltaB = balanceAfterB - balanceBeforeB;
+
+        IPredictionMigrator.EntryView memory entryBView = predictionMigrator.getEntry(address(oracle2), marketBEntryId);
+        assertGt(deltaB, 0, "Market B delta should be non-zero");
+        assertEq(entryBView.contribution, deltaB, "Market B contribution should equal observed migration delta");
+    }
+
+    function test_fullFlow_CrossMarketSharedNumeraire_ClaimBetweenMigrations_ContributionUsesObservedDelta() public {
+        MockPredictionOracle oracle2 = new MockPredictionOracle();
+        bytes32 marketAEntryId = keccak256("market_a_entry_claim_gap");
+        bytes32 marketBEntryId = keccak256("market_b_entry_claim_gap");
+
+        address marketAEntry = _createEntryWithOracle(address(oracle), marketAEntryId, "Market A Entry Claim Gap", "MKAC");
+        address marketBEntry = _createEntryWithOracle(address(oracle2), marketBEntryId, "Market B Entry Claim Gap", "MKBC");
+
+        // Drive both pools so each migration has non-zero proceeds.
+        _buyTokens(marketAEntry, alice, 100 ether);
+        _buyTokens(marketBEntry, bob, 50 ether);
+
+        uint256 aliceMarketABalance = IERC20(marketAEntry).balanceOf(alice);
+        assertGt(aliceMarketABalance, 0, "Alice should hold market A winning tokens");
+
+        oracle.setWinner(marketAEntry);
+        oracle2.setWinner(marketBEntry);
+
+        // Migrate market A first.
+        vm.prank(AIRLOCK_OWNER);
+        airlock.migrate(marketAEntry);
+
+        // Claim in market A before migrating market B.
+        vm.startPrank(alice);
+        IERC20(marketAEntry).approve(address(predictionMigrator), aliceMarketABalance / 2);
+        predictionMigrator.claim(address(oracle), aliceMarketABalance / 2);
+        vm.stopPrank();
+
+        uint256 balanceBeforeB = testNumeraire.balanceOf(address(predictionMigrator));
+        vm.prank(AIRLOCK_OWNER);
+        airlock.migrate(marketBEntry);
+        uint256 balanceAfterB = testNumeraire.balanceOf(address(predictionMigrator));
+        uint256 deltaB = balanceAfterB - balanceBeforeB;
+
+        IPredictionMigrator.EntryView memory entryBView = predictionMigrator.getEntry(address(oracle2), marketBEntryId);
+        IPredictionMigrator.MarketView memory marketBView = predictionMigrator.getMarket(address(oracle2));
+        assertGt(deltaB, 0, "Market B delta should be non-zero");
+        assertEq(entryBView.contribution, deltaB, "Market B contribution should equal observed migration delta");
+        assertEq(marketBView.totalPot, deltaB, "Market B pot should equal observed migration delta");
     }
 }
 

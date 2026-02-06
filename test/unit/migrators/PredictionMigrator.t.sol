@@ -25,9 +25,21 @@ contract MockERC20 is ERC20 {
     }
 }
 
+/// @dev ERC20 mock intentionally missing burn() to test strict burn requirement.
+contract MockERC20NoBurn is ERC20 {
+    constructor(string memory name_, string memory symbol_, uint256 initialSupply) ERC20(name_, symbol_, 18) {
+        _mint(msg.sender, initialSupply);
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
 contract PredictionMigratorTest is Test {
     PredictionMigrator public migrator;
     MockPredictionOracle public oracle;
+    MockPredictionOracle public oracle2;
 
     address public airlock;
     address public alice = makeAddr("alice");
@@ -35,22 +47,27 @@ contract PredictionMigratorTest is Test {
 
     MockERC20 public tokenA;
     MockERC20 public tokenB;
+    MockERC20 public tokenC;
     MockERC20 public numeraire;
 
     bytes32 public entryIdA;
     bytes32 public entryIdB;
+    bytes32 public entryIdC;
 
     function setUp() public {
         airlock = address(this); // Test contract acts as Airlock
         migrator = new PredictionMigrator(airlock);
         oracle = new MockPredictionOracle();
+        oracle2 = new MockPredictionOracle();
 
         tokenA = new MockERC20("Token A", "TKNA", 1_000_000 ether);
         tokenB = new MockERC20("Token B", "TKNB", 1_000_000 ether);
+        tokenC = new MockERC20("Token C", "TKNC", 1_000_000 ether);
         numeraire = new MockERC20("Numeraire", "NUM", 1_000_000 ether);
 
         entryIdA = keccak256(abi.encodePacked("entry_a"));
         entryIdB = keccak256(abi.encodePacked("entry_b"));
+        entryIdC = keccak256(abi.encodePacked("entry_c"));
     }
 
     /* -------------------------------------------------------------------------------- */
@@ -109,6 +126,19 @@ contract PredictionMigratorTest is Test {
         assertEq(entryB.token, address(tokenB));
     }
 
+    function test_initialize_AllowsMultipleEntriesWithETHNumeraire() public {
+        migrator.initialize(address(tokenA), address(0), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenB), address(0), abi.encode(address(oracle), entryIdB));
+
+        IPredictionMigrator.EntryView memory entryA = migrator.getEntry(address(oracle), entryIdA);
+        IPredictionMigrator.EntryView memory entryB = migrator.getEntry(address(oracle), entryIdB);
+        IPredictionMigrator.MarketView memory market = migrator.getMarket(address(oracle));
+
+        assertEq(entryA.token, address(tokenA));
+        assertEq(entryB.token, address(tokenB));
+        assertEq(market.numeraire, address(0));
+    }
+
     function test_initialize_RevertsOnDuplicateToken() public {
         migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
 
@@ -130,6 +160,13 @@ contract PredictionMigratorTest is Test {
 
         vm.expectRevert(IPredictionMigrator.NumeraireMismatch.selector);
         migrator.initialize(address(tokenB), address(otherNumeraire), abi.encode(address(oracle), entryIdB));
+    }
+
+    function test_initialize_RevertsOnNumeraireMismatch_WhenMarketNumeraireIsETH() public {
+        migrator.initialize(address(tokenA), address(0), abi.encode(address(oracle), entryIdA));
+
+        vm.expectRevert(IPredictionMigrator.NumeraireMismatch.selector);
+        migrator.initialize(address(tokenB), address(numeraire), abi.encode(address(oracle), entryIdB));
     }
 
     function test_initialize_ReturnsZeroAddress() public {
@@ -278,6 +315,211 @@ contract PredictionMigratorTest is Test {
 
         IPredictionMigrator.MarketView memory market = migrator.getMarket(address(oracle));
         assertEq(market.totalPot, 150 ether); // 100 + 50
+    }
+
+    function test_migrate_RevertsWhenBothPairTokensAreRegisteredEntries() public {
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenB), address(numeraire), abi.encode(address(oracle), entryIdB));
+        oracle.setWinner(address(tokenA));
+
+        vm.expectRevert(IPredictionMigrator.InvalidTokenPair.selector);
+        migrator.migrate(0, address(tokenA), address(tokenB), address(0));
+    }
+
+    function test_migrate_RevertsOnPairNumeraireMismatch() public {
+        MockERC20 otherNumeraire = new MockERC20("Other Numeraire", "ONUM", 1_000_000 ether);
+
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        oracle.setWinner(address(tokenA));
+
+        vm.expectRevert(IPredictionMigrator.NumeraireMismatch.selector);
+        migrator.migrate(0, address(tokenA), address(otherNumeraire), address(0));
+    }
+
+    function test_migrate_HandlesTokenOrdering_WhenAssetIsToken1() public {
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        oracle.setWinner(address(tokenA));
+
+        uint256 numeraireAmount = 100 ether;
+        uint256 unsoldTokens = 400_000 ether;
+        numeraire.transfer(address(migrator), numeraireAmount);
+        tokenA.transfer(address(migrator), unsoldTokens);
+
+        // Asset is token1 in this ordering.
+        migrator.migrate(0, address(numeraire), address(tokenA), address(0));
+
+        IPredictionMigrator.EntryView memory entry = migrator.getEntry(address(oracle), entryIdA);
+        IPredictionMigrator.MarketView memory market = migrator.getMarket(address(oracle));
+        assertEq(entry.contribution, numeraireAmount);
+        assertEq(entry.claimableSupply, 1_000_000 ether - unsoldTokens);
+        assertEq(market.totalPot, numeraireAmount);
+    }
+
+    function test_migrate_RevertsWhenBurnUnavailable() public {
+        MockERC20NoBurn tokenNoBurn = new MockERC20NoBurn("Token No Burn", "NOBURN", 1_000_000 ether);
+        bytes32 entryIdNoBurn = keccak256(abi.encodePacked("entry_no_burn"));
+
+        migrator.initialize(address(tokenNoBurn), address(numeraire), abi.encode(address(oracle), entryIdNoBurn));
+        oracle.setWinner(address(tokenNoBurn));
+
+        uint256 unsoldTokens = 400_000 ether;
+        numeraire.transfer(address(migrator), 100 ether);
+        tokenNoBurn.transfer(address(migrator), unsoldTokens);
+
+        vm.expectRevert();
+        migrator.migrate(0, address(tokenNoBurn), address(numeraire), address(0));
+    }
+
+    function test_migrate_MultiMarketSharedNumeraire_AttributesOnlyPerMigrationDelta() public {
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenC), address(numeraire), abi.encode(address(oracle2), entryIdC));
+        oracle.setWinner(address(tokenA));
+        oracle2.setWinner(address(tokenC));
+
+        numeraire.transfer(address(migrator), 100 ether);
+        tokenA.transfer(address(migrator), 400_000 ether);
+        migrator.migrate(0, address(tokenA), address(numeraire), address(0));
+
+        numeraire.transfer(address(migrator), 50 ether);
+        tokenC.transfer(address(migrator), 500_000 ether);
+        migrator.migrate(0, address(tokenC), address(numeraire), address(0));
+
+        IPredictionMigrator.EntryView memory entryA = migrator.getEntry(address(oracle), entryIdA);
+        IPredictionMigrator.EntryView memory entryC = migrator.getEntry(address(oracle2), entryIdC);
+        IPredictionMigrator.MarketView memory marketA = migrator.getMarket(address(oracle));
+        IPredictionMigrator.MarketView memory marketC = migrator.getMarket(address(oracle2));
+
+        assertEq(entryA.contribution, 100 ether);
+        assertEq(entryC.contribution, 50 ether);
+        assertEq(marketA.totalPot, 100 ether);
+        assertEq(marketC.totalPot, 50 ether);
+    }
+
+    function test_migrate_MultiMarketSharedNumeraire_ClaimInMarketADoesNotContaminateMarketB() public {
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenC), address(numeraire), abi.encode(address(oracle2), entryIdC));
+        oracle.setWinner(address(tokenA));
+        oracle2.setWinner(address(tokenC));
+
+        // Migrate market A entry
+        numeraire.transfer(address(migrator), 100 ether);
+        tokenA.transfer(address(migrator), 400_000 ether);
+        migrator.migrate(0, address(tokenA), address(numeraire), address(0));
+
+        // Claim from market A before market B migration
+        tokenA.transfer(alice, 300_000 ether);
+        vm.startPrank(alice);
+        tokenA.approve(address(migrator), 300_000 ether);
+        migrator.claim(address(oracle), 300_000 ether); // 50 ether payout
+        vm.stopPrank();
+        assertEq(numeraire.balanceOf(alice), 50 ether);
+
+        // Migrate market B entry and verify only this migration's transfer is attributed.
+        numeraire.transfer(address(migrator), 40 ether);
+        tokenC.transfer(address(migrator), 500_000 ether);
+        migrator.migrate(0, address(tokenC), address(numeraire), address(0));
+
+        IPredictionMigrator.EntryView memory entryC = migrator.getEntry(address(oracle2), entryIdC);
+        IPredictionMigrator.MarketView memory marketC = migrator.getMarket(address(oracle2));
+        assertEq(entryC.contribution, 40 ether);
+        assertEq(marketC.totalPot, 40 ether);
+    }
+
+    function testFuzz_migrate_MultiMarketSharedNumeraire_ClaimGapIsolation(
+        uint128 amountASeed,
+        uint128 amountBSeed,
+        uint128 claimTokenSeed
+    ) public {
+        uint256 amountA = bound(uint256(amountASeed), 1, 250_000 ether);
+        uint256 amountB = bound(uint256(amountBSeed), 1, 250_000 ether);
+        uint256 claimTokens = bound(uint256(claimTokenSeed), 1, 300_000 ether);
+
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        migrator.initialize(address(tokenC), address(numeraire), abi.encode(address(oracle2), entryIdC));
+        oracle.setWinner(address(tokenA));
+        oracle2.setWinner(address(tokenC));
+
+        // Market A migrates first.
+        numeraire.transfer(address(migrator), amountA);
+        tokenA.transfer(address(migrator), 400_000 ether);
+        migrator.migrate(0, address(tokenA), address(numeraire), address(0));
+
+        // Claim from market A before market B migration.
+        tokenA.transfer(alice, claimTokens);
+        vm.startPrank(alice);
+        tokenA.approve(address(migrator), claimTokens);
+        migrator.claim(address(oracle), claimTokens);
+        vm.stopPrank();
+
+        // Market B migration contribution must equal only its own transfer.
+        numeraire.transfer(address(migrator), amountB);
+        tokenC.transfer(address(migrator), 500_000 ether);
+        migrator.migrate(0, address(tokenC), address(numeraire), address(0));
+
+        IPredictionMigrator.EntryView memory entryB = migrator.getEntry(address(oracle2), entryIdC);
+        IPredictionMigrator.MarketView memory marketB = migrator.getMarket(address(oracle2));
+        assertEq(entryB.contribution, amountB);
+        assertEq(marketB.totalPot, amountB);
+    }
+
+    function testFuzz_claim_PreviewMatchesPayout_AndClaimedNeverExceedsPot(
+        uint128 migratedAmountSeed,
+        uint128 aliceClaimSeed,
+        uint128 bobClaimSeed
+    ) public {
+        uint256 migratedAmount = bound(uint256(migratedAmountSeed), 1, 500_000 ether);
+
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        oracle.setWinner(address(tokenA));
+
+        // Fixed unsold amount => fixed claimable supply of 600k.
+        numeraire.transfer(address(migrator), migratedAmount);
+        tokenA.transfer(address(migrator), 400_000 ether);
+        migrator.migrate(0, address(tokenA), address(numeraire), address(0));
+
+        uint256 aliceClaimTokens = bound(uint256(aliceClaimSeed), 0, 600_000 ether);
+        uint256 bobClaimTokens = bound(uint256(bobClaimSeed), 0, 600_000 ether - aliceClaimTokens);
+
+        uint256 expectedAlice = migrator.previewClaim(address(oracle), aliceClaimTokens);
+        uint256 expectedBob = migrator.previewClaim(address(oracle), bobClaimTokens);
+
+        if (aliceClaimTokens > 0) {
+            tokenA.transfer(alice, aliceClaimTokens);
+            vm.startPrank(alice);
+            tokenA.approve(address(migrator), aliceClaimTokens);
+            migrator.claim(address(oracle), aliceClaimTokens);
+            vm.stopPrank();
+        }
+
+        if (bobClaimTokens > 0) {
+            tokenA.transfer(bob, bobClaimTokens);
+            vm.startPrank(bob);
+            tokenA.approve(address(migrator), bobClaimTokens);
+            migrator.claim(address(oracle), bobClaimTokens);
+            vm.stopPrank();
+        }
+
+        IPredictionMigrator.MarketView memory market = migrator.getMarket(address(oracle));
+        assertEq(numeraire.balanceOf(alice), expectedAlice);
+        assertEq(numeraire.balanceOf(bob), expectedBob);
+        assertEq(market.totalClaimed, expectedAlice + expectedBob);
+        assertLe(market.totalClaimed, market.totalPot);
+    }
+
+    function testFuzz_migrate_TokenOrderingAssetAsToken1_ContributionMatchesTransfer(uint128 amountSeed) public {
+        uint256 amount = bound(uint256(amountSeed), 1, 500_000 ether);
+
+        migrator.initialize(address(tokenA), address(numeraire), abi.encode(address(oracle), entryIdA));
+        oracle.setWinner(address(tokenA));
+
+        numeraire.transfer(address(migrator), amount);
+        tokenA.transfer(address(migrator), 400_000 ether);
+
+        // Asset is token1 in this ordering.
+        migrator.migrate(0, address(numeraire), address(tokenA), address(0));
+
+        IPredictionMigrator.EntryView memory entry = migrator.getEntry(address(oracle), entryIdA);
+        assertEq(entry.contribution, amount);
     }
 
     /* -------------------------------------------------------------------------------- */
@@ -510,7 +752,7 @@ contract PredictionMigratorTest is Test {
 
     /**
      * @notice This test verifies the fix for claiming before all entries migrate.
-     * The totalClaimed tracking ensures correct numeraire amount calculation.
+     * Global per-numeraire accounting ensures correct numeraire amount calculation.
      *
      * Scenario:
      * 1. Entry A (winner) and Entry B (loser) both register
@@ -518,7 +760,7 @@ contract PredictionMigratorTest is Test {
      * 3. Entry A migrates with 100 ETH -> totalPot = 100
      * 4. User claims 50 ETH -> balance = 50, totalClaimed = 50
      * 5. Entry B migrates with 40 ETH -> balance = 90
-     *    numeraireAmount = 90 - (100 - 50) = 40 ✓
+     *    numeraireAmount = 90 - 50(accounted after claim) = 40 ✓
      */
     function test_migrate_ClaimBeforeAllMigrate_Works() public {
         // Setup: Register both entries
@@ -597,7 +839,6 @@ contract PredictionMigratorTest is Test {
         assertEq(market.totalPot, 150 ether); // 100 + 50
 
         // Now claims should work correctly
-        uint256 claimableSupply = 600_000 ether;
         tokenA.transfer(alice, 300_000 ether);
 
         vm.startPrank(alice);

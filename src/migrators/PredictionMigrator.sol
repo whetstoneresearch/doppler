@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/utils/ReentrancyGuard.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { IBurnable } from "src/interfaces/IBurnable.sol";
@@ -39,6 +40,7 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
         address winningToken;
         address numeraire;
         bool isResolved;
+        bool isNumeraireSet;
     }
 
     /// @dev Internal entry state
@@ -60,11 +62,11 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
     /// @notice Token to oracle lookup (set at initialize, used at migrate)
     mapping(address token => address oracle) internal _tokenToOracle;
 
-    /// @notice Token to entryId lookup (set at initialize, used at migrate)
-    mapping(address token => bytes32 entryId) internal _tokenToEntryId;
-
     /// @notice Reverse lookup within market: oracle => token => entryId
     mapping(address oracle => mapping(address token => bytes32 entryId)) internal _marketTokenToEntry;
+
+    /// @notice Global per-numeraire accounting for migration deltas
+    mapping(address numeraire => uint256 balance) internal _accountedNumeraireBalance;
 
     // ==================== Constructor ====================
 
@@ -95,15 +97,15 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
 
         // Check/set market numeraire (first entry sets it, subsequent must match)
         MarketState storage market = _markets[oracle];
-        if (market.numeraire == address(0)) {
+        if (!market.isNumeraireSet) {
             market.numeraire = numeraire;
+            market.isNumeraireSet = true;
         } else {
             require(market.numeraire == numeraire, NumeraireMismatch());
         }
 
         // Register entry (not yet migrated)
         _tokenToOracle[asset] = oracle;
-        _tokenToEntryId[asset] = entryId;
         _marketTokenToEntry[oracle][asset] = entryId;
 
         _entries[oracle][entryId] = EntryState({
@@ -123,14 +125,18 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
     /// @param token1 Second token of the pair
     /// @return Always returns 0 (liquidity not applicable for prediction markets)
     function migrate(uint160, address token0, address token1, address) external payable onlyAirlock returns (uint256) {
+        bool token0IsEntry = _tokenToOracle[token0] != address(0);
+        bool token1IsEntry = _tokenToOracle[token1] != address(0);
+
+        require(token0IsEntry || token1IsEntry, EntryNotRegistered());
+        require(!(token0IsEntry && token1IsEntry), InvalidTokenPair());
+
         // Determine which token is the asset (the one we registered)
-        address asset = _tokenToOracle[token0] != address(0) ? token0 : token1;
+        address asset = token0IsEntry ? token0 : token1;
         address numeraire = asset == token0 ? token1 : token0;
 
         address oracle = _tokenToOracle[asset];
-        bytes32 entryId = _tokenToEntryId[asset];
-
-        require(oracle != address(0), EntryNotRegistered());
+        bytes32 entryId = _marketTokenToEntry[oracle][asset];
 
         EntryState storage entry = _entries[oracle][entryId];
         require(!entry.isMigrated, AlreadyMigrated());
@@ -140,11 +146,14 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
         require(isFinalized, OracleNotFinalized());
 
         MarketState storage market = _markets[oracle];
+        require(market.numeraire == numeraire, NumeraireMismatch());
 
-        // Get numeraire amount being migrated (transferred by Airlock before this call)
-        // Note: Airlock deducts fees before transfer, so this is post-fee amount
-        // We use (totalPot - totalClaimed) to account for any claims that happened before this migration
-        uint256 numeraireAmount = _getNumeraireBalance(numeraire) - (market.totalPot - market.totalClaimed);
+        // Infer new proceeds by using per-numeraire global accounting.
+        uint256 currentNumeraireBalance = _getNumeraireBalance(numeraire);
+        uint256 accountedNumeraireBalance = _accountedNumeraireBalance[numeraire];
+        require(currentNumeraireBalance >= accountedNumeraireBalance, AccountingInvariant());
+        uint256 numeraireAmount = currentNumeraireBalance - accountedNumeraireBalance;
+        _accountedNumeraireBalance[numeraire] = currentNumeraireBalance;
 
         // Get asset tokens transferred to us (unsold tokens from pool)
         uint256 assetBalance = IERC20(asset).balanceOf(address(this));
@@ -153,7 +162,7 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
         // claimableSupply = tokens in user hands = totalSupply - unsold tokens we hold
         uint256 claimableSupply = IERC20(asset).totalSupply() - assetBalance;
 
-        // Burn unsold tokens (both DERC20 and CloneERC20 implement burn())
+        // Burn unsold tokens. Entry assets are expected to implement burn().
         if (assetBalance > 0) {
             IBurnable(asset).burn(assetBalance);
         }
@@ -177,14 +186,7 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
     /// @inheritdoc IPredictionMigrator
     function claim(address oracle, uint256 tokenAmount) external nonReentrant {
         MarketState storage market = _markets[oracle];
-
-        // Lazy resolution check
-        if (!market.isResolved) {
-            (address winner, bool isFinalized) = IPredictionOracle(oracle).getWinner(oracle);
-            require(isFinalized, OracleNotFinalized());
-            market.winningToken = winner;
-            market.isResolved = true;
-        }
+        _resolveMarketIfNeeded(oracle, market);
 
         address winningToken = market.winningToken;
         bytes32 winningEntryId = _marketTokenToEntry[oracle][winningToken];
@@ -194,7 +196,7 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
 
         // Calculate claim amount
         // claimAmount = (tokenAmount / claimableSupply) * totalPot
-        uint256 claimAmount = (tokenAmount * market.totalPot) / winningEntry.claimableSupply;
+        uint256 claimAmount = FullMath.mulDiv(tokenAmount, market.totalPot, winningEntry.claimableSupply);
 
         // Transfer tokens from user to this contract (requires prior approval)
         // Tokens are held here permanently (pseudo-burned)
@@ -202,6 +204,9 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
 
         // Update totalClaimed before transfer
         market.totalClaimed += claimAmount;
+        uint256 accountedNumeraireBalance = _accountedNumeraireBalance[market.numeraire];
+        require(accountedNumeraireBalance >= claimAmount, AccountingInvariant());
+        _accountedNumeraireBalance[market.numeraire] = accountedNumeraireBalance - claimAmount;
 
         // Transfer numeraire to user
         _transferNumeraire(market.numeraire, msg.sender, claimAmount);
@@ -266,10 +271,19 @@ contract PredictionMigrator is ILiquidityMigrator, IPredictionMigrator, Immutabl
             return 0;
         }
 
-        return (tokenAmount * market.totalPot) / winningEntry.claimableSupply;
+        return FullMath.mulDiv(tokenAmount, market.totalPot, winningEntry.claimableSupply);
     }
 
     // ==================== Internal Helpers ====================
+
+    /// @dev Lazily resolves market winner on first claim.
+    function _resolveMarketIfNeeded(address oracle, MarketState storage market) internal {
+        if (market.isResolved) return;
+        (address winner, bool isFinalized) = IPredictionOracle(oracle).getWinner(oracle);
+        require(isFinalized, OracleNotFinalized());
+        market.winningToken = winner;
+        market.isResolved = true;
+    }
 
     /// @dev Helper to get numeraire balance, handling ETH case
     function _getNumeraireBalance(address numeraire) internal view returns (uint256) {

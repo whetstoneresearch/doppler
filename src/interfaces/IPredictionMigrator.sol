@@ -28,6 +28,12 @@ interface IPredictionMigrator {
     /// @notice Thrown when an entry's numeraire doesn't match the market's numeraire
     error NumeraireMismatch();
 
+    /// @notice Thrown when both pair tokens are registered entries and numeraire cannot be inferred
+    error InvalidTokenPair();
+
+    /// @notice Thrown when global numeraire accounting invariants are violated
+    error AccountingInvariant();
+
     /// @notice Thrown when attempting to claim but the winning entry hasn't been migrated yet
     error WinningEntryNotMigrated();
 
