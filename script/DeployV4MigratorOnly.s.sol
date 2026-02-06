@@ -5,6 +5,7 @@ import { IHooks, IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { Script, console } from "forge-std/Script.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
@@ -15,6 +16,7 @@ struct ScriptData {
     address positionManager;
     address create2Factory;
     address streamableFeesLocker;
+    address topUpDistributor;
 }
 
 /**
@@ -52,7 +54,8 @@ abstract contract DeployV4MigratorOnlyScript is Script {
             IPoolManager(_scriptData.poolManager),
             PositionManager(payable(_scriptData.positionManager)),
             StreamableFeesLocker(payable(_scriptData.streamableFeesLocker)),
-            IHooks(minedMigratorHook)
+            IHooks(minedMigratorHook),
+            TopUpDistributor(_scriptData.topUpDistributor)
         );
 
         // Deploy hook with deployed migrator address
@@ -77,7 +80,8 @@ contract DeployV4MigratorOnlyBaseSepoliaScript is DeployV4MigratorOnlyScript {
             poolManager: 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408,
             positionManager: 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            streamableFeesLocker: 0x3345E557c5C0b474bE1eb4693264008B8562Aa9c
+            streamableFeesLocker: 0x3345E557c5C0b474bE1eb4693264008B8562Aa9c,
+            topUpDistributor: address(0) // TODO: Replace me
         });
     }
 }
@@ -90,7 +94,8 @@ contract DeployV4MigratorOnlyBaseScript is DeployV4MigratorOnlyScript {
             poolManager: 0x498581fF718922c3f8e6A244956aF099B2652b2b,
             positionManager: 0x7C5f5A4bBd8fD63184577525326123B519429bDc,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            streamableFeesLocker: 0x0A00775D71a42cd33D62780003035e7F5b47bD3A
+            streamableFeesLocker: 0x0A00775D71a42cd33D62780003035e7F5b47bD3A,
+            topUpDistributor: address(0) // TODO: Replace me
         });
     }
 }
@@ -103,7 +108,8 @@ contract DeployV4MigratorOnlyUnichainSepoliaScript is DeployV4MigratorOnlyScript
             poolManager: 0x00B036B58a818B1BC34d502D3fE730Db729e62AC,
             positionManager: 0xf969Aee60879C54bAAed9F3eD26147Db216Fd664,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            streamableFeesLocker: 0x1728E8B3282502f275949109331E070b819B38eA
+            streamableFeesLocker: 0x1728E8B3282502f275949109331E070b819B38eA,
+            topUpDistributor: address(0) // TODO: Replace me
         });
     }
 }
@@ -116,7 +122,8 @@ contract DeployV4MigratorOnlyUnichainScript is DeployV4MigratorOnlyScript {
             poolManager: 0x1F98400000000000000000000000000000000004,
             positionManager: 0x4529A01c7A0410167c5740C487A8DE60232617bf,
             create2Factory: 0x4e59b44847b379578588920cA78FbF26c0B4956C,
-            streamableFeesLocker: 0x6ddfED58D238Ca3195E49d8ac3d4cEa6386E5C33
+            streamableFeesLocker: 0x6ddfED58D238Ca3195E49d8ac3d4cEa6386E5C33,
+            topUpDistributor: address(0) // TODO: Replace me
         });
     }
 }

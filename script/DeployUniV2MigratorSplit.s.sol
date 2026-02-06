@@ -9,13 +9,12 @@ import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt }
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 
-contract DeployUniV2MigratorScript is Script, Config {
+contract DeployUniV2MigratorSplitScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+        uint256[] memory targets = new uint256[](1);
+        targets[0] = ChainIds.BASE_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
@@ -29,8 +28,7 @@ contract DeployUniV2MigratorScript is Script, Config {
         address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
         address uniswapV2Factory = config.get("uniswap_v2_factory").toAddress();
-        address uniswapV2Router = config.get("uniswap_v2_router").toAddress();
-        address airlockOwner = Airlock(payable(airlock)).owner();
+        address weth = config.get("weth").toAddress();
 
         vm.startBroadcast();
         bytes32 salt = generateCreate3Salt(msg.sender, type(UniswapV2MigratorSplit).name);
@@ -39,10 +37,7 @@ contract DeployUniV2MigratorScript is Script, Config {
         address migrator = ICreateX(createX)
             .deployCreate3(
                 salt,
-                abi.encodePacked(
-                    type(UniswapV2MigratorSplit).creationCode,
-                    abi.encode(airlock, uniswapV2Factory, uniswapV2Router, airlockOwner)
-                )
+                abi.encodePacked(type(UniswapV2MigratorSplit).creationCode, abi.encode(airlock, uniswapV2Factory, weth))
             );
 
         require(migrator == deployedTo, "Unexpected deployed address");
