@@ -104,16 +104,13 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         address token1,
         address recipient
     ) internal virtual returns (uint256 liquidity) {
-        uint256 balance0;
-        uint256 balance1 = ERC20(token1).balanceOf(address(this));
-
         if (token0 == address(0)) {
             token0 = address(weth);
             weth.deposit{ value: address(this).balance }();
-            balance0 = weth.balanceOf(address(this));
-        } else {
-            balance0 = ERC20(token0).balanceOf(address(this));
+            (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
         }
+        uint256 balance0 = ERC20(token0).balanceOf(address(this));
+        uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
         if (splitConfigurationOf[token0][token1].share > 0) {
             (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
@@ -126,11 +123,6 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
             (, depositAmount1) = MigrationMath.computeDepositAmounts(depositAmount0, balance1, sqrtPriceX96);
         } else {
             (depositAmount0,) = MigrationMath.computeDepositAmounts(balance0, depositAmount1, sqrtPriceX96);
-        }
-
-        if (token0 > token1) {
-            (token0, token1) = (token1, token0);
-            (depositAmount0, depositAmount1) = (depositAmount1, depositAmount0);
         }
 
         // Pool was created beforehand along the asset token deployment
