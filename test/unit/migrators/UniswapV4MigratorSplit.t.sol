@@ -24,6 +24,7 @@ import {
 // We don't use the `PositionDescriptor` contract explictly here but importing it ensures it gets compiled
 import { PosmTestSetup } from "@v4-periphery-test/shared/PosmTestSetup.sol";
 import { PositionDescriptor } from "@v4-periphery/PositionDescriptor.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 
 contract MockAirlock {
     address public owner;
@@ -40,6 +41,7 @@ contract UniswapV4MigratorTest is PosmTestSetup {
     UniswapV4MigratorSplit public migrator;
     UniswapV4MigratorSplitHook public migratorHook;
     StreamableFeesLocker public locker;
+    TopUpDistributor public topUpDistributor;
 
     address public asset;
     address public numeraire;
@@ -71,12 +73,14 @@ contract UniswapV4MigratorTest is PosmTestSetup {
             )
         );
         locker = new StreamableFeesLocker(lpm, address(this));
+        topUpDistributor = new TopUpDistributor(address(airlock));
         migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(manager),
             PositionManager(payable(address(lpm))),
             StreamableFeesLocker(locker),
-            IHooks(migratorHook)
+            IHooks(migratorHook),
+            topUpDistributor
         );
         locker.approveMigrator(address(migrator));
         deployCodeTo("UniswapV4MigratorSplitHook", abi.encode(manager, migrator), address(migratorHook));

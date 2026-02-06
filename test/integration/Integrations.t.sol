@@ -10,6 +10,7 @@ import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
@@ -28,6 +29,7 @@ import {
     deployNoOpGovernanceFactory,
     deployNoOpMigrator,
     deployTokenFactory,
+    deployTopUpDistributor,
     prepareGovernanceFactoryData,
     prepareTokenFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
@@ -238,8 +240,16 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;
 
+        TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
+
         (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
-            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+            vm,
+            _deployCodeTo,
+            airlock,
+            AIRLOCK_OWNER,
+            address(manager),
+            address(positionManager),
+            address(topUpDistributor)
         );
         createParams.liquidityMigrator = migrator;
         createParams.liquidityMigratorData = prepareUniswapV4MigratorSplitData(airlock);
@@ -300,8 +310,16 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUn
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;
 
+        TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
+
         (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
-            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+            vm,
+            _deployCodeTo,
+            airlock,
+            AIRLOCK_OWNER,
+            address(manager),
+            address(positionManager),
+            address(topUpDistributor)
         );
         createParams.liquidityMigrator = migrator;
         createParams.liquidityMigratorData = prepareUniswapV4MigratorSplitData(airlock);
@@ -362,8 +380,16 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
         createParams.initialSupply = 1e23;
         createParams.numeraire = address(numeraire);
 
+        TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
+
         (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
-            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+            vm,
+            _deployCodeTo,
+            airlock,
+            AIRLOCK_OWNER,
+            address(manager),
+            address(positionManager),
+            address(topUpDistributor)
         );
         createParams.liquidityMigrator = migrator;
         createParams.liquidityMigratorData = prepareUniswapV4MigratorSplitData(airlock);

@@ -16,6 +16,7 @@ import {
     SetModuleState,
     WrongModuleState
 } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { IUniswapV3Factory, InitData, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -91,6 +92,7 @@ contract AirlockTest is Test, Deployers {
     UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
     UniswapV2MigratorSplit uniswapV2LiquidityMigrator;
+    TopUpDistributor topUpDistributor;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
@@ -105,11 +107,9 @@ contract AirlockTest is Test, Deployers {
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
+        topUpDistributor = new TopUpDistributor(address(airlock));
         uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
 
         address[] memory modules = new address[](5);

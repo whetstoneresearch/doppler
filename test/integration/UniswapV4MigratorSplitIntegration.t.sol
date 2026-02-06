@@ -9,6 +9,7 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 
@@ -18,7 +19,8 @@ function deployUniswapV4MigratorSplit(
     Airlock airlock,
     address airlockOwner,
     address poolManager,
-    address positionManager
+    address positionManager,
+    address topUpDistributor
 ) returns (StreamableFeesLocker locker, UniswapV4MigratorSplitHook migratorHook, UniswapV4MigratorSplit migrator) {
     locker = new StreamableFeesLocker(IPositionManager(positionManager), airlockOwner);
     migratorHook = UniswapV4MigratorSplitHook(
@@ -32,7 +34,8 @@ function deployUniswapV4MigratorSplit(
         IPoolManager(poolManager),
         PositionManager(payable(positionManager)),
         locker,
-        IHooks(migratorHook)
+        IHooks(migratorHook),
+        TopUpDistributor(topUpDistributor)
     );
     deployCodeTo(
         "UniswapV4MigratorSplitHook", abi.encode(address(poolManager), address(migrator)), address(migratorHook)

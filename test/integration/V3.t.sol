@@ -8,6 +8,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Test } from "forge-std/Test.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import {
     CannotMigrateInsufficientTick,
@@ -45,17 +46,16 @@ contract V3Test is Test {
     UniswapV2MigratorSplit public uniswapV2LiquidityMigrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
+    TopUpDistributor topUpDistributor;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
+        topUpDistributor = new TopUpDistributor(address(airlock));
         uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));

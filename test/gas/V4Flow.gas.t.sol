@@ -21,6 +21,7 @@ import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.so
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer, IPoolInitializer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -42,6 +43,7 @@ contract V4FlowGas is Deployers, DeployPermit2 {
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     StreamableFeesLocker public locker;
+    TopUpDistributor public topUpDistributor;
 
     address integrator = makeAddr("integrator");
 
@@ -63,12 +65,14 @@ contract V4FlowGas is Deployers, DeployPermit2 {
                 ) ^ (0x4444 << 144)
             )
         );
+        TopUpDistributor topUpDistributor = new TopUpDistributor(address(airlock));
         migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(manager),
             PositionManager(payable(address(positionManager))),
             locker,
-            IHooks(migratorHook)
+            IHooks(migratorHook),
+            topUpDistributor
         );
         deployCodeTo(
             "UniswapV4MigratorSplitHook", abi.encode(address(manager), address(migrator)), address(migratorHook)

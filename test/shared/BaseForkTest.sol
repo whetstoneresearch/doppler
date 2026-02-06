@@ -11,6 +11,7 @@ import { console } from "forge-std/console.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
@@ -35,7 +36,8 @@ import {
     UNISWAP_V4_POOL_MANAGER_MAINNET,
     UNISWAP_V4_POSITION_MANAGER_BASE,
     UNISWAP_V4_POSITION_MANAGER_BASE_SEPOLIA,
-    UNISWAP_V4_POSITION_MANAGER_MAINNET
+    UNISWAP_V4_POSITION_MANAGER_MAINNET,
+    WETH_MAINNET
 } from "test/shared/Addresses.sol";
 
 abstract contract BaseForkTest is Test {
@@ -51,6 +53,7 @@ abstract contract BaseForkTest is Test {
     StreamableFeesLocker public streamableFeesLocker;
     GovernanceFactory public governanceFactory;
     NoOpGovernanceFactory public noOpGovernanceFactory;
+    TopUpDistributor public topUpDistributor;
 
     function setUp() public virtual {
         _setupFork();
@@ -142,11 +145,11 @@ abstract contract BaseForkTest is Test {
         // Deploy V2 Migrator
         console.log("Using Uniswap V2 Factory at:", v2Factory);
         console.log("Using Uniswap V2 Router at:", v2Router);
+
+        topUpDistributor = new TopUpDistributor(address(airlock));
+
         v2Migrator = new UniswapV2MigratorSplit(
-            address(airlock),
-            IUniswapV2Factory(v2Factory),
-            IUniswapV2Router02(v2Router),
-            impersonatedAddress // owner for the locker
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
         console.log("UniswapV2MigratorSplit deployed at:", address(v2Migrator));
 
@@ -184,7 +187,8 @@ abstract contract BaseForkTest is Test {
             IPoolManager(v4PoolManager),
             PositionManager(payable(positionManager)),
             streamableFeesLocker,
-            IHooks(hookAddress)
+            IHooks(hookAddress),
+            topUpDistributor
         );
         console.log("UniswapV4MigratorSplit deployed at:", address(v4Migrator));
 

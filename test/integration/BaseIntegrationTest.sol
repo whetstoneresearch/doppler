@@ -10,6 +10,7 @@ import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol"
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
@@ -164,22 +165,24 @@ function prepareGovernanceFactoryData() pure returns (bytes memory) {
     return abi.encode("Test Token", 7200, 50_400, 0);
 }
 
-function deployUniswapV2Migrator(
+function deployUniswapV2MigratorSplit(
     Vm vm,
     Airlock airlock,
-    address airlockOwner,
     address uniswapV2Factory,
-    address uniswapV2Router
+    TopUpDistributor topUpDistributor,
+    address weth
 ) returns (UniswapV2MigratorSplit migrator) {
-    migrator = new UniswapV2MigratorSplit(
-        address(airlock), IUniswapV2Factory(uniswapV2Factory), IUniswapV2Router02(uniswapV2Router), airlockOwner
-    );
+    migrator = new UniswapV2MigratorSplit(address(airlock), IUniswapV2Factory(uniswapV2Factory), topUpDistributor, weth);
     address[] memory modules = new address[](1);
     modules[0] = address(migrator);
     ModuleState[] memory states = new ModuleState[](1);
     states[0] = ModuleState.LiquidityMigrator;
-    vm.prank(airlockOwner);
+    vm.prank(airlock.owner());
     airlock.setModuleState(modules, states);
+}
+
+function deployTopUpDistributor(Vm vm, Airlock airlock) returns (TopUpDistributor topUpDistributor) {
+    new TopUpDistributor(address(airlock));
 }
 
 // Utility functions
