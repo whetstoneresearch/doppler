@@ -12,7 +12,7 @@ import {
     SplitConfiguration,
     SplitShareTooHigh
 } from "src/base/ProceedsSplitter.sol";
-import { WAD } from "src/types/WAD.sol";
+import { WAD } from "src/types/Wad.sol";
 
 contract ProceedsSplitterImplementation is ProceedsSplitter {
     constructor(TopUpDistributor topUpDistributor) ProceedsSplitter(topUpDistributor) { }
