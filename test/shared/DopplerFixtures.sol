@@ -18,12 +18,9 @@ import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
-import {
-    IUniswapV2Factory,
-    IUniswapV2Router02,
-    UniswapV2MigratorSplit
-} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";

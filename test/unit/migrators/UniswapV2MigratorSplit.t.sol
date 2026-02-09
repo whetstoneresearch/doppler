@@ -8,12 +8,8 @@ import { Test } from "forge-std/Test.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import {
-    IUniswapV2Factory,
-    IUniswapV2Pair,
-    IUniswapV2Router02,
-    UniswapV2MigratorSplit
-} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, IUniswapV2Pair, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { MigrationMath } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
 

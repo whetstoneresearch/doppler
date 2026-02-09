@@ -7,11 +7,8 @@ import { Airlock, ModuleState } from "src/Airlock.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
-import {
-    IUniswapV2Factory,
-    IUniswapV2Router02,
-    UniswapV2MigratorSplit
-} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 import {

@@ -24,11 +24,8 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import {
-    IUniswapV2Factory,
-    IUniswapV2Router02,
-    UniswapV2MigratorSplit
-} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20, ERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";

@@ -15,12 +15,8 @@ import {
     InitData,
     UniswapV3Initializer
 } from "src/initializers/UniswapV3Initializer.sol";
-import {
-    IUniswapV2Factory,
-    IUniswapV2Pair,
-    IUniswapV2Router02,
-    UniswapV2MigratorSplit
-} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, IUniswapV2Pair, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
