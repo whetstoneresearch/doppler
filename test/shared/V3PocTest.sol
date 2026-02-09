@@ -4,23 +4,27 @@ pragma solidity ^0.8.13;
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 
 import {
     UNISWAP_V2_FACTORY_MAINNET,
     UNISWAP_V2_ROUTER_MAINNET,
-    UNISWAP_V3_FACTORY_MAINNET
+    UNISWAP_V3_FACTORY_MAINNET,
+    WETH_MAINNET
 } from "test/shared/Addresses.sol";
 
 contract V3PocTest is Test {
     UniswapV3Initializer public initializer;
     Airlock public airlock;
-    UniswapV2Migrator public uniswapV2LiquidityMigrator;
+    UniswapV2MigratorSplit public uniswapV2LiquidityMigrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
+    TopUpDistributor public topUpDistributor;
 
     // HAVE ETH_MAINNET_RPC_URL SET IN .env
     function setUp() public {
@@ -28,11 +32,9 @@ contract V3PocTest is Test {
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
+        topUpDistributor = new TopUpDistributor(address(airlock));
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));

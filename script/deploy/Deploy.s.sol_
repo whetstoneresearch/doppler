@@ -19,9 +19,13 @@ import { IUniswapV3Factory, UniswapV3Initializer } from "src/initializers/Uniswa
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import {
+    IUniswapV2Factory,
+    IUniswapV2Router02,
+    UniswapV2MigratorSplit
+} from "src/migrators/UniswapV2MigratorSplit.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { MineV4MigratorHookParams, mineV4MigratorHook } from "test/shared/AirlockMiner.sol";
 
@@ -59,11 +63,11 @@ abstract contract DeployScript is Script {
             UniswapV3Initializer uniswapV3Initializer,
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
-            UniswapV2Migrator uniswapV2Migrator,
+            UniswapV2MigratorSplit uniswapV2Migrator,
             DopplerDeployer dopplerDeployer,
             StreamableFeesLocker streamableFeesLocker,
-            UniswapV4Migrator uniswapV4Migrator,
-            UniswapV4MigratorHook migratorHook
+            UniswapV4MigratorSplit uniswapV4Migrator,
+            UniswapV4MigratorSplitHook migratorHook
         ) = _deployDoppler(_scriptData);
 
         Bundler bundler = _deployBundler(_scriptData, airlock);
@@ -81,11 +85,11 @@ abstract contract DeployScript is Script {
             UniswapV3Initializer uniswapV3Initializer,
             UniswapV4Initializer uniswapV4Initializer,
             GovernanceFactory governanceFactory,
-            UniswapV2Migrator uniswapV2LiquidityMigrator,
+            UniswapV2MigratorSplit uniswapV2LiquidityMigrator,
             DopplerDeployer dopplerDeployer,
             StreamableFeesLocker streamableFeesLocker,
-            UniswapV4Migrator uniswapV4Migrator,
-            UniswapV4MigratorHook migratorHook
+            UniswapV4MigratorSplit uniswapV4Migrator,
+            UniswapV4MigratorSplitHook migratorHook
         )
     {
         require(scriptData.uniswapV2Factory != address(0), "Cannot find UniswapV2Factory address!");
@@ -111,7 +115,7 @@ abstract contract DeployScript is Script {
         LockableUniswapV3Initializer lockableUniswapV3Initializer =
             new LockableUniswapV3Initializer(address(airlock), IUniswapV3Factory(_scriptData.uniswapV3Factory));
 
-        // Using `CREATE` we can pre-compute the UniswapV4Migrator address for mining the hook address
+        // Using `CREATE` we can pre-compute the UniswapV4MigratorSplit address for mining the hook address
         address precomputedUniswapV4Migrator = vm.computeCreateAddress(msg.sender, vm.getNonce(msg.sender));
 
         /// Mine salt for migrator hook address
@@ -124,7 +128,7 @@ abstract contract DeployScript is Script {
         );
 
         // Deploy migrator with pre-mined hook address
-        uniswapV4Migrator = new UniswapV4Migrator(
+        uniswapV4Migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(_scriptData.poolManager),
             PositionManager(payable(_scriptData.positionManager)),
@@ -133,13 +137,14 @@ abstract contract DeployScript is Script {
         );
 
         // Deploy hook with deployed migrator address
-        migratorHook = new UniswapV4MigratorHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
+        migratorHook =
+            new UniswapV4MigratorSplitHook{ salt: salt }(IPoolManager(_scriptData.poolManager), uniswapV4Migrator);
         dopplerDeployer = new DopplerDeployer(IPoolManager(_scriptData.poolManager));
         uniswapV4Initializer =
             new UniswapV4Initializer(address(airlock), IPoolManager(_scriptData.poolManager), dopplerDeployer);
 
         // Liquidty Migrator Modules
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
             address(airlock),
             IUniswapV2Factory(_scriptData.uniswapV2Factory),
             IUniswapV2Router02(_scriptData.uniswapV2Router02),
@@ -155,7 +160,7 @@ abstract contract DeployScript is Script {
         governanceFactory = new GovernanceFactory(address(airlock));
         NoOpGovernanceFactory noOpGovernanceFactory = new NoOpGovernanceFactory();
 
-        /// Verify that the hook was set correctly in the UniswapV4Migrator constructor
+        /// Verify that the hook was set correctly in the UniswapV4MigratorSplit constructor
         require(
             address(uniswapV4Migrator.migratorHook()) == address(migratorHook),
             "Migrator hook is not the expected address"
