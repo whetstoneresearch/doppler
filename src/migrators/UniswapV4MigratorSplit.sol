@@ -13,10 +13,11 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-
 import { Airlock } from "src/Airlock.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
@@ -61,12 +62,12 @@ error TickOutOfRange();
 error ZeroLiquidity();
 
 /**
- * @title Uniswap V4 Migrator
+ * @title Uniswap V4 Migrator Split
  * @author Whetstone Research
  * @notice Module contract to migrate liquidity from a Doppler Dutch auction pool to a
  * regular Uniswap V4 pool
  */
-contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
+contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
@@ -101,8 +102,9 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         IPoolManager poolManager_,
         PositionManager positionManager_,
         StreamableFeesLocker locker_,
-        IHooks migratorHook_
-    ) ImmutableAirlock(airlock_) {
+        IHooks migratorHook_,
+        TopUpDistributor topUpDistributor
+    ) ImmutableAirlock(airlock_) ProceedsSplitter(topUpDistributor) {
         poolManager = poolManager_;
         positionManager = positionManager_;
         locker = locker_;
@@ -115,8 +117,14 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
         address numeraire,
         bytes calldata liquidityMigratorData
     ) external onlyAirlock returns (address) {
-        (uint24 fee, int24 tickSpacing, uint32 lockDuration, BeneficiaryData[] memory beneficiaries) =
-            abi.decode(liquidityMigratorData, (uint24, int24, uint32, BeneficiaryData[]));
+        (
+            uint24 fee,
+            int24 tickSpacing,
+            uint32 lockDuration,
+            BeneficiaryData[] memory beneficiaries,
+            address proceedsRecipient,
+            uint256 proceedsShare
+        ) = abi.decode(liquidityMigratorData, (uint24, int24, uint32, BeneficiaryData[], address, uint256));
 
         isTickSpacingValid(tickSpacing);
         LPFeeLibrary.validate(fee);
@@ -134,6 +142,14 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
             AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
+
+        if (proceedsShare > 0) {
+            _setSplit(
+                Currency.unwrap(poolKey.currency0),
+                Currency.unwrap(poolKey.currency1),
+                SplitConfiguration({ recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare })
+            );
+        }
 
         return EMPTY_ADDRESS; // v4 pools are represented by their PoolKey, so we return an empty address
     }
@@ -155,6 +171,10 @@ contract UniswapV4Migrator is ILiquidityMigrator, ImmutableAirlock {
 
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
         uint256 balance0 = token0 == address(0) ? address(this).balance : ERC20(token0).balanceOf(address(this));
+
+        if (splitConfigurationOf[token0][token1].share > 0) {
+            (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
+        }
 
         int24 lowerTick = TickMath.minUsableTick(poolKey.tickSpacing);
         int24 upperTick = TickMath.maxUsableTick(poolKey.tickSpacing);
