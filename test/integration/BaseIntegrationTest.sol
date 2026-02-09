@@ -13,11 +13,11 @@ import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import {
     ILiquidityMigrator,
     IUniswapV2Factory,
-    IUniswapV2Router02,
     UniswapV2MigratorSplit
 } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
