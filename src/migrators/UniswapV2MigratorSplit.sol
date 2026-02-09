@@ -17,7 +17,7 @@ import { MigrationMath } from "src/libraries/MigrationMath.sol";
  * @title Uniswap V2 Migrator with Proceeds Split
  * @author Whetstone Research
  * @notice Initializes and handles the migration of liquidity into Uniswap V2 pools, also performs the proceeds split
- * logic during migration if necessary
+ * logic during migration if necessary and pulls up the top-ups from the `TopUpDistributor` contract
  * @custom:security-contact security@whetstone.cc
  */
 contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
@@ -70,9 +70,10 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
     /**
      * @notice Migrates the liquidity into a Uniswap V2 pool
      * @param sqrtPriceX96 Square root price of the pool as a Q64.96 value
-     * @param token0 Smaller address of the two tokens
+     * @param token0 Smaller address of the two tokens (address zero for ETH will be converted to WETH)
      * @param token1 Larger address of the two tokens
      * @param recipient Address receiving the liquidity pool tokens
+     * @return liquidity Total amount of liquidity minted
      */
     function migrate(
         uint160 sqrtPriceX96,
@@ -108,6 +109,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         return pool;
     }
 
+    /// @dev Same parameters as the external `migrate` function
     function _migrate(
         uint160 sqrtPriceX96,
         address token0,
