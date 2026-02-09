@@ -14,8 +14,10 @@ import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 
 /**
+ * @title Uniswap V2 Migrator with Proceeds Split
  * @author Whetstone Research
- * @notice Takes care of migrating liquidity into a Uniswap V2 pool
+ * @notice Initializes and handles the migration of liquidity into Uniswap V2 pools, also performs the proceeds split
+ * logic during migration if necessary
  * @custom:security-contact security@whetstone.cc
  */
 contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, ProceedsSplitter {
@@ -50,12 +52,19 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         locker = new UniswapV2Locker(airlock_, this);
     }
 
-    function initialize(
-        address asset,
-        address numeraire,
-        bytes calldata liquidityMigratorData
-    ) external onlyAirlock returns (address) {
-        return _initialize(asset, numeraire, liquidityMigratorData);
+    /**
+     * @notice Initializes the migrator for an asset / numeraire pair by:
+     * - Creating the Uniswap V2 pool if it does not exist
+     * - Setting the proceeds split configuration
+     * @param asset Address of the asset token
+     * @param numeraire Address of the numeraire token (address zero for ETH will be converted to WETH)
+     * @param data ABI encoded data containing the following parameters:
+     * - Address of the recipient of the proceeds
+     * - Share of the proceeds to allocate to the recipient (in WAD)
+     * @return Address of the associated Uniswap V2 pool
+     */
+    function initialize(address asset, address numeraire, bytes calldata data) external onlyAirlock returns (address) {
+        return _initialize(asset, numeraire, data);
     }
 
     /**
@@ -74,6 +83,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         return _migrate(sqrtPriceX96, token0, token1, recipient);
     }
 
+    /// @dev Same paramters as the external `initialize` function
     function _initialize(address asset, address numeraire, bytes calldata data) internal virtual returns (address) {
         if (numeraire == address(0)) {
             numeraire = address(weth);
