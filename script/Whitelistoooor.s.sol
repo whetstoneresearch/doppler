@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 
 contract WhitelistoooorScript is Script, Config {
     function run() public {
@@ -24,31 +25,53 @@ contract WhitelistoooorScript is Script, Config {
         address noOpMigrator = config.get("no_op_migrator").toAddress();
         address uniswapV2Migrator = config.get("uniswap_v2_migrator").toAddress();
         address uniswapV4Migrator = config.get("uniswap_v4_migrator").toAddress();
+        address dopplerHookInternalInitializer =
+            config.exists("doppler_hook_internal_initializer") ? config.get("doppler_hook_internal_initializer").toAddress() : address(0);
+        address linearDescendingFeeDopplerHook =
+            config.exists("linear_descending_fee_doppler_hook") ? config.get("linear_descending_fee_doppler_hook").toAddress() : address(0);
 
-        address[] memory modules = new address[](9);
-        modules[0] = cloneERC20Factory;
-        modules[1] = cloneERC20VotesFactory;
-        modules[2] = noOpGovernanceFactory;
-        modules[3] = uniswapV4ScheduledMulticurveInitializer;
-        modules[4] = uniswapV4Initializer;
-        modules[5] = dopplerHookInitializer;
-        modules[6] = noOpMigrator;
-        modules[7] = uniswapV2Migrator;
-        modules[8] = uniswapV4Migrator;
+        uint256 numModules = dopplerHookInternalInitializer != address(0) ? 10 : 9;
+        address[] memory modules = new address[](numModules);
+        ModuleState[] memory states = new ModuleState[](numModules);
+        uint256 i;
 
-        ModuleState[] memory states = new ModuleState[](9);
-        states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.TokenFactory;
-        states[2] = ModuleState.GovernanceFactory;
-        states[3] = ModuleState.PoolInitializer;
-        states[4] = ModuleState.PoolInitializer;
-        states[5] = ModuleState.PoolInitializer;
-        states[6] = ModuleState.LiquidityMigrator;
-        states[7] = ModuleState.LiquidityMigrator;
-        states[8] = ModuleState.LiquidityMigrator;
+        modules[i] = cloneERC20Factory;
+        states[i++] = ModuleState.TokenFactory;
+        modules[i] = cloneERC20VotesFactory;
+        states[i++] = ModuleState.TokenFactory;
+        modules[i] = noOpGovernanceFactory;
+        states[i++] = ModuleState.GovernanceFactory;
+        modules[i] = uniswapV4ScheduledMulticurveInitializer;
+        states[i++] = ModuleState.PoolInitializer;
+        modules[i] = uniswapV4Initializer;
+        states[i++] = ModuleState.PoolInitializer;
+        modules[i] = dopplerHookInitializer;
+        states[i++] = ModuleState.PoolInitializer;
+        modules[i] = noOpMigrator;
+        states[i++] = ModuleState.LiquidityMigrator;
+        modules[i] = uniswapV2Migrator;
+        states[i++] = ModuleState.LiquidityMigrator;
+        modules[i] = uniswapV4Migrator;
+        states[i++] = ModuleState.LiquidityMigrator;
+
+        if (dopplerHookInternalInitializer != address(0)) {
+            modules[i] = dopplerHookInternalInitializer;
+            states[i++] = ModuleState.PoolInitializer;
+        }
 
         vm.startBroadcast();
-        AirlockMultisigTestnet(airlockMultisig).setModuleState(payable(airlock), modules, states);
+        AirlockMultisigTestnet multisig = AirlockMultisigTestnet(airlockMultisig);
+        multisig.setModuleState(payable(airlock), modules, states);
+
+        if (dopplerHookInternalInitializer != address(0) && linearDescendingFeeDopplerHook != address(0)) {
+            address[] memory dopplerHooks = new address[](1);
+            dopplerHooks[0] = linearDescendingFeeDopplerHook;
+
+            uint256[] memory flags = new uint256[](1);
+            flags[0] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+
+            multisig.setDopplerHookState(payable(dopplerHookInternalInitializer), dopplerHooks, flags);
+        }
         vm.stopBroadcast();
     }
 }

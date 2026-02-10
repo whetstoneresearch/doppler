@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerHookInternalInitializer } from "src/initializers/DopplerHookInternalInitializer.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -39,6 +40,42 @@ function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory para
         address initializer = computeCreate3Address(guardedSalt, params.deployer);
         if (
             uint160(initializer) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_INITIALIZER_FLAGS && initializer.code.length == 0
+        ) {
+            return (salt, initializer);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/*                                DopplerHookInternalInitializer                              */
+/* ------------------------------------------------------------------------------------------ */
+
+uint160 constant DOPPLER_HOOK_INTERNAL_INITIALIZER_FLAGS = uint160(
+    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+        | Hooks.AFTER_SWAP_FLAG
+);
+
+struct MineDopplerHookInternalInitializerParams {
+    address deployer;
+    address sender;
+}
+
+function mineDopplerHookInternalInitializer(
+    MineDopplerHookInternalInitializerParams memory params
+) view returns (bytes32, address) {
+    bytes32 baseSalt = bytes32(uint256(uint160(msg.sender)) << 96)
+        | (keccak256(abi.encode(type(DopplerHookInternalInitializer).name)) >> 168);
+
+    for (uint96 seed; seed < type(uint96).max; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address initializer = computeCreate3Address(guardedSalt, params.deployer);
+        if (
+            uint160(initializer) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_INTERNAL_INITIALIZER_FLAGS
+                && initializer.code.length == 0
         ) {
             return (salt, initializer);
         }
