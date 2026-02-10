@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -355,14 +354,8 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             IDopplerHook(data.dopplerHook).onInitialization(asset, data.poolKey, data.onInitializationCalldata);
         }
 
-        uint256 balance0;
-        uint256 balance1 = ERC20(token1).balanceOf(address(this));
-
-        if (token0 == address(0)) {
-            balance0 = address(this).balance;
-        } else {
-            balance0 = ERC20(token0).balanceOf(address(this));
-        }
+        uint256 balance0 = data.poolKey.currency0.balanceOfSelf();
+        uint256 balance1 = data.poolKey.currency1.balanceOfSelf();
 
         if (splitConfigurationOf[token0][token1].share > 0) {
             (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
