@@ -11,8 +11,8 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import {
@@ -25,11 +25,11 @@ import { BaseHook } from "src/base/BaseHook.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
 import { WAD } from "src/types/Wad.sol";
 
 /**
@@ -98,7 +98,6 @@ error CannotMigratePoolNoProvidedDopplerHook();
 
 /// @notice Thrown when the migrator is not the initializer
 error OnlySelf();
-
 
 /**
  * @notice Emitted when an asset is migrated
@@ -214,10 +213,11 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
      * @param poolManager_ Address of Uniswap V4 PoolManager contract
      * @param locker_ Address of the StreamableFeesLockerV2 contract (must be approved)
      */
-    constructor(address airlock_, IPoolManager poolManager_, StreamableFeesLockerV2 locker_)
-        ImmutableAirlock(airlock_)
-        ImmutableState(poolManager_)
-    {
+    constructor(
+        address airlock_,
+        IPoolManager poolManager_,
+        StreamableFeesLockerV2 locker_
+    ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) {
         locker = locker_;
     }
 
@@ -244,7 +244,6 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
         } else {
             LPFeeLibrary.validate(feeOrInitialDynamicFee);
         }
-
 
         // Validate beneficiaries without storing them (locker will store on migrate).
         storeBeneficiaries(

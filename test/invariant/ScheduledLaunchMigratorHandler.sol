@@ -14,10 +14,10 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
@@ -38,17 +38,12 @@ contract ScheduledLaunchMigratorInvariantTests is Deployers {
 
         handler = new ScheduledLaunchMigratorHandler(manager, swapRouter);
 
-        uint160 hookFlags =
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
-        deployCodeTo(
-            "DopplerHookMigrator",
-            abi.encode(address(handler), address(manager), locker),
-            migratorAddress
-        );
+        deployCodeTo("DopplerHookMigrator", abi.encode(address(handler), address(manager), locker), migratorAddress);
 
         scheduledLaunchHook = new ScheduledLaunchDopplerHook(address(migrator));
 

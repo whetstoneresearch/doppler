@@ -16,10 +16,10 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
-import { RehypeDopplerHook, EPSILON } from "src/dopplerHooks/RehypeDopplerHook.sol";
-import { DopplerHookMigrator, PoolState } from "src/migrators/DopplerHookMigrator.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { DopplerHookMigrator, PoolState } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
@@ -43,16 +43,11 @@ contract RehypeMigratorInvariantTests is Deployers {
 
         handler = new RehypeMigratorHandler(manager, swapRouter, quoter);
 
-        uint160 hookFlags =
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
-        deployCodeTo(
-            "DopplerHookMigrator",
-            abi.encode(address(handler), address(manager), locker),
-            migratorAddress
-        );
+        deployCodeTo("DopplerHookMigrator", abi.encode(address(handler), address(manager), locker), migratorAddress);
 
         rehypeHook = new RehypeDopplerHook(address(migrator), manager);
 
@@ -287,8 +282,12 @@ contract RehypeMigratorHandler is Test {
             ),
             PoolSwapTest.TestSettings(false, false),
             ""
-        ) returns (BalanceDelta) { }
-        catch { return; }
+        ) returns (
+            BalanceDelta
+        ) { }
+        catch {
+            return;
+        }
 
         _trackLiquidity(poolId);
     }
@@ -309,7 +308,9 @@ contract RehypeMigratorHandler is Test {
                 exactAmount: uint128(amountOut),
                 hookData: new bytes(0)
             })
-        ) returns (uint256 quotedAmountIn, uint256) {
+        ) returns (
+            uint256 quotedAmountIn, uint256
+        ) {
             amountIn = quotedAmountIn;
         } catch {
             return;
@@ -329,8 +330,12 @@ contract RehypeMigratorHandler is Test {
             ),
             PoolSwapTest.TestSettings(false, false),
             ""
-        ) returns (BalanceDelta) { }
-        catch { return; }
+        ) returns (
+            BalanceDelta
+        ) { }
+        catch {
+            return;
+        }
 
         _trackLiquidity(poolId);
     }
@@ -356,8 +361,12 @@ contract RehypeMigratorHandler is Test {
             ),
             PoolSwapTest.TestSettings(false, false),
             ""
-        ) returns (BalanceDelta) { }
-        catch { return; }
+        ) returns (
+            BalanceDelta
+        ) { }
+        catch {
+            return;
+        }
 
         _trackLiquidity(poolId);
     }
@@ -383,7 +392,9 @@ contract RehypeMigratorHandler is Test {
                 exactAmount: uint128(amountOut),
                 hookData: new bytes(0)
             })
-        ) returns (uint256 quotedAmountIn, uint256) {
+        ) returns (
+            uint256 quotedAmountIn, uint256
+        ) {
             amountIn = quotedAmountIn;
         } catch {
             return;
@@ -398,8 +409,12 @@ contract RehypeMigratorHandler is Test {
             ),
             PoolSwapTest.TestSettings(false, false),
             ""
-        ) returns (BalanceDelta) { }
-        catch { return; }
+        ) returns (
+            BalanceDelta
+        ) { }
+        catch {
+            return;
+        }
 
         _trackLiquidity(poolId);
     }
@@ -436,8 +451,7 @@ contract RehypeMigratorHandler is Test {
         (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeHook.getHookFees(poolId);
         if (beneficiaryFees0 == 0 && beneficiaryFees1 == 0) return;
 
-        try rehypeHook.collectFees(asset) { }
-        catch { }
+        try rehypeHook.collectFees(asset) { } catch { }
     }
 
     function claimAirlockOwnerFees(uint256 seed) public {
@@ -452,8 +466,7 @@ contract RehypeMigratorHandler is Test {
         (,,,, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) = rehypeHook.getHookFees(poolId);
         if (airlockOwnerFees0 == 0 && airlockOwnerFees1 == 0) return;
 
-        try rehypeHook.claimAirlockOwnerFees(asset) { }
-        catch { }
+        try rehypeHook.claimAirlockOwnerFees(asset) { } catch { }
     }
 
     /* --------------------------------------------------------------------------------------- */
@@ -489,11 +502,11 @@ contract RehypeMigratorHandler is Test {
         lpPercentWad = WAD - assetBuybackPercentWad - numeraireBuybackPercentWad - beneficiaryPercentWad;
     }
 
-    function _randomizeSettings(uint256 seed, address asset, address numeraire)
-        internal
-        pure
-        returns (Settings memory settings)
-    {
+    function _randomizeSettings(
+        uint256 seed,
+        address asset,
+        address numeraire
+    ) internal pure returns (Settings memory settings) {
         (
             uint256 assetBuybackPercentWad,
             uint256 numeraireBuybackPercentWad,

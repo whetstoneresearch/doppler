@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
@@ -11,13 +12,18 @@ import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/type
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
+import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
-import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+import { Curve } from "src/libraries/Multicurve.sol";
 import {
     DopplerHookMigrator,
     DopplerHookNotEnabled,
@@ -27,12 +33,6 @@ import {
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
-import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
-import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 
 contract MockDopplerHook is IDopplerHook {
     address public lastAsset;
@@ -97,11 +97,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         address migratorHookAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorHookAddress));
-        deployCodeTo(
-            "DopplerHookMigrator",
-            abi.encode(address(airlock), address(manager), locker),
-            migratorHookAddress
-        );
+        deployCodeTo("DopplerHookMigrator", abi.encode(address(airlock), address(manager), locker), migratorHookAddress);
 
         dopplerHook = new MockDopplerHook();
         rehypeHook = new RehypeDopplerHook(address(migrator), manager);
@@ -295,11 +291,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         vm.expectRevert(abi.encodeWithSelector(SaleHasNotStartedYet.selector, startTime, block.timestamp));
         vm.prank(address(migrator));
         scheduledLaunchHook.onSwap(
-            address(0),
-            poolKey,
-            IPoolManager.SwapParams(false, 0, 0),
-            BalanceDeltaLibrary.ZERO_DELTA,
-            new bytes(0)
+            address(0), poolKey, IPoolManager.SwapParams(false, 0, 0), BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
         );
 
         vm.warp(block.timestamp + 2 days);
@@ -349,11 +341,11 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
         BalanceDelta delta = toBalanceDelta(
-            isToken0 ? int128(uint128(0.01 ether)) : int128(0),
-            isToken0 ? int128(0) : int128(uint128(0.01 ether))
+            isToken0 ? int128(uint128(0.01 ether)) : int128(0), isToken0 ? int128(0) : int128(uint128(0.01 ether))
         );
-        IPoolManager.SwapParams memory swapParams =
-            IPoolManager.SwapParams({ zeroForOne: !isToken0, amountSpecified: -int256(0.01 ether), sqrtPriceLimitX96: 0 });
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0, amountSpecified: -int256(0.01 ether), sqrtPriceLimitX96: 0
+        });
 
         vm.prank(address(migrator));
         swapRestrictorHook.onSwap(allowedBuyer, poolKey, swapParams, delta, new bytes(0));
@@ -363,13 +355,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         address unapproved = makeAddr("Unapproved");
         vm.prank(address(migrator));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientAmountLeft.selector,
-                poolKey.toId(),
-                unapproved,
-                0.01 ether,
-                0
-            )
+            abi.encodeWithSelector(InsufficientAmountLeft.selector, poolKey.toId(), unapproved, 0.01 ether, 0)
         );
         swapRestrictorHook.onSwap(unapproved, poolKey, swapParams, delta, new bytes(0));
     }
@@ -404,7 +390,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
 
-        (, , uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
         assertEq(protocolFee, 0);
         assertEq(lpFee, 3000);
     }
@@ -416,7 +402,8 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         beneficiaries[2] = BeneficiaryData({ beneficiary: AIRLOCK_OWNER, shares: 0.05e18 });
 
         bytes memory poolInitializerData = _defaultPoolInitializerData();
-        bytes memory migratorData = _migratorDataWithBeneficiaries(false, address(0), new bytes(0), beneficiaries, 7 days);
+        bytes memory migratorData =
+            _migratorDataWithBeneficiaries(false, address(0), new bytes(0), beneficiaries, 7 days);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 
         (address asset,, address timelock,,) = airlock.create(
@@ -601,16 +588,12 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
     }
+
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
-        return abi.encode(
-            "Doppler Hook Migrator Test Token",
-            "DHMT",
-            0,
-            0,
-            new address[](0),
-            new uint256[](0),
-            "TOKEN_URI"
-        );
+        return
+            abi.encode(
+                "Doppler Hook Migrator Test Token", "DHMT", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"
+            );
     }
 
     function _defaultPoolInitializerData() internal pure returns (bytes memory) {
@@ -789,7 +772,6 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         vm.prank(payer);
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
     }
-
 
     function _pickFeeTier(uint256 feeSeed) internal pure returns (uint24) {
         uint256 index = feeSeed % 4;

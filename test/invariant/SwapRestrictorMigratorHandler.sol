@@ -14,10 +14,10 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
@@ -38,17 +38,12 @@ contract SwapRestrictorMigratorInvariantTests is Deployers {
 
         handler = new SwapRestrictorMigratorHandler(manager, swapRouter);
 
-        uint160 hookFlags =
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
-        deployCodeTo(
-            "DopplerHookMigrator",
-            abi.encode(address(handler), address(manager), locker),
-            migratorAddress
-        );
+        deployCodeTo("DopplerHookMigrator", abi.encode(address(handler), address(manager), locker), migratorAddress);
 
         swapRestrictorHook = new SwapRestrictorDopplerHook(address(migrator));
 
@@ -200,9 +195,7 @@ contract SwapRestrictorMigratorHandler is Test {
         poolKeysLength++;
 
         settingsOf[poolKey.toId()] = SwapRestrictorSettings({
-            asset: asset,
-            numeraire: numeraire,
-            isToken0: Currency.unwrap(poolKey.currency0) == asset
+            asset: asset, numeraire: numeraire, isToken0: Currency.unwrap(poolKey.currency0) == asset
         });
 
         maxAmountOf[poolKey.toId()] = maxAmount;
@@ -263,7 +256,7 @@ contract SwapRestrictorMigratorHandler is Test {
             PoolSwapTest.TestSettings(false, false),
             ""
         ) { }
-        catch { }
+            catch { }
     }
 
     function getPoolKey(uint256 index) external view returns (PoolKey memory) {

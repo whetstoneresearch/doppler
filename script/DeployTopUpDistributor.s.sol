@@ -31,9 +31,8 @@ contract DeployTopUpDistributorScript is Script, Config {
         bytes32 salt = generateCreate3Salt(msg.sender, type(TopUpDistributor).name);
         address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
-        address topUpDistributor = ICreateX(createX).deployCreate3(
-            salt, abi.encodePacked(type(TopUpDistributor).creationCode, abi.encode(airlock))
-        );
+        address topUpDistributor = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(TopUpDistributor).creationCode, abi.encode(airlock)));
 
         require(topUpDistributor == deployedTo, "Unexpected deployed address");
 

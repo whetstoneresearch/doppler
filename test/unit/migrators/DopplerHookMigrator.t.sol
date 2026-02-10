@@ -3,15 +3,15 @@ pragma solidity ^0.8.13;
 
 import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { Currency } from "@v4-core/types/Currency.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
@@ -128,8 +128,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         airlock = new AirlockMock(owner);
 
-        uint160 hookFlags =
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
         locker = new StreamableFeesLockerV2(manager, owner);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
@@ -168,10 +167,7 @@ contract DopplerHookMigratorTest is Deployers {
             PoolKey memory poolKey,
             uint32 lockDuration,
             bool useDynamicFee,
-            uint24 feeOrInitialDynamicFee,
-            ,
-            ,
-            
+            uint24 feeOrInitialDynamicFee,,,
         ) = migrator.getAssetData(token0, token1);
 
         assertEq(Currency.unwrap(poolKey.currency0), token0);
@@ -311,7 +307,9 @@ contract DopplerHookMigratorTest is Deployers {
         beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.049e18 });
 
         vm.prank(address(airlock));
-        vm.expectRevert(abi.encodeWithSelector(InvalidProtocolOwnerShares.selector, MIN_PROTOCOL_OWNER_SHARES, 0.049e18));
+        vm.expectRevert(
+            abi.encodeWithSelector(InvalidProtocolOwnerShares.selector, MIN_PROTOCOL_OWNER_SHARES, 0.049e18)
+        );
         migrator.initialize(
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
@@ -343,7 +341,9 @@ contract DopplerHookMigratorTest is Deployers {
         migrator.initialize(
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
-            abi.encode(150_001, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(0), new bytes(0), new bytes(0))
+            abi.encode(
+                150_001, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(0), new bytes(0), new bytes(0)
+            )
         );
     }
 
@@ -456,7 +456,12 @@ contract DopplerHookMigratorTest is Deployers {
         Currency.wrap(asset < numeraire ? numeraire : asset).transfer(address(migrator), 1e6);
 
         vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, asset < numeraire ? asset : numeraire, asset < numeraire ? numeraire : asset, recipient);
+        migrator.migrate(
+            Constants.SQRT_PRICE_1_1,
+            asset < numeraire ? asset : numeraire,
+            asset < numeraire ? numeraire : asset,
+            recipient
+        );
 
         airlock.setTimelock(asset, owner);
         vm.expectRevert(abi.encodeWithSignature("SenderNotAuthorized()"));
@@ -581,7 +586,9 @@ contract DopplerHookMigratorTest is Deployers {
         migrator.initialize(
             asset,
             numeraire,
-            abi.encode(10_000, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(mockHook), new bytes(0), new bytes(0))
+            abi.encode(
+                10_000, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(mockHook), new bytes(0), new bytes(0)
+            )
         );
 
         Currency.wrap(token0).transfer(address(migrator), 1e6);
@@ -602,7 +609,7 @@ contract DopplerHookMigratorTest is Deployers {
         assertEq(storedHook, address(mockHook));
         assertEq(address(key.hooks), address(migrator));
         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
-        (,,, bool useDynamicFee,, , ,) = migrator.getAssetData(token0, token1);
+        (,,, bool useDynamicFee,,,,) = migrator.getAssetData(token0, token1);
         assertTrue(useDynamicFee);
         vm.expectRevert(abi.encodeWithSignature("SenderNotAuthorized()"));
         migrator.updateDynamicLPFee(asset, 1000);
@@ -627,7 +634,9 @@ contract DopplerHookMigratorTest is Deployers {
         migrator.initialize(
             asset,
             numeraire,
-            abi.encode(10_000, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(mockHook), new bytes(0), new bytes(0))
+            abi.encode(
+                10_000, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(mockHook), new bytes(0), new bytes(0)
+            )
         );
 
         Currency.wrap(token0).transfer(address(migrator), 1e6);
@@ -648,10 +657,10 @@ contract DopplerHookMigratorTest is Deployers {
         assertEq(storedHook, address(mockHook));
         assertEq(address(key.hooks), address(migrator));
         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
-        (,,, bool useDynamicFee,, , ,) = migrator.getAssetData(token0, token1);
+        (,,, bool useDynamicFee,,,,) = migrator.getAssetData(token0, token1);
         assertTrue(useDynamicFee);
         vm.prank(address(mockHook));
-        migrator.updateDynamicLPFee(asset, 1_000);
+        migrator.updateDynamicLPFee(asset, 1000);
     }
 
     function test_migrate_SetsInitialDynamicFee() public {
@@ -678,7 +687,7 @@ contract DopplerHookMigratorTest is Deployers {
         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
 
         (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
-        (, , uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
         assertEq(protocolFee, 0);
         assertEq(lpFee, 10_000);
     }
@@ -759,12 +768,7 @@ contract DopplerHookMigratorTest is Deployers {
         Currency.wrap(token1).transfer(address(migrator), balance1);
 
         vm.prank(address(airlock));
-        migrator.migrate(
-            Constants.SQRT_PRICE_1_1,
-            token0,
-            token1,
-            hasRecipient ? recipient : address(0xdead)
-        );
+        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, hasRecipient ? recipient : address(0xdead));
 
         (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
         (,, uint32 startDate,,) = locker.streams(poolKey.toId());
@@ -806,11 +810,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(tick);
         uint128 liq = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtPriceX96,
-            TickMath.getSqrtPriceAtTick(minTick),
-            TickMath.getSqrtPriceAtTick(maxTick),
-            balance0,
-            balance1
+            sqrtPriceX96, TickMath.getSqrtPriceAtTick(minTick), TickMath.getSqrtPriceAtTick(maxTick), balance0, balance1
         );
         vm.assume(liq > 0);
         vm.assume(liq <= uint128(type(int128).max));
@@ -853,6 +853,5 @@ contract DopplerHookMigratorTest is Deployers {
         beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
         beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
     }
 }
