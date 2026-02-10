@@ -15,6 +15,7 @@ import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
     ON_GRADUATION_FLAG,
     ON_INITIALIZATION_FLAG,
@@ -23,6 +24,7 @@ import {
 } from "src/base/BaseDopplerHook.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
+import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
@@ -187,7 +189,7 @@ uint24 constant MAX_LP_FEE = 150_000;
  * @notice Migrates liquidity into a fresh Uniswap V4 pool using a migrator hook for initialization,
  * and distributes liquidity across multiple positions.
  */
-contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
+contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, ProceedsSplitter {
     using CurrencyLibrary for Currency;
 
     /// @notice Address of the StreamableFeesLockerV2 contract
@@ -216,8 +218,9 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
     constructor(
         address airlock_,
         IPoolManager poolManager_,
-        StreamableFeesLockerV2 locker_
-    ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) {
+        StreamableFeesLockerV2 locker_,
+        TopUpDistributor topUpDistributor
+    ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) ProceedsSplitter(topUpDistributor) {
         locker = locker_;
     }
 
@@ -233,8 +236,10 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
             bool useDynamicFee,
             address dopplerHook,
             bytes memory onInitializationCalldata,
-            bytes memory onGraduationCalldata
-        ) = abi.decode(data, (uint24, int24, uint32, BeneficiaryData[], bool, address, bytes, bytes));
+            bytes memory onGraduationCalldata,
+            address proceedsRecipient,
+            uint256 proceedsShare
+        ) = abi.decode(data, (uint24, int24, uint32, BeneficiaryData[], bool, address, bytes, bytes, address, uint256));
 
         isTickSpacingValid(tickSpacing);
         if (useDynamicFee) {
@@ -289,6 +294,14 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
             onInitializationCalldata: onInitializationCalldata,
             onGraduationCalldata: onGraduationCalldata
         });
+
+        if (proceedsShare > 0) {
+            _setSplit(
+                Currency.unwrap(poolKey.currency0),
+                Currency.unwrap(poolKey.currency1),
+                SplitConfiguration({ recipient: proceedsRecipient, isToken0: asset < numeraire, share: proceedsShare })
+            );
+        }
 
         // Uniswap V4 pools are represented by their PoolKey, so we return an empty address instead
         return EMPTY_ADDRESS;
@@ -349,6 +362,10 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook {
             balance0 = address(this).balance;
         } else {
             balance0 = ERC20(token0).balanceOf(address(this));
+        }
+
+        if (splitConfigurationOf[token0][token1].share > 0) {
+            (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
         }
 
         int24 lowerTick = TickMath.minUsableTick(tickSpacing);

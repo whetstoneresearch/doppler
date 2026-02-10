@@ -16,6 +16,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
@@ -62,6 +63,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     using StateLibrary for IPoolManager;
     address internal constant AIRLOCK_OWNER = address(0xA111);
     address internal constant BENEFICIARY_1 = address(0x1111);
+    address internal constant PROCEEDS_RECIPIENT = address(0x5555);
 
     Airlock public airlock;
     DopplerHookInitializer public initializer;
@@ -69,6 +71,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     NoOpGovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
     DopplerHookMigrator public migrator;
+    TopUpDistributor public topUpDistributor;
     MockDopplerHook public dopplerHook;
     RehypeDopplerHook public rehypeHook;
     ScheduledLaunchDopplerHook public scheduledLaunchHook;
@@ -93,11 +96,16 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
         locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
+        topUpDistributor = new TopUpDistributor(address(airlock));
 
         uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         address migratorHookAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorHookAddress));
-        deployCodeTo("DopplerHookMigrator", abi.encode(address(airlock), address(manager), locker), migratorHookAddress);
+        deployCodeTo(
+            "DopplerHookMigrator",
+            abi.encode(address(airlock), address(manager), locker, topUpDistributor),
+            migratorHookAddress
+        );
 
         dopplerHook = new MockDopplerHook();
         rehypeHook = new RehypeDopplerHook(address(migrator), manager);
@@ -119,6 +127,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         vm.startPrank(AIRLOCK_OWNER);
         airlock.setModuleState(modules, states);
         locker.approveMigrator(address(migrator));
+        topUpDistributor.setPullUp(address(migrator), true);
         vm.stopPrank();
     }
 
@@ -589,6 +598,97 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         airlock.migrate(asset);
     }
 
+    function test_fullFlow_CreateAndMigrateWithSplit() public {
+        uint256 proceedsShare = 0.1e18; // 10%
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData =
+            _splitMigratorData(false, address(0), new bytes(0), PROCEEDS_RECIPIENT, proceedsShare);
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,, address timelock,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(20))
+            })
+        );
+
+        // Verify split configuration was stored
+        (address storedRecipient,, uint256 storedShare) = migrator.splitConfigurationOf(address(0), asset);
+        assertEq(storedRecipient, PROCEEDS_RECIPIENT);
+        assertEq(storedShare, proceedsShare);
+
+        uint256 recipientBalanceBefore = PROCEEDS_RECIPIENT.balance;
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        PoolState memory state = migrator.getMigratorState(asset);
+        assertEq(uint8(state.status), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+
+        // Verify the recipient received the split
+        uint256 recipientBalanceAfter = PROCEEDS_RECIPIENT.balance;
+        assertGt(recipientBalanceAfter - recipientBalanceBefore, 0, "Proceeds recipient should have received ETH");
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        (PoolKey memory streamKey, address streamRecipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) =
+            locker.streams(poolKey.toId());
+        assertEq(address(streamKey.hooks), address(migrator));
+        assertEq(streamRecipient, timelock);
+        assertEq(lockDuration, 30 days);
+        assertEq(isUnlocked, false);
+        assertEq(startDate > 0, true);
+    }
+
+    function test_fullFlow_CreateAndMigrateWithoutSplit() public {
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _splitMigratorData(false, address(0), new bytes(0), PROCEEDS_RECIPIENT, 0);
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(21))
+            })
+        );
+
+        uint256 recipientBalanceBefore = PROCEEDS_RECIPIENT.balance;
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        // Verify the recipient received nothing (no split)
+        assertEq(PROCEEDS_RECIPIENT.balance, recipientBalanceBefore, "Proceeds recipient should not have received ETH");
+
+        PoolState memory state = migrator.getMigratorState(asset);
+        assertEq(uint8(state.status), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        (,, uint32 startDate,,) = locker.streams(poolKey.toId());
+        assertGt(startDate, 0);
+    }
+
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
         return
             abi.encode(
@@ -631,7 +731,9 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             useDynamicFee,
             hook,
             onInitializationCalldata,
-            new bytes(0)
+            new bytes(0),
+            address(0),
+            uint256(0)
         );
     }
 
@@ -650,7 +752,34 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             useDynamicFee,
             hook,
             onInitializationCalldata,
-            new bytes(0)
+            new bytes(0),
+            address(0),
+            uint256(0)
+        );
+    }
+
+    function _splitMigratorData(
+        bool useDynamicFee,
+        address hook,
+        bytes memory onInitializationCalldata,
+        address proceedsRecipient,
+        uint256 proceedsShare
+    ) internal pure returns (bytes memory) {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: AIRLOCK_OWNER, shares: 0.05e18 });
+
+        return abi.encode(
+            uint24(3000),
+            int24(8),
+            uint32(30 days),
+            beneficiaries,
+            useDynamicFee,
+            hook,
+            onInitializationCalldata,
+            new bytes(0),
+            proceedsRecipient,
+            proceedsShare
         );
     }
 
