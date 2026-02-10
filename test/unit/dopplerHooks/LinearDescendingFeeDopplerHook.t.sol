@@ -294,4 +294,48 @@ contract LinearDescendingFeeDopplerHookTest is Test {
             previousLastFee = lastFee;
         }
     }
+
+    function testFuzz_onSwap_MatchesLinearFormulaAtElapsed(
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationBlocks,
+        uint16 rawElapsed
+    ) public {
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationBlocks = uint64(bound(rawDurationBlocks, 1, 10_000));
+        uint256 elapsed = bound(uint256(rawElapsed), 0, uint256(durationBlocks) + 128);
+
+        vm.prank(address(updater));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(FeeScheduleParams(startFee, endFee, durationBlocks)));
+
+        PoolId poolId = poolKey.toId();
+        vm.roll(block.number + elapsed);
+
+        vm.prank(address(updater));
+        dopplerHook.onSwap(
+            address(0), poolKey, IPoolManager.SwapParams(false, 0, 0), BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
+        );
+
+        uint24 expectedFee = elapsed >= durationBlocks
+            ? endFee
+            : uint24(uint256(startFee) - (uint256(startFee - endFee) * elapsed) / durationBlocks);
+
+        (,,, uint24 lastFee,,, bool enabled) = dopplerHook.getFeeScheduleOf(poolId);
+        assertEq(lastFee, expectedFee, "unexpected last fee for elapsed blocks");
+
+        uint256 expectedUpdates = expectedFee < startFee ? 1 : 0;
+        assertEq(updater.updateCount(), expectedUpdates, "unexpected update count");
+
+        if (expectedUpdates == 1) {
+            assertEq(updater.lastAsset(), asset, "asset mismatch on update");
+            assertEq(updater.lastFee(), expectedFee, "fee mismatch on update");
+        }
+
+        if (elapsed >= durationBlocks) {
+            assertFalse(enabled, "schedule should be disabled at or after terminal block");
+        } else {
+            assertTrue(enabled, "schedule should remain enabled before terminal block");
+        }
+    }
 }

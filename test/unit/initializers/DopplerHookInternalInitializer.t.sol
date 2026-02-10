@@ -91,6 +91,26 @@ contract MockNegativeCustomAccountingDopplerHook is IDopplerHook {
     function onGraduation(address, PoolKey calldata, bytes calldata) external { }
 }
 
+contract MockVariableCustomAccountingDopplerHook is IDopplerHook {
+    int128 internal immutable returnedDelta;
+
+    constructor(int128 returnedDelta_) {
+        returnedDelta = returnedDelta_;
+    }
+
+    function onInitialization(address, PoolKey calldata, bytes calldata) external { }
+    function onSwap(
+        address,
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata,
+        BalanceDelta,
+        bytes calldata
+    ) external view returns (Currency, int128) {
+        return (Currency.wrap(address(0)), returnedDelta);
+    }
+    function onGraduation(address, PoolKey calldata, bytes calldata) external { }
+}
+
 contract DopplerHookMulticurveInternalInitializerTest is Deployers {
     using StateLibrary for IPoolManager;
 
@@ -800,6 +820,43 @@ contract DopplerHookMulticurveInternalInitializerTest is Deployers {
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
 
         vm.expectRevert(abi.encodeWithSelector(CustomAccountingNotSupported.selector, address(customAccountingHook), -1));
+        vm.prank(address(manager));
+        initializer.afterSwap(
+            address(this),
+            poolKey,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            BalanceDeltaLibrary.ZERO_DELTA,
+            new bytes(0)
+        );
+    }
+
+    function testFuzz_afterSwap_RevertsWhenDopplerHookReturnsAnyNonZeroDelta(
+        InitDataParams memory initParams,
+        bool isToken0,
+        int128 returnedDelta
+    ) public prepareAsset(isToken0) {
+        vm.assume(returnedDelta != 0);
+        MockVariableCustomAccountingDopplerHook customAccountingHook =
+            new MockVariableCustomAccountingDopplerHook(returnedDelta);
+
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(customAccountingHook);
+        flags[0] = ON_SWAP_FLAG;
+
+        vm.prank(airlockOwner);
+        initializer.setDopplerHookState(dopplerHooks, flags);
+
+        InitData memory initData = _prepareInitDataWithDopplerHook(initParams);
+        initData.dopplerHook = address(customAccountingHook);
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, 0, abi.encode(initData));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomAccountingNotSupported.selector, address(customAccountingHook), returnedDelta
+            )
+        );
         vm.prank(address(manager));
         initializer.afterSwap(
             address(this),

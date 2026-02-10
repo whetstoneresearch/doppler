@@ -10,3 +10,7 @@ out/
 .env
 
 /node_modules
+
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
