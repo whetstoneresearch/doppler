@@ -12,7 +12,6 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
@@ -209,10 +208,14 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     /// @notice Returns the delegated authority for a user
     mapping(address user => address authority) public getAuthority;
 
+    /// @notice Fallback function to receive ETH
+    receive() external payable { }
+
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of Uniswap V4 PoolManager contract
      * @param locker_ Address of the StreamableFeesLockerV2 contract (must be approved)
+     * @param topUpDistributor Address of the TopUpDistributor contract
      */
     constructor(
         address airlock_,
@@ -222,8 +225,6 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) ProceedsSplitter(topUpDistributor) {
         locker = locker_;
     }
-
-    receive() external payable { }
 
     /// @inheritdoc ILiquidityMigrator
     function initialize(address asset, address numeraire, bytes calldata data) external onlyAirlock returns (address) {
