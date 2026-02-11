@@ -123,7 +123,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
         PoolId poolId = key.toId();
         FeeSchedule memory schedule = getFeeScheduleOf[poolId];
 
-        if (schedule.isComplete || schedule.startFee <= schedule.endFee) {
+        if (schedule.isComplete) {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
