@@ -16,8 +16,9 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
-import { DecayMulticurveInitializer, InitData } from "src/initializers/DecayMulticurveInitializer.sol";
+import { DecayMulticurveInitializer, InitData, MAX_LP_FEE } from "src/initializers/DecayMulticurveInitializer.sol";
 import { DecayMulticurveInitializerHook } from "src/initializers/DecayMulticurveInitializerHook.sol";
+import { PoolAlreadyExited, PoolStatus } from "src/initializers/UniswapV4MulticurveInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -168,6 +169,137 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         assertFalse(isComplete, "descending schedule should remain active before start");
     }
 
+    function test_create_WithBeneficiariesLocksPoolAndBlocksMigration() public {
+        uint24 startFee = 20_000;
+        uint24 endFee = 5000;
+        uint64 durationSeconds = 1000;
+
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: 0.05e18 });
+
+        (, address asset) = _createTokenWithStartTimeAndBeneficiaries(
+            bytes32(uint256(7)), startFee, endFee, durationSeconds, uint32(block.timestamp + 100), beneficiaries
+        );
+
+        (, PoolStatus status,,) = initializer.getState(asset);
+        assertEq(uint8(status), uint8(PoolStatus.Locked), "beneficiaries should lock pool state");
+
+        (uint48 scheduleStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee,, bool isComplete) =
+            hook.getFeeScheduleOf(poolId);
+        assertEq(scheduleStart, uint48(block.timestamp + 100), "unexpected schedule start");
+        assertEq(storedStartFee, startFee, "unexpected schedule start fee");
+        assertEq(storedEndFee, endFee, "unexpected schedule end fee");
+        assertEq(lastFee, startFee, "unexpected schedule last fee");
+        assertFalse(isComplete, "descending schedule should remain active after create");
+
+        vm.expectRevert(PoolAlreadyExited.selector);
+        airlock.migrate(asset);
+
+        (, PoolStatus statusAfter,,) = initializer.getState(asset);
+        assertEq(uint8(statusAfter), uint8(PoolStatus.Locked), "failed migration should not change locked state");
+    }
+
+    function testFuzz_swap_UsesExpectedDecayedFeeOnFirstSwap(
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawElapsed
+    ) public {
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint256 elapsed = bound(uint256(rawElapsed), 1, uint256(durationSeconds) + 200_000);
+
+        (bool isToken0,) = _createToken(bytes32(uint256(4)), startFee, endFee, durationSeconds);
+
+        vm.warp(block.timestamp + elapsed);
+        vm.recordLogs();
+        _buyAsset(isToken0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        uint24 expectedFee = _expectedDecayFee(startFee, endFee, durationSeconds, elapsed);
+        (,,, uint24 lpFeeAfter) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfter, expectedFee, "slot0 fee should equal decayed fee");
+
+        uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
+        assertEq(observedSwapFee, expectedFee, "swap should execute at decayed fee");
+
+        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        assertEq(lastFee, expectedFee, "stored lastFee should match computed fee");
+        assertEq(isComplete, elapsed >= durationSeconds, "completion state mismatch");
+    }
+
+    function testFuzz_preStartSwap_RetainsStartFee(
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawStartOffset,
+        uint32 rawElapsedBeforeStart
+    ) public {
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 startOffset = uint32(bound(rawStartOffset, 1, 200_000));
+        uint256 elapsedBeforeStart = bound(uint256(rawElapsedBeforeStart), 0, uint256(startOffset) - 1);
+
+        uint32 startingTime = uint32(block.timestamp + startOffset);
+        (bool isToken0,) =
+            _createTokenWithStartTime(bytes32(uint256(5)), startFee, endFee, durationSeconds, startingTime);
+
+        vm.warp(block.timestamp + elapsedBeforeStart);
+        vm.recordLogs();
+        _buyAsset(isToken0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        (,,, uint24 lpFeeAfter) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfter, startFee, "pre-start swap should keep start fee");
+
+        uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
+        assertEq(observedSwapFee, startFee, "pre-start swap should execute at start fee");
+
+        (uint48 storedStart,,,,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,,) = hook.getFeeScheduleOf(poolId);
+        assertEq(storedStart, startingTime, "future start time should remain unchanged");
+        assertEq(lastFee, startFee, "lastFee should remain at start fee before start");
+        assertFalse(isComplete, "schedule should remain active before start");
+    }
+
+    function testFuzz_create_ClampsPastStartTime(
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawPastOffset
+    ) public {
+        vm.warp(2_000_000_000);
+
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 pastOffset = uint32(bound(rawPastOffset, 1, 200_000));
+        uint32 pastStartingTime = uint32(block.timestamp - pastOffset);
+
+        _createTokenWithStartTime(bytes32(uint256(6)), startFee, endFee, durationSeconds, pastStartingTime);
+
+        (
+            uint48 storedStart,
+            uint24 storedStartFee,
+            uint24 storedEndFee,
+            uint24 lastFee,
+            uint48 duration,
+            bool isComplete
+        ) = hook.getFeeScheduleOf(poolId);
+        assertEq(storedStart, block.timestamp, "past schedule start should clamp to current timestamp");
+        assertEq(storedStartFee, startFee, "unexpected start fee");
+        assertEq(storedEndFee, endFee, "unexpected end fee");
+        assertEq(lastFee, startFee, "lastFee should seed to start fee");
+        assertEq(duration, durationSeconds, "unexpected duration");
+        assertFalse(isComplete, "descending schedule should remain active");
+
+        (,,, uint24 lpFeeAfterCreate) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfterCreate, startFee, "slot0 fee should be seeded to start fee");
+    }
+
     function _extractPoolManagerSwapFee(Vm.Log[] memory logs) internal pure returns (uint24 fee) {
         bytes32 swapSig = keccak256("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)");
 
@@ -189,6 +321,19 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         });
 
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+    }
+
+    function _expectedDecayFee(
+        uint24 startFee,
+        uint24 endFee,
+        uint64 durationSeconds,
+        uint256 elapsed
+    ) internal pure returns (uint24) {
+        if (elapsed >= durationSeconds) {
+            return endFee;
+        }
+
+        return uint24(uint256(startFee) - (uint256(startFee - endFee) * elapsed) / durationSeconds);
     }
 
     function _prepareInitData(
@@ -275,6 +420,67 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         );
 
         InitData memory initData = _prepareInitData(tokenAddress, startFee, endFee, durationSeconds, startingTime);
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        (asset,,,,) = airlock.create(params);
+        isToken0 = asset < address(numeraire);
+
+        (,, poolKey,) = initializer.getState(asset);
+        poolId = poolKey.toId();
+        numeraire.approve(address(swapRouter), type(uint256).max);
+    }
+
+    function _createTokenWithStartTimeAndBeneficiaries(
+        bytes32 salt,
+        uint24 startFee,
+        uint24 endFee,
+        uint64 durationSeconds,
+        uint32 startingTime,
+        BeneficiaryData[] memory beneficiaries
+    ) internal returns (bool isToken0, address asset) {
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData = _prepareInitData(tokenAddress, startFee, endFee, durationSeconds, startingTime);
+        initData.beneficiaries = beneficiaries;
 
         CreateParams memory params = CreateParams({
             initialSupply: initialSupply,

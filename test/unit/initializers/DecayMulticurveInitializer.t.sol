@@ -34,7 +34,7 @@ import {
     PoolStatus
 } from "src/initializers/UniswapV4MulticurveInitializer.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
+import { Curve, ZeroPosition } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -173,11 +173,19 @@ contract DecayMulticurveInitializerTest is Deployers {
     }
 
     function test_initialize_AddsLiquidity(bool isToken0) public {
-        // TODO: Figure out why this test is failing on scheduled path as well.
-        vm.skip(true);
         test_initialize_InitializesPool(isToken0);
-        uint128 liquidity = manager.getLiquidity(poolId);
-        assertGt(liquidity, 0, "Liquidity is zero");
+
+        Position[] memory positions = initializer.getPositions(asset);
+        uint256 totalLiquidity;
+
+        for (uint256 i; i < positions.length; i++) {
+            (uint128 liquidity,,) = manager.getPositionInfo(
+                poolId, address(initializer), positions[i].tickLower, positions[i].tickUpper, positions[i].salt
+            );
+            totalLiquidity += liquidity;
+        }
+
+        assertGt(totalLiquidity, 0, "No position liquidity minted");
     }
 
     function test_initialize_LocksPool(bool isToken0) public prepareAsset(isToken0) {
@@ -226,6 +234,388 @@ contract DecayMulticurveInitializerTest is Deployers {
         // Hook seeds dynamic fee during initialization through setSchedule.
         (,,, uint24 lpFee) = manager.getSlot0(poolId);
         assertEq(lpFee, initData.startFee, "Incorrect seeded LP fee");
+    }
+
+    function testFuzz_initialize_StoresScheduleAndPoolStateForValidConfigs(
+        bool isToken0,
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawStartOffset
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, 0, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee));
+        bool isDescending = startFee > endFee;
+        uint64 durationSeconds = isDescending ? uint64(bound(rawDurationSeconds, 1, 200_000)) : 0;
+        uint32 startOffset = uint32(bound(rawStartOffset, 0, 200_000));
+
+        initData.startFee = startFee;
+        initData.fee = endFee;
+        initData.durationSeconds = durationSeconds;
+        initData.startingTime = uint32(block.timestamp + startOffset);
+
+        vm.prank(address(airlock));
+        address returnedAsset =
+            initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+        assertEq(returnedAsset, asset, "Returned asset must match initialized asset");
+
+        (address returnedNumeraire, PoolStatus status, PoolKey memory key, int24 farTick) = initializer.getState(asset);
+        assertEq(returnedNumeraire, numeraire, "Incorrect numeraire in stored state");
+        assertEq(uint8(status), uint8(PoolStatus.Initialized), "Pool should remain initialized without beneficiaries");
+        assertEq(address(key.hooks), address(hook), "Unexpected hook address");
+        assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG, "Pool key must use dynamic fee flag");
+        assertEq(key.tickSpacing, initData.tickSpacing, "Unexpected tick spacing");
+
+        address token0 = Currency.unwrap(key.currency0);
+        address token1 = Currency.unwrap(key.currency1);
+        assertLt(uint160(token0), uint160(token1), "Pool key currencies must be sorted");
+        bool assetIsToken0 = asset == token0;
+        assertEq(farTick, assetIsToken0 ? int24(240_000) : int24(-240_000), "Unexpected farTick orientation");
+
+        (
+            uint48 startingTime,
+            uint24 scheduleStartFee,
+            uint24 scheduleEndFee,
+            uint24 lastFee,
+            uint48 duration,
+            bool isComplete
+        ) = hook.getFeeScheduleOf(poolId);
+        assertEq(startingTime, initData.startingTime, "Future/now schedule start should be preserved");
+        assertEq(scheduleStartFee, startFee, "Incorrect schedule start fee");
+        assertEq(scheduleEndFee, endFee, "Incorrect schedule end fee");
+        assertEq(lastFee, startFee, "Incorrect lastFee after initialization");
+        assertEq(duration, durationSeconds, "Incorrect schedule duration");
+        assertEq(isComplete, !isDescending, "Completion flag mismatch for schedule shape");
+
+        (,,, uint24 lpFee) = manager.getSlot0(poolId);
+        assertEq(lpFee, startFee, "slot0 fee must be seeded to startFee");
+    }
+
+    function testFuzz_initialize_ClampsPastStartingTimeToCurrentBlock(
+        bool isToken0,
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawPastOffset
+    ) public prepareAsset(isToken0) {
+        vm.warp(2_000_000_000);
+
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 pastOffset = uint32(bound(rawPastOffset, 1, 200_000));
+
+        initData.startFee = startFee;
+        initData.fee = endFee;
+        initData.durationSeconds = durationSeconds;
+        initData.startingTime = uint32(block.timestamp - pastOffset);
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        (
+            uint48 startingTime,
+            uint24 scheduleStartFee,
+            uint24 scheduleEndFee,
+            uint24 lastFee,
+            uint48 duration,
+            bool isComplete
+        ) = hook.getFeeScheduleOf(poolId);
+        assertEq(startingTime, block.timestamp, "Past start time should clamp to current block");
+        assertEq(scheduleStartFee, startFee, "Incorrect schedule start fee");
+        assertEq(scheduleEndFee, endFee, "Incorrect schedule end fee");
+        assertEq(lastFee, startFee, "lastFee should equal startFee after initialization");
+        assertEq(duration, durationSeconds, "Incorrect schedule duration");
+        assertFalse(isComplete, "Descending schedule should be active at initialization");
+    }
+
+    function testFuzz_initialize_FlatScheduleCompletesImmediatelyAndNoOpsOnSwap(
+        bool isToken0,
+        uint24 rawFee,
+        uint32 rawStartOffset,
+        uint32 rawWarpAfterInit
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 fee = uint24(bound(rawFee, 0, MAX_LP_FEE));
+        uint32 startOffset = uint32(bound(rawStartOffset, 0, 200_000));
+        uint32 warpAfterInit = uint32(bound(rawWarpAfterInit, 0, 200_000));
+
+        initData.startFee = fee;
+        initData.fee = fee;
+        initData.durationSeconds = 0;
+        initData.startingTime = uint32(block.timestamp + startOffset);
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        (
+            uint48 startingTime,
+            uint24 scheduleStartFee,
+            uint24 scheduleEndFee,
+            uint24 lastFee,
+            uint48 duration,
+            bool isComplete
+        ) = hook.getFeeScheduleOf(poolId);
+        assertEq(startingTime, initData.startingTime, "Flat schedule should preserve start time");
+        assertEq(scheduleStartFee, fee, "Incorrect schedule start fee");
+        assertEq(scheduleEndFee, fee, "Incorrect schedule end fee");
+        assertEq(lastFee, fee, "Incorrect schedule lastFee");
+        assertEq(duration, 0, "Flat schedule should persist zero duration");
+        assertTrue(isComplete, "Flat schedule should complete immediately");
+
+        vm.warp(block.timestamp + warpAfterInit);
+        _swapAssetAgainstNumeraire(isToken0, 1 ether);
+
+        (,,, uint24 lpFeeAfter) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfter, fee, "Flat schedule should never update fee on swap");
+        (,,, uint24 lastFeeAfter,, bool isCompleteAfterSwap) = hook.getFeeScheduleOf(poolId);
+        assertEq(lastFeeAfter, fee, "Flat schedule should keep terminal fee");
+        assertTrue(isCompleteAfterSwap, "Flat schedule should stay complete");
+    }
+
+    function test_initialize_FlatScheduleAllowsNonZeroDurationAndRemainsComplete(bool isToken0)
+        public
+        prepareAsset(isToken0)
+    {
+        InitData memory initData = _prepareInitData();
+        initData.startFee = 7000;
+        initData.fee = 7000;
+        initData.durationSeconds = 1234;
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        (,,, uint24 seededFee) = manager.getSlot0(poolId);
+        assertEq(seededFee, initData.startFee, "slot0 fee should be seeded to flat fee");
+
+        (uint48 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 duration, bool isComplete) =
+            hook.getFeeScheduleOf(poolId);
+        assertEq(startingTime, initData.startingTime, "flat schedule start should be preserved");
+        assertEq(startFee, initData.startFee, "unexpected flat start fee");
+        assertEq(endFee, initData.fee, "unexpected flat end fee");
+        assertEq(lastFee, initData.startFee, "unexpected flat lastFee");
+        assertEq(duration, initData.durationSeconds, "flat schedule should preserve non-zero duration");
+        assertTrue(isComplete, "flat schedule should be complete immediately");
+
+        vm.warp(block.timestamp + 1 days);
+        _swapAssetAgainstNumeraire(isToken0, 1 ether);
+
+        (,,, uint24 feeAfterSwap) = manager.getSlot0(poolId);
+        assertEq(feeAfterSwap, initData.startFee, "flat schedule fee should not change on swap");
+        (,,, uint24 lastFeeAfterSwap,, bool isCompleteAfterSwap) = hook.getFeeScheduleOf(poolId);
+        assertEq(lastFeeAfterSwap, initData.startFee, "flat schedule lastFee should remain terminal");
+        assertTrue(isCompleteAfterSwap, "flat schedule must remain complete after swaps");
+    }
+
+    function test_initialize_ReturnsDustToAirlock(bool isToken0) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint256 airlockBalanceBefore = ERC20(asset).balanceOf(address(airlock));
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        uint256 airlockBalanceAfter = ERC20(asset).balanceOf(address(airlock));
+        assertLt(airlockBalanceAfter, airlockBalanceBefore, "airlock should spend some asset tokens");
+        assertGt(
+            airlockBalanceAfter,
+            airlockBalanceBefore - totalTokensOnBondingCurve,
+            "initializer should return rounding dust to airlock"
+        );
+        assertEq(ERC20(asset).balanceOf(address(initializer)), 0, "initializer should not retain asset dust");
+    }
+
+    function testFuzz_initialize_RevertsWhenStartFeeTooHigh_Fuzzed(
+        bool isToken0,
+        uint24 rawStartFee
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, MAX_LP_FEE + 1, type(uint24).max));
+
+        initData.startFee = startFee;
+        initData.fee = MAX_LP_FEE;
+        initData.durationSeconds = 0;
+
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, startFee));
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+    }
+
+    function testFuzz_initialize_RevertsWhenEndFeeTooHigh_Fuzzed(
+        bool isToken0,
+        uint24 rawEndFee
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 endFee = uint24(bound(rawEndFee, MAX_LP_FEE + 1, type(uint24).max));
+
+        initData.startFee = MAX_LP_FEE;
+        initData.fee = endFee;
+        initData.durationSeconds = 0;
+
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, endFee));
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+    }
+
+    function testFuzz_initialize_RevertsWhenFeeRangeAscending_Fuzzed(
+        bool isToken0,
+        uint24 rawStartFee,
+        uint24 rawEndFee
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, 0, MAX_LP_FEE - 1));
+        uint24 endFee = uint24(bound(rawEndFee, startFee + 1, MAX_LP_FEE));
+
+        initData.startFee = startFee;
+        initData.fee = endFee;
+        initData.durationSeconds = 0;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidFeeRange.selector, startFee, endFee));
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+    }
+
+    function testFuzz_initialize_RevertsWhenDescendingDurationZero_Fuzzed(
+        bool isToken0,
+        uint24 rawStartFee,
+        uint24 rawEndFee
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+
+        initData.startFee = startFee;
+        initData.fee = endFee;
+        initData.durationSeconds = 0;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDurationSeconds.selector, 0));
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+    }
+
+    function testFuzz_initialize_DecaysFeeOnFirstPostStartSwap(
+        bool isToken0,
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawStartOffset,
+        uint32 rawElapsedAfterStart
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 startOffset = uint32(bound(rawStartOffset, 0, 200_000));
+
+        initData.startFee = startFee;
+        initData.fee = endFee;
+        initData.durationSeconds = durationSeconds;
+        initData.startingTime = uint32(block.timestamp + startOffset);
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        uint256 elapsedAfterStart = bound(uint256(rawElapsedAfterStart), 1, uint256(durationSeconds) + 200_000);
+        vm.warp(uint256(initData.startingTime) + elapsedAfterStart);
+        _swapAssetAgainstNumeraire(isToken0, 1 ether);
+
+        uint24 expectedFee = _expectedDecayFee(startFee, endFee, durationSeconds, elapsedAfterStart);
+        (,,, uint24 lpFeeAfterSwap) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfterSwap, expectedFee, "Swap should execute at decayed fee");
+
+        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        assertEq(lastFee, expectedFee, "Stored schedule fee must match computed decay");
+        assertEq(isComplete, elapsedAfterStart >= durationSeconds, "Completion state mismatch");
+    }
+
+    function testFuzz_initialize_PreStartSwapRetainsStartFee(
+        bool isToken0,
+        uint24 rawStartFee,
+        uint24 rawEndFee,
+        uint64 rawDurationSeconds,
+        uint32 rawStartOffset,
+        uint32 rawElapsedBeforeStart
+    ) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
+        uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
+        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 startOffset = uint32(bound(rawStartOffset, 1, 200_000));
+
+        initData.startFee = startFee;
+        initData.fee = endFee;
+        initData.durationSeconds = durationSeconds;
+        initData.startingTime = uint32(block.timestamp + startOffset);
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        uint256 elapsedBeforeStart = bound(uint256(rawElapsedBeforeStart), 0, uint256(startOffset) - 1);
+        vm.warp(block.timestamp + elapsedBeforeStart);
+        _swapAssetAgainstNumeraire(isToken0, 1 ether);
+
+        (,,, uint24 lpFeeAfterSwap) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfterSwap, startFee, "Pre-start swap must use start fee");
+
+        (uint48 scheduleStart,,,, uint48 duration, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,,) = hook.getFeeScheduleOf(poolId);
+        assertEq(scheduleStart, initData.startingTime, "Pre-start schedule start should remain unchanged");
+        assertEq(duration, durationSeconds, "Schedule duration should remain unchanged");
+        assertEq(lastFee, startFee, "lastFee should remain start fee before start");
+        assertFalse(isComplete, "Descending schedule must remain active before start");
+    }
+
+    function test_initialize_SwapExactlyAtStartTimeRetainsStartFee(bool isToken0) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        initData.startingTime = uint32(block.timestamp + 3600);
+
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        vm.warp(initData.startingTime);
+        _swapAssetAgainstNumeraire(isToken0, 1 ether);
+
+        (,,, uint24 lpFeeAfterSwap) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfterSwap, initData.startFee, "swap at exact start timestamp should still use start fee");
+
+        (uint48 scheduleStart,,,, uint48 duration, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,,) = hook.getFeeScheduleOf(poolId);
+        assertEq(scheduleStart, initData.startingTime, "schedule start should remain unchanged");
+        assertEq(duration, initData.durationSeconds, "schedule duration should remain unchanged");
+        assertEq(lastFee, initData.startFee, "fee should not decay exactly at start boundary");
+        assertFalse(isComplete, "descending schedule should still be active at exact start time");
+    }
+
+    function test_initialize_InvalidCurveRevertsAtomically(bool isToken0) public prepareAsset(isToken0) {
+        InitData memory initData = _prepareInitData();
+        initData.curves[0].numPositions = 0;
+
+        uint256 airlockAssetBefore = ERC20(asset).balanceOf(address(airlock));
+
+        vm.expectRevert(ZeroPosition.selector);
+        vm.prank(address(airlock));
+        initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
+
+        assertEq(
+            ERC20(asset).balanceOf(address(airlock)), airlockAssetBefore, "airlock balance should remain unchanged"
+        );
+        assertEq(
+            ERC20(asset).balanceOf(address(initializer)), 0, "initializer should not retain asset on reverted init"
+        );
+
+        (address returnedNumeraire, PoolStatus status,,) = initializer.getState(asset);
+        assertEq(returnedNumeraire, address(0), "state should not be partially initialized");
+        assertEq(uint8(status), uint8(PoolStatus.Uninitialized), "pool status should remain uninitialized");
+
+        (uint48 scheduleStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 duration, bool isComplete) =
+            hook.getFeeScheduleOf(poolId);
+        assertEq(scheduleStart, 0, "fee schedule should not be persisted");
+        assertEq(startFee, 0, "fee schedule should not be persisted");
+        assertEq(endFee, 0, "fee schedule should not be persisted");
+        assertEq(lastFee, 0, "fee schedule should not be persisted");
+        assertEq(duration, 0, "fee schedule should not be persisted");
+        assertFalse(isComplete, "fee schedule should remain unset");
     }
 
     /* ----------------------------------------------------------------------------- */
@@ -367,5 +757,29 @@ contract DecayMulticurveInitializerTest is Deployers {
         swapRouter.swap(poolKey, params, PoolSwapTest.TestSettings(false, false), new bytes(0));
         (, int24 tick,,) = manager.getSlot0(poolId);
         assertTrue(((isToken0 && tick >= farTick) || (!isToken0 && tick <= farTick)), "Did not reach far tick");
+    }
+
+    function _swapAssetAgainstNumeraire(bool isToken0, int256 amountSpecified) internal {
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: amountSpecified,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        ERC20(numeraire).approve(address(swapRouter), type(uint256).max);
+        swapRouter.swap(poolKey, params, PoolSwapTest.TestSettings(false, false), new bytes(0));
+    }
+
+    function _expectedDecayFee(
+        uint24 startFee,
+        uint24 endFee,
+        uint64 durationSeconds,
+        uint256 elapsed
+    ) internal pure returns (uint24) {
+        if (elapsed >= durationSeconds) {
+            return endFee;
+        }
+
+        return uint24(uint256(startFee) - (uint256(startFee - endFee) * elapsed) / durationSeconds);
     }
 }
