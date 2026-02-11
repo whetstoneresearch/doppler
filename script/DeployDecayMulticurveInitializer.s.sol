@@ -18,6 +18,7 @@ contract DeployDecayMulticurveInitializerScript is Script, Config {
         _loadConfigAndForks("./deployments.config.toml", true);
 
         uint256[] memory targets = new uint256[](1);
+        // targets[0] = ChainIds.BASE_MAINNET;
         targets[0] = ChainIds.BASE_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
