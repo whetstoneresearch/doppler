@@ -169,14 +169,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
     function _computeCurrentFee(FeeSchedule memory schedule, uint256 elapsed) internal pure returns (uint24) {
         uint256 feeRange = uint256(schedule.startFee - schedule.endFee);
         uint256 feeDelta = feeRange * elapsed / schedule.durationSeconds;
-
-        // Defensive clamps: never let delta exceed safe subtraction bounds.
-        if (feeDelta > feeRange) feeDelta = feeRange;
-        if (feeDelta > uint256(schedule.startFee)) feeDelta = uint256(schedule.startFee);
-
-        uint256 rawFee = uint256(schedule.startFee) - feeDelta;
-        if (rawFee < schedule.endFee) return schedule.endFee;
-        return uint24(rawFee);
+        return uint24(uint256(schedule.startFee) - feeDelta);
     }
 
     /// @inheritdoc BaseHook
