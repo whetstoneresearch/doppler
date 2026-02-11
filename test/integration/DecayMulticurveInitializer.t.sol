@@ -139,9 +139,8 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
         assertEq(observedSwapFee, endFee, "first post-end swap should execute at terminal fee");
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, endFee, "lastFee should be terminal fee");
-        assertTrue(isComplete, "schedule should be complete after post-end swap");
     }
 
     function test_preStartSwap_UsesStartFeeAndDoesNotRevert() public {
@@ -164,9 +163,8 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
         assertEq(observedSwapFee, startFee, "pre-start swap should execute at start fee");
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, startFee, "pre-start swap should not decay lastFee");
-        assertFalse(isComplete, "descending schedule should remain active before start");
     }
 
     function test_create_WithBeneficiariesLocksPoolAndBlocksMigration() public {
@@ -185,13 +183,12 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         (, PoolStatus status,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Locked), "beneficiaries should lock pool state");
 
-        (uint48 scheduleStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee,, bool isComplete) =
+        (uint48 scheduleStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee,) =
             hook.getFeeScheduleOf(poolId);
         assertEq(scheduleStart, uint48(block.timestamp + 100), "unexpected schedule start");
         assertEq(storedStartFee, startFee, "unexpected schedule start fee");
         assertEq(storedEndFee, endFee, "unexpected schedule end fee");
         assertEq(lastFee, startFee, "unexpected schedule last fee");
-        assertFalse(isComplete, "descending schedule should remain active after create");
 
         vm.expectRevert(PoolAlreadyExited.selector);
         airlock.migrate(asset);
@@ -225,9 +222,8 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
         assertEq(observedSwapFee, expectedFee, "swap should execute at decayed fee");
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, expectedFee, "stored lastFee should match computed fee");
-        assertEq(isComplete, elapsed >= durationSeconds, "completion state mismatch");
     }
 
     function testFuzz_preStartSwap_RetainsStartFee(
@@ -258,11 +254,9 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
         assertEq(observedSwapFee, startFee, "pre-start swap should execute at start fee");
 
-        (uint48 storedStart,,,,, bool isComplete) = hook.getFeeScheduleOf(poolId);
-        (,,, uint24 lastFee,,) = hook.getFeeScheduleOf(poolId);
+        (uint48 storedStart,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, startingTime, "future start time should remain unchanged");
         assertEq(lastFee, startFee, "lastFee should remain at start fee before start");
-        assertFalse(isComplete, "schedule should remain active before start");
     }
 
     function testFuzz_create_ClampsPastStartTime(
@@ -281,20 +275,13 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
 
         _createTokenWithStartTime(bytes32(uint256(6)), startFee, endFee, durationSeconds, pastStartingTime);
 
-        (
-            uint48 storedStart,
-            uint24 storedStartFee,
-            uint24 storedEndFee,
-            uint24 lastFee,
-            uint48 duration,
-            bool isComplete
-        ) = hook.getFeeScheduleOf(poolId);
+        (uint48 storedStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee, uint48 duration) =
+            hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, block.timestamp, "past schedule start should clamp to current timestamp");
         assertEq(storedStartFee, startFee, "unexpected start fee");
         assertEq(storedEndFee, endFee, "unexpected end fee");
         assertEq(lastFee, startFee, "lastFee should seed to start fee");
         assertEq(duration, durationSeconds, "unexpected duration");
-        assertFalse(isComplete, "descending schedule should remain active");
 
         (,,, uint24 lpFeeAfterCreate) = manager.getSlot0(poolId);
         assertEq(lpFeeAfterCreate, startFee, "slot0 fee should be seeded to start fee");

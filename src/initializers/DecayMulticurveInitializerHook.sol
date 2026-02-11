@@ -42,7 +42,6 @@ event FeeUpdated(PoolId indexed poolId, uint24 lpFee);
  * @param endFee Fee at schedule end
  * @param lastFee Last applied fee
  * @param durationSeconds Schedule duration in seconds
- * @param isComplete Whether the schedule is terminal and can early-exit in `beforeSwap`
  */
 struct FeeSchedule {
     uint48 startingTime;
@@ -50,7 +49,6 @@ struct FeeSchedule {
     uint24 endFee;
     uint24 lastFee;
     uint48 durationSeconds;
-    bool isComplete;
 }
 
 /**
@@ -106,8 +104,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
             startFee: startFee,
             endFee: endFee,
             lastFee: startFee,
-            durationSeconds: uint48(durationSeconds),
-            isComplete: !isDescending
+            durationSeconds: uint48(durationSeconds)
         });
 
         emit FeeScheduleSet(poolId, normalizedStart, startFee, endFee, durationSeconds);
@@ -123,7 +120,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
         PoolId poolId = key.toId();
         FeeSchedule memory schedule = getFeeScheduleOf[poolId];
 
-        if (schedule.isComplete) {
+        if (schedule.lastFee == schedule.endFee) {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
@@ -131,26 +128,20 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
             return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
         }
 
-        uint24 previousLastFee = schedule.lastFee;
-        bool previousIsComplete = schedule.isComplete;
-
         uint24 currentFee;
         uint256 elapsed = block.timestamp - schedule.startingTime;
+
         if (elapsed >= schedule.durationSeconds) {
             currentFee = schedule.endFee;
-            schedule.isComplete = true;
         } else {
             currentFee = _computeCurrentFee(schedule, elapsed);
         }
 
-        if (currentFee < previousLastFee) {
+        if (currentFee < schedule.lastFee) {
             poolManager.updateDynamicLPFee(key, currentFee);
             schedule.lastFee = currentFee;
-            emit FeeUpdated(poolId, currentFee);
-        }
-
-        if (schedule.lastFee != previousLastFee || schedule.isComplete != previousIsComplete) {
             getFeeScheduleOf[poolId] = schedule;
+            emit FeeUpdated(poolId, currentFee);
         }
 
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);

@@ -251,14 +251,13 @@ contract DecayMulticurveInitializerHookTest is Test {
         vm.prank(initializer);
         hook.setSchedule(poolKey, startingTime, 10_000, 1000, 100);
 
-        (uint48 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds, bool isComplete) =
+        (uint48 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds) =
             hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, startingTime);
         assertEq(startFee, 10_000);
         assertEq(endFee, 1000);
         assertEq(lastFee, 10_000);
         assertEq(durationSeconds, 100);
-        assertFalse(isComplete);
         assertEq(PoolId.unwrap(poolManager.lastPoolId()), PoolId.unwrap(poolId));
         assertEq(poolManager.lastFee(), 10_000);
         assertEq(poolManager.updateCount(), 1);
@@ -271,14 +270,13 @@ contract DecayMulticurveInitializerHookTest is Test {
         vm.prank(initializer);
         hook.setSchedule(poolKey, 999, 5000, 5000, 0);
 
-        (uint48 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds, bool isComplete) =
+        (uint48 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds) =
             hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, 1000);
         assertEq(startFee, 5000);
         assertEq(endFee, 5000);
         assertEq(lastFee, 5000);
         assertEq(durationSeconds, 0);
-        assertTrue(isComplete);
         assertEq(PoolId.unwrap(poolManager.lastPoolId()), PoolId.unwrap(poolId));
         assertEq(poolManager.lastFee(), 5000);
         assertEq(poolManager.updateCount(), 1);
@@ -345,9 +343,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         assertEq(poolManager.lastFee(), 10_000);
         assertEq(poolManager.updateCount(), 1, "no additional update expected before schedule start");
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, 10_000, "lastFee remains startFee before decay begins");
-        assertFalse(isComplete, "descending schedule should not be complete before start");
     }
 
     function test_beforeSwap_UpdatesFeeUsingTimestamp() public {
@@ -373,9 +370,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         assertEq(poolManager.lastFee(), 8000);
         assertEq(poolManager.updateCount(), 2);
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, 8000);
-        assertFalse(isComplete);
     }
 
     function test_beforeSwap_ReachesTerminalFeeAndDisables() public {
@@ -395,9 +391,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         assertEq(poolManager.lastFee(), 2000);
         assertEq(poolManager.updateCount(), 2);
 
-        (,,, uint24 lastFee,, bool isCompleteAfterTerminalSwap) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, 2000);
-        assertTrue(isCompleteAfterTerminalSwap, "schedule should mark complete at terminal fee");
 
         vm.warp(block.timestamp + 20);
         vm.prank(address(poolManager));
@@ -409,9 +404,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         );
         assertEq(poolManager.updateCount(), 2, "must not update after terminal fee reached");
 
-        (,,, uint24 lastFeeAfter,, bool isCompleteAfterEarlyExit) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFeeAfter,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFeeAfter, 2000);
-        assertTrue(isCompleteAfterEarlyExit, "completion flag should remain set");
     }
 
     function test_beforeSwap_SameTimestampDoubleSwapSingleUpdate() public {
@@ -438,9 +432,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         );
         assertEq(poolManager.updateCount(), 2, "second swap at same timestamp should not update");
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, 8000);
-        assertFalse(isComplete);
     }
 
     function test_beforeSwap_DurationOne_SecondBoundary() public {
@@ -457,9 +450,8 @@ contract DecayMulticurveInitializerHookTest is Test {
             new bytes(0)
         );
         assertEq(poolManager.updateCount(), 1, "start boundary should not trigger fee update");
-        (,,, uint24 feeAtStart,, bool isCompleteAtStart) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 feeAtStart,) = hook.getFeeScheduleOf(poolId);
         assertEq(feeAtStart, 10_000);
-        assertFalse(isCompleteAtStart);
 
         // At +1s: schedule reaches terminal fee and completes.
         vm.warp(block.timestamp + 1);
@@ -471,9 +463,8 @@ contract DecayMulticurveInitializerHookTest is Test {
             new bytes(0)
         );
         assertEq(poolManager.updateCount(), 2, "terminal boundary should apply end fee once");
-        (,,, uint24 feeAtTerminal,, bool isCompleteAtTerminal) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 feeAtTerminal,) = hook.getFeeScheduleOf(poolId);
         assertEq(feeAtTerminal, 2000);
-        assertTrue(isCompleteAtTerminal);
 
         // After completion: beforeSwap should early-exit.
         vm.warp(block.timestamp + 1);
@@ -492,9 +483,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         vm.prank(initializer);
         hook.setSchedule(poolKey, block.timestamp + 10, 5000, 5000, 777);
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolId);
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, 5000);
-        assertTrue(isComplete, "flat schedule should complete immediately");
         assertEq(poolManager.updateCount(), 1, "only seed update expected");
 
         vm.warp(block.timestamp + 1000);
@@ -535,12 +525,11 @@ contract DecayMulticurveInitializerHookTest is Test {
             ? endFee
             : uint24(uint256(startFee) - (uint256(startFee - endFee) * elapsed) / durationSeconds);
 
-        (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolKey.toId());
+        (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolKey.toId());
         assertEq(lastFee, expectedFee);
 
         uint256 expectedUpdates = expectedFee < startFee ? 2 : 1;
         assertEq(poolManager.updateCount(), expectedUpdates);
-        assertEq(isComplete, elapsed >= durationSeconds, "completion should only flip once terminal is reached");
     }
 
     function testFuzz_beforeSwap_VariousScheduleShapes(
@@ -565,7 +554,7 @@ contract DecayMulticurveInitializerHookTest is Test {
         vm.prank(initializer);
         hook.setSchedule(poolKey, requestedStartingTime, startFee, endFee, durationSeconds);
 
-        (uint48 storedStartTime,,,,,) = hook.getFeeScheduleOf(poolKey.toId());
+        (uint48 storedStartTime,,,,) = hook.getFeeScheduleOf(poolKey.toId());
         uint256 scheduleStartTime = storedStartTime;
 
         uint256 horizon = startOffset + uint256(durationSeconds) + 5000;
@@ -587,7 +576,7 @@ contract DecayMulticurveInitializerHookTest is Test {
             IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 1, sqrtPriceLimitX96: 0 }),
             new bytes(0)
         );
-        (,,, uint24 lastFee1,,) = hook.getFeeScheduleOf(poolKey.toId());
+        (,,, uint24 lastFee1,) = hook.getFeeScheduleOf(poolKey.toId());
         uint24 expected1 = _expectedFeeAt(startFee, endFee, durationSeconds, scheduleStartTime, t1);
         assertEq(lastFee1, expected1, "unexpected fee at t1");
         assertLe(lastFee1, previousLastFee, "fee must be monotone");
@@ -603,7 +592,7 @@ contract DecayMulticurveInitializerHookTest is Test {
             IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 1, sqrtPriceLimitX96: 0 }),
             new bytes(0)
         );
-        (,,, uint24 lastFee2,,) = hook.getFeeScheduleOf(poolKey.toId());
+        (,,, uint24 lastFee2,) = hook.getFeeScheduleOf(poolKey.toId());
         uint24 expected2 = _expectedFeeAt(startFee, endFee, durationSeconds, scheduleStartTime, t2);
         assertEq(lastFee2, expected2, "unexpected fee at t2");
         assertLe(lastFee2, previousLastFee, "fee must be monotone");
@@ -619,14 +608,12 @@ contract DecayMulticurveInitializerHookTest is Test {
             IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 1, sqrtPriceLimitX96: 0 }),
             new bytes(0)
         );
-        (,,, uint24 lastFee3,, bool isComplete) = hook.getFeeScheduleOf(poolKey.toId());
+        (,,, uint24 lastFee3,) = hook.getFeeScheduleOf(poolKey.toId());
         uint24 expected3 = _expectedFeeAt(startFee, endFee, durationSeconds, scheduleStartTime, t3);
         assertEq(lastFee3, expected3, "unexpected fee at t3");
         assertLe(lastFee3, previousLastFee, "fee must be monotone");
         assertLe(lastFee3, startFee, "fee above start");
         assertGe(lastFee3, endFee, "fee below end");
-        bool expectedComplete = !descending || (t3 >= scheduleStartTime + durationSeconds);
-        assertEq(isComplete, expectedComplete, "unexpected completion state");
 
         // One seed update at setSchedule + at most one update per swap.
         assertLe(poolManager.updateCount(), 4, "too many updates");
@@ -650,7 +637,7 @@ contract DecayMulticurveInitializerHookTest is Test {
         vm.prank(initializer);
         hook.setSchedule(poolKey, requestedStartingTime, startFee, endFee, durationSeconds);
 
-        (uint48 storedStartTime,,,,,) = hook.getFeeScheduleOf(poolKey.toId());
+        (uint48 storedStartTime,,,,) = hook.getFeeScheduleOf(poolKey.toId());
         uint256 scheduleStartTime = storedStartTime;
 
         uint256 currentTime = block.timestamp;
@@ -672,10 +659,12 @@ contract DecayMulticurveInitializerHookTest is Test {
             );
             uint256 updatesAfter = poolManager.updateCount();
 
-            (,,, uint24 lastFee,, bool isComplete) = hook.getFeeScheduleOf(poolKey.toId());
+            (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolKey.toId());
             assertLe(lastFee, previousLastFee, "fee must be monotone non-increasing");
             assertLe(lastFee, startFee, "fee above start");
             assertGe(lastFee, endFee, "fee below end");
+
+            bool isComplete = lastFee <= endFee;
 
             if (sawCompletion) {
                 assertEq(updatesAfter, updatesBefore, "must not update after completion");
@@ -690,8 +679,8 @@ contract DecayMulticurveInitializerHookTest is Test {
         }
 
         bool expectedComplete = currentTime >= scheduleStartTime + durationSeconds;
-        (,,, uint24 finalFee,, bool finalIsComplete) = hook.getFeeScheduleOf(poolKey.toId());
-        assertEq(finalIsComplete, expectedComplete, "unexpected completion state at end of sequence");
+        (,,, uint24 finalFee,) = hook.getFeeScheduleOf(poolKey.toId());
+        assertEq(finalFee <= endFee, expectedComplete, "unexpected completion state at end of sequence");
         if (expectedComplete) {
             assertEq(finalFee, endFee, "completed schedule should end at terminal fee");
         }
