@@ -21,7 +21,7 @@ import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/Beneficiar
 import { Position } from "src/types/Position.sol";
 
 /// @dev Maximum LP fee allowed by this initializer path
-uint24 constant MAX_LP_FEE = 100_000;
+uint24 constant MAX_LP_FEE = 900_000;
 
 /// @notice Thrown when configured fee exceeds MAX_LP_FEE
 error FeeTooHigh(uint24 fee);
