@@ -94,7 +94,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function test_swap_UsesDecayedFeeOnFirstSwap() public {
         uint24 startFee = 20_000;
         uint24 endFee = 5000;
-        uint64 durationSeconds = 1000;
+        uint32 durationSeconds = 1000;
         uint256 elapsed = 250;
 
         (bool isToken0,) = _createToken(bytes32(uint256(1)), startFee, endFee, durationSeconds);
@@ -123,7 +123,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function test_noTradesThenFirstSwapAfterEnd_UsesEndFeeAndCompletes() public {
         uint24 startFee = 20_000;
         uint24 endFee = 5000;
-        uint64 durationSeconds = 1000;
+        uint32 durationSeconds = 1000;
 
         (bool isToken0,) = _createToken(bytes32(uint256(2)), startFee, endFee, durationSeconds);
 
@@ -146,7 +146,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function test_preStartSwap_UsesStartFeeAndDoesNotRevert() public {
         uint24 startFee = 20_000;
         uint24 endFee = 5000;
-        uint64 durationSeconds = 1000;
+        uint32 durationSeconds = 1000;
         uint32 startingTime = uint32(block.timestamp + 3600);
 
         (bool isToken0,) =
@@ -170,7 +170,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function test_create_WithBeneficiariesLocksPoolAndBlocksMigration() public {
         uint24 startFee = 20_000;
         uint24 endFee = 5000;
-        uint64 durationSeconds = 1000;
+        uint32 durationSeconds = 1000;
 
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: makeAddr("Beneficiary1"), shares: 0.95e18 });
@@ -183,9 +183,9 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         (, PoolStatus status,,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Locked), "beneficiaries should lock pool state");
 
-        (uint48 scheduleStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee,) =
+        (uint32 scheduleStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee,) =
             hook.getFeeScheduleOf(poolId);
-        assertEq(scheduleStart, uint48(block.timestamp + 100), "unexpected schedule start");
+        assertEq(scheduleStart, uint32(block.timestamp + 100), "unexpected schedule start");
         assertEq(storedStartFee, startFee, "unexpected schedule start fee");
         assertEq(storedEndFee, endFee, "unexpected schedule end fee");
         assertEq(lastFee, startFee, "unexpected schedule last fee");
@@ -200,12 +200,12 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function testFuzz_swap_UsesExpectedDecayedFeeOnFirstSwap(
         uint24 rawStartFee,
         uint24 rawEndFee,
-        uint64 rawDurationSeconds,
+        uint32 rawDurationSeconds,
         uint32 rawElapsed
     ) public {
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint256 elapsed = bound(uint256(rawElapsed), 1, uint256(durationSeconds) + 200_000);
 
         (bool isToken0,) = _createToken(bytes32(uint256(4)), startFee, endFee, durationSeconds);
@@ -229,13 +229,13 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function testFuzz_preStartSwap_RetainsStartFee(
         uint24 rawStartFee,
         uint24 rawEndFee,
-        uint64 rawDurationSeconds,
+        uint32 rawDurationSeconds,
         uint32 rawStartOffset,
         uint32 rawElapsedBeforeStart
     ) public {
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint32 startOffset = uint32(bound(rawStartOffset, 1, 200_000));
         uint256 elapsedBeforeStart = bound(uint256(rawElapsedBeforeStart), 0, uint256(startOffset) - 1);
 
@@ -254,7 +254,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
         assertEq(observedSwapFee, startFee, "pre-start swap should execute at start fee");
 
-        (uint48 storedStart,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
+        (uint32 storedStart,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, startingTime, "future start time should remain unchanged");
         assertEq(lastFee, startFee, "lastFee should remain at start fee before start");
     }
@@ -262,20 +262,20 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function testFuzz_create_ClampsPastStartTime(
         uint24 rawStartFee,
         uint24 rawEndFee,
-        uint64 rawDurationSeconds,
+        uint32 rawDurationSeconds,
         uint32 rawPastOffset
     ) public {
         vm.warp(2_000_000_000);
 
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint32 pastOffset = uint32(bound(rawPastOffset, 1, 200_000));
         uint32 pastStartingTime = uint32(block.timestamp - pastOffset);
 
         _createTokenWithStartTime(bytes32(uint256(6)), startFee, endFee, durationSeconds, pastStartingTime);
 
-        (uint48 storedStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee, uint48 duration) =
+        (uint32 storedStart, uint24 storedStartFee, uint24 storedEndFee, uint24 lastFee, uint32 duration) =
             hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, block.timestamp, "past schedule start should clamp to current timestamp");
         assertEq(storedStartFee, startFee, "unexpected start fee");
@@ -313,7 +313,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     function _expectedDecayFee(
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds,
+        uint32 durationSeconds,
         uint256 elapsed
     ) internal pure returns (uint24) {
         if (elapsed >= durationSeconds) {
@@ -327,7 +327,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         address token,
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds,
+        uint32 durationSeconds,
         uint32 startingTime
     ) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
@@ -368,7 +368,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         bytes32 salt,
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds
+        uint32 durationSeconds
     ) internal returns (bool isToken0, address asset) {
         return _createTokenWithStartTime(salt, startFee, endFee, durationSeconds, uint32(block.timestamp));
     }
@@ -377,7 +377,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         bytes32 salt,
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds,
+        uint32 durationSeconds,
         uint32 startingTime
     ) internal returns (bool isToken0, address asset) {
         string memory name = "Test Token";
@@ -436,7 +436,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         bytes32 salt,
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds,
+        uint32 durationSeconds,
         uint32 startingTime,
         BeneficiaryData[] memory beneficiaries
     ) internal returns (bool isToken0, address asset) {

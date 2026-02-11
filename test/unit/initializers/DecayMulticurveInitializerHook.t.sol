@@ -215,43 +215,43 @@ contract DecayMulticurveInitializerHookTest is Test {
 
     function test_setSchedule_RevertsWhenSenderNotInitializer() public {
         vm.expectRevert(OnlyInitializer.selector);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 1000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 1000, 100);
     }
 
     function test_setSchedule_RevertsWhenStartFeeTooHigh() public {
         vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, MAX_LP_FEE + 1));
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, MAX_LP_FEE + 1, 1000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), MAX_LP_FEE + 1, 1000, 100);
     }
 
     function test_setSchedule_RevertsWhenEndFeeTooHigh() public {
         vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, MAX_LP_FEE + 1));
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, MAX_LP_FEE + 1, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, MAX_LP_FEE + 1, 100);
     }
 
     function test_setSchedule_RevertsWhenFeeRangeAscending() public {
         vm.expectRevert(abi.encodeWithSelector(InvalidFeeRange.selector, 1000, 10_000));
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 1000, 10_000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 1000, 10_000, 100);
     }
 
     function test_setSchedule_RevertsWhenDescendingDurationIsZero() public {
         vm.expectRevert(abi.encodeWithSelector(InvalidDurationSeconds.selector, 0));
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 1000, 0);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 1000, 0);
     }
 
     function test_setSchedule_StoresScheduleAndEmitsEvent() public {
         PoolId poolId = poolKey.toId();
-        uint256 startingTime = block.timestamp + 100;
+        uint32 startingTime = uint32(block.timestamp + 100);
 
         vm.expectEmit();
         emit FeeScheduleSet(poolId, startingTime, 10_000, 1000, 100);
         vm.prank(initializer);
         hook.setSchedule(poolKey, startingTime, 10_000, 1000, 100);
 
-        (uint48 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds) =
+        (uint32 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 durationSeconds) =
             hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, startingTime);
         assertEq(startFee, 10_000);
@@ -270,7 +270,7 @@ contract DecayMulticurveInitializerHookTest is Test {
         vm.prank(initializer);
         hook.setSchedule(poolKey, 999, 5000, 5000, 0);
 
-        (uint48 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds) =
+        (uint32 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 durationSeconds) =
             hook.getFeeScheduleOf(poolId);
         assertEq(storedStart, 1000);
         assertEq(startFee, 5000);
@@ -325,7 +325,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function test_beforeSwap_AllowsBeforeStartingTimeAtStartFee() public {
         PoolId poolId = poolKey.toId();
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp + 10, 10_000, 1000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp + 10), 10_000, 1000, 100);
 
         vm.warp(block.timestamp + 1);
         vm.prank(address(poolManager));
@@ -350,7 +350,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function test_beforeSwap_UpdatesFeeUsingTimestamp() public {
         PoolId poolId = poolKey.toId();
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 2000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 2000, 100);
 
         vm.warp(block.timestamp + 25);
         vm.expectEmit();
@@ -377,7 +377,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function test_beforeSwap_ReachesTerminalFeeAndDisables() public {
         PoolId poolId = poolKey.toId();
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 2000, 10);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 2000, 10);
 
         vm.warp(block.timestamp + 10);
         vm.prank(address(poolManager));
@@ -411,7 +411,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function test_beforeSwap_SameTimestampDoubleSwapSingleUpdate() public {
         PoolId poolId = poolKey.toId();
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 2000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 2000, 100);
 
         vm.warp(block.timestamp + 25);
         vm.prank(address(poolManager));
@@ -439,7 +439,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function test_beforeSwap_DurationOne_SecondBoundary() public {
         PoolId poolId = poolKey.toId();
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 2000, 1);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 2000, 1);
 
         // At schedule start boundary: no decay yet.
         vm.prank(address(poolManager));
@@ -481,7 +481,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function test_beforeSwap_FlatScheduleNonzeroDuration_ImmediateComplete() public {
         PoolId poolId = poolKey.toId();
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp + 10, 5000, 5000, 777);
+        hook.setSchedule(poolKey, uint32(block.timestamp + 10), 5000, 5000, 777);
 
         (,,, uint24 lastFee,) = hook.getFeeScheduleOf(poolId);
         assertEq(lastFee, 5000);
@@ -501,16 +501,16 @@ contract DecayMulticurveInitializerHookTest is Test {
     function testFuzz_beforeSwap_MatchesLinearTimeFormula(
         uint24 rawStartFee,
         uint24 rawEndFee,
-        uint64 rawDurationSeconds,
+        uint32 rawDurationSeconds,
         uint16 rawElapsed
     ) public {
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 10_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 10_000));
         uint256 elapsed = bound(uint256(rawElapsed), 0, uint256(durationSeconds) + 128);
 
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, startFee, endFee, durationSeconds);
+        hook.setSchedule(poolKey, uint32(block.timestamp), startFee, endFee, durationSeconds);
 
         vm.warp(block.timestamp + elapsed);
         vm.prank(address(poolManager));
@@ -535,7 +535,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function testFuzz_beforeSwap_VariousScheduleShapes(
         uint24 rawStartFee,
         uint24 rawEndFee,
-        uint64 rawDurationSeconds,
+        uint32 rawDurationSeconds,
         uint32 rawStartOffset,
         uint32 rawT1,
         uint32 rawT2,
@@ -547,14 +547,14 @@ contract DecayMulticurveInitializerHookTest is Test {
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee));
         bool descending = startFee > endFee;
 
-        uint64 durationSeconds = descending ? uint64(bound(rawDurationSeconds, 1, 200_000)) : 0;
+        uint32 durationSeconds = descending ? uint32(bound(rawDurationSeconds, 1, 200_000)) : 0;
         uint256 startOffset = bound(uint256(rawStartOffset), 0, 200_000);
-        uint256 requestedStartingTime = block.timestamp + startOffset;
+        uint32 requestedStartingTime = uint32(block.timestamp + startOffset);
 
         vm.prank(initializer);
         hook.setSchedule(poolKey, requestedStartingTime, startFee, endFee, durationSeconds);
 
-        (uint48 storedStartTime,,,,) = hook.getFeeScheduleOf(poolKey.toId());
+        (uint32 storedStartTime,,,,) = hook.getFeeScheduleOf(poolKey.toId());
         uint256 scheduleStartTime = storedStartTime;
 
         uint256 horizon = startOffset + uint256(durationSeconds) + 5000;
@@ -622,7 +622,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function testFuzz_beforeSwap_MultiSwapMonotoneAndBounded(
         uint24 rawStartFee,
         uint24 rawEndFee,
-        uint64 rawDurationSeconds,
+        uint32 rawDurationSeconds,
         uint32 rawStartOffset,
         uint16[8] memory rawStepOffsets
     ) public {
@@ -630,14 +630,14 @@ contract DecayMulticurveInitializerHookTest is Test {
 
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint256 startOffset = bound(uint256(rawStartOffset), 0, 200_000);
-        uint256 requestedStartingTime = block.timestamp + startOffset;
+        uint32 requestedStartingTime = uint32(block.timestamp + startOffset);
 
         vm.prank(initializer);
         hook.setSchedule(poolKey, requestedStartingTime, startFee, endFee, durationSeconds);
 
-        (uint48 storedStartTime,,,,) = hook.getFeeScheduleOf(poolKey.toId());
+        (uint32 storedStartTime,,,,) = hook.getFeeScheduleOf(poolKey.toId());
         uint256 scheduleStartTime = storedStartTime;
 
         uint256 currentTime = block.timestamp;
@@ -688,7 +688,7 @@ contract DecayMulticurveInitializerHookTest is Test {
 
     function test_beforeSwap_Gas_ActiveSchedule() public {
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 2000, 100);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 2000, 100);
 
         vm.warp(block.timestamp + 25);
         vm.startSnapshotGas("DecayHook beforeSwap", "active");
@@ -704,7 +704,7 @@ contract DecayMulticurveInitializerHookTest is Test {
 
     function test_beforeSwap_Gas_CompletedSchedule() public {
         vm.prank(initializer);
-        hook.setSchedule(poolKey, block.timestamp, 10_000, 2000, 1);
+        hook.setSchedule(poolKey, uint32(block.timestamp), 10_000, 2000, 1);
 
         vm.warp(block.timestamp + 1);
         vm.prank(address(poolManager));
@@ -732,7 +732,7 @@ contract DecayMulticurveInitializerHookTest is Test {
     function _expectedFeeAt(
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds,
+        uint32 durationSeconds,
         uint256 startingTime,
         uint256 timestamp
     ) internal pure returns (uint24) {

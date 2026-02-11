@@ -30,7 +30,7 @@ error FeeTooHigh(uint24 fee);
 error InvalidFeeRange(uint24 startFee, uint24 endFee);
 
 /// @notice Thrown when descending schedule duration is zero
-error InvalidDurationSeconds(uint64 durationSeconds);
+error InvalidDurationSeconds(uint32 durationSeconds);
 
 /**
  * @notice Data used to initialize the Decay Multicurve pool
@@ -45,7 +45,7 @@ error InvalidDurationSeconds(uint64 durationSeconds);
 struct InitData {
     uint24 startFee;
     uint24 fee;
-    uint64 durationSeconds;
+    uint32 durationSeconds;
     int24 tickSpacing;
     Curve[] curves;
     BeneficiaryData[] beneficiaries;
@@ -94,10 +94,10 @@ contract DecayMulticurveInitializer is UniswapV4MulticurveInitializer {
             int24 tickSpacing,
             Curve[] memory curves,
             BeneficiaryData[] memory beneficiaries,
-            uint256 startingTime,
+            uint32 startingTime,
             uint24 startFee,
             uint24 endFee,
-            uint64 durationSeconds
+            uint32 durationSeconds
         ) = (
             initData.tickSpacing,
             initData.curves,

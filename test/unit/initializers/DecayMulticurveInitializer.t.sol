@@ -222,7 +222,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         assertEq(farTick, isToken0 ? int24(240_000) : int24(-240_000), "Incorrect far tick");
 
         // Hook schedule should mirror the init config.
-        (uint48 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 durationSeconds) =
+        (uint32 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 durationSeconds) =
             hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, initData.startingTime, "Incorrect schedule start");
         assertEq(startFee, initData.startFee, "Incorrect schedule start fee");
@@ -246,7 +246,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         uint24 startFee = uint24(bound(rawStartFee, 0, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee));
         bool isDescending = startFee > endFee;
-        uint64 durationSeconds = isDescending ? uint64(bound(rawDurationSeconds, 1, 200_000)) : 0;
+        uint32 durationSeconds = isDescending ? uint32(bound(rawDurationSeconds, 1, 200_000)) : 0;
         uint32 startOffset = uint32(bound(rawStartOffset, 0, 200_000));
 
         initData.startFee = startFee;
@@ -273,11 +273,11 @@ contract DecayMulticurveInitializerTest is Deployers {
         assertEq(farTick, assetIsToken0 ? int24(240_000) : int24(-240_000), "Unexpected farTick orientation");
 
         (
-            uint48 startingTime,
+            uint32 startingTime,
             uint24 scheduleStartFee,
             uint24 scheduleEndFee,
             uint24 lastFee,
-            uint48 duration
+            uint32 duration
         ) = hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, initData.startingTime, "Future/now schedule start should be preserved");
         assertEq(scheduleStartFee, startFee, "Incorrect schedule start fee");
@@ -301,7 +301,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint32 pastOffset = uint32(bound(rawPastOffset, 1, 200_000));
 
         initData.startFee = startFee;
@@ -313,11 +313,11 @@ contract DecayMulticurveInitializerTest is Deployers {
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
 
         (
-            uint48 startingTime,
+            uint32 startingTime,
             uint24 scheduleStartFee,
             uint24 scheduleEndFee,
             uint24 lastFee,
-            uint48 duration
+            uint32 duration
         ) = hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, block.timestamp, "Past start time should clamp to current block");
         assertEq(scheduleStartFee, startFee, "Incorrect schedule start fee");
@@ -346,11 +346,11 @@ contract DecayMulticurveInitializerTest is Deployers {
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
 
         (
-            uint48 startingTime,
+            uint32 startingTime,
             uint24 scheduleStartFee,
             uint24 scheduleEndFee,
             uint24 lastFee,
-            uint48 duration
+            uint32 duration
         ) = hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, initData.startingTime, "Flat schedule should preserve start time");
         assertEq(scheduleStartFee, fee, "Incorrect schedule start fee");
@@ -382,7 +382,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         (,,, uint24 seededFee) = manager.getSlot0(poolId);
         assertEq(seededFee, initData.startFee, "slot0 fee should be seeded to flat fee");
 
-        (uint48 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 duration) =
+        (uint32 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 duration) =
             hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, initData.startingTime, "flat schedule start should be preserved");
         assertEq(startFee, initData.startFee, "unexpected flat start fee");
@@ -495,7 +495,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint32 startOffset = uint32(bound(rawStartOffset, 0, 200_000));
 
         initData.startFee = startFee;
@@ -529,7 +529,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         InitData memory initData = _prepareInitData();
         uint24 startFee = uint24(bound(rawStartFee, 1, MAX_LP_FEE));
         uint24 endFee = uint24(bound(rawEndFee, 0, startFee - 1));
-        uint64 durationSeconds = uint64(bound(rawDurationSeconds, 1, 200_000));
+        uint32 durationSeconds = uint32(bound(rawDurationSeconds, 1, 200_000));
         uint32 startOffset = uint32(bound(rawStartOffset, 1, 200_000));
 
         initData.startFee = startFee;
@@ -547,7 +547,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         (,,, uint24 lpFeeAfterSwap) = manager.getSlot0(poolId);
         assertEq(lpFeeAfterSwap, startFee, "Pre-start swap must use start fee");
 
-        (uint48 scheduleStart,,, uint24 lastFee, uint48 duration) = hook.getFeeScheduleOf(poolId);
+        (uint32 scheduleStart,,, uint24 lastFee, uint32 duration) = hook.getFeeScheduleOf(poolId);
         assertEq(scheduleStart, initData.startingTime, "Pre-start schedule start should remain unchanged");
         assertEq(duration, durationSeconds, "Schedule duration should remain unchanged");
         assertEq(lastFee, startFee, "lastFee should remain start fee before start");
@@ -566,7 +566,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         (,,, uint24 lpFeeAfterSwap) = manager.getSlot0(poolId);
         assertEq(lpFeeAfterSwap, initData.startFee, "swap at exact start timestamp should still use start fee");
 
-        (uint48 scheduleStart,,, uint24 lastFee, uint48 duration) = hook.getFeeScheduleOf(poolId);
+        (uint32 scheduleStart,,, uint24 lastFee, uint32 duration) = hook.getFeeScheduleOf(poolId);
         assertEq(scheduleStart, initData.startingTime, "schedule start should remain unchanged");
         assertEq(duration, initData.durationSeconds, "schedule duration should remain unchanged");
         assertEq(lastFee, initData.startFee, "fee should not decay exactly at start boundary");
@@ -593,7 +593,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         assertEq(returnedNumeraire, address(0), "state should not be partially initialized");
         assertEq(uint8(status), uint8(PoolStatus.Uninitialized), "pool status should remain uninitialized");
 
-        (uint48 scheduleStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint48 duration) =
+        (uint32 scheduleStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 duration) =
             hook.getFeeScheduleOf(poolId);
         assertEq(scheduleStart, 0, "fee schedule should not be persisted");
         assertEq(startFee, 0, "fee schedule should not be persisted");
@@ -757,7 +757,7 @@ contract DecayMulticurveInitializerTest is Deployers {
     function _expectedDecayFee(
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds,
+        uint32 durationSeconds,
         uint256 elapsed
     ) internal pure returns (uint24) {
         if (elapsed >= durationSeconds) {

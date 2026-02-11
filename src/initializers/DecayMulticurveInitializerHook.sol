@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
+import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
@@ -24,7 +25,7 @@ import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4Mu
  * @param durationSeconds Number of seconds over which fee linearly descends
  */
 event FeeScheduleSet(
-    PoolId indexed poolId, uint256 startingTime, uint24 startFee, uint24 endFee, uint64 durationSeconds
+    PoolId indexed poolId, uint32 startingTime, uint24 startFee, uint24 endFee, uint32 durationSeconds
 );
 
 /**
@@ -44,11 +45,11 @@ event FeeUpdated(PoolId indexed poolId, uint24 lpFee);
  * @param durationSeconds Schedule duration in seconds
  */
 struct FeeSchedule {
-    uint48 startingTime;
+    uint32 startingTime;
     uint24 startFee;
     uint24 endFee;
     uint24 lastFee;
-    uint48 durationSeconds;
+    uint32 durationSeconds;
 }
 
 /**
@@ -62,6 +63,8 @@ struct FeeSchedule {
  * fee remains at `startFee` until decay begins.
  */
 contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
+    using SafeCastLib for uint256;
+
     /// @notice Fee schedule per pool id
     mapping(PoolId poolId => FeeSchedule schedule) public getFeeScheduleOf;
 
@@ -81,10 +84,10 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
      */
     function setSchedule(
         PoolKey calldata poolKey,
-        uint256 startingTime,
+        uint32 startingTime,
         uint24 startFee,
         uint24 endFee,
-        uint64 durationSeconds
+        uint32 durationSeconds
     ) external onlyInitializer(msg.sender) {
         require(startFee <= MAX_LP_FEE, FeeTooHigh(startFee));
         require(endFee <= MAX_LP_FEE, FeeTooHigh(endFee));
@@ -95,7 +98,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
             require(durationSeconds > 0, InvalidDurationSeconds(durationSeconds));
         }
 
-        uint48 normalizedStart = uint48(startingTime <= block.timestamp ? block.timestamp : startingTime);
+        uint32 normalizedStart = (startingTime <= block.timestamp ? block.timestamp : startingTime).toUint32();
         PoolId poolId = poolKey.toId();
         // Hook is authorized to seed dynamic LP fee immediately.
         poolManager.updateDynamicLPFee(poolKey, startFee);
@@ -104,7 +107,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
             startFee: startFee,
             endFee: endFee,
             lastFee: startFee,
-            durationSeconds: uint48(durationSeconds)
+            durationSeconds: durationSeconds
         });
 
         emit FeeScheduleSet(poolId, normalizedStart, startFee, endFee, durationSeconds);
