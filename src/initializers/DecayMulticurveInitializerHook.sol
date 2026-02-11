@@ -7,19 +7,13 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSw
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
+import {
+    FeeTooHigh,
+    InvalidDurationSeconds,
+    InvalidFeeRange,
+    MAX_LP_FEE
+} from "src/initializers/DecayMulticurveInitializer.sol";
 import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
-
-/// @dev Maximum LP fee allowed by the initializer path (1_000_000 = 100%)
-uint24 constant MAX_LP_FEE = 100_000;
-
-/// @notice Thrown when configured fee exceeds MAX_LP_FEE
-error FeeTooHigh(uint24 fee);
-
-/// @notice Thrown when start fee is below end fee
-error InvalidFeeRange(uint24 startFee, uint24 endFee);
-
-/// @notice Thrown when descending schedule duration is zero
-error InvalidDurationSeconds(uint64 durationSeconds);
 
 /**
  * @notice Emitted when a fee schedule is configured for a pool
