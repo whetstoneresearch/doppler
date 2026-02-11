@@ -82,7 +82,7 @@ contract DecayMulticurveInitializerHook is UniswapV4MulticurveInitializerHook {
      * @param durationSeconds Descending duration in seconds
      */
     function setSchedule(
-        PoolKey memory poolKey,
+        PoolKey calldata poolKey,
         uint256 startingTime,
         uint24 startFee,
         uint24 endFee,
