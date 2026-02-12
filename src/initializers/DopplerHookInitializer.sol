@@ -9,11 +9,17 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import {
+    ON_AFTER_SWAP_FLAG,
+    ON_BEFORE_SWAP_FLAG,
+    ON_GRADUATION_FLAG,
+    ON_INITIALIZATION_FLAG
+} from "src/base/BaseDopplerHook.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -525,6 +531,27 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     }
 
     /// @inheritdoc BaseHook
+    function _beforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        address asset = getAsset[key.toId()];
+        address dopplerHook = getState[asset].dopplerHook;
+        uint24 lpFeeOverride;
+
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_BEFORE_SWAP_FLAG != 0) {
+            uint24 fee = IDopplerHook(dopplerHook).onBeforeSwap(sender, key, params, data);
+            if (fee > 0) {
+                lpFeeOverride = fee | LPFeeLibrary.OVERRIDE_FEE_FLAG;
+            }
+        }
+
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, lpFeeOverride);
+    }
+
+    /// @inheritdoc BaseHook
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -538,9 +565,9 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         int128 delta;
 
-        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_AFTER_SWAP_FLAG != 0) {
             Currency feeCurrency;
-            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+            (feeCurrency, delta) = IDopplerHook(dopplerHook).onAfterSwap(sender, key, params, balanceDelta, data);
 
             if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
@@ -568,7 +595,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             beforeRemoveLiquidity: false,
             afterAddLiquidity: true,
             afterRemoveLiquidity: true,
-            beforeSwap: false,
+            beforeSwap: true,
             afterSwap: true,
             beforeDonate: false,
             afterDonate: false,

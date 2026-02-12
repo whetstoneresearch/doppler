@@ -17,7 +17,12 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { Airlock } from "src/Airlock.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import {
+    ON_AFTER_SWAP_FLAG,
+    ON_BEFORE_SWAP_FLAG,
+    ON_GRADUATION_FLAG,
+    ON_INITIALIZATION_FLAG
+} from "src/base/BaseDopplerHook.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     ArrayLengthsMismatch,
@@ -52,7 +57,13 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockDopplerHook is IDopplerHook {
     function onInitialization(address, PoolKey calldata, bytes calldata) external { }
-    function onSwap(
+    function onBeforeSwap(
+        address,
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata,
+        bytes calldata
+    ) external returns (uint24) { }
+    function onAfterSwap(
         address,
         PoolKey calldata,
         IPoolManager.SwapParams calldata,
@@ -84,7 +95,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
             payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
                             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
                 ))
@@ -96,7 +107,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
         dopplerHooks[0] = address(dopplerHook);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_AFTER_SWAP_FLAG;
         vm.prank(airlockOwner);
         initializer.setDopplerHookState(dopplerHooks, flags);
     }
@@ -230,7 +241,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
         dopplerHooks[0] = address(dopplerHook);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_AFTER_SWAP_FLAG;
         initializer.setDopplerHookState(dopplerHooks, flags);
 
         vm.expectCall(
@@ -254,7 +265,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
         dopplerHooks[0] = address(dopplerHook);
-        flags[0] = ON_GRADUATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_GRADUATION_FLAG | ON_AFTER_SWAP_FLAG;
         initializer.setDopplerHookState(dopplerHooks, flags);
 
         vm.expectCall(
@@ -705,7 +716,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         test_initialize_LocksPoolWithDopplerHook(initParams, isToken0);
         vm.expectCall(
             address(dopplerHook),
-            abi.encodeWithSelector(IDopplerHook.onSwap.selector, sender, poolKey, swapParams, balanceDelta, data)
+            abi.encodeWithSelector(IDopplerHook.onAfterSwap.selector, sender, poolKey, swapParams, balanceDelta, data)
         );
         vm.prank(address(manager));
         initializer.afterSwap(sender, poolKey, swapParams, balanceDelta, data);

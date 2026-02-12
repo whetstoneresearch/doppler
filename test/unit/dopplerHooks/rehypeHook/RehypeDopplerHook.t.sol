@@ -200,7 +200,7 @@ contract RehypeDopplerHookTest is Test {
     }
 
     /* ---------------------------------------------------------------------- */
-    /*                                onSwap()                                */
+    /*                                onAfterSwap()                                */
     /* ---------------------------------------------------------------------- */
 
     function test_onSwap_RevertsWhenSenderNotInitializer(
@@ -208,7 +208,7 @@ contract RehypeDopplerHookTest is Test {
         IPoolManager.SwapParams memory swapParams
     ) public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_AccumulatesFees(PoolKey memory poolKey) public {
@@ -230,7 +230,7 @@ contract RehypeDopplerHookTest is Test {
             IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1e18, sqrtPriceLimitX96: 0 });
 
         vm.prank(address(initializer));
-        dopplerHook.onSwap(address(0x123), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onAfterSwap(address(0x123), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
 
         PoolId poolId = poolKey.toId();
 

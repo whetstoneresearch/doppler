@@ -24,6 +24,21 @@ interface IDopplerHook {
     function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external;
 
     /**
+     * @notice Called before every swap executed, allows overriding the LP fee for the current swap
+     * @param sender Address of the swap sender
+     * @param key Key of the Uniswap V4 pool where the swap is executed
+     * @param params Swap parameters as defined in IPoolManager
+     * @param data Extra data to pass to the hook
+     * @return lpFeeOverride LP fee override for this swap (0 = no override)
+     */
+    function onBeforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) external returns (uint24 lpFeeOverride);
+
+    /**
      * @notice Called after every swap executed
      * @param sender Address of the swap sender
      * @param key Key of the Uniswap V4 pool where the swap is executed
@@ -33,7 +48,7 @@ interface IDopplerHook {
      * @return feeCurrency Currency being charged (unspecified currency derived from the swap)
      * @return hookDelta Positive amount if the hook is owed currency, false otherwise
      */
-    function onSwap(
+    function onAfterSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,

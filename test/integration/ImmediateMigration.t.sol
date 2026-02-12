@@ -73,8 +73,8 @@ contract ImmediateMigrationTest is Deployers {
             payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-                            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
+                            | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
                 ))
         );
