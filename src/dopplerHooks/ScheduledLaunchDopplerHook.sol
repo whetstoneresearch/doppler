@@ -36,7 +36,7 @@ contract ScheduledLaunchDopplerHook is BaseDopplerHook {
     }
 
     /// @inheritdoc BaseDopplerHook
-    function _onSwap(
+    function _onAfterSwap(
         address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,

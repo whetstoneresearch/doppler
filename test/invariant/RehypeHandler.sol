@@ -19,7 +19,7 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock } from "src/Airlock.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { ON_AFTER_SWAP_FLAG, ON_BEFORE_SWAP_FLAG, ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHook.sol";
 import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
@@ -49,8 +49,8 @@ contract RehyperInvariantTests is Deployers {
             payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-                            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
+                            | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
                 ))
         );
@@ -79,7 +79,7 @@ contract RehyperInvariantTests is Deployers {
         address[] memory hooks = new address[](1);
         hooks[0] = address(rehypeHook);
         uint256[] memory flags = new uint256[](1);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_AFTER_SWAP_FLAG;
         vm.prank(AIRLOCK_OWNER);
         dopplerHookInitializer.setDopplerHookState(hooks, flags);
     }

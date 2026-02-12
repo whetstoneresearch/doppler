@@ -45,7 +45,7 @@ contract ScheduledLaunchDopplerHookTest is Test {
     }
 
     /* ---------------------------------------------------------------------- */
-    /*                                onSwap()                                */
+    /*                                onAfterSwap()                                */
     /* ---------------------------------------------------------------------- */
 
     function test_onSwap_RevertsWhenSenderNotInitializer(
@@ -53,7 +53,7 @@ contract ScheduledLaunchDopplerHookTest is Test {
         IPoolManager.SwapParams calldata swapParams
     ) public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_RevertsWhenSaleNotStarted(
@@ -70,7 +70,7 @@ contract ScheduledLaunchDopplerHookTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(SaleHasNotStartedYet.selector, startingTime, block.timestamp));
         vm.prank(initializer);
-        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_PassesAfterStartingTime(
@@ -86,6 +86,6 @@ contract ScheduledLaunchDopplerHookTest is Test {
         dopplerHook.onInitialization(address(0), poolKey, abi.encode(startingTime));
 
         vm.prank(initializer);
-        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 }

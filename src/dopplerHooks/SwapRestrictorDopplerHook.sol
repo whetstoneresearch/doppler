@@ -44,7 +44,7 @@ contract SwapRestrictorDopplerHook is BaseDopplerHook {
     }
 
     /// @inheritdoc BaseDopplerHook
-    function _onSwap(
+    function _onAfterSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,

@@ -272,13 +272,8 @@ contract DecayMulticurveInitializerTest is Deployers {
         bool assetIsToken0 = asset == token0;
         assertEq(farTick, assetIsToken0 ? int24(240_000) : int24(-240_000), "Unexpected farTick orientation");
 
-        (
-            uint32 startingTime,
-            uint24 scheduleStartFee,
-            uint24 scheduleEndFee,
-            uint24 lastFee,
-            uint32 duration
-        ) = hook.getFeeScheduleOf(poolId);
+        (uint32 startingTime, uint24 scheduleStartFee, uint24 scheduleEndFee, uint24 lastFee, uint32 duration) =
+            hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, initData.startingTime, "Future/now schedule start should be preserved");
         assertEq(scheduleStartFee, startFee, "Incorrect schedule start fee");
         assertEq(scheduleEndFee, endFee, "Incorrect schedule end fee");
@@ -312,13 +307,8 @@ contract DecayMulticurveInitializerTest is Deployers {
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
 
-        (
-            uint32 startingTime,
-            uint24 scheduleStartFee,
-            uint24 scheduleEndFee,
-            uint24 lastFee,
-            uint32 duration
-        ) = hook.getFeeScheduleOf(poolId);
+        (uint32 startingTime, uint24 scheduleStartFee, uint24 scheduleEndFee, uint24 lastFee, uint32 duration) =
+            hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, block.timestamp, "Past start time should clamp to current block");
         assertEq(scheduleStartFee, startFee, "Incorrect schedule start fee");
         assertEq(scheduleEndFee, endFee, "Incorrect schedule end fee");
@@ -326,7 +316,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         assertEq(duration, durationSeconds, "Incorrect schedule duration");
     }
 
-    function testFuzz_initialize_FlatScheduleCompletesImmediatelyAndNoOpsOnSwap(
+    function testFuzz_initialize_FlatScheduleCompletesImmediatelyAndNoOpsonAfterSwap(
         bool isToken0,
         uint24 rawFee,
         uint32 rawStartOffset,
@@ -345,13 +335,8 @@ contract DecayMulticurveInitializerTest is Deployers {
         vm.prank(address(airlock));
         initializer.initialize(asset, numeraire, totalTokensOnBondingCurve, bytes32(0), abi.encode(initData));
 
-        (
-            uint32 startingTime,
-            uint24 scheduleStartFee,
-            uint24 scheduleEndFee,
-            uint24 lastFee,
-            uint32 duration
-        ) = hook.getFeeScheduleOf(poolId);
+        (uint32 startingTime, uint24 scheduleStartFee, uint24 scheduleEndFee, uint24 lastFee, uint32 duration) =
+            hook.getFeeScheduleOf(poolId);
         assertEq(startingTime, initData.startingTime, "Flat schedule should preserve start time");
         assertEq(scheduleStartFee, fee, "Incorrect schedule start fee");
         assertEq(scheduleEndFee, fee, "Incorrect schedule end fee");

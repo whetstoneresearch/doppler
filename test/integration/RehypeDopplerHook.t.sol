@@ -15,7 +15,12 @@ import { console } from "forge-std/console.sol";
 
 import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import {
+    ON_AFTER_SWAP_FLAG,
+    ON_BEFORE_SWAP_FLAG,
+    ON_GRADUATION_FLAG,
+    ON_INITIALIZATION_FLAG
+} from "src/base/BaseDopplerHook.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
@@ -67,7 +72,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
                             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
                 ))
@@ -99,7 +104,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         address[] memory dopplerHooks = new address[](1);
         dopplerHooks[0] = address(rehypeDopplerHook);
         uint256[] memory flags = new uint256[](1);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
         initializer.setDopplerHookState(dopplerHooks, flags);
         vm.stopPrank();
     }
@@ -404,7 +409,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     /*                         Airlock Owner Fee Tests                               */
     /* ----------------------------------------------------------------------------- */
 
-    function test_airlockOwnerFees_AccumulateOnSwap() public {
+    function test_airlockOwnerFees_AccumulateonAfterSwap() public {
         bytes32 salt = bytes32(uint256(14));
         (bool isToken0, address asset) = _createToken(salt);
 

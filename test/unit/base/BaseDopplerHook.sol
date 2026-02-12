@@ -60,12 +60,12 @@ contract BaseDopplerHookTest is Test {
     }
 
     /* ------------------------------------------------------------------------------ */
-    /*                                    onSwap()                                    */
+    /*                                    onAfterSwap()                                    */
     /* ------------------------------------------------------------------------------ */
 
     function test_onSwap_RevertsWhenMsgSenderNotInitializer() public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.onSwap(
+        dopplerHook.onAfterSwap(
             address(0),
             PoolKey(Currency.wrap(address(0)), Currency.wrap(address(0)), 0, 0, IHooks(address(0))),
             IPoolManager.SwapParams(false, 0, 0),
@@ -76,7 +76,7 @@ contract BaseDopplerHookTest is Test {
 
     function test_onSwap_PassesWhenMsgSenderInitializer() public {
         vm.prank(initializer);
-        dopplerHook.onSwap(
+        dopplerHook.onAfterSwap(
             address(0),
             PoolKey(Currency.wrap(address(0)), Currency.wrap(address(0)), 0, 0, IHooks(address(0))),
             IPoolManager.SwapParams(false, 0, 0),
