@@ -20,6 +20,7 @@ import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.so
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { IVestingInitializerReader } from "src/interfaces/IVestingInitializerReader.sol";
 import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
@@ -178,7 +179,14 @@ uint24 constant MAX_LP_FEE = 100_000;
  * in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf), with optional support for
  * Doppler Hooks for dynamic fee adjustment and custom logic on initialization, swaps and pool graduation
  */
-contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, FeesManager, IPoolInitializer {
+contract DopplerHookInitializer is
+    ImmutableAirlock,
+    BaseHook,
+    MiniV4Manager,
+    FeesManager,
+    IPoolInitializer,
+    IVestingInitializerReader
+{
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
@@ -451,20 +459,6 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     }
 
     /**
-     * @notice Returns the positions currently held in the Uniswap V4 pool for the given `asset`
-     * @param asset Address of the asset used for the Uniswap V4 pool
-     * @return Array of positions currently held in the Uniswap V4 pool
-     */
-    function getPositions(address asset) internal view returns (Position[] memory) {
-        PoolState memory state = getState[asset];
-        address token0 = Currency.unwrap(state.poolKey.currency0);
-        Position[] memory positions = Multicurve.calculatePositions(
-            state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
-        );
-        return positions;
-    }
-
-    /**
      * @notice Returns the beneficiaries and their shares for the given `asset`
      * @param asset Address of the asset used for the Uniswap V4 pool
      * @return Array of beneficiaries with their shares
@@ -473,12 +467,22 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         return getState[asset].beneficiaries;
     }
 
+    /// @inheritdoc IVestingInitializerReader
+    function getVestingInitializerState(address asset) external view returns (uint8 status, PoolKey memory poolKey) {
+        PoolState memory state = getState[asset];
+        return (uint8(state.status), state.poolKey);
+    }
+
     /// @inheritdoc FeesManager
     function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         address asset = getAsset[poolId];
         PoolState memory state = getState[asset];
         require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
-        fees = _collect(state.poolKey, getPositions(asset));
+        address token0 = Currency.unwrap(state.poolKey.currency0);
+        Position[] memory positions = Multicurve.calculatePositions(
+            state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
+        );
+        fees = _collect(state.poolKey, positions);
     }
 
     /**
