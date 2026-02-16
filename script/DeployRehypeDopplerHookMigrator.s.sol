@@ -6,9 +6,9 @@ import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { TopUpDistributor } from "src/TopUpDistributor.sol";
+import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 
-contract DeployTopUpDistributorScript is Script, Config {
+contract DeployRehypeHookMigratorScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -24,19 +24,22 @@ contract DeployTopUpDistributorScript is Script, Config {
     function deployToChain(uint256 chainId) internal {
         vm.selectFork(forkOf[chainId]);
 
-        address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
+        address migrator = config.get("doppler_hook_migrator").toAddress();
+        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(TopUpDistributor).name);
-        address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+        bytes32 salt = generateCreate3Salt(msg.sender, type(RehypeDopplerHookMigrator).name);
+        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
 
-        address topUpDistributor = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(TopUpDistributor).creationCode, abi.encode(airlock)));
-
-        require(topUpDistributor == deployedTo, "Unexpected deployed address");
+        address rehypeDopplerHookMigrator = ICreateX(createX)
+            .deployCreate3(
+                salt, abi.encodePacked(type(RehypeDopplerHookMigrator).creationCode, abi.encode(migrator, poolManager))
+            );
+        require(rehypeDopplerHookMigrator == expectedAddress, "Unexpected deployed address");
 
         vm.stopBroadcast();
-        config.set("top_up_distributor", topUpDistributor);
+        config.set("rehype_doppler_hook_migrator", rehypeDopplerHookMigrator);
     }
 }
+

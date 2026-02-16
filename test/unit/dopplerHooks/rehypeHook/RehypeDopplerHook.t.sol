@@ -20,8 +20,7 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
-
-    }
+}
 
 contract MockAirlock {
     address public owner;
@@ -245,8 +244,9 @@ contract RehypeDopplerHookTest is Test {
         poolKey.tickSpacing = 60;
 
         vm.prank(address(initializer));
-        (Currency feeCurrency, int128 delta) =
-            dopplerHook.onSwap(address(dopplerHook), poolKey, IPoolManager.SwapParams(false, 1, 0), BalanceDeltaLibrary.ZERO_DELTA, "");
+        (Currency feeCurrency, int128 delta) = dopplerHook.onSwap(
+            address(dopplerHook), poolKey, IPoolManager.SwapParams(false, 1, 0), BalanceDeltaLibrary.ZERO_DELTA, ""
+        );
 
         assertEq(Currency.unwrap(feeCurrency), address(0));
         assertEq(delta, 0);
