@@ -63,7 +63,7 @@ error PoolNotDynamicFee();
 /// @notice Thrown when the provided LP fee is above the maximum allowed
 error LPFeeTooHigh(uint24 maxFee, uint256 fee);
 
-/// @notice Thrown when the migrator is not the initializer
+/// @notice Thrown when the caller is not the migrator itself
 error OnlySelf();
 
 /**
@@ -164,6 +164,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
 
+    /// @notice Mapping of asset address to token pair
     mapping(address asset => Pair) public getPair;
 
     /// @notice Returns a non-zero value if a Doppler hook is enabled
@@ -199,7 +200,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             BeneficiaryData[] memory beneficiaries,
             bool useDynamicFee,
             address dopplerHook,
-            bytes memory onInitializationCalldata,, // onGraduationCalldata (unused)
+            bytes memory onInitializationCalldata,,
             address proceedsRecipient,
             uint256 proceedsShare
         ) = abi.decode(data, (uint24, int24, uint32, BeneficiaryData[], bool, address, bytes, bytes, address, uint256));
