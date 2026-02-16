@@ -43,7 +43,9 @@ contract ScheduledLaunchMigratorInvariantTests is Deployers {
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
-        deployCodeTo("DopplerHookMigrator", abi.encode(address(handler), address(manager), locker), migratorAddress);
+        deployCodeTo(
+            "DopplerHookMigrator", abi.encode(address(handler), address(manager), locker, address(0)), migratorAddress
+        );
 
         scheduledLaunchHook = new ScheduledLaunchDopplerHook(address(migrator));
 
@@ -167,7 +169,9 @@ contract ScheduledLaunchMigratorHandler is Test {
             false,
             address(hook),
             abi.encode(startTime),
-            new bytes(0)
+            new bytes(0),
+            address(0),
+            uint256(0)
         );
 
         migrator.initialize(asset, numeraire, migratorData);
@@ -188,7 +192,7 @@ contract ScheduledLaunchMigratorHandler is Test {
 
         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, address(0xbeef));
 
-        PoolKey memory poolKey = migrator.getMigratorState(asset).poolKey;
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
         poolKeys.push(poolKey);
         poolKeysLength++;
 

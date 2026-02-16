@@ -26,9 +26,9 @@ import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/D
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import {
+    AssetData,
     DopplerHookMigrator,
     DopplerHookNotEnabled,
-    PoolState,
     PoolStatus as MigratorStatus
 } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
@@ -154,15 +154,15 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             })
         );
 
-        (, PoolKey memory poolKey,, bool useDynamicFee,,,,) = migrator.getAssetData(address(0), asset);
+        (, PoolKey memory poolKey,,, bool useDynamicFee,,,) = migrator.getAssetData(address(0), asset);
         assertEq(address(poolKey.hooks), address(migrator));
         assertEq(useDynamicFee, false);
 
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        assertEq(uint8(state.status), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+        (,,,,,,, MigratorStatus migratorStatus) = migrator.getAssetData(address(0), asset);
+        assertEq(uint8(migratorStatus), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
 
         (PoolKey memory streamKey, address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) =
             locker.streams(poolKey.toId());
@@ -248,8 +248,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         _swapOnMigrationPool(asset);
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        PoolKey memory poolKey = state.poolKey;
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
             rehypeHook.getHookFees(poolKey.toId());
         assertTrue(
@@ -293,8 +292,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        PoolKey memory poolKey = state.poolKey;
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         assertEq(scheduledLaunchHook.getStartingTimeOf(poolKey.toId()), startTime);
 
         vm.expectRevert(abi.encodeWithSelector(SaleHasNotStartedYet.selector, startTime, block.timestamp));
@@ -345,7 +343,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
 
-        PoolKey memory poolKey = migrator.getMigratorState(asset).poolKey;
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         assertEq(swapRestrictorHook.amountLeftOf(poolKey.toId(), allowedBuyer), 1 ether);
 
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
@@ -392,7 +390,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             })
         );
 
-        (, PoolKey memory poolKey,, bool useDynamicFee,,,,) = migrator.getAssetData(address(0), asset);
+        (, PoolKey memory poolKey,,, bool useDynamicFee,,,) = migrator.getAssetData(address(0), asset);
         assertEq(poolKey.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
         assertEq(useDynamicFee, true);
 
@@ -633,8 +631,10 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        assertEq(uint8(state.status), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+        {
+            (,,,,,,, MigratorStatus migratorStatus) = migrator.getAssetData(address(0), asset);
+            assertEq(uint8(migratorStatus), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+        }
 
         // Verify the recipient received the split
         uint256 recipientBalanceAfter = PROCEEDS_RECIPIENT.balance;
@@ -681,10 +681,8 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         // Verify the recipient received nothing (no split)
         assertEq(PROCEEDS_RECIPIENT.balance, recipientBalanceBefore, "Proceeds recipient should not have received ETH");
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        assertEq(uint8(state.status), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
-
-        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        (, PoolKey memory poolKey,,,,,, MigratorStatus migratorStatus) = migrator.getAssetData(address(0), asset);
+        assertEq(uint8(migratorStatus), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
         (,, uint32 startDate,,) = locker.streams(poolKey.toId());
         assertGt(startDate, 0);
     }
@@ -877,8 +875,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     }
 
     function _swapOnMigrationPoolFor(address asset, address payer, uint256 swapAmount) internal {
-        PoolState memory state = migrator.getMigratorState(asset);
-        PoolKey memory poolKey = state.poolKey;
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
 
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({

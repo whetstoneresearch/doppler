@@ -19,7 +19,7 @@ import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.s
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { InvalidSplitRecipient, SplitShareTooHigh } from "src/base/ProceedsSplitter.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
-import { DopplerHookMigrator, PoolState, PoolStatus } from "src/migrators/DopplerHookMigrator.sol";
+import { DopplerHookMigrator, AssetData, PoolStatus, WrongPoolStatus } from "src/migrators/DopplerHookMigrator.sol";
 import {
     BeneficiaryData,
     InvalidProtocolOwnerBeneficiary,
@@ -188,8 +188,8 @@ contract DopplerHookMigratorTest is Deployers {
             bool isToken0,
             PoolKey memory poolKey,
             uint32 lockDuration,
-            bool useDynamicFee,
-            uint24 feeOrInitialDynamicFee,,,
+            uint24 feeOrInitialDynamicFee,
+            bool useDynamicFee,,,
         ) = migrator.getAssetData(token0, token1);
 
         assertEq(Currency.unwrap(poolKey.currency0), token0);
@@ -225,7 +225,11 @@ contract DopplerHookMigratorTest is Deployers {
 
     function test_migrate_RevertIfNotInitialized() public {
         vm.prank(address(airlock));
-        vm.expectRevert(abi.encodeWithSignature("PoolNotInitialized()"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                WrongPoolStatus.selector, uint8(PoolStatus.Uninitialized), uint8(PoolStatus.Uninitialized)
+            )
+        );
         migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), recipient);
     }
 
@@ -557,7 +561,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         airlock.setTimelock(asset, owner);
         vm.expectRevert(abi.encodeWithSignature("SenderNotAuthorized()"));
-        migrator.setDopplerHook(asset, makeAddr("Hook"), new bytes(0), new bytes(0));
+        migrator.setDopplerHook(asset, makeAddr("Hook"), new bytes(0));
     }
 
     function test_setDopplerHook_RevertNotEnabled() public {
@@ -597,7 +601,7 @@ contract DopplerHookMigratorTest is Deployers {
         airlock.setTimelock(asset, owner);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("DopplerHookNotEnabled()"));
-        migrator.setDopplerHook(asset, makeAddr("Hook"), new bytes(0), new bytes(0));
+        migrator.setDopplerHook(asset, makeAddr("Hook"), new bytes(0));
     }
 
     function test_setDopplerHook_RevertRequiresDynamicFee() public {
@@ -641,7 +645,7 @@ contract DopplerHookMigratorTest is Deployers {
         airlock.setTimelock(asset, owner);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSignature("HookRequiresDynamicLPFee()"));
-        migrator.setDopplerHook(asset, hookAddr, new bytes(0), new bytes(0));
+        migrator.setDopplerHook(asset, hookAddr, new bytes(0));
     }
 
     function test_setDopplerHook_CallsOnInitialization() public {
@@ -686,7 +690,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         airlock.setTimelock(asset, owner);
         vm.prank(owner);
-        migrator.setDopplerHook(asset, address(mockHook), new bytes(0), new bytes(0));
+        migrator.setDopplerHook(asset, address(mockHook), new bytes(0));
 
         assertTrue(mockHook.onInitCalled());
     }
@@ -731,19 +735,10 @@ contract DopplerHookMigratorTest is Deployers {
         vm.prank(address(airlock));
         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        address stateNumeraire = state.numeraire;
-        PoolKey memory key = state.poolKey;
-        address storedHook = state.dopplerHook;
-        bytes memory gradData = state.onGraduationCalldata;
-        PoolStatus status = state.status;
-        stateNumeraire;
-        gradData;
-        status;
+        (, PoolKey memory key,,, bool useDynamicFee, address storedHook,,) = migrator.getAssetData(token0, token1);
         assertEq(storedHook, address(mockHook));
         assertEq(address(key.hooks), address(migrator));
         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
-        (,,, bool useDynamicFee,,,,) = migrator.getAssetData(token0, token1);
         assertTrue(useDynamicFee);
         vm.expectRevert(abi.encodeWithSignature("SenderNotAuthorized()"));
         migrator.updateDynamicLPFee(asset, 1000);
@@ -788,19 +783,10 @@ contract DopplerHookMigratorTest is Deployers {
         vm.prank(address(airlock));
         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        address stateNumeraire = state.numeraire;
-        PoolKey memory key = state.poolKey;
-        address storedHook = state.dopplerHook;
-        bytes memory gradData = state.onGraduationCalldata;
-        PoolStatus status = state.status;
-        stateNumeraire;
-        gradData;
-        status;
+        (, PoolKey memory key,,, bool useDynamicFee, address storedHook,,) = migrator.getAssetData(token0, token1);
         assertEq(storedHook, address(mockHook));
         assertEq(address(key.hooks), address(migrator));
         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
-        (,,, bool useDynamicFee,,,,) = migrator.getAssetData(token0, token1);
         assertTrue(useDynamicFee);
         vm.prank(address(mockHook));
         migrator.updateDynamicLPFee(asset, 1000);

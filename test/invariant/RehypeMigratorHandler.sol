@@ -15,18 +15,17 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
-
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
-import { DopplerHookMigrator, PoolState } from "src/migrators/DopplerHookMigrator.sol";
+import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
 uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
-
 address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
 
 contract RehypeMigratorInvariantTests is Deployers {
@@ -47,7 +46,9 @@ contract RehypeMigratorInvariantTests is Deployers {
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
-        deployCodeTo("DopplerHookMigrator", abi.encode(address(handler), address(manager), locker), migratorAddress);
+        deployCodeTo(
+            "DopplerHookMigrator", abi.encode(address(handler), address(manager), locker, address(0)), migratorAddress
+        );
 
         rehypeHook = new RehypeDopplerHook(address(migrator), manager);
 
@@ -230,7 +231,9 @@ contract RehypeMigratorHandler is Test {
             true,
             address(rehypeHook),
             onInitCalldata,
-            new bytes(0)
+            new bytes(0),
+            address(0),
+            uint256(0)
         );
 
         migrator.initialize(asset, numeraire, migratorData);
@@ -251,8 +254,7 @@ contract RehypeMigratorHandler is Test {
 
         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, address(0xbeef));
 
-        PoolState memory state = migrator.getMigratorState(asset);
-        PoolKey memory poolKey = state.poolKey;
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
         poolKeys.push(poolKey);
         poolKeysLength++;
 
