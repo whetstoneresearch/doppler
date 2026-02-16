@@ -17,7 +17,7 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -453,7 +453,10 @@ contract RehypeMigratorHandler is Test {
         (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeHook.getHookFees(poolId);
         if (beneficiaryFees0 == 0 && beneficiaryFees1 == 0) return;
 
-        try rehypeHook.collectFees(asset) { } catch { }
+        try rehypeHook.collectFees(asset) { }
+            catch {
+            revert("Collect fees failed");
+        }
     }
 
     function claimAirlockOwnerFees(uint256 seed) public {

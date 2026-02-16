@@ -15,10 +15,10 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { InvalidSplitRecipient, SplitShareTooHigh } from "src/base/ProceedsSplitter.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
 import { DopplerHookMigrator, AssetData, PoolStatus, WrongPoolStatus } from "src/migrators/DopplerHookMigrator.sol";
 import {
     BeneficiaryData,
@@ -71,10 +71,9 @@ contract AirlockMock {
     }
 }
 
-contract MockDopplerHook is IDopplerHook {
+contract MockDopplerHook is IDopplerHookMigrator {
     address public initializer;
     bool public onInitCalled;
-    bool public onGradCalled;
     Currency public feeCurrency;
     int128 public hookDelta;
 
@@ -99,10 +98,6 @@ contract MockDopplerHook is IDopplerHook {
         bytes calldata
     ) external view override returns (Currency, int128) {
         return (feeCurrency, hookDelta);
-    }
-
-    function onGraduation(address, PoolKey calldata, bytes calldata) external override {
-        onGradCalled = true;
     }
 }
 
@@ -1237,7 +1232,6 @@ contract DopplerHookMigratorTest is Deployers {
 
     // TODO: test migrate initializes pool, sets dynamic fee and enforces hook allowlist/flags
     // TODO: test setDopplerHook authorization and upgrade ban toggling
-    // TODO: test graduate and onGraduation callback routing
     // TODO: test afterSwap delta settlement and disabled hook behavior
     // TODO: test updateDynamicLPFee access control and cap
 

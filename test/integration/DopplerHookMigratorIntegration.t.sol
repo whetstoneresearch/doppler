@@ -10,20 +10,18 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
-import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import {
     AssetData,
@@ -34,30 +32,6 @@ import {
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
-
-contract MockDopplerHook is IDopplerHook {
-    address public lastAsset;
-    PoolId public lastPoolId;
-    bytes public lastData;
-    uint256 public initCalls;
-
-    function onInitialization(address asset, PoolKey calldata poolKey, bytes calldata data) external {
-        lastAsset = asset;
-        lastPoolId = poolKey.toId();
-        lastData = data;
-        initCalls += 1;
-    }
-
-    function onSwap(
-        address,
-        PoolKey calldata,
-        IPoolManager.SwapParams calldata,
-        BalanceDelta,
-        bytes calldata
-    ) external returns (Currency, int128) { }
-
-    function onGraduation(address, PoolKey calldata, bytes calldata) external { }
-}
 
 contract DopplerHookMigratorIntegrationTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -72,7 +46,6 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     StreamableFeesLockerV2 public locker;
     DopplerHookMigrator public migrator;
     TopUpDistributor public topUpDistributor;
-    MockDopplerHook public dopplerHook;
     RehypeDopplerHook public rehypeHook;
     ScheduledLaunchDopplerHook public scheduledLaunchHook;
     SwapRestrictorDopplerHook public swapRestrictorHook;
@@ -107,7 +80,6 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             migratorHookAddress
         );
 
-        dopplerHook = new MockDopplerHook();
         rehypeHook = new RehypeDopplerHook(address(migrator), manager);
         scheduledLaunchHook = new ScheduledLaunchDopplerHook(address(migrator));
         swapRestrictorHook = new SwapRestrictorDopplerHook(address(migrator));
@@ -176,14 +148,15 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     function test_fullFlow_CreateAndMigrate_WithHookInitialization() public {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dopplerHooks[0] = address(dopplerHook);
+        dopplerHooks[0] = address(scheduledLaunchHook);
         flags[0] = ON_INITIALIZATION_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
 
         bytes memory initData = _defaultPoolInitializerData();
-        bytes memory hookData = hex"1234";
-        bytes memory migratorData = _defaultMigratorData(false, address(dopplerHook), hookData);
+        uint256 startTime = block.timestamp + 1 days;
+        bytes memory hookData = abi.encode(startTime);
+        bytes memory migratorData = _defaultMigratorData(false, address(scheduledLaunchHook), hookData);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 
         (address asset,,,,) = airlock.create(
@@ -204,12 +177,15 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             })
         );
 
-        assertEq(dopplerHook.initCalls(), 0);
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        assertEq(scheduledLaunchHook.getStartingTimeOf(poolKey.toId()), 0, "Hook not initialized before migrate");
+
         _swapOnInitializerPool(asset);
         airlock.migrate(asset);
-        assertEq(dopplerHook.initCalls(), 1);
-        assertEq(dopplerHook.lastAsset(), asset);
-        assertEq(dopplerHook.lastData(), hookData);
+
+        assertEq(
+            scheduledLaunchHook.getStartingTimeOf(poolKey.toId()), startTime, "Hook should be initialized after migrate"
+        );
     }
 
     function test_fullFlow_CreateAndMigrate_WithRehypeHook() public {
@@ -505,13 +481,15 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     function test_fullFlow_Migrate_RevertIfHookDisabledAfterInitialize() public {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dopplerHooks[0] = address(dopplerHook);
+        dopplerHooks[0] = address(scheduledLaunchHook);
         flags[0] = ON_INITIALIZATION_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
 
         bytes memory initData = _defaultPoolInitializerData();
-        bytes memory migratorData = _defaultMigratorData(false, address(dopplerHook), new bytes(0));
+        uint256 startTime = block.timestamp + 1 days;
+        bytes memory hookData = abi.encode(startTime);
+        bytes memory migratorData = _defaultMigratorData(false, address(scheduledLaunchHook), hookData);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 
         (address asset,,,,) = airlock.create(
