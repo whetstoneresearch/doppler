@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `DopplerHookMigrator` is a `LiquidityMigrator` module that migrates liquidity from an auction pool into a fresh Uniswap V4 pool. It also acts as a Uniswap V4 hook itself (`beforeInitialize` and `afterSwap`), allowing it to gate pool creation and forward swap events to an optional [Doppler Hook](./DopplerHook.md).
+The `DopplerHookMigrator` is a `LiquidityMigrator` module that migrates liquidity from an auction pool into a fresh Uniswap V4 pool. It also acts as a Uniswap V4 hook itself (`beforeInitialize`, `beforeSwap`, and `afterSwap`), allowing it to gate pool creation and forward swap events to an optional [Doppler Hook](./DopplerHook.md).
 
 It integrates with the [`StreamableFeesLockerV2`](./StreamableFeesLockerV2.md) to lock the migrated liquidity for a configurable duration, and with the [`ProceedsSplitter`](./ProceedsSplitter.md) to optionally distribute a share of the proceeds to a designated recipient during migration.
 
@@ -43,13 +43,14 @@ See the contract source for details on how liquidity is computed and positions a
 
 ### Doppler Hook Support
 
-The migrator supports pluggable [Doppler Hooks](./DopplerHook.md) that receive callbacks during the pool lifecycle. Doppler Hooks must be approved by the Airlock owner via `setDopplerHookState` before they can be used. Each hook is registered with a set of flags that determine which callbacks it supports (initialization, swap, graduation, dynamic LP fee).
+The migrator supports pluggable [Doppler Hooks](./DopplerHook.md) that receive callbacks during the pool lifecycle. Doppler Hooks must be approved by the Airlock owner via `setDopplerHookState` before they can be used. Each hook is registered with a set of flags that determine which callbacks it supports (initialization, before swap, after swap, dynamic LP fee).
 
 Key behaviors:
 
 - A Doppler Hook can be set at initialization time or added/changed after migration via `setDopplerHook`
 - A pool can opt out of its Doppler Hook by setting the address to `address(0)`
-- On every swap, the migrator's `afterSwap` hook forwards the event to the associated Doppler Hook's `onSwap` callback (if the swap flag is enabled), which can return a fee delta
+- Before every swap, the migrator's `beforeSwap` hook forwards the event to the associated Doppler Hook's `onBeforeSwap` callback (if the `ON_BEFORE_SWAP_FLAG` is enabled), allowing the hook to execute preparatory logic
+- After every swap, the migrator's `afterSwap` hook forwards the event to the associated Doppler Hook's `onAfterSwap` callback (if the `ON_AFTER_SWAP_FLAG` is enabled), which can return a fee delta
 
 ### Dynamic LP Fees
 
