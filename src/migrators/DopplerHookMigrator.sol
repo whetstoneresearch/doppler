@@ -15,22 +15,19 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
-    ON_GRADUATION_FLAG,
     ON_INITIALIZATION_FLAG,
     ON_SWAP_FLAG,
     REQUIRES_DYNAMIC_LP_FEE_FLAG
-} from "src/base/BaseDopplerHook.sol";
+} from "src/base/BaseDopplerHookMigrator.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
-import { Curve } from "src/libraries/Multicurve.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";
-import { WAD } from "src/types/Wad.sol";
 
 /// @notice Thrown when computed liquidity is zero
 error ZeroLiquidity();
@@ -79,7 +76,7 @@ event Migrate(address indexed asset, PoolKey poolKey);
 /**
  * @notice Emitted when the state of a Doppler Hook is set
  * @param dopplerHook Address of the Doppler Hook
- * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHook.sol)
+ * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHookMigrator.sol)
  */
 event SetDopplerHookState(address indexed dopplerHook, uint256 indexed flag);
 
@@ -130,7 +127,6 @@ enum PoolStatus {
  * @param feeOrInitialDynamicFee Fee of the pool (fixed fee) or initial dynamic fee
  * @param dopplerHook Address of the optional Doppler hook
  * @param onInitializationCalldata Calldata passed to the Doppler hook on initialization
- * @param onGraduationCalldata Calldata passed to the Doppler hook on graduation
  */
 struct AssetData {
     bool isToken0;
@@ -167,9 +163,6 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
 
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
-
-    /// @notice Maps a Uniswap V4 poolId to its associated asset
-    mapping(PoolId poolId => address asset) public getAsset;
 
     mapping(address asset => Pair) public getPair;
 
@@ -274,7 +267,6 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         (bool isToken0, int24 tickSpacing) = (data.isToken0, data.poolKey.tickSpacing);
 
         address asset = isToken0 ? token0 : token1;
-        address numeraire = isToken0 ? token1 : token0;
         getPair[asset] = Pair(token0, token1);
         PoolStatus status = getAssetData[token0][token1].status;
         require(status != PoolStatus.Uninitialized, WrongPoolStatus(uint8(PoolStatus.Uninitialized), uint8(status)));
@@ -294,7 +286,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         }
 
         if (data.dopplerHook != address(0) && flags & ON_INITIALIZATION_FLAG != 0) {
-            IDopplerHook(data.dopplerHook).onInitialization(asset, data.poolKey, data.onInitializationCalldata);
+            IDopplerHookMigrator(data.dopplerHook).onInitialization(asset, data.poolKey, data.onInitializationCalldata);
         }
 
         uint256 balance0 = data.poolKey.currency0.balanceOfSelf();
@@ -405,8 +397,8 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
                 revert HookRequiresDynamicLPFee();
             }
 
-            if (ON_INITIALIZATION_FLAG != 0) {
-                IDopplerHook(dopplerHook)
+            if (flags & ON_INITIALIZATION_FLAG != 0) {
+                IDopplerHookMigrator(dopplerHook)
                     .onInitialization(asset, getAssetData[pair.token0][pair.token1].poolKey, onInitializationCalldata);
             }
         }
@@ -418,7 +410,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     /**
      * @notice Sets the state of a given Doppler hooks array
      * @param dopplerHooks Array of Doppler hook addresses
-     * @param flags Array of flags to set (see flags in BaseDopplerHook.sol)
+     * @param flags Array of flags to set (see flags in BaseDopplerHookMigrator.sol)
      */
     function setDopplerHookState(address[] calldata dopplerHooks, uint256[] calldata flags) external {
         require(msg.sender == airlock.owner(), SenderNotAirlockOwner());
@@ -470,7 +462,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
 
         if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
             Currency feeCurrency;
-            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, hookData);
+            (feeCurrency, delta) = IDopplerHookMigrator(dopplerHook).onSwap(sender, key, params, balanceDelta, hookData);
 
             if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
