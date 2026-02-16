@@ -15,7 +15,11 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
+import {
+    ON_INITIALIZATION_FLAG,
+    ON_SWAP_FLAG,
+    REQUIRES_DYNAMIC_LP_FEE_FLAG
+} from "src/base/BaseDopplerHookMigrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { InvalidSplitRecipient, SplitShareTooHigh } from "src/base/ProceedsSplitter.sol";
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
@@ -412,7 +416,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         address hookAddr = makeAddr("Hook");
         vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(1 << 3)); // REQUIRES_DYNAMIC_LP_FEE_FLAG
+        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(REQUIRES_DYNAMIC_LP_FEE_FLAG));
 
         vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSignature("HookRequiresDynamicLPFee()"));
@@ -611,7 +615,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         address hookAddr = makeAddr("Hook");
         vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(1 << 3)); // REQUIRES_DYNAMIC_LP_FEE_FLAG
+        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(REQUIRES_DYNAMIC_LP_FEE_FLAG));
 
         vm.prank(address(airlock));
         migrator.initialize(

@@ -18,7 +18,7 @@ import { Test } from "forge-std/Test.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
-import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { EPSILON, RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -30,7 +30,7 @@ address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
 
 contract RehypeMigratorInvariantTests is Deployers {
     DopplerHookMigrator public migrator;
-    RehypeDopplerHook public rehypeHook;
+    RehypeDopplerHookMigrator public rehypeHook;
     StreamableFeesLockerV2 public locker;
     RehypeMigratorHandler public handler;
     V4Quoter public quoter;
@@ -50,7 +50,7 @@ contract RehypeMigratorInvariantTests is Deployers {
             "DopplerHookMigrator", abi.encode(address(handler), address(manager), locker, address(0)), migratorAddress
         );
 
-        rehypeHook = new RehypeDopplerHook(address(migrator), manager);
+        rehypeHook = new RehypeDopplerHookMigrator(migrator, manager);
 
         vm.prank(AIRLOCK_OWNER);
         locker.approveMigrator(address(migrator));
@@ -135,7 +135,7 @@ contract RehypeMigratorHandler is Test {
 
     IPoolManager public manager;
     DopplerHookMigrator public migrator;
-    RehypeDopplerHook public rehypeHook;
+    RehypeDopplerHookMigrator public rehypeHook;
     StreamableFeesLockerV2 public locker;
     PoolSwapTest public swapRouter;
     V4Quoter public quoter;
@@ -182,7 +182,7 @@ contract RehypeMigratorHandler is Test {
 
     function setMigrator(
         DopplerHookMigrator migrator_,
-        RehypeDopplerHook rehypeHook_,
+        RehypeDopplerHookMigrator rehypeHook_,
         StreamableFeesLockerV2 locker_
     ) external {
         migrator = migrator_;
