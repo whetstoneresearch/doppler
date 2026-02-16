@@ -11,11 +11,14 @@ import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 /// @dev Flag for the `onInitialization` callback
 uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
 
-/// @dev Flag for the `onSwap` callback
-uint256 constant ON_SWAP_FLAG = 1 << 1;
+/// @dev Flag for the `onBeforeSwap` callback
+uint256 constant ON_BEFORE_SWAP_FLAG = 1 << 1;
+
+/// @dev Flag for the `onAfterSwap` callback
+uint256 constant ON_AFTER_SWAP_FLAG = 1 << 2;
 
 /// @dev Flag indicating the hook requires a dynamic LP fee pool
-uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 2;
+uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 3;
 
 /// @notice Thrown when the `msg.sender` is not the DopplerHookMigrator contract
 error SenderNotMigrator();
@@ -50,21 +53,39 @@ abstract contract BaseDopplerHookMigrator is IDopplerHookMigrator {
     }
 
     /// @inheritdoc IDopplerHookMigrator
-    function onSwap(
+    function onBeforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) external onlyMigrator {
+        _onBeforeSwap(sender, key, params, data);
+    }
+
+    /// @inheritdoc IDopplerHookMigrator
+    function onAfterSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         BalanceDelta balanceDelta,
         bytes calldata data
     ) external onlyMigrator returns (Currency, int128) {
-        return _onSwap(sender, key, params, balanceDelta, data);
+        return _onAfterSwap(sender, key, params, balanceDelta, data);
     }
 
     /// @dev Internal function to be overridden for initialization logic
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal virtual { }
 
-    /// @dev Internal function to be overridden for swap logic
-    function _onSwap(
+    /// @dev Internal function to be overridden for before swap logic
+    function _onBeforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata data
+    ) internal virtual { }
+
+    /// @dev Internal function to be overridden for after swap logic
+    function _onAfterSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,

@@ -16,8 +16,9 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
+import { ON_INITIALIZATION_FLAG, ON_AFTER_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
@@ -47,6 +48,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     DopplerHookMigrator public migrator;
     TopUpDistributor public topUpDistributor;
     RehypeDopplerHook public rehypeHook;
+    RehypeDopplerHookMigrator public rehypeHookMigrator;
     ScheduledLaunchDopplerHook public scheduledLaunchHook;
     SwapRestrictorDopplerHook public swapRestrictorHook;
 
@@ -71,7 +73,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
         topUpDistributor = new TopUpDistributor(address(airlock));
 
-        uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         address migratorHookAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorHookAddress));
         deployCodeTo(
@@ -81,6 +83,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         );
 
         rehypeHook = new RehypeDopplerHook(address(migrator), manager);
+        rehypeHookMigrator = new RehypeDopplerHookMigrator(migrator, manager);
         scheduledLaunchHook = new ScheduledLaunchDopplerHook(address(migrator));
         swapRestrictorHook = new SwapRestrictorDopplerHook(address(migrator));
 
@@ -191,14 +194,14 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     function test_fullFlow_CreateAndMigrate_WithRehypeHook() public {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dopplerHooks[0] = address(rehypeHook);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+        dopplerHooks[0] = address(rehypeHookMigrator);
+        flags[0] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
 
         bytes memory initData = _defaultPoolInitializerData();
         bytes memory rehypeData = abi.encode(address(0), address(0xBEEF), uint24(3000), 0.2e18, 0.2e18, 0.3e18, 0.3e18);
-        bytes memory migratorData = _defaultMigratorData(false, address(rehypeHook), rehypeData);
+        bytes memory migratorData = _defaultMigratorData(false, address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 
         (address asset,,,,) = airlock.create(
@@ -226,7 +229,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
-            rehypeHook.getHookFees(poolKey.toId());
+            rehypeHookMigrator.getHookFees(poolKey.toId());
         assertTrue(
             beneficiaryFees0 + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1 > 0,
             "Rehype hook should accrue fees"
@@ -237,7 +240,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
         dopplerHooks[0] = address(scheduledLaunchHook);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
 
@@ -285,7 +288,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
         dopplerHooks[0] = address(swapRestrictorHook);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
 

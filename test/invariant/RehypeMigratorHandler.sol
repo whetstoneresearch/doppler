@@ -17,7 +17,7 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
+import { ON_INITIALIZATION_FLAG, ON_AFTER_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { EPSILON, RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -42,7 +42,7 @@ contract RehypeMigratorInvariantTests is Deployers {
 
         handler = new RehypeMigratorHandler(manager, swapRouter, quoter);
 
-        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
@@ -58,7 +58,7 @@ contract RehypeMigratorInvariantTests is Deployers {
         address[] memory hooks = new address[](1);
         hooks[0] = address(rehypeHook);
         uint256[] memory flags = new uint256[](1);
-        flags[0] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(hooks, flags);
 

@@ -7,6 +7,7 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
@@ -16,7 +17,8 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
     ON_INITIALIZATION_FLAG,
-    ON_SWAP_FLAG,
+    ON_BEFORE_SWAP_FLAG,
+    ON_AFTER_SWAP_FLAG,
     REQUIRES_DYNAMIC_LP_FEE_FLAG
 } from "src/base/BaseDopplerHookMigrator.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
@@ -449,6 +451,23 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     }
 
     /// @inheritdoc BaseHook
+    function _beforeSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata hookData
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
+        AssetData memory assetData = getAssetData[Currency.unwrap(key.currency0)][Currency.unwrap(key.currency1)];
+        address dopplerHook = assetData.dopplerHook;
+
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_BEFORE_SWAP_FLAG != 0) {
+            IDopplerHookMigrator(dopplerHook).onBeforeSwap(sender, key, params, hookData);
+        }
+
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+    }
+
+    /// @inheritdoc BaseHook
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -461,9 +480,9 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
 
         int128 delta;
 
-        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_AFTER_SWAP_FLAG != 0) {
             Currency feeCurrency;
-            (feeCurrency, delta) = IDopplerHookMigrator(dopplerHook).onSwap(sender, key, params, balanceDelta, hookData);
+            (feeCurrency, delta) = IDopplerHookMigrator(dopplerHook).onAfterSwap(sender, key, params, balanceDelta, hookData);
 
             if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
@@ -491,7 +510,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
             afterRemoveLiquidity: false,
-            beforeSwap: false,
+            beforeSwap: true,
             afterSwap: true,
             beforeDonate: false,
             afterDonate: false,

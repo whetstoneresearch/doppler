@@ -17,7 +17,7 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
     ON_INITIALIZATION_FLAG,
-    ON_SWAP_FLAG,
+    ON_AFTER_SWAP_FLAG,
     REQUIRES_DYNAMIC_LP_FEE_FLAG
 } from "src/base/BaseDopplerHookMigrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -94,7 +94,14 @@ contract MockDopplerHook is IDopplerHookMigrator {
         onInitCalled = true;
     }
 
-    function onSwap(
+    function onBeforeSwap(
+        address,
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata,
+        bytes calldata
+    ) external override { }
+
+    function onAfterSwap(
         address,
         PoolKey calldata,
         IPoolManager.SwapParams calldata,
@@ -131,7 +138,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         airlock = new AirlockMock(owner);
 
-        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
         locker = new StreamableFeesLockerV2(manager, owner);
         topUpDistributor = new TopUpDistributor(address(airlock));
@@ -450,7 +457,7 @@ contract DopplerHookMigratorTest is Deployers {
         address hookAddr = makeAddr("Hook");
 
         vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(ON_SWAP_FLAG));
+        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(ON_AFTER_SWAP_FLAG));
 
         vm.prank(address(airlock));
         migrator.initialize(
@@ -489,8 +496,8 @@ contract DopplerHookMigratorTest is Deployers {
         hooks[0] = hook1;
         hooks[1] = hook2;
         uint256[] memory flags = new uint256[](2);
-        flags[0] = ON_SWAP_FLAG;
-        flags[1] = ON_INITIALIZATION_FLAG | ON_SWAP_FLAG;
+        flags[0] = ON_AFTER_SWAP_FLAG;
+        flags[1] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
 
         vm.prank(owner);
         migrator.setDopplerHookState(hooks, flags);
@@ -503,7 +510,7 @@ contract DopplerHookMigratorTest is Deployers {
         address[] memory hooks = new address[](1);
         uint256[] memory flags = new uint256[](2);
         hooks[0] = makeAddr("Hook1");
-        flags[0] = ON_SWAP_FLAG;
+        flags[0] = ON_AFTER_SWAP_FLAG;
         flags[1] = ON_INITIALIZATION_FLAG;
 
         vm.prank(owner);
@@ -515,7 +522,7 @@ contract DopplerHookMigratorTest is Deployers {
         address[] memory hooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
         hooks[0] = makeAddr("Hook1");
-        flags[0] = ON_SWAP_FLAG;
+        flags[0] = ON_AFTER_SWAP_FLAG;
 
         vm.expectRevert(abi.encodeWithSignature("SenderNotAirlockOwner()"));
         migrator.setDopplerHookState(hooks, flags);
@@ -708,7 +715,7 @@ contract DopplerHookMigratorTest is Deployers {
         assertTrue(address(mockHook) != address(this));
 
         vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(address(mockHook)), _singleFlag(ON_SWAP_FLAG));
+        migrator.setDopplerHookState(_singleAddr(address(mockHook)), _singleFlag(ON_AFTER_SWAP_FLAG));
 
         vm.prank(address(airlock));
         migrator.initialize(
@@ -756,7 +763,7 @@ contract DopplerHookMigratorTest is Deployers {
         MockDopplerHook mockHook = new MockDopplerHook(address(migrator));
 
         vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(address(mockHook)), _singleFlag(ON_SWAP_FLAG));
+        migrator.setDopplerHookState(_singleAddr(address(mockHook)), _singleFlag(ON_AFTER_SWAP_FLAG));
 
         vm.prank(address(airlock));
         migrator.initialize(

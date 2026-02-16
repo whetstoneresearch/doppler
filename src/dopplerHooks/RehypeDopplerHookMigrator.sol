@@ -132,7 +132,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
     }
 
     /// @inheritdoc BaseDopplerHookMigrator
-    function _onSwap(
+    function _onAfterSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
