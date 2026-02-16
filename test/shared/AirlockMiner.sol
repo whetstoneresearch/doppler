@@ -16,14 +16,12 @@ import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 
-
 /* -------------------------------------------------------------------------------- */
 /*                                DopplerHookMigrator                               */
 /* -------------------------------------------------------------------------------- */
 
 uint160 constant DOPPLER_HOOK_MIGRATOR_FLAGS = uint160(
-    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-        | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
 );
 
 struct MineDopplerHookMigratorParams {
@@ -42,6 +40,11 @@ function mineDopplerHookMigrator(MineDopplerHookMigratorParams memory params) vi
         address migrator = computeCreate3Address(guardedSalt, params.deployer);
         if (uint160(migrator) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_MIGRATOR_FLAGS && migrator.code.length == 0) {
             return (salt, migrator);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
 
 /* ---------------------------------------------------------------------------------------- */
 /*                                DecayMulticurveInitializer                                */
