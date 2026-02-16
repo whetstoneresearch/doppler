@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { DecayMulticurveInitializer } from "src/initializers/DecayMulticurveInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -14,6 +15,7 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
+
 
 /* -------------------------------------------------------------------------------- */
 /*                                DopplerHookMigrator                               */
@@ -40,6 +42,28 @@ function mineDopplerHookMigrator(MineDopplerHookMigratorParams memory params) vi
         address migrator = computeCreate3Address(guardedSalt, params.deployer);
         if (uint160(migrator) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_MIGRATOR_FLAGS && migrator.code.length == 0) {
             return (salt, migrator);
+
+/* ---------------------------------------------------------------------------------------- */
+/*                                DecayMulticurveInitializer                                */
+/* ---------------------------------------------------------------------------------------- */
+
+function mineDecayMulticurveInitializer(address sender, address deployer) view returns (bytes32, address) {
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(DecayMulticurveInitializer).name)) >> 168;
+
+    for (uint256 seed; seed < 100_000; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address hook = computeCreate3Address(guardedSalt, deployer);
+        if (
+            uint160(hook) & Hooks.ALL_HOOK_MASK
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
+        ) {
+            return (salt, hook);
         }
     }
 
