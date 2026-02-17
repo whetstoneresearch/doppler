@@ -1,0 +1,42 @@
+name: debug
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+env:
+  FOUNDRY_PROFILE: ci
+  ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
+  UNICHAIN_SEPOLIA_RPC_URL: ${{ secrets.UNICHAIN_SEPOLIA_RPC_URL }}
+  UNICHAIN_MAINNET_RPC_URL: ${{ secrets.UNICHAIN_MAINNET_RPC_URL }}
+
+jobs:
+  check:
+    strategy:
+      fail-fast: true
+
+    name: Foundry project
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Show Forge version
+        run: forge --version
+        id: version
+
+      - name: Run Forge build on src
+        run: forge build ./src --via-ir --sizes --force --names
+        id: debug
