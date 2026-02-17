@@ -15,18 +15,19 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionPartialRemovalImpl is OpeningAuction {
+contract OpeningAuctionPartialRemovalImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -152,7 +153,7 @@ contract PartialRemovalTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
         vm.stopPrank();
 
@@ -172,7 +173,7 @@ contract PartialRemovalTest is Test, Deployers {
                 liquidityDelta: -int256(uint256(liquidity)),
                 salt: positionSalts[positionId]
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
         vm.stopPrank();
     }
@@ -437,7 +438,7 @@ contract PartialRemovalTest is Test, Deployers {
                 liquidityDelta: int256(uint256(carolLiquidity)),
                 salt: carolSalt
             }),
-            abi.encode(carol)
+            abi.encodePacked(carol)
         );
         vm.stopPrank();
 
@@ -471,7 +472,7 @@ contract PartialRemovalTest is Test, Deployers {
                 liquidityDelta: -int256(uint256(carolLiquidity)),
                 salt: positionSalts[carolPos]
             }),
-            abi.encode(carol)
+            abi.encodePacked(carol)
         );
         vm.stopPrank();
 

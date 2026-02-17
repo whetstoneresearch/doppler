@@ -117,15 +117,3 @@ contract DeployOpeningAuctionInitializerUnichainSepoliaScript is DeployOpeningAu
         });
     }
 }
-
-/// @dev forge script DeployOpeningAuctionInitializerMonadTestnetScript --private-key $PRIVATE_KEY --verify --slow --broadcast --rpc-url $MONAD_TESTNET_RPC_URL
-contract DeployOpeningAuctionInitializerMonadTestnetScript is DeployOpeningAuctionInitializerScript {
-    function setUp() public override {
-        _scriptData = ScriptData({
-            airlock: 0xa82c66b6ddEb92089015C3565E05B5c9750b2d4B,
-            poolManager: 0xe93882f395B0b24180855c68Ab19B2d78573ceBc,
-            dopplerDeployer: address(0), // Deploy new DopplerDeployer
-            positionManager: address(0) // Deploy new PositionManager
-        });
-    }
-}

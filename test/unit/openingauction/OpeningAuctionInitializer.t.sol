@@ -260,7 +260,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
         
@@ -342,7 +342,7 @@ contract OpeningAuctionInitializerTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 

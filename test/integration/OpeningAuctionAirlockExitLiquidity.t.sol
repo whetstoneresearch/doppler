@@ -496,13 +496,13 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
     }
 
     function _quoteClearingTick(OpeningAuction auctionHook, PoolKey memory poolKey) internal view returns (int24) {
         uint256 tokensToSell = auctionHook.totalAuctionTokens() - auctionHook.incentiveTokensTotal();
-        uint160 sqrtPriceLimitX96 = _sqrtPriceLimitX96(auctionHook.minAcceptableTick());
+        uint160 sqrtPriceLimitX96 = _sqrtPriceLimitX96(_minAcceptableTick(auctionHook));
 
         (,, uint160 sqrtPriceAfterX96,) = QuoterMath.quote(
             manager,
@@ -515,6 +515,10 @@ contract OpeningAuctionAirlockExitLiquidityTest is Test, Deployers {
         );
 
         return TickMath.getTickAtSqrtPrice(sqrtPriceAfterX96);
+    }
+
+    function _minAcceptableTick(OpeningAuction auctionHook) internal view returns (int24) {
+        return auctionHook.isToken0() ? auctionHook.minAcceptableTickToken0() : -auctionHook.minAcceptableTickToken1();
     }
 
     function _sqrtPriceLimitX96(int24 limitTick) internal pure returns (uint160) {

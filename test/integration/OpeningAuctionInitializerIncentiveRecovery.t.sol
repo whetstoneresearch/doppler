@@ -99,7 +99,7 @@ contract OpeningAuctionInitializerIncentiveRecoveryTest is Test, Deployers {
         OpeningAuction hook = _initializeAuction(AUCTION_TOKENS);
         PoolKey memory key = _buildPoolKey(hook);
 
-        int24 tickLower = hook.minAcceptableTick();
+        int24 tickLower = _minAcceptableTick(hook);
         uint128 liquidity = hook.minLiquidity() * 10;
 
         uint256 alicePos = _addBid(hook, key, alice, tickLower, liquidity);
@@ -190,11 +190,26 @@ contract OpeningAuctionInitializerIncentiveRecoveryTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(bidder)
+            abi.encodePacked(bidder)
         );
         vm.stopPrank();
 
-        positionId = hook.getPositionId(bidder, tickLower, tickLower + key.tickSpacing, salt);
+        positionId = _getPositionId(hook, bidder, tickLower, tickLower + key.tickSpacing, salt);
+    }
+
+    function _minAcceptableTick(OpeningAuction hook) internal view returns (int24) {
+        return hook.isToken0() ? hook.minAcceptableTickToken0() : -hook.minAcceptableTickToken1();
+    }
+
+    function _getPositionId(
+        OpeningAuction hook,
+        address owner,
+        int24 tickLower,
+        int24 tickUpper,
+        bytes32 salt
+    ) internal view returns (uint256) {
+        bytes32 key = keccak256(abi.encodePacked(owner, tickLower, tickUpper, salt));
+        return hook.positionKeyToId(key);
     }
 
     function _mineOpeningAuctionSalt(OpeningAuctionConfig memory config, uint256 auctionTokens)

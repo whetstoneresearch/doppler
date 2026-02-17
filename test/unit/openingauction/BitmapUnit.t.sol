@@ -10,12 +10,13 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
 
 /// @title OpeningAuctionBitmapHarness
 /// @notice Exposes OpeningAuction's internal bitmap functions for unit testing
 /// @dev Inherits from OpeningAuction to test the ACTUAL production code
-contract OpeningAuctionBitmapHarness is OpeningAuction {
+contract OpeningAuctionBitmapHarness is OpeningAuctionTestCompat {
     /// @notice Track liquidity for insert/remove logic (mirrors production)
     /// @dev We need to access liquidityAtTick but it's already in OpeningAuction
 
@@ -27,7 +28,7 @@ contract OpeningAuctionBitmapHarness is OpeningAuction {
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config) {
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config) {
         testTickSpacing = config.tickSpacing;
         // Set poolKey.tickSpacing for _compressTick/_decompressTick to work
         // We're using a minimal poolKey just for bitmap tests

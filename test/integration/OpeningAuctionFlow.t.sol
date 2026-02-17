@@ -14,6 +14,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
@@ -25,13 +26,13 @@ import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionImpl is OpeningAuction {
+contract OpeningAuctionImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -150,10 +151,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         // Deploy auction
         vm.startPrank(creator);
-        OpeningAuction auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionImpl auction = OpeningAuctionImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
         auction.setPositionManager(address(modifyLiquidityRouter));
@@ -189,7 +188,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bidSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -214,10 +213,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         // Deploy auction
         vm.startPrank(creator);
-        OpeningAuction auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionImpl auction = OpeningAuctionImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         // Transfer tokens to auction
@@ -259,7 +256,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1e18)), // 1e18 liquidity units
                 salt: bidSalt
             }),
-            abi.encode(alice) // Pass owner in hookData
+            abi.encodePacked(alice) // Pass owner in hookData
         );
         vm.stopPrank();
 
@@ -284,10 +281,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         // Deploy auction
         vm.startPrank(creator);
-        OpeningAuction auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionImpl auction = OpeningAuctionImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
 
@@ -322,7 +317,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1e18)),
                 salt: aliceSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -340,7 +335,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(2e18)),
                 salt: bobSalt
             }),
-            abi.encode(bob)
+            abi.encodePacked(bob)
         );
         vm.stopPrank();
 
@@ -371,10 +366,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         // Deploy auction
         vm.startPrank(creator);
-        OpeningAuction auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionImpl auction = OpeningAuctionImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
         auction.setPositionManager(address(modifyLiquidityRouter));
@@ -430,10 +423,8 @@ contract OpeningAuctionFlowTest is Test, Deployers {
 
         // Deploy auction
         vm.startPrank(creator);
-        OpeningAuction auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionImpl auction = OpeningAuctionImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         // Transfer tokens to auction
@@ -468,7 +459,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)), // Large liquidity to absorb tokens
                 salt: aliceSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -485,7 +476,7 @@ contract OpeningAuctionFlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)), // Large liquidity to absorb tokens
                 salt: bobSalt
             }),
-            abi.encode(bob)
+            abi.encodePacked(bob)
         );
         vm.stopPrank();
 

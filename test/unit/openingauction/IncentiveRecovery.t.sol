@@ -14,6 +14,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
@@ -21,13 +22,13 @@ import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionRecoveryImpl is OpeningAuction {
+contract OpeningAuctionRecoveryImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -77,7 +78,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
 
     // Contracts
     OpeningAuctionRecoveryDeployer auctionDeployer;
-    OpeningAuction auction;
+    OpeningAuctionRecoveryImpl auction;
     PoolKey poolKey;
 
     // Auction parameters
@@ -145,7 +146,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
     }
 
-    function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuction) {
+    function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuctionRecoveryImpl) {
         (bytes32 salt,) = mineHookSalt(
             address(auctionDeployer),
             creator,
@@ -154,10 +155,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        OpeningAuction _auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionRecoveryImpl _auction = OpeningAuctionRecoveryImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         TestERC20(asset).transfer(address(_auction), AUCTION_TOKENS);
@@ -195,7 +194,7 @@ contract IncentiveRecoveryTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
         vm.stopPrank();
 
@@ -278,10 +277,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        auction = OpeningAuctionRecoveryImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);
@@ -611,10 +608,8 @@ contract IncentiveRecoveryTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        auction = OpeningAuctionRecoveryImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         TestERC20(asset).transfer(address(auction), AUCTION_TOKENS);

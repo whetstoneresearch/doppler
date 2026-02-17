@@ -62,7 +62,7 @@ contract RandomAddRemoveSequencesTest is OpeningAuctionBaseTest {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(owner)
+            abi.encodePacked(owner)
         );
         vm.stopPrank();
 
@@ -92,7 +92,7 @@ contract RandomAddRemoveSequencesTest is OpeningAuctionBaseTest {
                 liquidityDelta: -int256(uint256(pos.liquidity)),
                 salt: pos.salt
             }),
-            abi.encode(pos.owner)
+            abi.encodePacked(pos.owner)
         );
         vm.stopPrank();
 

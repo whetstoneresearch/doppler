@@ -102,7 +102,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
                 liquidityDelta: int256(uint256(amount)),
                 salt: salt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -161,7 +161,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
                 liquidityDelta: int256(uint256(amount)),
                 salt: salt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
 
         bytes32 positionKey = keccak256(abi.encodePacked(alice, tickLower, tickLower + key.tickSpacing, salt));
@@ -182,7 +182,7 @@ contract PositionTrackingTest is OpeningAuctionBaseTest {
                 liquidityDelta: int256(uint256(amount)),
                 salt: salt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
     }

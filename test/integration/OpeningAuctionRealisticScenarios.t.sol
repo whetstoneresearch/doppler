@@ -14,19 +14,20 @@ import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 import { Test, console2 } from "forge-std/Test.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { AuctionPhase, AuctionPosition, OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionRealisticImpl is OpeningAuction {
+contract OpeningAuctionRealisticImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) { }
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) { }
 
     function validateHookAddress(BaseHook) internal pure override { }
 }
@@ -90,7 +91,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     uint256 bidNonce;
 
     OpeningAuctionRealisticDeployer auctionDeployer;
-    OpeningAuction auction;
+    OpeningAuctionRealisticImpl auction;
     PoolKey poolKey;
 
     int24 maxTick;
@@ -150,7 +151,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
     function _createAuction(
         OpeningAuctionConfig memory config,
         uint256 auctionTokens
-    ) internal returns (OpeningAuction) {
+    ) internal returns (OpeningAuctionRealisticImpl) {
         (, bytes32 salt) = HookMiner.find(
             address(auctionDeployer),
             getHookFlags(),
@@ -159,7 +160,9 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        OpeningAuction _auction = auctionDeployer.deploy(auctionTokens, salt, abi.encode(config));
+        OpeningAuctionRealisticImpl _auction = OpeningAuctionRealisticImpl(
+            payable(address(auctionDeployer.deploy(auctionTokens, salt, abi.encode(config))))
+        );
         TestERC20(asset).transfer(address(_auction), auctionTokens);
         _auction.setPositionManager(address(modifyLiquidityRouter));
         _auction.setIsToken0(true);
@@ -194,7 +197,7 @@ contract OpeningAuctionRealisticScenariosTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
         vm.stopPrank();
 

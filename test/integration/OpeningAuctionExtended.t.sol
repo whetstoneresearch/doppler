@@ -14,19 +14,20 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionExtendedImpl is OpeningAuction {
+contract OpeningAuctionExtendedImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -74,7 +75,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
 
     // Contracts
     OpeningAuctionExtendedDeployer auctionDeployer;
-    OpeningAuction auction;
+    OpeningAuctionExtendedImpl auction;
     PoolKey poolKey;
 
     // Auction parameters - use smaller amounts for tests since liquidity provided is limited
@@ -132,7 +133,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         return OpeningAuctionTestDefaults.hookFlags();
     }
 
-    function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuction) {
+    function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuctionExtendedImpl) {
         (, bytes32 salt) = HookMiner.find(
             address(auctionDeployer),
             getHookFlags(),
@@ -141,10 +142,8 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        OpeningAuction _auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionExtendedImpl _auction = OpeningAuctionExtendedImpl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         TestERC20(asset).transfer(address(_auction), AUCTION_TOKENS);
@@ -184,7 +183,7 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user) // Pass owner in hookData
+            abi.encodePacked(user) // Pass owner in hookData
         );
         vm.stopPrank();
 
@@ -375,7 +374,9 @@ contract OpeningAuctionExtendedTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        auction = auctionDeployer.deploy(smallerTokens, salt, abi.encode(config));
+        auction = OpeningAuctionExtendedImpl(
+            payable(address(auctionDeployer.deploy(smallerTokens, salt, abi.encode(config))))
+        );
         TestERC20(asset).transfer(address(auction), smallerTokens);
         auction.setPositionManager(address(modifyLiquidityRouter));
         auction.setIsToken0(true);

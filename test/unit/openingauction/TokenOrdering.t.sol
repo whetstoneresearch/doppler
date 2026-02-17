@@ -15,18 +15,19 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionTestImpl is OpeningAuction {
+contract OpeningAuctionTestImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -126,7 +127,6 @@ contract TokenOrderingTest is Test, Deployers {
 
         // Second call should revert
         vm.startPrank(initializer);
-        hook.setPositionManager(address(modifyLiquidityRouter));
         vm.expectRevert(IOpeningAuction.IsToken0AlreadySet.selector);
         hook.setIsToken0(false);
         vm.stopPrank();
@@ -155,7 +155,6 @@ contract TokenOrderingTest is Test, Deployers {
 
         // Now try to call setIsToken0 - should revert
         vm.startPrank(initializer);
-        hook.setPositionManager(address(modifyLiquidityRouter));
         vm.expectRevert(IOpeningAuction.AlreadyInitialized.selector);
         hook.setIsToken0(false);
         vm.stopPrank();
@@ -340,7 +339,7 @@ contract TokenOrderingTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -412,7 +411,7 @@ contract TokenOrderingTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 

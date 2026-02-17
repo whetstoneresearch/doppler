@@ -14,6 +14,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
@@ -25,13 +26,13 @@ import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionEdgeCaseImpl is OpeningAuction {
+contract OpeningAuctionEdgeCaseImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -214,11 +215,22 @@ contract OpeningAuctionEdgeCasesTest is Test, Deployers {
                 liquidityDelta: int128(liquidity),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
         vm.stopPrank();
 
-        positionId = auction.getPositionId(user, tickLower, tickLower + tickSpacing, salt);
+        positionId = _getPositionId(auction, user, tickLower, tickLower + tickSpacing, salt);
+    }
+
+    function _getPositionId(
+        OpeningAuction auctionHook,
+        address owner,
+        int24 tickLower,
+        int24 tickUpper,
+        bytes32 salt
+    ) internal view returns (uint256) {
+        bytes32 key = keccak256(abi.encodePacked(owner, tickLower, tickUpper, salt));
+        return auctionHook.positionKeyToId(key);
     }
 
     // ============ BOUNDARY TESTS ============

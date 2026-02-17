@@ -14,6 +14,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
@@ -23,13 +24,13 @@ import {
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionTransitionImpl is OpeningAuction {
+contract OpeningAuctionTransitionImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -197,7 +198,7 @@ contract DopplerTransitionTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -240,7 +241,7 @@ contract DopplerTransitionTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -290,7 +291,7 @@ contract DopplerTransitionTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 

@@ -9,6 +9,7 @@ import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
@@ -19,13 +20,13 @@ import {
 import { Doppler } from "src/initializers/Doppler.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionTestImpl is OpeningAuction {
+contract OpeningAuctionTestImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }

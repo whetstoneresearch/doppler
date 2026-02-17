@@ -6,17 +6,18 @@ import { IPoolManager } from "@v4-core/PoolManager.sol";
 import { PoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation for testing
-contract OpeningAuctionTestImpl is OpeningAuction {
+contract OpeningAuctionTestImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -49,7 +50,8 @@ contract ConstructorTest is Test {
 
         assertEq(auction.auctionDuration(), config.auctionDuration);
         assertEq(auction.minAcceptableTick(), config.minAcceptableTickToken0);
-        assertEq(auction.incentiveShareBps(), config.incentiveShareBps);
+        uint256 expectedIncentives = (totalTokens * config.incentiveShareBps) / 10_000;
+        assertEq(auction.incentiveTokensTotal(), expectedIncentives);
         assertEq(auction.totalAuctionTokens(), totalTokens);
         assertEq(auction.initializer(), initializer);
     }
@@ -97,51 +99,93 @@ contract ConstructorTest is Test {
         assertEq(auction.nextPositionId(), 1);
     }
 
-    function test_constructor_RevertsInvalidAuctionDuration() public {
+    function test_constructor_AllowsInvalidAuctionDuration_ConfigValidatedByInitializer() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
         config.auctionDuration = 0;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidAuctionDuration()"));
-        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl(
+            manager,
+            initializer,
+            1_000_000 ether,
+            config
+        );
+
+        assertEq(auction.auctionDuration(), 0);
     }
 
-    function test_constructor_RevertsInvalidIncentiveShareBps() public {
+    function test_constructor_AllowsInvalidIncentiveShareBps_ConfigValidatedByInitializer() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
         config.incentiveShareBps = 10_001;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidIncentiveShareBps()"));
-        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+        uint256 totalTokens = 1_000_000 ether;
+        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl(
+            manager,
+            initializer,
+            totalTokens,
+            config
+        );
+
+        uint256 expectedIncentives = (totalTokens * config.incentiveShareBps) / 10_000;
+        assertEq(auction.incentiveTokensTotal(), expectedIncentives);
     }
 
-    function test_constructor_RevertsInvalidTickSpacing() public {
+    function test_constructor_AllowsInvalidTickSpacing_ConfigValidatedByInitializer() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
         config.tickSpacing = 0;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidTickSpacing()"));
-        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl(
+            manager,
+            initializer,
+            1_000_000 ether,
+            config
+        );
+
+        assertEq(auction.nextPositionId(), 1);
     }
 
-    function test_constructor_RevertsInvalidMinLiquidity() public {
+    function test_constructor_AllowsInvalidMinLiquidity_ConfigValidatedByInitializer() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
         config.minLiquidity = 0;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidMinLiquidity()"));
-        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl(
+            manager,
+            initializer,
+            1_000_000 ether,
+            config
+        );
+
+        assertEq(auction.minLiquidity(), 0);
     }
 
-    function test_constructor_RevertsMisalignedMinAcceptableTick() public {
+    function test_constructor_AllowsMisalignedMinAcceptableTick_ConfigValidatedByInitializer() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
         config.minAcceptableTickToken0 = -99_961;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidMinAcceptableTick()"));
-        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl(
+            manager,
+            initializer,
+            1_000_000 ether,
+            config
+        );
+
+        vm.prank(initializer);
+        auction.setIsToken0(true);
+        assertEq(auction.minAcceptableTick(), config.minAcceptableTickToken0);
     }
 
-    function test_constructor_RevertsMisalignedMinAcceptableTickToken1() public {
+    function test_constructor_AllowsMisalignedMinAcceptableTickToken1_ConfigValidatedByInitializer() public {
         OpeningAuctionConfig memory config = getDefaultConfig();
         config.minAcceptableTickToken1 = -99_961;
 
-        vm.expectRevert(abi.encodeWithSignature("InvalidMinAcceptableTick()"));
-        new OpeningAuctionTestImpl(manager, initializer, 1_000_000 ether, config);
+        OpeningAuctionTestImpl auction = new OpeningAuctionTestImpl(
+            manager,
+            initializer,
+            1_000_000 ether,
+            config
+        );
+
+        vm.prank(initializer);
+        auction.setIsToken0(false);
+        assertEq(auction.minAcceptableTick(), -config.minAcceptableTickToken1);
     }
 }

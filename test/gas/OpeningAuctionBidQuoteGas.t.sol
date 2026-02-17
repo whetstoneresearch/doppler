@@ -56,7 +56,7 @@ contract OpeningAuctionBidQuoteGas is OpeningAuctionBaseTest {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
     }
 

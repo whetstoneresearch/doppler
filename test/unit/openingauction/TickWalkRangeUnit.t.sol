@@ -8,18 +8,19 @@ import { PoolManager, IPoolManager } from "@v4-core/PoolManager.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 
 /// @notice Minimal harness to exercise the *real* OpeningAuction bitmap walkers.
 /// @dev Overrides hook-address validation for unit tests.
-contract OpeningAuctionTickWalkHarness is OpeningAuction {
+contract OpeningAuctionTickWalkHarness is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 

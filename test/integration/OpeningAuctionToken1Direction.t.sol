@@ -18,19 +18,20 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { OpeningAuctionDeployer } from "src/OpeningAuctionInitializer.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionToken1Impl is OpeningAuction {
+contract OpeningAuctionToken1Impl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -81,7 +82,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
 
     // Contracts
     OpeningAuctionToken1Deployer auctionDeployer;
-    OpeningAuction auction;
+    OpeningAuctionToken1Impl auction;
     PoolKey poolKey;
 
     // Auction parameters
@@ -166,7 +167,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         );
     }
 
-    function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuction) {
+    function _createAuction(OpeningAuctionConfig memory config) internal returns (OpeningAuctionToken1Impl) {
         (bytes32 salt,) = mineHookSalt(
             address(auctionDeployer),
             creator,
@@ -175,10 +176,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        OpeningAuction _auction = auctionDeployer.deploy(
-            AUCTION_TOKENS,
-            salt,
-            abi.encode(config)
+        OpeningAuctionToken1Impl _auction = OpeningAuctionToken1Impl(
+            payable(address(auctionDeployer.deploy(AUCTION_TOKENS, salt, abi.encode(config))))
         );
 
         TestERC20(asset).transfer(address(_auction), AUCTION_TOKENS);
@@ -219,7 +218,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
         vm.stopPrank();
 
@@ -459,7 +458,7 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1e18)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
     }
@@ -488,10 +487,8 @@ contract OpeningAuctionToken1DirectionTest is Test, Deployers {
         );
 
         vm.startPrank(creator);
-        auction = auctionDeployer.deploy(
-            smallAuctionTokens,
-            salt,
-            abi.encode(config)
+        auction = OpeningAuctionToken1Impl(
+            payable(address(auctionDeployer.deploy(smallAuctionTokens, salt, abi.encode(config))))
         );
 
         TestERC20(asset).transfer(address(auction), smallAuctionTokens);

@@ -17,6 +17,7 @@ import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaults.sol";
@@ -126,7 +127,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(bidder)
+            abi.encodePacked(bidder)
         );
         vm.stopPrank();
 
@@ -181,7 +182,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 liquidityDelta: -int256(uint256(pos.liquidity)),
                 salt: positionSalts[attackerPosId]
             }),
-            abi.encode(attacker)
+            abi.encodePacked(attacker)
         );
         vm.stopPrank();
 
@@ -291,7 +292,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 liquidityDelta: -int256(uint256(pos.liquidity)),
                 salt: positionSalts[attackerPosId]
             }),
-            abi.encode(attacker)
+            abi.encodePacked(attacker)
         );
         vm.stopPrank();
 
@@ -345,7 +346,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1_000_000 ether)),
                 salt: attackerSalt
             }),
-            abi.encode(attacker)
+            abi.encodePacked(attacker)
         );
         vm.stopPrank();
 
@@ -395,7 +396,7 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1_000_000e18)),
                 salt: attackerSalt
             }),
-            abi.encode(attacker)
+            abi.encodePacked(attacker)
         );
         vm.stopPrank();
 
@@ -496,13 +497,13 @@ contract OpeningAuctionAttacksTest is Test, Deployers {
 }
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionImpl is OpeningAuction {
+contract OpeningAuctionImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }

@@ -13,6 +13,7 @@ import { PoolModifyLiquidityTest } from "@v4-core/test/PoolModifyLiquidityTest.s
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { OpeningAuctionConfig, AuctionPosition, IOpeningAuction } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 
@@ -87,13 +88,13 @@ contract ReentrantERC20 is IERC20Minimal {
 }
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionReentrancyImpl is OpeningAuction {
+contract OpeningAuctionReentrancyImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -221,7 +222,7 @@ contract MigrateReentrancyTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(user)
+            abi.encodePacked(user)
         );
 
         positionId = hook.getPositionId(user, tickLower, tickUpper, salt);

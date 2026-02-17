@@ -30,7 +30,7 @@ contract OpeningAuctionSafeCastTest is OpeningAuctionBaseTest {
                 liquidityDelta: int256(tooLarge),
                 salt: bytes32("overflow")
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
     }
 }

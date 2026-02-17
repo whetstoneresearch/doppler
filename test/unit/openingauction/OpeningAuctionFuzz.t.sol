@@ -576,7 +576,7 @@ contract OpeningAuctionFuzz is OpeningAuctionBaseTest {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(bidder)
+            abi.encodePacked(bidder)
         );
         vm.stopPrank();
 

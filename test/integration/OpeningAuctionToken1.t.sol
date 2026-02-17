@@ -16,6 +16,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { HookMiner } from "@v4-periphery/utils/HookMiner.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase, AuctionPosition } from "src/interfaces/IOpeningAuction.sol";
 import {
     OpeningAuctionInitializer,
@@ -28,13 +29,13 @@ import { OpeningAuctionTestDefaults } from "test/shared/OpeningAuctionTestDefaul
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
 /// @dev Used for testing to allow deployment at arbitrary addresses
-contract OpeningAuctionToken1Impl is OpeningAuction {
+contract OpeningAuctionToken1Impl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) {}
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) {}
 
     function validateHookAddress(BaseHook) internal pure override {}
 }
@@ -153,6 +154,41 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             type(OpeningAuctionToken1Impl).creationCode,
             constructorArgs
         );
+    }
+
+    function _minAcceptableTick(OpeningAuction auction) internal view returns (int24) {
+        return auction.isToken0() ? auction.minAcceptableTickToken0() : -auction.minAcceptableTickToken1();
+    }
+
+    function _getPositionId(
+        OpeningAuction auction,
+        address owner,
+        int24 tickLower,
+        int24 tickUpper,
+        bytes32 salt
+    ) internal view returns (uint256) {
+        bytes32 key = keccak256(abi.encodePacked(owner, tickLower, tickUpper, salt));
+        return auction.positionKeyToId(key);
+    }
+
+    function _isInRange(OpeningAuction auction, uint256 positionId) internal view returns (bool) {
+        AuctionPosition memory pos = auction.positions(positionId);
+        if (pos.owner == address(0)) return false;
+
+        int24 refTick;
+        AuctionPhase phase = auction.phase();
+        if (phase == AuctionPhase.Settled) {
+            refTick = auction.clearingTick();
+        } else if (phase == AuctionPhase.Active || phase == AuctionPhase.Closed) {
+            refTick = auction.estimatedClearingTick();
+        } else {
+            return false;
+        }
+
+        if (auction.isToken0()) {
+            return refTick < pos.tickUpper;
+        }
+        return refTick >= pos.tickLower;
     }
 
     // ============ Initialization Tests ============
@@ -275,7 +311,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
         vm.stopPrank();
 
-        int24 limitTick = auction.minAcceptableTick();
+        int24 limitTick = _minAcceptableTick(auction);
         int24 tickLower = limitTick - config.tickSpacing; // Upper bound equals the ceiling
 
         vm.startPrank(alice);
@@ -291,12 +327,12 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1e18)),
                 salt: bidSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
         // Verify position was created
-        uint256 positionId = auction.getPositionId(alice, tickLower, tickLower + config.tickSpacing, bidSalt);
+        uint256 positionId = _getPositionId(auction, alice, tickLower, tickLower + config.tickSpacing, bidSalt);
         AuctionPosition memory pos = auction.positions(positionId);
         assertEq(pos.owner, alice);
         assertEq(pos.tickLower, tickLower);
@@ -340,7 +376,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
         vm.stopPrank();
 
-        int24 limitTick = auction.minAcceptableTick();
+        int24 limitTick = _minAcceptableTick(auction);
         int24 invalidTickLower = limitTick; // tickUpper will exceed the ceiling
 
         vm.startPrank(alice);
@@ -364,7 +400,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1e18)),
                 salt: bytes32(uint256(1))
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
     }
@@ -404,7 +440,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         manager.initialize(poolKey, TickMath.getSqrtPriceAtTick(startingTick));
         vm.stopPrank();
 
-        int24 limitTick = auction.minAcceptableTick();
+        int24 limitTick = _minAcceptableTick(auction);
         int24 offset = int24(int256(offsetSeed % 7)) - 3;
         int24 tickLower = limitTick + offset * config.tickSpacing;
 
@@ -438,7 +474,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: bidSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
     }
@@ -493,7 +529,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(1e18)),
                 salt: aliceSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -511,12 +547,12 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(2e18)),
                 salt: bobSalt
             }),
-            abi.encode(bob)
+            abi.encodePacked(bob)
         );
         vm.stopPrank();
 
-        uint256 alicePosId = auction.getPositionId(alice, aliceTickLower, aliceTickLower + config.tickSpacing, aliceSalt);
-        uint256 bobPosId = auction.getPositionId(bob, bobTickLower, bobTickLower + config.tickSpacing, bobSalt);
+        uint256 alicePosId = _getPositionId(auction, alice, aliceTickLower, aliceTickLower + config.tickSpacing, aliceSalt);
+        uint256 bobPosId = _getPositionId(auction, bob, bobTickLower, bobTickLower + config.tickSpacing, bobSalt);
 
         // Verify both positions
         AuctionPosition memory alicePos = auction.positions(alicePosId);
@@ -573,7 +609,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         vm.stopPrank();
 
         // Place large bids close to the minimum acceptable tick to provide near-start liquidity
-        int24 limitTick = auction.minAcceptableTick();
+        int24 limitTick = _minAcceptableTick(auction);
         int24 aliceTickLower = limitTick - config.tickSpacing;
         vm.startPrank(alice);
         TestERC20(token0).approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -587,7 +623,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: aliceSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -604,7 +640,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bobSalt
             }),
-            abi.encode(bob)
+            abi.encodePacked(bob)
         );
         vm.stopPrank();
 
@@ -638,7 +674,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
             "clearing tick should have increased from MIN_TICK");
 
         // Clearing tick must be >= minAcceptableTick for isToken0=false
-        assertLe(auction.clearingTick(), auction.minAcceptableTick(),
+        assertLe(auction.clearingTick(), _minAcceptableTick(auction),
             "clearing tick should be <= minAcceptableTick");
 
         // Tokens sold can be zero if no active liquidity was reachable from the starting price
@@ -715,7 +751,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(50_000 ether)),
                 salt: aliceSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
@@ -733,12 +769,12 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(50_000 ether)),
                 salt: bobSalt
             }),
-            abi.encode(bob)
+            abi.encodePacked(bob)
         );
         vm.stopPrank();
 
-        uint256 alicePosId = auction.getPositionId(alice, aliceTickLower, aliceTickLower + config.tickSpacing, aliceSalt);
-        uint256 bobPosId = auction.getPositionId(bob, bobTickLower, bobTickLower + config.tickSpacing, bobSalt);
+        uint256 alicePosId = _getPositionId(auction, alice, aliceTickLower, aliceTickLower + config.tickSpacing, aliceSalt);
+        uint256 bobPosId = _getPositionId(auction, bob, bobTickLower, bobTickLower + config.tickSpacing, bobSalt);
 
         console2.log("=== Bids Placed ===");
         console2.log("Alice bid at tick:", int256(aliceTickLower));
@@ -769,7 +805,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
         // Verify clearing tick behavior for isToken0=false
         // Price moved UP from MIN_TICK, so clearing tick > MIN_TICK
         assertGt(clearingTick, TickMath.MIN_TICK, "clearing tick should have moved up");
-        assertLe(clearingTick, auction.minAcceptableTick(), "clearing tick <= minAcceptableTick");
+        assertLe(clearingTick, _minAcceptableTick(auction), "clearing tick <= minAcceptableTick");
 
         // ====== Step 5: Verify Incentive Calculations ======
         uint256 aliceIncentives = auction.calculateIncentives(alicePosId);
@@ -840,11 +876,11 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
                 liquidityDelta: int256(uint256(100_000 ether)),
                 salt: bidSalt
             }),
-            abi.encode(alice)
+            abi.encodePacked(alice)
         );
         vm.stopPrank();
 
-        uint256 posId = auction.getPositionId(alice, lowTickBid, lowTickBid + config.tickSpacing, bidSalt);
+        uint256 posId = _getPositionId(auction, alice, lowTickBid, lowTickBid + config.tickSpacing, bidSalt);
 
         // Get estimated clearing tick after bid
         int24 estimatedClearing = auction.estimatedClearingTick();
@@ -855,7 +891,7 @@ contract OpeningAuctionToken1FlowTest is Test, Deployers {
 
         // For isToken0=false: position is filled if clearingTick >= tickLower
         bool shouldBeFilled = estimatedClearing >= lowTickBid;
-        bool isLocked = auction.isInRange(posId);
+        bool isLocked = _isInRange(auction, posId);
 
         console2.log("Expected filled:", shouldBeFilled);
         console2.log("Actual locked:", isLocked);

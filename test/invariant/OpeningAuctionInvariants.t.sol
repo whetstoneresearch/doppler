@@ -16,6 +16,7 @@ import { BaseHook } from "@v4-periphery/utils/BaseHook.sol";
 import { Test } from "forge-std/Test.sol";
 
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
+import { OpeningAuctionTestCompat } from "test/shared/OpeningAuctionTestCompat.sol";
 import { AuctionPhase, AuctionPosition, OpeningAuctionConfig } from "src/interfaces/IOpeningAuction.sol";
 import { alignTickTowardZero } from "src/libraries/TickLibrary.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
@@ -27,13 +28,13 @@ using LibAddressSet for AddressSet;
 // ============ OpeningAuction Implementation ============
 
 /// @notice OpeningAuction implementation that bypasses hook address validation
-contract OpeningAuctionImpl is OpeningAuction {
+contract OpeningAuctionImpl is OpeningAuctionTestCompat {
     constructor(
         IPoolManager poolManager_,
         address initializer_,
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config_
-    ) OpeningAuction(poolManager_, initializer_, totalAuctionTokens_, config_) { }
+    ) OpeningAuctionTestCompat(poolManager_, initializer_, totalAuctionTokens_, config_) { }
 
     function validateHookAddress(BaseHook) internal pure override { }
 
@@ -213,7 +214,7 @@ contract OpeningAuctionHandler is Test {
                 liquidityDelta: int256(uint256(liquidity)),
                 salt: salt
             }),
-            abi.encode(currentActor)
+            abi.encodePacked(currentActor)
         ) {
             uint256 positionId = hook.getPositionId(currentActor, tickLower, tickLower + poolKey.tickSpacing, salt);
             ghost_allPositionIds.push(positionId);
@@ -255,7 +256,7 @@ contract OpeningAuctionHandler is Test {
                 liquidityDelta: -int256(uint256(pos.liquidity)),
                 salt: positionSalts[positionId]
             }),
-            abi.encode(currentActor)
+            abi.encodePacked(currentActor)
         ) {
         // Position removed successfully
         }
@@ -358,7 +359,7 @@ contract OpeningAuctionHandler is Test {
                 liquidityDelta: -int256(uint256(pos.liquidity)),
                 salt: positionSalts[positionId]
             }),
-            abi.encode(currentActor)
+            abi.encodePacked(currentActor)
         ) {
             ghost_removedInRange = true;
         } catch {
