@@ -389,7 +389,7 @@ contract RebalanceTest is BaseTest {
         vm.warp(hook.startingTime());
 
         bool isToken0 = hook.isToken0();
-        int256 I_WAD = 1e18;
+        int256 localI_WAD = 1e18;
 
         int256 tickDeltaPerEpoch = hook.getMaxTickDeltaPerEpoch();
 
@@ -410,7 +410,7 @@ contract RebalanceTest is BaseTest {
             );
             int24 tick = hook.alignComputedTickWithTickSpacing(data.tick, key.tickSpacing);
 
-            int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / I_WAD) * int256(i));
+            int24 expectedTick = initialData.tick + int24((tickDeltaPerEpoch / localI_WAD) * int256(i));
             expectedTick = hook.alignComputedTickWithTickSpacing(expectedTick, key.tickSpacing);
 
             assertEq(tick, expectedTick, string.concat("Failing at epoch ", vm.toString(i + 1)));

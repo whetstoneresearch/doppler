@@ -1,0 +1,20 @@
+{
+  "Dense_AddBid_100Ticks": "904227",
+  "Dense_AddBid_10Ticks": "904291",
+  "Dense_AddBid_1Ticks": "904387",
+  "Dense_AddBid_25Ticks": "904387",
+  "Dense_AddBid_50Ticks": "904611",
+  "Dense_AddBid_5Ticks": "904163",
+  "Settlement_100Ticks": "894512",
+  "Settlement_10Ticks": "636947",
+  "Settlement_1Tick": "610345",
+  "Settlement_25Ticks": "680861",
+  "Settlement_50Ticks": "750947",
+  "Settlement_5Ticks": "621823",
+  "Sparse_AddBid_100Ticks": "863166",
+  "Sparse_AddBid_10Ticks": "904483",
+  "Sparse_AddBid_1Ticks": "904387",
+  "Sparse_AddBid_25Ticks": "891931",
+  "Sparse_AddBid_50Ticks": "879381",
+  "Sparse_AddBid_5Ticks": "904643"
+}
