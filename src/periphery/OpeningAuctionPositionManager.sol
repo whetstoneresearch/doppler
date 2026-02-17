@@ -51,7 +51,7 @@ contract OpeningAuctionPositionManager is IUnlockCallback {
         PoolKey memory key,
         IPoolManager.ModifyLiquidityParams memory params
     ) external returns (BalanceDelta delta) {
-        delta = _modifyLiquidity(key, params, abi.encode(msg.sender), msg.sender);
+        delta = _modifyLiquidity(key, params, abi.encodePacked(msg.sender), msg.sender);
     }
 
     function unlockCallback(bytes calldata rawData) external override returns (bytes memory) {
@@ -107,14 +107,9 @@ contract OpeningAuctionPositionManager is IUnlockCallback {
     }
 
     function _decodeOwner(bytes calldata hookData) internal pure returns (address owner) {
-        if (hookData.length == 20) {
-            assembly {
-                owner := shr(96, calldataload(hookData.offset))
-            }
-        } else if (hookData.length >= 32) {
-            owner = abi.decode(hookData, (address));
-        } else {
-            revert HookDataMissingOwner();
+        if (hookData.length != 20) revert HookDataMissingOwner();
+        assembly {
+            owner := shr(96, calldataload(hookData.offset))
         }
     }
 }

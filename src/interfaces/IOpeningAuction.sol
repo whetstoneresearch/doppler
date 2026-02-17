@@ -239,11 +239,6 @@ interface IOpeningAuction {
     /// @notice Get a position by ID
     function positions(uint256 positionId) external view returns (AuctionPosition memory);
 
-    /// @notice Check if a position is currently in range
-    /// @param positionId The position to check
-    /// @return inRange True if the position would be touched by the settlement swap
-    function isInRange(uint256 positionId) external view returns (bool inRange);
-
     /// @notice Calculate the incentive tokens owed to a position
     /// @param positionId The position to calculate incentives for
     /// @return amount The incentive token amount

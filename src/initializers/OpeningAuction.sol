@@ -28,9 +28,7 @@ import { alignTick } from "src/libraries/TickLibrary.sol";
 
 /// @dev Basis points denominator
 uint256 constant BPS = 10_000;
-
 uint8 constant TICK_SUM_WEIGHTED = 0;
-uint8 constant TICK_SUM_ACCUMULATED = 1;
 
 
 /// @title OpeningAuction
@@ -49,7 +47,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     // ============ Immutables ============
 
     /// @notice Address of the initializer contract
-    address public immutable initializer;
+    address public initializer;
 
     /// @notice Authorized position manager (router) for liquidity modifications
     address public positionManager;
@@ -57,19 +55,16 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     // ============ Auction Configuration ============
 
     /// @notice Duration of the auction in seconds
-    uint256 public immutable auctionDuration;
+    uint256 public auctionDuration;
 
     /// @notice Minimum acceptable tick for bids when selling token0
-    int24 public immutable minAcceptableTickToken0;
+    int24 public minAcceptableTickToken0;
 
     /// @notice Minimum acceptable tick for bids when selling token1 (tick(token0/token1))
-    int24 public immutable minAcceptableTickToken1;
-
-    /// @notice Share of tokens for LP incentives (basis points)
-    uint256 public immutable incentiveShareBps;
+    int24 public minAcceptableTickToken1;
 
     /// @notice Minimum liquidity per position (prevents dust bid griefing)
-    uint128 public immutable minLiquidity;
+    uint128 public minLiquidity;
 
     /// @notice True if the asset being sold is token0
     bool public isToken0;
@@ -106,7 +101,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     uint256 public totalProceeds;
 
     /// @notice Total tokens allocated for the auction (including incentives)
-    uint256 public immutable totalAuctionTokens;
+    uint256 public totalAuctionTokens;
 
     /// @notice Tokens reserved for LP incentives
     uint256 public incentiveTokensTotal;
@@ -190,31 +185,12 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         uint256 totalAuctionTokens_,
         OpeningAuctionConfig memory config
     ) BaseHook(poolManager_) {
-        if (config.auctionDuration == 0) revert InvalidAuctionDuration();
-        if (config.incentiveShareBps > BPS) revert InvalidIncentiveShareBps();
-        if (
-            config.tickSpacing < TickMath.MIN_TICK_SPACING
-                || config.tickSpacing > TickMath.MAX_TICK_SPACING
-        ) revert InvalidTickSpacing();
-        if (config.minLiquidity == 0) revert InvalidMinLiquidity();
-        if (
-            config.minAcceptableTickToken0 < TickMath.MIN_TICK
-                || config.minAcceptableTickToken0 > TickMath.MAX_TICK
-        ) revert InvalidMinAcceptableTick();
-        if (
-            config.minAcceptableTickToken1 < TickMath.MIN_TICK
-                || config.minAcceptableTickToken1 > TickMath.MAX_TICK
-        ) revert InvalidMinAcceptableTick();
-        if (config.minAcceptableTickToken0 % config.tickSpacing != 0) revert InvalidMinAcceptableTick();
-        if (config.minAcceptableTickToken1 % config.tickSpacing != 0) revert InvalidMinAcceptableTick();
-
         initializer = initializer_;
         totalAuctionTokens = totalAuctionTokens_;
 
         auctionDuration = config.auctionDuration;
         minAcceptableTickToken0 = config.minAcceptableTickToken0;
         minAcceptableTickToken1 = config.minAcceptableTickToken1;
-        incentiveShareBps = config.incentiveShareBps;
         minLiquidity = config.minLiquidity;
 
         // Calculate incentive tokens
@@ -238,11 +214,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return _positions[positionId];
     }
 
-    /// @notice Get the pool-space price limit tick enforced by swaps
-    function minAcceptableTick() public view returns (int24) {
-        return _auctionPriceLimitTick();
-    }
-
     function _loadPosition(uint256 positionId) internal view returns (AuctionPosition memory pos, bool exists) {
         pos = _positions[positionId];
         exists = pos.owner != address(0);
@@ -263,42 +234,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     function _transferIncentives(address recipient, uint256 amount) internal {
         Currency.unwrap(_incentiveAsset()).safeTransfer(recipient, amount);
-    }
-
-    /// @inheritdoc IOpeningAuction
-    function isInRange(uint256 positionId) public view returns (bool) {
-        (AuctionPosition memory pos, bool exists) = _loadPosition(positionId);
-        if (!exists) return false;
-
-        // "In range" for the auction means "would be touched by the settlement swap".
-        // While the auction is Active, we use the estimated clearing tick.
-        // After the auction is Settled, we use the actual clearing tick.
-        int24 refTick;
-        if (phase == AuctionPhase.Settled) {
-            refTick = clearingTick;
-        } else if (phase == AuctionPhase.Active || phase == AuctionPhase.Closed) {
-            refTick = estimatedClearingTick;
-        } else {
-            return false;
-        }
-
-        if (isToken0) {
-            // Selling token0: price moves down (tick decreases). A position is touched if we clear below its upper tick.
-            return refTick < pos.tickUpper;
-        } else {
-            // Selling token1: price moves up (tick increases). A position is touched if we clear at or above its lower tick.
-            return refTick >= pos.tickLower;
-        }
-    }
-
-    /// @notice Get a position's earned time (liquidity-weighted seconds)
-    /// @param positionId The position to check
-    /// @return earnedSeconds The position's earned time in liquidity-weighted seconds
-    function getPositionAccumulatedTime(uint256 positionId) public view returns (uint256 earnedSeconds) {
-        uint256 earnedTimeX128 = _getPositionEarnedTimeX128(positionId);
-        // earnedTimeX128 = (tickAccum - debt) * posLiquidity
-        // tickAccum is elapsed seconds in Q128, so >> 128 = elapsed * posLiquidity
-        earnedSeconds = earnedTimeX128 >> 128;
     }
 
     /// @notice Get a position's earned weighted time in Q128 format (MasterChef-style)
@@ -430,12 +365,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         return isToken0 ? (tick < limit) : (tick > limit);
     }
 
-    /// @notice Get total accumulated time across all ticks (for external queries)
-    /// @dev Returns sum of liquidity-weighted seconds across ticks
-    function totalAccumulatedTime() public view returns (uint256) {
-        return _sumActiveTickTimes(TICK_SUM_ACCUMULATED);
-    }
-
     /// @inheritdoc IOpeningAuction
     function settleAuction() external nonReentrant {
         if (phase != AuctionPhase.Active) revert AuctionNotActive();
@@ -555,9 +484,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @inheritdoc IOpeningAuction
     function recoverIncentives(address recipient) external {
-        if (msg.sender != initializer) revert SenderNotInitializer();
-        if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
-        if (!isMigrated) revert AuctionNotMigrated();
+        _requireInitializerSettledAndMigrated();
 
         // Can only recover if no positions earned any time (totalWeightedTime == 0)
         // This handles the edge case where incentive tokens would otherwise be locked
@@ -574,9 +501,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @inheritdoc IOpeningAuction
     function sweepUnclaimedIncentives(address recipient) external nonReentrant {
-        if (msg.sender != initializer) revert SenderNotInitializer();
-        if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
-        if (!isMigrated) revert AuctionNotMigrated();
+        _requireInitializerSettledAndMigrated();
         if (block.timestamp <= incentivesClaimDeadline) revert ClaimWindowNotEnded();
 
         uint256 remaining = incentiveTokensTotal - totalIncentivesClaimed;
@@ -587,17 +512,6 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
         _transferIncentives(recipient, remaining);
 
         emit IncentivesRecovered(recipient, remaining);
-    }
-
-    /// @notice Helper to derive a position ID from its key data
-    function getPositionId(
-        address owner,
-        int24 tickLower,
-        int24 tickUpper,
-        bytes32 salt
-    ) external view returns (uint256) {
-        bytes32 key = keccak256(abi.encodePacked(owner, tickLower, tickUpper, salt));
-        return positionKeyToId[key];
     }
 
     // ============ Hook Callbacks ============
@@ -904,11 +818,14 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
     function setPositionManager(address manager) external {
         if (msg.sender != initializer) revert SenderNotInitializer();
         if (manager == address(0)) revert InvalidPositionManager();
-        if (positionManager != address(0)) {
-            if (positionManager != manager) revert PositionManagerAlreadySet();
-            return;
-        }
+        if (positionManager != address(0)) revert PositionManagerAlreadySet();
         positionManager = manager;
+    }
+
+    function _requireInitializerSettledAndMigrated() internal view {
+        if (msg.sender != initializer) revert SenderNotInitializer();
+        if (phase != AuctionPhase.Settled) revert AuctionNotSettled();
+        if (!isMigrated) revert AuctionNotMigrated();
     }
 
     function _requirePositionManager(address sender) internal view {
@@ -929,18 +846,11 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     // ============ Internal Functions ============
 
-    /// @notice Decode owner address from hookData (accepts 20-byte packed or ABI-encoded address)
+    /// @notice Decode owner address from hookData (20-byte packed address)
     function _decodeOwner(bytes calldata hookData) internal pure returns (address owner) {
-        if (hookData.length == 20) {
-            // Packed address (abi.encodePacked)
-            assembly {
-                owner := shr(96, calldataload(hookData.offset))
-            }
-        } else if (hookData.length >= 32) {
-            // ABI-encoded address (abi.encode)
-            owner = abi.decode(hookData, (address));
-        } else {
-            revert HookDataMissingOwner();
+        if (hookData.length != 20) revert HookDataMissingOwner();
+        assembly {
+            owner := shr(96, calldataload(hookData.offset))
         }
     }
 
@@ -1256,7 +1166,7 @@ contract OpeningAuction is BaseHook, IOpeningAuction, ReentrancyGuard {
 
     /// @notice Walk ticks that are entering the filled range and update their time states
     /// @param oldClearingTick Previous clearing tick
-    /// @param newClearingTick New clearing tick  
+    /// @param newClearingTick New clearing tick
     /// @param tickSpacing The pool's tick spacing
     function _walkTicksEnteringRange(int24 oldClearingTick, int24 newClearingTick, int24 tickSpacing) internal {
         // Find the range of ticks that just entered

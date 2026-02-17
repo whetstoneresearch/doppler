@@ -11,7 +11,7 @@ import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { alignTickTowardZero, alignTick } from "src/libraries/TickLibrary.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { OpeningAuction } from "src/initializers/OpeningAuction.sol";
-import { OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
+import { IOpeningAuction, OpeningAuctionConfig, AuctionPhase } from "src/interfaces/IOpeningAuction.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 
@@ -336,6 +336,30 @@ contract OpeningAuctionInitializer is IPoolInitializer, ImmutableAirlock, Reentr
         uint256 auctionTokens = FullMath.mulDiv(numTokensToSell, shareToAuctionBps, BPS);
         uint256 dopplerTokens = numTokensToSell - auctionTokens;
         if (auctionTokens == 0) revert AuctionAllocationTooSmall();
+
+        // Preserve previous error ordering: these checks used to happen in OpeningAuction constructor,
+        // which ran only after all initializer-level validations above.
+        if (config.auctionDuration == 0) revert IOpeningAuction.InvalidAuctionDuration();
+        if (config.incentiveShareBps > BPS) revert IOpeningAuction.InvalidIncentiveShareBps();
+        if (
+            config.tickSpacing < TickMath.MIN_TICK_SPACING
+                || config.tickSpacing > TickMath.MAX_TICK_SPACING
+        ) revert IOpeningAuction.InvalidTickSpacing();
+        if (config.minLiquidity == 0) revert IOpeningAuction.InvalidMinLiquidity();
+        if (
+            config.minAcceptableTickToken0 < TickMath.MIN_TICK
+                || config.minAcceptableTickToken0 > TickMath.MAX_TICK
+        ) revert IOpeningAuction.InvalidMinAcceptableTick();
+        if (
+            config.minAcceptableTickToken1 < TickMath.MIN_TICK
+                || config.minAcceptableTickToken1 > TickMath.MAX_TICK
+        ) revert IOpeningAuction.InvalidMinAcceptableTick();
+        if (config.minAcceptableTickToken0 % config.tickSpacing != 0) {
+            revert IOpeningAuction.InvalidMinAcceptableTick();
+        }
+        if (config.minAcceptableTickToken1 % config.tickSpacing != 0) {
+            revert IOpeningAuction.InvalidMinAcceptableTick();
+        }
 
         // Deploy Opening Auction hook
         OpeningAuction auctionHook = auctionDeployer.deploy(
