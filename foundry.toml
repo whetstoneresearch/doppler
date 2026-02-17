@@ -51,7 +51,8 @@ show_solidity = true
 base = { key = "${BASESCAN_API_KEY}" }
 
 [rpc_endpoints]
-mainnet = "${MAINNET_RPC_URL}"
+mainnet = "${ETH_MAINNET_RPC_URL}"
+sepolia = "${ETH_SEPOLIA_RPC_URL}"
 unichain = "${UNICHAIN_MAINNET_RPC_URL}"
 base = "${BASE_MAINNET_RPC_URL}"
 ink = "${INK_MAINNET_RPC_URL}"

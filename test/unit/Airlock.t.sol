@@ -16,6 +16,7 @@ import {
     SetModuleState,
     WrongModuleState
 } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { IUniswapV3Factory, InitData, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -23,7 +24,8 @@ import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20, ERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
@@ -86,10 +88,11 @@ contract AirlockTest is Test, Deployers {
     DopplerDeployer deployer;
     UniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
-    UniswapV2Migrator uniswapV2LiquidityMigrator;
+    UniswapV2MigratorSplit uniswapV2LiquidityMigrator;
+    TopUpDistributor topUpDistributor;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         vm.warp(DEFAULT_STARTING_TIME);
 
         deployFreshManager();
@@ -101,11 +104,9 @@ contract AirlockTest is Test, Deployers {
         uniswapV3Initializer =
             new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         governanceFactory = new GovernanceFactory(address(airlock));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
+        topUpDistributor = new TopUpDistributor(address(airlock));
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
 
         address[] memory modules = new address[](5);
@@ -430,7 +431,7 @@ contract AirlockTest is Test, Deployers {
                 uniswapV3Initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
-                new bytes(0),
+                abi.encode(address(0), 0),
                 address(0xb0b),
                 bytes32(uint256(0xbeef))
             )

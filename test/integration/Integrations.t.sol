@@ -10,6 +10,7 @@ import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
@@ -18,7 +19,7 @@ import { UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol"
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
-import { UniswapV4Migrator } from "src/migrators/UniswapV4Migrator.sol";
+import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { CloneERC20VotesFactory } from "src/tokens/CloneERC20VotesFactory.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
@@ -28,6 +29,7 @@ import {
     deployNoOpGovernanceFactory,
     deployNoOpMigrator,
     deployTokenFactory,
+    deployTopUpDistributor,
     prepareGovernanceFactoryData,
     prepareTokenFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
@@ -46,9 +48,9 @@ import {
 } from "test/integration/UniswapV3Initializer.t.sol";
 import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
 import {
-    deployUniswapV4Migrator,
-    prepareUniswapV4MigratorData
-} from "test/integration/UniswapV4MigratorIntegration.t.sol";
+    deployUniswapV4MigratorSplit,
+    prepareUniswapV4MigratorSplitData
+} from "test/integration/UniswapV4MigratorSplitIntegration.t.sol";
 import {
     deployUniswapV4MulticurveInitializer,
     prepareUniswapV4MulticurveInitializerData
@@ -238,11 +240,19 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;
 
-        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
-            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
+
+        (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
+            vm,
+            _deployCodeTo,
+            airlock,
+            AIRLOCK_OWNER,
+            address(manager),
+            address(positionManager),
+            address(topUpDistributor)
         );
         createParams.liquidityMigrator = migrator;
-        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorSplitData(airlock);
 
         GovernanceFactory governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
@@ -300,11 +310,19 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUn
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;
 
-        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
-            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
+
+        (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
+            vm,
+            _deployCodeTo,
+            airlock,
+            AIRLOCK_OWNER,
+            address(manager),
+            address(positionManager),
+            address(topUpDistributor)
         );
         createParams.liquidityMigrator = migrator;
-        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorSplitData(airlock);
 
         GovernanceFactory governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
@@ -338,7 +356,7 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
     bool internal isToken0;
 
     function setUp() public override {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         super.setUp();
 
         name = "TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4Migrator";
@@ -362,11 +380,19 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
         createParams.initialSupply = 1e23;
         createParams.numeraire = address(numeraire);
 
-        (,, UniswapV4Migrator migrator) = deployUniswapV4Migrator(
-            vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager), address(positionManager)
+        TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
+
+        (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
+            vm,
+            _deployCodeTo,
+            airlock,
+            AIRLOCK_OWNER,
+            address(manager),
+            address(positionManager),
+            address(topUpDistributor)
         );
         createParams.liquidityMigrator = migrator;
-        createParams.liquidityMigratorData = prepareUniswapV4MigratorData(airlock);
+        createParams.liquidityMigratorData = prepareUniswapV4MigratorSplitData(airlock);
 
         NoOpGovernanceFactory governanceFactory = deployNoOpGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
@@ -379,15 +405,15 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: address(numeraire),
-                    tokenOut: asset,
-                    fee: uint24(3000),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1e48,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
-                })
+                tokenIn: address(numeraire),
+                tokenOut: asset,
+                fee: uint24(3000),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1e48,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
+            })
             );
     }
 }

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { DecayMulticurveInitializer } from "src/initializers/DecayMulticurveInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -11,8 +12,35 @@ import {
     UniswapV4ScheduledMulticurveInitializerHook
 } from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
+
+/* ---------------------------------------------------------------------------------------- */
+/*                                DecayMulticurveInitializer                                */
+/* ---------------------------------------------------------------------------------------- */
+
+function mineDecayMulticurveInitializer(address sender, address deployer) view returns (bytes32, address) {
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(DecayMulticurveInitializer).name)) >> 168;
+
+    for (uint256 seed; seed < 100_000; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address hook = computeCreate3Address(guardedSalt, deployer);
+        if (
+            uint160(hook) & Hooks.ALL_HOOK_MASK
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
+        ) {
+            return (salt, hook);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
 
 /* ----------------------------------------------------------------------------------- */
 /*                                DopplerHookInitializer                               */
@@ -29,10 +57,11 @@ struct MineDopplerHookInitializerParams {
 }
 
 function mineDopplerHookInitializer(MineDopplerHookInitializerParams memory params) view returns (bytes32, address) {
-    bytes32 salt = bytes32((uint256(uint160(params.sender)) << 96));
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(msg.sender)) << 96) | (keccak256(abi.encode(type(DopplerHookInitializer).name)) >> 168);
 
     for (uint96 seed; seed < type(uint96).max; seed++) {
-        salt = bytes32((uint256(uint160(params.sender)) << 96)) | bytes32(uint256(seed));
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
         bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
 
         address initializer = computeCreate3Address(guardedSalt, params.deployer);
@@ -74,7 +103,7 @@ function computeCreate3Address(bytes32 guardedSalt, address deployer) pure retur
 }
 
 /* ---------------------------------------------------------------------------------- */
-/*                                UniswapV4MigratorHook                               */
+/*                                UniswapV4MigratorSplitHook                               */
 /* ---------------------------------------------------------------------------------- */
 
 uint160 constant MIGRATOR_HOOK_FLAGS =
@@ -88,7 +117,7 @@ struct MineV4MigratorHookParams {
 
 function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 migratorHookInitHash = keccak256(
-        abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager, params.migrator))
+        abi.encodePacked(type(UniswapV4MigratorSplitHook).creationCode, abi.encode(params.poolManager, params.migrator))
     );
 
     for (uint256 salt; salt < 200_000; ++salt) {
@@ -97,6 +126,23 @@ function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns
             return (bytes32(salt), hook);
         }
     }
+    revert("AirlockMiner: could not find salt");
+}
+
+function mineV4MigratorHookCreate3(address sender, address deployer) view returns (bytes32, address) {
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(UniswapV4MigratorSplitHook).name)) >> 168;
+
+    for (uint256 seed; seed < 100_000; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address hook = computeCreate3Address(guardedSalt, deployer);
+        if (uint160(hook) & Hooks.ALL_HOOK_MASK == MIGRATOR_HOOK_FLAGS && hook.code.length == 0) {
+            return (salt, hook);
+        }
+    }
+
     revert("AirlockMiner: could not find salt");
 }
 
@@ -157,6 +203,29 @@ function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) v
             return (bytes32(salt), hook);
         }
     }
+    revert("AirlockMiner: could not find salt");
+}
+
+function mineV4ScheduledMulticurveHookCreate3(address sender, address deployer) view returns (bytes32, address) {
+    bytes32 baseSalt = bytes32(uint256(uint160(sender))) << 96
+        | keccak256(abi.encode(type(UniswapV4ScheduledMulticurveInitializerHook).name)) >> 168;
+
+    for (uint256 seed; seed < 100_000; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address hook = computeCreate3Address(guardedSalt, deployer);
+        if (
+            uint160(hook) & Hooks.ALL_HOOK_MASK
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
+        ) {
+            return (salt, hook);
+        }
+    }
+
     revert("AirlockMiner: could not find salt");
 }
 

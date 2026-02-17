@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { WETH } from "@solady/tokens/WETH.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { IPoolManager, PoolManager } from "@v4-core/PoolManager.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
@@ -11,13 +12,15 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
-import { IUniswapV2Factory, IUniswapV2Router02, UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
@@ -55,6 +58,8 @@ struct DopplerConfig {
 contract DopplerFixtures is Deployers {
     using StateLibrary for IPoolManager;
 
+    WETH public weth;
+
     // a low address so numeraire is always token0 and asset is always token1
     MockERC20 public numeraire0 = MockERC20(address(0xc0ffee));
 
@@ -66,7 +71,8 @@ contract DopplerFixtures is Deployers {
     Airlock public airlock;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
-    UniswapV2Migrator public migrator;
+    UniswapV2MigratorSplit public migrator;
+    TopUpDistributor public topUpDistributor;
 
     IUniswapV2Factory public uniswapV2Factory = IUniswapV2Factory(UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA);
     IUniswapV2Router02 public uniswapV2Router = IUniswapV2Router02(UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA);
@@ -91,7 +97,10 @@ contract DopplerFixtures is Deployers {
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-        migrator = new UniswapV2Migrator(address(airlock), uniswapV2Factory, uniswapV2Router, address(0xb055));
+        topUpDistributor = new TopUpDistributor(address(airlock));
+        weth = new WETH();
+        migrator = new UniswapV2MigratorSplit(address(airlock), uniswapV2Factory, topUpDistributor, address(weth));
+        topUpDistributor.setPullUp(address(migrator), true);
 
         address[] memory modules = new address[](4);
         modules[0] = address(tokenFactory);
@@ -128,8 +137,15 @@ contract DopplerFixtures is Deployers {
 
     /// @dev Create a default auction
     function _airlockCreate(address _numeraire, bool _isAssetToken0) internal returns (address, PoolKey memory) {
-        return
-            _airlockCreate(_numeraire, _isAssetToken0, address(this), DEFAULT_FEE, DEFAULT_TICK_SPACING, migrator, "");
+        return _airlockCreate(
+            _numeraire,
+            _isAssetToken0,
+            address(this),
+            DEFAULT_FEE,
+            DEFAULT_TICK_SPACING,
+            migrator,
+            abi.encode(address(0), 0)
+        );
     }
 
     function _airlockCreate(
@@ -138,7 +154,9 @@ contract DopplerFixtures is Deployers {
         uint24 fee,
         int24 tickSpacing
     ) internal returns (address, PoolKey memory) {
-        return _airlockCreate(_numeraire, _isAssetToken0, address(this), fee, tickSpacing, migrator, "");
+        return _airlockCreate(
+            _numeraire, _isAssetToken0, address(this), fee, tickSpacing, migrator, abi.encode(address(0), 0)
+        );
     }
 
     /// @dev Create an auction with custom parameters

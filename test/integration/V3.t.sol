@@ -8,18 +8,15 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Test } from "forge-std/Test.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import {
     CannotMigrateInsufficientTick,
     InitData,
     UniswapV3Initializer
 } from "src/initializers/UniswapV3Initializer.sol";
-import {
-    IUniswapV2Factory,
-    IUniswapV2Pair,
-    IUniswapV2Router02,
-    UniswapV2Migrator
-} from "src/migrators/UniswapV2Migrator.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { IUniswapV2Factory, IUniswapV2Pair, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import {
@@ -42,20 +39,19 @@ function adjustTick(int24 tick, int24 tickSpacing) pure returns (int24) {
 contract V3Test is Test {
     UniswapV3Initializer public initializer;
     Airlock public airlock;
-    UniswapV2Migrator public uniswapV2LiquidityMigrator;
+    UniswapV2MigratorSplit public uniswapV2LiquidityMigrator;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
+    TopUpDistributor topUpDistributor;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
 
         airlock = new Airlock(address(this));
         initializer = new UniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
-        uniswapV2LiquidityMigrator = new UniswapV2Migrator(
-            address(airlock),
-            IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET),
-            IUniswapV2Router02(UNISWAP_V2_ROUTER_MAINNET),
-            address(0xb055)
+        topUpDistributor = new TopUpDistributor(address(airlock));
+        uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
+            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
         tokenFactory = new TokenFactory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
@@ -132,7 +128,7 @@ contract V3Test is Test {
                 initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
-                "",
+                abi.encode(address(0), 0),
                 address(this),
                 salt
             )
@@ -153,30 +149,30 @@ contract V3Test is Test {
         uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(asset),
-                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         priceLimit = TickMath.getSqrtPriceAtTick(isToken0 ? targetTick + 80 : targetTick - 80);
         amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(asset),
-                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         assertGt(amountOut, 0, "Amount out is 0");
@@ -275,7 +271,7 @@ contract V3Test is Test {
                 initializer,
                 poolInitializerData,
                 uniswapV2LiquidityMigrator,
-                "",
+                abi.encode(address(0), 0),
                 address(this),
                 tokenSalt
             )
@@ -300,15 +296,15 @@ contract V3Test is Test {
         uint256 amountOut = ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: address(asset),
-                    fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: 1 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: address(asset),
+                fee: uint24(vm.envOr("V3_FEE", uint256(3000))),
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
         assertEq(amountOut, DERC20(asset).balanceOf(address(this)));
 

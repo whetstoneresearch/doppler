@@ -9,28 +9,25 @@ import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Locker } from "src/interfaces/IUniswapV2Locker.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
-import { UniswapV2Migrator } from "src/migrators/UniswapV2Migrator.sol";
+import { UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET } from "test/shared/Addresses.sol";
 
 contract UniswapV2LockerTest is Test {
     UniswapV2Locker public locker;
-    UniswapV2Migrator public migrator = UniswapV2Migrator(payable(address(0x88888)));
+    UniswapV2MigratorSplit public migrator = UniswapV2MigratorSplit(payable(address(0x88888)));
     IUniswapV2Pair public pool;
-
-    Airlock public airlock = Airlock(payable(address(0xdeadbeef)));
-
+    Airlock public airlock;
     TestERC20 public tokenFoo;
     TestERC20 public tokenBar;
+    address airlockOwner = address(0xb055);
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"), 21_093_509);
+        vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
 
         tokenFoo = new TestERC20(1e25);
         tokenBar = new TestERC20(1e25);
-
-        locker = new UniswapV2Locker(
-            address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), migrator, address(0xb055)
-        );
+        airlock = new Airlock(airlockOwner);
+        locker = new UniswapV2Locker(address(airlock), migrator);
 
         pool = IUniswapV2Pair(
             IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET).createPair(address(tokenFoo), address(tokenBar))
@@ -38,7 +35,6 @@ contract UniswapV2LockerTest is Test {
     }
 
     function test_constructor() public view {
-        assertEq(address(locker.factory()), UNISWAP_V2_FACTORY_MAINNET);
         assertEq(address(locker.migrator()), address(migrator));
     }
 
@@ -117,8 +113,8 @@ contract UniswapV2LockerTest is Test {
         locker.claimFeesAndExit(address(pool));
         assertGt(tokenBar.balanceOf(timelock), 0, "Timelock balance0 is wrong");
         assertGt(tokenFoo.balanceOf(timelock), 0, "Timelock balance1 is wrong");
-        assertGt(tokenBar.balanceOf(address(0xb055)), 0, "Owner balance0 is wrong");
-        assertGt(tokenFoo.balanceOf(address(0xb055)), 0, "Owner balance1 is wrong");
+        assertGt(tokenBar.balanceOf(tokenOwner), 0, "Owner balance0 is wrong");
+        assertGt(tokenFoo.balanceOf(tokenOwner), 0, "Owner balance1 is wrong");
         assertEq(pool.balanceOf(address(locker)), 0, "Locker balance is wrong");
     }
 

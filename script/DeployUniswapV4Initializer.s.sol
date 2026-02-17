@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
-import { console } from "forge-std/console.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
@@ -14,11 +13,9 @@ contract DeployUniswapV4InitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](4);
-        targets[0] = ChainIds.BASE_MAINNET;
-        targets[1] = ChainIds.BASE_SEPOLIA;
-        targets[2] = ChainIds.MONAD_MAINNET;
-        targets[3] = ChainIds.MONAD_TESTNET;
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
@@ -44,9 +41,6 @@ contract DeployUniswapV4InitializerScript is Script, Config {
             );
         require(dopplerDeployer == expectedDoppledDeployer, "Unexpected DopplerDeployer address");
 
-        console.log("DopplerDeployer deployed to:", dopplerDeployer);
-        config.set("doppler_deployer", dopplerDeployer);
-
         bytes32 uniswapV4InitializerSalt = generateCreate3Salt(msg.sender, type(UniswapV4Initializer).name);
         address expectedUniswapV4Initializer =
             computeCreate3Address(computeCreate3GuardedSalt(uniswapV4InitializerSalt, msg.sender), createX);
@@ -60,8 +54,8 @@ contract DeployUniswapV4InitializerScript is Script, Config {
             );
         require(uniswapV4Initializer == expectedUniswapV4Initializer, "Unexpected UniswapV4Initializer address");
 
-        console.log("UniswapV4Initializer deployed to:", uniswapV4Initializer);
-        config.set("uniswap_v4_initializer", uniswapV4Initializer);
         vm.stopBroadcast();
+        config.set("uniswap_v4_initializer", uniswapV4Initializer);
+        config.set("doppler_deployer", dopplerDeployer);
     }
 }
