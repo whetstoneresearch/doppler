@@ -38,5 +38,5 @@ jobs:
         id: version
 
       - name: Run Forge build on src
-        run: forge build ./src --sizes --force
+        run: forge build --sizes --force
         id: debug
