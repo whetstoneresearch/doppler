@@ -14,7 +14,6 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHookMigrator } from "src/base/BaseDopplerHookMigrator.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { FeeDistributionInfo, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -154,7 +153,8 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
             return (feeCurrency, hookDelta);
         }
 
-        address asset = getPoolInfo[poolId].asset;
+        (address asset, address numeraire, address recipient) =
+            (getPoolInfo[poolId].asset, getPoolInfo[poolId].numeraire, getPoolInfo[poolId].buybackDst);
         bool isToken0 = key.currency0 == Currency.wrap(asset);
 
         uint256 assetBuybackPercentWad = getFeeDistributionInfo[poolId].assetBuybackPercentWad;
@@ -172,30 +172,23 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
         uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, WAD);
         uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
 
-        address recipient = getPoolInfo[poolId].buybackDst;
-
         if (assetBuybackAmountIn > 0) {
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
                 _executeSwap(key, !isToken0, assetBuybackAmountIn);
-            isToken0
-                ? key.currency0.transfer(recipient, assetBuybackAmountOut)
-                : key.currency1.transfer(recipient, assetBuybackAmountOut);
+            Currency.wrap(asset).transfer(recipient, assetBuybackAmountOut);
             balance0 = isToken0 ? balance0 : balance0 - assetBuybackAmountInUsed;
             balance1 = isToken0 ? balance1 - assetBuybackAmountInUsed : balance1;
         }
 
         if (numeraireBuybackAmountIn > 0) {
-            Currency outputCurrency = isToken0 ? key.currency1 : key.currency0;
             SwapSimulation memory sim = _simulateSwap(
                 key, isToken0, numeraireBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1
             );
-            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
+            uint256 poolManagerOutputBalance = Currency.wrap(numeraire).balanceOf(address(poolManager));
             if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
                 (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
                     _executeSwap(key, isToken0, numeraireBuybackAmountIn);
-                isToken0
-                    ? key.currency1.transfer(recipient, numeraireBuybackAmountOutResult)
-                    : key.currency0.transfer(recipient, numeraireBuybackAmountOutResult);
+                Currency.wrap(numeraire).transfer(recipient, numeraireBuybackAmountOutResult);
                 balance0 = isToken0 ? balance0 - numeraireBuybackAmountInUsed : balance0;
                 balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountInUsed;
             }
@@ -207,8 +200,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
         (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut,) =
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
         if (shouldSwap && swapAmountIn > 0) {
-            Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
-            if (outputCurrency.balanceOf(address(poolManager)) > swapAmountOut) {
+            if (Currency.wrap(numeraire).balanceOf(address(poolManager)) > swapAmountOut) {
                 uint160 postSwapSqrtPrice;
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
                 lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
@@ -272,7 +264,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
 
             SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, lpAmount0, lpAmount1);
             if (!sim.success) {
-                if (high == 0 || high == 1) {
+                if (high == 1) {
                     break;
                 }
                 high = guess > 0 ? guess - 1 : 0;
