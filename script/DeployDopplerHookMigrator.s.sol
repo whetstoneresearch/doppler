@@ -31,17 +31,9 @@ contract DeployDopplerHookMigratorScript is Script, Config {
         address multiSig = config.get("airlock_multisig").toAddress();
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
         address topUpDistributor = config.get("top_up_distributor").toAddress();
+        address locker = config.get("streamable_fees_locker_v2").toAddress();
 
         vm.startBroadcast();
-
-        bytes32 lockerSalt = generateCreate3Salt(msg.sender, type(StreamableFeesLockerV2).name);
-        address lockerDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(lockerSalt, msg.sender), createX);
-        address locker = ICreateX(createX)
-            .deployCreate3(
-                lockerSalt,
-                abi.encodePacked(type(StreamableFeesLockerV2).creationCode, abi.encode(poolManager, multiSig))
-            );
-        require(locker == lockerDeployedTo, "Unexpected Locker address");
 
         (bytes32 migratorSalt, address migratorDeployedTo) =
             mineDopplerHookMigrator(MineDopplerHookMigratorParams({ sender: msg.sender, deployer: createX }));
@@ -56,6 +48,5 @@ contract DeployDopplerHookMigratorScript is Script, Config {
 
         vm.stopBroadcast();
         config.set("doppler_hook_migrator", dopplerHookMigrator);
-        config.set("streamable_fees_locker_v2", locker);
     }
 }
