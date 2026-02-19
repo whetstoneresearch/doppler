@@ -17,7 +17,7 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_AFTER_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
+import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { EPSILON, RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -42,7 +42,8 @@ contract RehypeMigratorInvariantTests is Deployers {
 
         handler = new RehypeMigratorHandler(manager, swapRouter, quoter);
 
-        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
@@ -239,17 +240,17 @@ contract RehypeMigratorHandler is Test {
         migrator.initialize(asset, numeraire, migratorData);
 
         if (token0 == address(0)) {
-            deal(address(migrator), 5 ether);
+            deal(address(migrator), 50 ether);
         } else {
-            deal(token0, address(this), 5 ether);
-            TestERC20(token0).transfer(address(migrator), 5 ether);
+            deal(token0, address(this), 50 ether);
+            TestERC20(token0).transfer(address(migrator), 50 ether);
         }
 
         if (token1 == address(0)) {
-            deal(address(migrator), 5 ether);
+            deal(address(migrator), 50 ether);
         } else {
-            deal(token1, address(this), 5 ether);
-            TestERC20(token1).transfer(address(migrator), 5 ether);
+            deal(token1, address(this), 50 ether);
+            TestERC20(token1).transfer(address(migrator), 50 ether);
         }
 
         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, address(0xbeef));
@@ -288,7 +289,7 @@ contract RehypeMigratorHandler is Test {
             BalanceDelta
         ) { }
         catch {
-            return;
+            revert("buyExactIn failed");
         }
 
         _trackLiquidity(poolId);
@@ -302,21 +303,14 @@ contract RehypeMigratorHandler is Test {
         PoolId poolId = poolKey.toId();
         Settings memory settings = settingsOf[poolId];
 
-        uint256 amountIn;
-        try quoter.quoteExactOutputSingle(
+        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
             IV4Quoter.QuoteExactSingleParams({
                 poolKey: poolKey,
                 zeroForOne: !settings.isToken0,
                 exactAmount: uint128(amountOut),
                 hookData: new bytes(0)
             })
-        ) returns (
-            uint256 quotedAmountIn, uint256
-        ) {
-            amountIn = quotedAmountIn;
-        } catch {
-            return;
-        }
+        );
 
         if (settings.numeraire == address(0)) {
             deal(currentActor, amountIn);
@@ -336,7 +330,7 @@ contract RehypeMigratorHandler is Test {
             BalanceDelta
         ) { }
         catch {
-            return;
+            revert("buyExactOut failed");
         }
 
         _trackLiquidity(poolId);
@@ -367,7 +361,7 @@ contract RehypeMigratorHandler is Test {
             BalanceDelta
         ) { }
         catch {
-            return;
+            revert("sellExactIn failed");
         }
 
         _trackLiquidity(poolId);
@@ -399,7 +393,7 @@ contract RehypeMigratorHandler is Test {
         ) {
             amountIn = quotedAmountIn;
         } catch {
-            return;
+            revert("quoteExactOutputSingle failed");
         }
 
         TestERC20(settings.asset).approve(address(swapRouter), amountIn);
@@ -415,7 +409,7 @@ contract RehypeMigratorHandler is Test {
             BalanceDelta
         ) { }
         catch {
-            return;
+            revert("sellExactOut failed");
         }
 
         _trackLiquidity(poolId);
@@ -454,7 +448,7 @@ contract RehypeMigratorHandler is Test {
         if (beneficiaryFees0 == 0 && beneficiaryFees1 == 0) return;
 
         try rehypeHook.collectFees(asset) { }
-            catch {
+        catch {
             revert("Collect fees failed");
         }
     }
