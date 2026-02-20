@@ -1,4 +1,4 @@
-name: test
+name: debug
 
 on:
   push:
@@ -38,17 +38,5 @@ jobs:
         id: version
 
       - name: Run Forge build on src
-        run: forge build ./src --via-ir --sizes
-        id: build-src
-
-      - name: Run Forge build on test
-        run: forge build ./test --via-ir --sizes
-        id: build-test
-
-      - name: Run Forge build on scripts
-        run: forge build ./script --via-ir --sizes
-        id: build-script
-
-      - name: Run Forge tests
-        run: forge test -vvv --via-ir
-        id: test
+        run: forge build --sizes --force
+        id: debug

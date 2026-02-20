@@ -240,6 +240,18 @@ contract RehypeDopplerHookTest is Test {
         // Note: Actual fee accumulation depends on the fee logic, but fees0 should have been set
     }
 
+    function test_onSwap_SkipsWhenSenderIsHook(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        vm.prank(address(initializer));
+        (Currency feeCurrency, int128 delta) = dopplerHook.onSwap(
+            address(dopplerHook), poolKey, IPoolManager.SwapParams(false, 1, 0), BalanceDeltaLibrary.ZERO_DELTA, ""
+        );
+
+        assertEq(Currency.unwrap(feeCurrency), address(0));
+        assertEq(delta, 0);
+    }
+
     /* ----------------------------------------------------------------------------- */
     /*                            setFeeDistribution()                               */
     /* ----------------------------------------------------------------------------- */

@@ -143,7 +143,7 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
             AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
 
-        if (proceedsShare > 0) {
+        if (proceedsRecipient != address(0)) {
             _setSplit(
                 Currency.unwrap(poolKey.currency0),
                 Currency.unwrap(poolKey.currency1),
@@ -172,7 +172,7 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
         uint256 balance0 = token0 == address(0) ? address(this).balance : ERC20(token0).balanceOf(address(this));
 
-        if (splitConfigurationOf[token0][token1].share > 0) {
+        if (splitConfigurationOf[token0][token1].recipient != address(0)) {
             (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
         }
 
