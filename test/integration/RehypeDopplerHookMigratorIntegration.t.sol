@@ -16,7 +16,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_AFTER_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
+import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import {
     FeeDistributionMustAddUpToWAD,
     RehypeDopplerHookMigrator,
@@ -55,15 +55,13 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         governanceFactory = new NoOpGovernanceFactory();
 
         initializer = DopplerHookInitializer(
-            payable(
-                address(
+            payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
                             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
                             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
-                )
-            )
+                ))
         );
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
@@ -171,17 +169,27 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         PoolId poolId = poolKey.toId();
 
-        (,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before, uint128 airlockOwnerFees0Before, uint128 airlockOwnerFees1Before,) =
-            rehypeHookMigrator.getHookFees(poolId);
+        (
+            ,,
+            uint128 beneficiaryFees0Before,
+            uint128 beneficiaryFees1Before,
+            uint128 airlockOwnerFees0Before,
+            uint128 airlockOwnerFees1Before,
+        ) = rehypeHookMigrator.getHookFees(poolId);
 
-        uint256 totalBefore =
-            uint256(beneficiaryFees0Before) + beneficiaryFees1Before + airlockOwnerFees0Before + airlockOwnerFees1Before;
+        uint256 totalBefore = uint256(beneficiaryFees0Before) + beneficiaryFees1Before + airlockOwnerFees0Before
+            + airlockOwnerFees1Before;
 
         // Sell asset back (asset → ETH)
         _sellAsset(asset, ERC20(asset).balanceOf(address(this)) / 2);
 
-        (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After, uint128 airlockOwnerFees0After, uint128 airlockOwnerFees1After,) =
-            rehypeHookMigrator.getHookFees(poolId);
+        (
+            ,,
+            uint128 beneficiaryFees0After,
+            uint128 beneficiaryFees1After,
+            uint128 airlockOwnerFees0After,
+            uint128 airlockOwnerFees1After,
+        ) = rehypeHookMigrator.getHookFees(poolId);
 
         uint256 totalAfter =
             uint256(beneficiaryFees0After) + beneficiaryFees1After + airlockOwnerFees0After + airlockOwnerFees1After;
@@ -197,15 +205,13 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
 
         _buyAsset(asset, 0.1 ether);
 
-        (,,,, uint128 airlockOwnerFees0First, uint128 airlockOwnerFees1First,) =
-            rehypeHookMigrator.getHookFees(poolId);
+        (,,,, uint128 airlockOwnerFees0First, uint128 airlockOwnerFees1First,) = rehypeHookMigrator.getHookFees(poolId);
         uint256 totalFirst = uint256(airlockOwnerFees0First) + airlockOwnerFees1First;
 
         _buyAsset(asset, 0.1 ether);
         _buyAsset(asset, 0.1 ether);
 
-        (,,,, uint128 airlockOwnerFees0After, uint128 airlockOwnerFees1After,) =
-            rehypeHookMigrator.getHookFees(poolId);
+        (,,,, uint128 airlockOwnerFees0After, uint128 airlockOwnerFees1After,) = rehypeHookMigrator.getHookFees(poolId);
         uint256 totalAfter = uint256(airlockOwnerFees0After) + airlockOwnerFees1After;
 
         assertGt(totalAfter, totalFirst, "Fees should grow with each swap");
@@ -228,7 +234,11 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
             uint128 airlockOwnerFees1,
         ) = rehypeHookMigrator.getHookFees(poolId);
 
-        assertEq(fees0 + fees1 + beneficiaryFees0 + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1, 0, "No fees should accrue with zero custom fee");
+        assertEq(
+            fees0 + fees1 + beneficiaryFees0 + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1,
+            0,
+            "No fees should accrue with zero custom fee"
+        );
     }
 
     /* ========================================================================== */
@@ -330,11 +340,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
             assertEq(claimed1, airlockOwnerFees1, "Claimed fees1 should match accumulated");
 
             if (claimed0 > 0) {
-                assertEq(
-                    AIRLOCK_OWNER.balance - ownerBalanceBefore0,
-                    claimed0,
-                    "Airlock owner should receive ETH fees"
-                );
+                assertEq(AIRLOCK_OWNER.balance - ownerBalanceBefore0, claimed0, "Airlock owner should receive ETH fees");
             }
             if (claimed1 > 0) {
                 assertEq(
@@ -465,8 +471,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         // With 100% beneficiary, all distributed fees should be in beneficiaryFees
         // (fees0/fees1 should be 0 since they get distributed when > EPSILON)
         assertTrue(
-            beneficiaryFees0 + beneficiaryFees1 > 0,
-            "Beneficiary fees should accrue with 100% beneficiary distribution"
+            beneficiaryFees0 + beneficiaryFees1 > 0, "Beneficiary fees should accrue with 100% beneficiary distribution"
         );
     }
 
@@ -531,7 +536,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         PoolId poolId = poolKey.toId();
 
-        (, , uint128 liquidityBefore,) = rehypeHookMigrator.getPosition(poolId);
+        (,, uint128 liquidityBefore,) = rehypeHookMigrator.getPosition(poolId);
         assertEq(liquidityBefore, 0, "Initial LP liquidity should be 0");
 
         // Do many swaps to generate sufficient fees for LP reinvestment
@@ -540,7 +545,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
             _sellAsset(asset, ERC20(asset).balanceOf(address(this)) / 2);
         }
 
-        (, , uint128 liquidityAfter,) = rehypeHookMigrator.getPosition(poolId);
+        (,, uint128 liquidityAfter,) = rehypeHookMigrator.getPosition(poolId);
         // LP reinvestment may or may not have occurred depending on pool conditions,
         // but if it did, liquidity should have increased
         // This is a best-effort check since LP reinvestment depends on rebalance feasibility
@@ -559,8 +564,9 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
 
     function _createAndMigrateWithCustomFee(bytes32 salt, uint24 customFee) internal returns (address asset) {
         bytes memory poolInitializerData = _defaultPoolInitializerData();
-        bytes memory rehypeData =
-            abi.encode(address(0), BUYBACK_DST, customFee, uint256(0.2e18), uint256(0.2e18), uint256(0.3e18), uint256(0.3e18));
+        bytes memory rehypeData = abi.encode(
+            address(0), BUYBACK_DST, customFee, uint256(0.2e18), uint256(0.2e18), uint256(0.3e18), uint256(0.3e18)
+        );
         bytes memory migratorData = _defaultMigratorData(address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData =
             abi.encode("Rehype Integration Test Token", "RINT", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
@@ -615,13 +621,12 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
 
         return abi.encode(
             uint24(3000),
+            false,
             int24(8),
             uint32(30 days),
             beneficiaries,
-            false,
             hook,
             onInitializationCalldata,
-            new bytes(0),
             address(0),
             uint256(0)
         );

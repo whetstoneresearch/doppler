@@ -16,7 +16,7 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { ON_INITIALIZATION_FLAG, ON_AFTER_SWAP_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
+import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
@@ -73,7 +73,8 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
         topUpDistributor = new TopUpDistributor(address(airlock));
 
-        uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
         address migratorHookAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorHookAddress));
         deployCodeTo(
@@ -704,10 +705,10 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         return abi.encode(
             uint24(3000),
+            useDynamicFee,
             int24(8),
             uint32(30 days),
             beneficiaries,
-            useDynamicFee,
             hook,
             onInitializationCalldata,
             new bytes(0),
@@ -725,10 +726,10 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     ) internal pure returns (bytes memory) {
         return abi.encode(
             uint24(3000),
+            useDynamicFee,
             int24(8),
             lockDuration,
             beneficiaries,
-            useDynamicFee,
             hook,
             onInitializationCalldata,
             new bytes(0),
@@ -750,13 +751,12 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         return abi.encode(
             uint24(3000),
+            useDynamicFee,
             int24(8),
             uint32(30 days),
             beneficiaries,
-            useDynamicFee,
             hook,
             onInitializationCalldata,
-            new bytes(0),
             proceedsRecipient,
             proceedsShare
         );

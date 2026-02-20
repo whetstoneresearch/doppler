@@ -225,7 +225,7 @@ contract DopplerHookMigratorTest is Deployers {
         vm.prank(address(airlock));
         vm.expectRevert(
             abi.encodeWithSelector(
-                WrongPoolStatus.selector, uint8(PoolStatus.Uninitialized), uint8(PoolStatus.Uninitialized)
+                WrongPoolStatus.selector, uint8(PoolStatus.Initialized), uint8(PoolStatus.Uninitialized)
             )
         );
         migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), recipient);
@@ -341,10 +341,10 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency1),
             abi.encode(
                 150_001,
+                true,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                true,
                 address(0),
                 new bytes(0),
                 address(0),
@@ -606,10 +606,10 @@ contract DopplerHookMigratorTest is Deployers {
             numeraire,
             abi.encode(
                 10_000,
+                true,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                true,
                 address(mockHook),
                 new bytes(0),
                 address(0),
@@ -653,10 +653,10 @@ contract DopplerHookMigratorTest is Deployers {
             numeraire,
             abi.encode(
                 10_000,
+                true,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                true,
                 address(mockHook),
                 new bytes(0),
                 address(0),
@@ -695,10 +695,10 @@ contract DopplerHookMigratorTest is Deployers {
             numeraire,
             abi.encode(
                 10_000,
+                true,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                true,
                 address(0),
                 new bytes(0),
                 address(0),
@@ -731,7 +731,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                fee, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(0), new bytes(0), address(0), uint256(0)
+                fee, true, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -868,62 +868,6 @@ contract DopplerHookMigratorTest is Deployers {
         assertEq(storedRecipient, PROCEEDS_RECIPIENT);
         assertEq(isToken0, asset < numeraire);
         assertEq(storedShare, proceedsShare);
-    }
-
-    function test_initialize_NoSplitWhenShareIsZero() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-        vm.prank(address(airlock));
-        migrator.initialize(
-            Currency.unwrap(currency0),
-            Currency.unwrap(currency1),
-            abi.encode(
-                FEE,
-                false,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                address(0),
-                new bytes(0),
-                PROCEEDS_RECIPIENT,
-                uint256(0)
-            )
-        );
-
-        address asset = Currency.unwrap(currency0);
-        address numeraire = Currency.unwrap(currency1);
-        address token0 = asset < numeraire ? asset : numeraire;
-        address token1 = asset < numeraire ? numeraire : asset;
-
-        (address storedRecipient,, uint256 storedShare) = migrator.splitConfigurationOf(token0, token1);
-        assertEq(storedRecipient, address(0));
-        assertEq(storedShare, 0);
-    }
-
-    function test_initialize_RevertsInvalidSplitRecipient() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-        vm.prank(address(airlock));
-        vm.expectRevert(InvalidSplitRecipient.selector);
-        migrator.initialize(
-            Currency.unwrap(currency0),
-            Currency.unwrap(currency1),
-            abi.encode(
-                FEE,
-                false,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                address(0),
-                new bytes(0),
-                address(0),
-                uint256(0.1e18)
-            )
-        );
     }
 
     function test_initialize_RevertsSplitShareTooHigh() public {
@@ -1108,12 +1052,11 @@ contract DopplerHookMigratorTest is Deployers {
 
         return abi.encode(
             uint24(3000),
+            false,
             int24(1),
             uint32(7 days),
             beneficiaries,
-            false,
             address(0),
-            new bytes(0),
             new bytes(0),
             address(0),
             uint256(0)
