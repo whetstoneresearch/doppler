@@ -94,32 +94,9 @@ struct HookFees {
 }
 ```
 
-#### `src/dopplerHooks/RehypeDopplerHook.sol`
-
-```solidity
-/// @notice Airlock owner address for each pool (for fee claims)
-mapping(PoolId poolId => address airlockOwner) public getAirlockOwner;
-```
+No additional storage mappings are needed. The airlock owner is fetched dynamically via `MIGRATOR.airlock().owner()` at claim time, ensuring that ownership transfers are always reflected without stale per-pool state.
 
 ### Function Changes
-
-#### `_onInitialization()`
-
-Store the airlock owner address:
-
-```solidity
-function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
-    // ... existing decoding ...
-    
-    PoolId poolId = key.toId();
-    
-    // Store airlock owner for fee claims
-    address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
-    getAirlockOwner[poolId] = airlockOwner;
-    
-    // ... rest of initialization ...
-}
-```
 
 #### `_collectSwapFees()`
 
@@ -165,25 +142,28 @@ function _collectSwapFees(
 /// @return fees0 Amount of currency0 claimed
 /// @return fees1 Amount of currency1 claimed
 function claimAirlockOwnerFees(address asset) external returns (uint128 fees0, uint128 fees1) {
-    (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
-    PoolId poolId = poolKey.toId();
-    
-    address airlockOwner = getAirlockOwner[poolId];
+    address airlockOwner = MIGRATOR.airlock().owner();
     require(msg.sender == airlockOwner, SenderNotAirlockOwner());
-    
+
+    (address token0, address token1) = MIGRATOR.getPair(asset);
+    (, PoolKey memory poolKey,,,,,,) = MIGRATOR.getAssetData(token0, token1);
+    PoolId poolId = poolKey.toId();
+
     fees0 = getHookFees[poolId].airlockOwnerFees0;
     fees1 = getHookFees[poolId].airlockOwnerFees1;
-    
+
     if (fees0 > 0) {
-        poolKey.currency0.transfer(airlockOwner, fees0);
         getHookFees[poolId].airlockOwnerFees0 = 0;
+        poolKey.currency0.transfer(msg.sender, fees0);
     }
     if (fees1 > 0) {
-        poolKey.currency1.transfer(airlockOwner, fees1);
         getHookFees[poolId].airlockOwnerFees1 = 0;
+        poolKey.currency1.transfer(msg.sender, fees1);
     }
 }
 ```
+
+The airlock owner is resolved dynamically via `MIGRATOR.airlock().owner()` rather than stored per-pool. This ensures that if ownership of the Airlock contract is transferred, the new owner can claim fees from all pools — there is no stale state to manage.
 
 ### New Error
 
@@ -214,16 +194,7 @@ event AirlockOwnerFeesClaimed(
 
 ## View Functions
 
-```solidity
-/// @notice Returns the accumulated airlock owner fees for a pool
-/// @param poolId The pool to query
-/// @return fees0 Accumulated fees in currency0
-/// @return fees1 Accumulated fees in currency1
-function getAirlockOwnerFees(PoolId poolId) external view returns (uint128 fees0, uint128 fees1) {
-    fees0 = getHookFees[poolId].airlockOwnerFees0;
-    fees1 = getHookFees[poolId].airlockOwnerFees1;
-}
-```
+Airlock owner fees can be queried directly from the `getHookFees` mapping via `getHookFees[poolId].airlockOwnerFees0` and `getHookFees[poolId].airlockOwnerFees1`.
 
 ## Example Fee Flow
 
@@ -254,32 +225,33 @@ Total fee collected: 10 tokens
 
 ## Test Cases
 
-1. **Initialization**: Verify `getAirlockOwner[poolId]` is set correctly
-2. **Fee collection**: Verify 5% goes to `airlockOwnerFees`, 95% to `fees`
-3. **Claim authorization**: Only airlock owner can call `claimAirlockOwnerFees()`
-4. **Claim transfer**: Fees transferred correctly and storage reset
-5. **Zero fees**: Handle case when no fees accumulated
-6. **Multiple swaps**: Fees accumulate correctly across swaps
-7. **Both directions**: Fees accumulate in correct currency based on swap direction
+1. **Fee collection**: Verify 5% goes to `airlockOwnerFees`, 95% to `fees`
+2. **Claim authorization**: Only current airlock owner can call `claimAirlockOwnerFees()`
+3. **Claim transfer**: Fees transferred correctly and storage reset
+4. **Zero fees**: Handle case when no fees accumulated
+5. **Multiple swaps**: Fees accumulate correctly across swaps
+6. **Both directions**: Fees accumulate in correct currency based on swap direction
+7. **Ownership transfer**: After airlock ownership transfer, new owner can claim all unclaimed fees
 
 ## Migration Considerations
 
-- Existing pools will have `airlockOwnerFees0/1 = 0` and `getAirlockOwner[poolId] = address(0)`
-- New pools will have airlock owner set during initialization
-- Existing pools cannot retroactively set airlock owner - this feature only applies to newly created pools
+- Existing pools will have `airlockOwnerFees0/1 = 0` — no fees to claim until new swaps occur
+- No per-pool owner storage means no stale state to migrate
+- The airlock owner is always resolved dynamically, so ownership transfers take effect immediately across all pools
 
 ## Security Considerations
 
-1. **Reentrancy**: `claimAirlockOwnerFees()` follows checks-effects-interactions pattern
-2. **Access control**: Only airlock owner can claim their fees
-3. **Overflow**: Using uint128 for fee accumulation; may need overflow checks for high-volume pools
-4. **Rounding**: Using FullMath.mulDiv for safe multiplication/division
+1. **Reentrancy**: `claimAirlockOwnerFees()` follows checks-effects-interactions pattern (storage zeroed before transfer)
+2. **Access control**: Only the current airlock owner (resolved dynamically) can claim fees
+3. **Ownership transfer**: If airlock ownership is transferred, the new owner gains access to all unclaimed fees across all pools. The previous owner loses access. This is by design — the airlock owner role is a protocol-level authority.
+4. **Overflow**: Using uint128 for fee accumulation; may need overflow checks for high-volume pools
+5. **Rounding**: Using FullMath.mulDiv for safe multiplication/division
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
 | `src/types/RehypeTypes.sol` | Add `airlockOwnerFees0/1` to `HookFees` |
-| `src/dopplerHooks/RehypeDopplerHook.sol` | Add storage, modify `_collectSwapFees`, add `claimAirlockOwnerFees()` |
-| `test/unit/dopplerHooks/RehypeDopplerHook.t.sol` | Add unit tests |
-| `test/integration/RehypeDopplerHook.t.sol` | Add integration tests |
+| `src/dopplerHooks/RehypeDopplerHookMigrator.sol` | Modify `_collectSwapFees`, add `claimAirlockOwnerFees()` |
+| `test/unit/dopplerHooks/rehypeHookMigrator/RehypeDopplerHookMigrator.t.sol` | Add unit tests |
+| `test/integration/DopplerHookMigratorIntegration.t.sol` | Add integration tests |
