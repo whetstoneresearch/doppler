@@ -203,15 +203,15 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     function initialize(address asset, address numeraire, bytes calldata data) external onlyAirlock returns (address) {
         (
             uint24 feeOrInitialDynamicFee,
+            bool useDynamicFee,
             int24 tickSpacing,
             uint32 lockDuration,
             BeneficiaryData[] memory beneficiaries,
-            bool useDynamicFee,
             address dopplerHook,
-            bytes memory onInitializationCalldata,,
+            bytes memory onInitializationCalldata,
             address proceedsRecipient,
             uint256 proceedsShare
-        ) = abi.decode(data, (uint24, int24, uint32, BeneficiaryData[], bool, address, bytes, bytes, address, uint256));
+        ) = abi.decode(data, (uint24, bool, int24, uint32, BeneficiaryData[], address, bytes, address, uint256));
 
         isTickSpacingValid(tickSpacing);
         require(feeOrInitialDynamicFee <= MAX_LP_FEE, LPFeeTooHigh(MAX_LP_FEE, feeOrInitialDynamicFee));
@@ -426,7 +426,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         uint256 length = dopplerHooks.length;
         require(length == flags.length, ArrayLengthsMismatch());
 
-        for (uint256 i; i != length; i++) {
+        for (uint256 i; i < length; i++) {
             isDopplerHookEnabled[dopplerHooks[i]] = flags[i];
             emit SetDopplerHookState(dopplerHooks[i], flags[i]);
         }
