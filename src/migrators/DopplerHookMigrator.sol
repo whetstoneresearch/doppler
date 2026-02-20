@@ -16,9 +16,9 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
-    ON_INITIALIZATION_FLAG,
-    ON_BEFORE_SWAP_FLAG,
     ON_AFTER_SWAP_FLAG,
+    ON_BEFORE_SWAP_FLAG,
+    ON_INITIALIZATION_FLAG,
     REQUIRES_DYNAMIC_LP_FEE_FLAG
 } from "src/base/BaseDopplerHookMigrator.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
@@ -272,7 +272,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         address asset = isToken0 ? token0 : token1;
         getPair[asset] = Pair(token0, token1);
         PoolStatus status = getAssetData[token0][token1].status;
-        require(status != PoolStatus.Uninitialized, WrongPoolStatus(uint8(PoolStatus.Uninitialized), uint8(status)));
+        require(status == PoolStatus.Initialized, WrongPoolStatus(uint8(PoolStatus.Initialized), uint8(status)));
         getAssetData[token0][token1].status = PoolStatus.Locked;
 
         // Re-check allowlist here because governance can update it between initialize() and migrate().
@@ -482,7 +482,8 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
 
         if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_AFTER_SWAP_FLAG != 0) {
             Currency feeCurrency;
-            (feeCurrency, delta) = IDopplerHookMigrator(dopplerHook).onAfterSwap(sender, key, params, balanceDelta, hookData);
+            (feeCurrency, delta) =
+                IDopplerHookMigrator(dopplerHook).onAfterSwap(sender, key, params, balanceDelta, hookData);
 
             if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
