@@ -84,6 +84,9 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         );
         locker.approveMigrator(address(migrator));
         deployCodeTo("UniswapV4MigratorSplitHook", abi.encode(manager, migrator), address(migratorHook));
+
+        vm.prank(protocolOwner);
+        topUpDistributor.setPullUp(address(migrator), true);
     }
 
     function _setUpTokens() internal {
