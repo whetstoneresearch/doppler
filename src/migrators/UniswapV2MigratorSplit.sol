@@ -99,7 +99,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
 
         (address recipient, uint256 share) = abi.decode(data, (address, uint256));
 
-        if (share > 0) {
+        if (recipient != address(0)) {
             _setSplit(
                 token0, token1, SplitConfiguration({ recipient: recipient, isToken0: asset < numeraire, share: share })
             );
@@ -123,7 +123,7 @@ contract UniswapV2MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         uint256 balance0 = ERC20(token0).balanceOf(address(this));
         uint256 balance1 = ERC20(token1).balanceOf(address(this));
 
-        if (splitConfigurationOf[token0][token1].share > 0) {
+        if (splitConfigurationOf[token0][token1].recipient != address(0)) {
             (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
         }
 

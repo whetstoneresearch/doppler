@@ -247,7 +247,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             status: PoolStatus.Initialized
         });
 
-        if (proceedsShare > 0) {
+        if (proceedsRecipient != address(0)) {
             _setSplit(
                 currency0,
                 currency1,
@@ -295,7 +295,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         uint256 balance0 = data.poolKey.currency0.balanceOfSelf();
         uint256 balance1 = data.poolKey.currency1.balanceOfSelf();
 
-        if (splitConfigurationOf[token0][token1].share > 0) {
+        if (splitConfigurationOf[token0][token1].recipient != address(0)) {
             (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
         }
 
