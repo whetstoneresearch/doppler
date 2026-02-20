@@ -16,14 +16,14 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
-    ON_INITIALIZATION_FLAG,
     ON_AFTER_SWAP_FLAG,
+    ON_INITIALIZATION_FLAG,
     REQUIRES_DYNAMIC_LP_FEE_FLAG
 } from "src/base/BaseDopplerHookMigrator.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { InvalidSplitRecipient, SplitShareTooHigh } from "src/base/ProceedsSplitter.sol";
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
-import { DopplerHookMigrator, AssetData, PoolStatus, WrongPoolStatus } from "src/migrators/DopplerHookMigrator.sol";
+import { AssetData, DopplerHookMigrator, PoolStatus, WrongPoolStatus } from "src/migrators/DopplerHookMigrator.sol";
 import {
     BeneficiaryData,
     InvalidProtocolOwnerBeneficiary,
@@ -138,7 +138,8 @@ contract DopplerHookMigratorTest is Deployers {
 
         airlock = new AirlockMock(owner);
 
-        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
         locker = new StreamableFeesLockerV2(manager, owner);
         topUpDistributor = new TopUpDistributor(address(airlock));
@@ -172,16 +173,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -250,16 +242,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -274,16 +257,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -300,16 +274,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -325,16 +290,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -352,16 +308,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -377,16 +324,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -409,7 +347,6 @@ contract DopplerHookMigratorTest is Deployers {
                 true,
                 address(0),
                 new bytes(0),
-                new bytes(0),
                 address(0),
                 uint256(0)
             )
@@ -431,16 +368,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                hookAddr,
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, hookAddr, new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -464,16 +392,7 @@ contract DopplerHookMigratorTest is Deployers {
             asset,
             numeraire,
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                hookAddr,
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, hookAddr, new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -541,16 +460,7 @@ contract DopplerHookMigratorTest is Deployers {
             asset,
             numeraire,
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -585,16 +495,7 @@ contract DopplerHookMigratorTest is Deployers {
             asset,
             numeraire,
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -629,16 +530,7 @@ contract DopplerHookMigratorTest is Deployers {
             asset,
             numeraire,
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -675,16 +567,7 @@ contract DopplerHookMigratorTest is Deployers {
             asset,
             numeraire,
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -728,7 +611,6 @@ contract DopplerHookMigratorTest is Deployers {
                 beneficiaries,
                 true,
                 address(mockHook),
-                new bytes(0),
                 new bytes(0),
                 address(0),
                 uint256(0)
@@ -777,7 +659,6 @@ contract DopplerHookMigratorTest is Deployers {
                 true,
                 address(mockHook),
                 new bytes(0),
-                new bytes(0),
                 address(0),
                 uint256(0)
             )
@@ -820,7 +701,6 @@ contract DopplerHookMigratorTest is Deployers {
                 true,
                 address(0),
                 new bytes(0),
-                new bytes(0),
                 address(0),
                 uint256(0)
             )
@@ -851,16 +731,7 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency0),
             Currency.unwrap(currency1),
             abi.encode(
-                fee,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                true,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                fee, TICK_SPACING, LOCK_DURATION, beneficiaries, true, address(0), new bytes(0), address(0), uint256(0)
             )
         );
     }
@@ -942,16 +813,7 @@ contract DopplerHookMigratorTest is Deployers {
             asset,
             numeraire,
             abi.encode(
-                FEE,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                false,
-                address(0),
-                new bytes(0),
-                new bytes(0),
-                address(0),
-                uint256(0)
+                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
             )
         );
 
@@ -986,12 +848,11 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency1),
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 PROCEEDS_RECIPIENT,
                 proceedsShare
@@ -1020,12 +881,11 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency1),
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 PROCEEDS_RECIPIENT,
                 uint256(0)
@@ -1054,12 +914,11 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency1),
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 address(0),
                 uint256(0.1e18)
@@ -1079,12 +938,11 @@ contract DopplerHookMigratorTest is Deployers {
             Currency.unwrap(currency1),
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 PROCEEDS_RECIPIENT,
                 uint256(0.51e18)
@@ -1110,12 +968,11 @@ contract DopplerHookMigratorTest is Deployers {
             numeraire,
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 PROCEEDS_RECIPIENT,
                 proceedsShare
@@ -1162,12 +1019,11 @@ contract DopplerHookMigratorTest is Deployers {
             numeraire,
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 PROCEEDS_RECIPIENT,
                 uint256(0)
@@ -1210,12 +1066,11 @@ contract DopplerHookMigratorTest is Deployers {
             numeraire,
             abi.encode(
                 FEE,
+                false,
                 TICK_SPACING,
                 LOCK_DURATION,
                 beneficiaries,
-                false,
                 address(0),
-                new bytes(0),
                 new bytes(0),
                 PROCEEDS_RECIPIENT,
                 proceedsShare
