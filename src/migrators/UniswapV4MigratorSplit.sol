@@ -143,7 +143,7 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         getAssetData[Currency.unwrap(poolKey.currency0)][Currency.unwrap(poolKey.currency1)] =
             AssetData({ poolKey: poolKey, lockDuration: lockDuration, beneficiaries: beneficiaries });
 
-        if (recipient != address(0)) {
+        if (proceedsRecipient != address(0)) {
             _setSplit(
                 Currency.unwrap(poolKey.currency0),
                 Currency.unwrap(poolKey.currency1),
