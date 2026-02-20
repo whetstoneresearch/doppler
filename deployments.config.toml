@@ -170,8 +170,8 @@ uniswap_v4_migrator_split_hook = "0x20e03085adBcfCB840De898F37617ABD08da2500"
 decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0xf848fea3329185529b50228bcb36f3b5a60960c4"
-rehype_doppler_hook_migrator = "0x2497969a9D38045E7Bd3D632AF9685d9Fd774ca1"
+doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+rehype_doppler_hook_migrator = "0x6477Ae25bCa3dB3911AF7Cbb48a0aCE38692720b"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"

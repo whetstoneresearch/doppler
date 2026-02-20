@@ -29,7 +29,7 @@ contract DeployRehypeHookMigratorScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(RehypeDopplerHookMigrator).name);
+        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookMigrator_");
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
 
         address rehypeDopplerHookMigrator = ICreateX(createX)
