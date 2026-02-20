@@ -80,6 +80,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
     /// @notice Pool info for each pool
     mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
 
+    /// @notice Fallback function to receive ETH
     receive() external payable { }
 
     /**

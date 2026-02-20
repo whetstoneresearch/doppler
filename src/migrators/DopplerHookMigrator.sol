@@ -129,6 +129,7 @@ enum PoolStatus {
  * @param feeOrInitialDynamicFee Fee of the pool (fixed fee) or initial dynamic fee
  * @param dopplerHook Address of the optional Doppler hook
  * @param onInitializationCalldata Calldata passed to the Doppler hook on initialization
+ * @param status Current lifecycle status of the pool
  */
 struct AssetData {
     bool isToken0;
@@ -142,6 +143,11 @@ struct AssetData {
     PoolStatus status;
 }
 
+/**
+ * @notice Token pair associated with an asset
+ * @param token0 Address of the lower-sorted token
+ * @param token1 Address of the higher-sorted token
+ */
 struct Pair {
     address token0;
     address token1;
@@ -377,7 +383,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
 
     /**
      * @notice Associates a Doppler hook with the pool of a given asset
-     * @param asset Address to of the targeted asset
+     * @param asset Address of the targeted asset
      * @param dopplerHook Address of the Doppler hook being associated
      * @param onInitializationCalldata Calldata passed to the Doppler Hook on initialization
      */
