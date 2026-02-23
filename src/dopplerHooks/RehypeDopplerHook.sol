@@ -98,27 +98,32 @@ contract RehypeDopplerHook is BaseDopplerHook {
             address numeraire,
             address buybackDst,
             uint24 customFee,
-            uint256 assetBuybackPercentWad,
-            uint256 numeraireBuybackPercentWad,
-            uint256 beneficiaryPercentWad,
-            uint256 lpPercentWad
-        ) = abi.decode(data, (address, address, uint24, uint256, uint256, uint256, uint256));
-
-        require(
-            assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad == WAD,
-            FeeDistributionMustAddUpToWAD()
-        );
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        ) = abi.decode(data, (address, address, uint24, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256));
 
         PoolId poolId = key.toId();
 
         getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: numeraire, buybackDst: buybackDst });
 
-        getFeeDistributionInfo[poolId] = FeeDistributionInfo({
-            assetBuybackPercentWad: assetBuybackPercentWad,
-            numeraireBuybackPercentWad: numeraireBuybackPercentWad,
-            beneficiaryPercentWad: beneficiaryPercentWad,
-            lpPercentWad: lpPercentWad
+        FeeDistributionInfo memory feeDistributionInfo = FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
+            assetFeesToLpWad: assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad: numeraireFeesToLpWad
         });
+        _validateFeeDistribution(feeDistributionInfo);
+        getFeeDistributionInfo[poolId] = feeDistributionInfo;
 
         getHookFees[poolId].customFee = customFee;
 
@@ -155,47 +160,81 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
 
         address asset = getPoolInfo[poolId].asset;
+        address numeraire = getPoolInfo[poolId].numeraire;
         bool isToken0 = key.currency0 == Currency.wrap(asset);
+        bool isNumeraireToken0 = key.currency0 == Currency.wrap(numeraire);
 
-        uint256 assetBuybackPercentWad = getFeeDistributionInfo[poolId].assetBuybackPercentWad;
-        uint256 numeraireBuybackPercentWad = getFeeDistributionInfo[poolId].numeraireBuybackPercentWad;
-        uint256 lpPercentWad = getFeeDistributionInfo[poolId].lpPercentWad;
+        FeeDistributionInfo memory feeDistributionInfo = getFeeDistributionInfo[poolId];
 
-        uint256 assetBuybackAmountIn = isToken0
-            ? FullMath.mulDiv(balance1, assetBuybackPercentWad, WAD)
-            : FullMath.mulDiv(balance0, assetBuybackPercentWad, WAD);
+        uint256 assetFees = isToken0 ? balance0 : balance1;
+        uint256 numeraireFees = isToken0 ? balance1 : balance0;
 
-        uint256 numeraireBuybackAmountIn = isToken0
-            ? FullMath.mulDiv(balance0, numeraireBuybackPercentWad, WAD)
-            : FullMath.mulDiv(balance1, numeraireBuybackPercentWad, WAD);
+        uint256 assetDirectBuybackAmount =
+            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToAssetBuybackWad, WAD);
+        uint256 assetBuybackAmountIn =
+            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToNumeraireBuybackWad, WAD);
+        uint256 assetBeneficiaryAmount =
+            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToBeneficiaryWad, WAD);
+        uint256 assetLpAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToLpWad, WAD);
 
-        uint256 lpAmount0 = FullMath.mulDiv(balance0, lpPercentWad, WAD);
-        uint256 lpAmount1 = FullMath.mulDiv(balance1, lpPercentWad, WAD);
+        uint256 numeraireBuybackAmountIn =
+            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToAssetBuybackWad, WAD);
+        uint256 numeraireDirectBuybackAmount =
+            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToNumeraireBuybackWad, WAD);
+        uint256 numeraireBeneficiaryAmount =
+            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToBeneficiaryWad, WAD);
+        uint256 numeraireLpAmount = FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToLpWad, WAD);
+
+        uint256 lpAmount0 = isToken0 ? assetLpAmount : numeraireLpAmount;
+        uint256 lpAmount1 = isToken0 ? numeraireLpAmount : assetLpAmount;
+
+        balance0 = isToken0
+            ? assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn
+            : numeraireBeneficiaryAmount + numeraireLpAmount + numeraireBuybackAmountIn;
+        balance1 = isToken0
+            ? numeraireBeneficiaryAmount + numeraireLpAmount + numeraireBuybackAmountIn
+            : assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn;
 
         address recipient = getPoolInfo[poolId].buybackDst;
 
+        if (assetDirectBuybackAmount > 0) {
+            isToken0
+                ? key.currency0.transfer(recipient, assetDirectBuybackAmount)
+                : key.currency1.transfer(recipient, assetDirectBuybackAmount);
+        }
+
+        if (numeraireDirectBuybackAmount > 0) {
+            isNumeraireToken0
+                ? key.currency0.transfer(recipient, numeraireDirectBuybackAmount)
+                : key.currency1.transfer(recipient, numeraireDirectBuybackAmount);
+        }
+
         if (assetBuybackAmountIn > 0) {
             (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
-                _executeSwap(key, !isToken0, assetBuybackAmountIn);
-            isToken0
+                _executeSwap(key, isToken0, assetBuybackAmountIn);
+            isNumeraireToken0
                 ? key.currency0.transfer(recipient, assetBuybackAmountOut)
                 : key.currency1.transfer(recipient, assetBuybackAmountOut);
-            balance0 = isToken0 ? balance0 : balance0 - assetBuybackAmountInUsed;
-            balance1 = isToken0 ? balance1 - assetBuybackAmountInUsed : balance1;
+            balance0 = isToken0 ? balance0 - assetBuybackAmountInUsed : balance0;
+            balance1 = isToken0 ? balance1 : balance1 - assetBuybackAmountInUsed;
         }
 
         if (numeraireBuybackAmountIn > 0) {
-            Currency outputCurrency = isToken0 ? key.currency1 : key.currency0;
+            Currency outputCurrency = isToken0 ? key.currency0 : key.currency1;
             SwapSimulation memory sim = _simulateSwap(
-                key, isToken0, numeraireBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1
+                key,
+                !isToken0,
+                numeraireBuybackAmountIn,
+                !isToken0 ? balance0 : 0,
+                !isToken0 ? 0 : balance1
             );
             uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
             if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
                 (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
-                    _executeSwap(key, isToken0, numeraireBuybackAmountIn);
+                    _executeSwap(key, !isToken0, numeraireBuybackAmountIn);
                 isToken0
-                    ? key.currency1.transfer(recipient, numeraireBuybackAmountOutResult)
-                    : key.currency0.transfer(recipient, numeraireBuybackAmountOutResult);
+                    ? key.currency0.transfer(recipient, numeraireBuybackAmountOutResult)
+                    : key.currency1.transfer(recipient, numeraireBuybackAmountOutResult);
                 balance0 = isToken0 ? balance0 - numeraireBuybackAmountInUsed : balance0;
                 balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountInUsed;
             }
@@ -616,32 +655,56 @@ contract RehypeDopplerHook is BaseDopplerHook {
     /**
      * @notice Updates the fee distribution for a pool
      * @param poolId Uniswap V4 poolId
-     * @param assetBuybackPercentWad Percentage for asset buyback (in WAD)
-     * @param numeraireBuybackPercentWad Percentage for numeraire buyback (in WAD)
-     * @param beneficiaryPercentWad Percentage for beneficiary (in WAD)
-     * @param lpPercentWad Percentage for LP reinvestment (in WAD)
+     * @param assetFeesToAssetBuybackWad Percentage of asset fees to asset buyback
+     * @param assetFeesToNumeraireBuybackWad Percentage of asset fees to numeraire buyback
+     * @param assetFeesToBeneficiaryWad Percentage of asset fees to beneficiary accounting
+     * @param assetFeesToLpWad Percentage of asset fees to LP reinvestment
+     * @param numeraireFeesToAssetBuybackWad Percentage of numeraire fees to asset buyback
+     * @param numeraireFeesToNumeraireBuybackWad Percentage of numeraire fees to numeraire buyback
+     * @param numeraireFeesToBeneficiaryWad Percentage of numeraire fees to beneficiary accounting
+     * @param numeraireFeesToLpWad Percentage of numeraire fees to LP reinvestment
      */
     function setFeeDistribution(
         PoolId poolId,
-        uint256 assetBuybackPercentWad,
-        uint256 numeraireBuybackPercentWad,
-        uint256 beneficiaryPercentWad,
-        uint256 lpPercentWad
+        uint256 assetFeesToAssetBuybackWad,
+        uint256 assetFeesToNumeraireBuybackWad,
+        uint256 assetFeesToBeneficiaryWad,
+        uint256 assetFeesToLpWad,
+        uint256 numeraireFeesToAssetBuybackWad,
+        uint256 numeraireFeesToNumeraireBuybackWad,
+        uint256 numeraireFeesToBeneficiaryWad,
+        uint256 numeraireFeesToLpWad
     ) external {
         address buybackDst = getPoolInfo[poolId].buybackDst;
         require(msg.sender == buybackDst, SenderNotAuthorized());
 
+        FeeDistributionInfo memory feeDistributionInfo = FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
+            assetFeesToLpWad: assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad: numeraireFeesToLpWad
+        });
+        _validateFeeDistribution(feeDistributionInfo);
+        getFeeDistributionInfo[poolId] = feeDistributionInfo;
+    }
+
+    function _validateFeeDistribution(FeeDistributionInfo memory feeDistributionInfo) internal pure {
         require(
-            assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad == WAD,
+            feeDistributionInfo.assetFeesToAssetBuybackWad + feeDistributionInfo.assetFeesToNumeraireBuybackWad
+                + feeDistributionInfo.assetFeesToBeneficiaryWad + feeDistributionInfo.assetFeesToLpWad == WAD,
             FeeDistributionMustAddUpToWAD()
         );
-
-        getFeeDistributionInfo[poolId] = FeeDistributionInfo({
-            assetBuybackPercentWad: assetBuybackPercentWad,
-            numeraireBuybackPercentWad: numeraireBuybackPercentWad,
-            beneficiaryPercentWad: beneficiaryPercentWad,
-            lpPercentWad: lpPercentWad
-        });
+        require(
+            feeDistributionInfo.numeraireFeesToAssetBuybackWad
+                + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
+                + feeDistributionInfo.numeraireFeesToBeneficiaryWad
+                + feeDistributionInfo.numeraireFeesToLpWad == WAD,
+            FeeDistributionMustAddUpToWAD()
+        );
     }
 
     /**
@@ -705,4 +768,3 @@ contract RehypeDopplerHook is BaseDopplerHook {
         return (feeCurrency, int128(uint128(feeAmount)));
     }
 }
-

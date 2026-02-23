@@ -14,17 +14,26 @@ struct PoolInfo {
 }
 
 /**
- * @notice Fee distribution percentages for a pool (must sum to WAD)
- * @param assetBuybackPercentWad Percentage of fees used to buy back the asset (in WAD)
- * @param numeraireBuybackPercentWad Percentage of fees used to buy back the numeraire (in WAD)
- * @param beneficiaryPercentWad Percentage of fees allocated to the beneficiary (in WAD)
- * @param lpPercentWad Percentage of fees reinvested as LP liquidity (in WAD)
+ * @notice Fee routing matrix percentages for a pool
+ * @dev For each source token row (asset fees, numeraire fees), the 4 destination columns must sum to WAD.
+ * @param assetFeesToAssetBuybackWad Percentage of asset-denominated fees sent directly as asset buyback
+ * @param assetFeesToNumeraireBuybackWad Percentage of asset-denominated fees swapped to numeraire buyback
+ * @param assetFeesToBeneficiaryWad Percentage of asset-denominated fees sent to beneficiary accounting
+ * @param assetFeesToLpWad Percentage of asset-denominated fees allocated to LP reinvestment
+ * @param numeraireFeesToAssetBuybackWad Percentage of numeraire-denominated fees swapped to asset buyback
+ * @param numeraireFeesToNumeraireBuybackWad Percentage of numeraire-denominated fees sent directly as numeraire buyback
+ * @param numeraireFeesToBeneficiaryWad Percentage of numeraire-denominated fees sent to beneficiary accounting
+ * @param numeraireFeesToLpWad Percentage of numeraire-denominated fees allocated to LP reinvestment
  */
 struct FeeDistributionInfo {
-    uint256 assetBuybackPercentWad;
-    uint256 numeraireBuybackPercentWad;
-    uint256 beneficiaryPercentWad;
-    uint256 lpPercentWad;
+    uint256 assetFeesToAssetBuybackWad;
+    uint256 assetFeesToNumeraireBuybackWad;
+    uint256 assetFeesToBeneficiaryWad;
+    uint256 assetFeesToLpWad;
+    uint256 numeraireFeesToAssetBuybackWad;
+    uint256 numeraireFeesToNumeraireBuybackWad;
+    uint256 numeraireFeesToBeneficiaryWad;
+    uint256 numeraireFeesToLpWad;
 }
 
 /**

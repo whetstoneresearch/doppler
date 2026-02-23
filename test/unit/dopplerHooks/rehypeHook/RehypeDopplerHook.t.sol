@@ -104,6 +104,10 @@ contract RehypeDopplerHookTest is Test {
             assetBuybackPercentWad,
             numeraireBuybackPercentWad,
             beneficiaryPercentWad,
+            lpPercentWad,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
             lpPercentWad
         );
 
@@ -119,12 +123,24 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedBuybackDst, buybackDst);
 
         // Check fee distribution info
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
-            dopplerHook.getFeeDistributionInfo(poolId);
+        (
+            uint256 storedAssetBuyback,
+            uint256 storedNumeraireBuyback,
+            uint256 storedBeneficiary,
+            uint256 storedLp,
+            uint256 storedNumeraireRowAssetBuyback,
+            uint256 storedNumeraireRowNumeraireBuyback,
+            uint256 storedNumeraireRowBeneficiary,
+            uint256 storedNumeraireRowLp
+        ) = dopplerHook.getFeeDistributionInfo(poolId);
         assertEq(storedAssetBuyback, assetBuybackPercentWad);
         assertEq(storedNumeraireBuyback, numeraireBuybackPercentWad);
         assertEq(storedBeneficiary, beneficiaryPercentWad);
         assertEq(storedLp, lpPercentWad);
+        assertEq(storedNumeraireRowAssetBuyback, assetBuybackPercentWad);
+        assertEq(storedNumeraireRowNumeraireBuyback, numeraireBuybackPercentWad);
+        assertEq(storedNumeraireRowBeneficiary, beneficiaryPercentWad);
+        assertEq(storedNumeraireRowLp, lpPercentWad);
 
         // Check hook fees
         (
@@ -152,7 +168,9 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
@@ -169,7 +187,8 @@ contract RehypeDopplerHookTest is Test {
     }
 
     function test_onInitialization_RevertsWhenSenderNotInitializer(PoolKey memory poolKey) public {
-        bytes memory data = abi.encode(address(0), address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data =
+            abi.encode(address(0), address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.expectRevert(SenderNotInitializer.selector);
         dopplerHook.onInitialization(address(0), poolKey, data);
@@ -180,7 +199,8 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         // Fee distribution that doesn't add up to WAD
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.24e18);
+        bytes memory data =
+            abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.24e18, 0.25e18, 0.25e18, 0.25e18, 0.24e18);
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -192,7 +212,8 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         // Fee distribution that exceeds WAD
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.5e18, 0.5e18, 0.5e18, 0.5e18);
+        bytes memory data =
+            abi.encode(numeraire, address(0), uint24(0), 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18);
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -220,7 +241,7 @@ contract RehypeDopplerHookTest is Test {
         uint24 customFee = 10_000; // 1%
 
         // All fees go to beneficiary for simple testing
-        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0);
+        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0, 0, 0, WAD, 0);
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
@@ -263,7 +284,9 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
@@ -272,20 +295,34 @@ contract RehypeDopplerHookTest is Test {
         console.log("dst", buybackDst);
         // Update fee distribution
         vm.prank(buybackDst);
-        dopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
+        dopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
 
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
-            dopplerHook.getFeeDistributionInfo(poolId);
+        (
+            uint256 storedAssetBuyback,
+            uint256 storedNumeraireBuyback,
+            uint256 storedBeneficiary,
+            uint256 storedLp,
+            uint256 storedNumeraireRowAssetBuyback,
+            uint256 storedNumeraireRowNumeraireBuyback,
+            uint256 storedNumeraireRowBeneficiary,
+            uint256 storedNumeraireRowLp
+        ) = dopplerHook.getFeeDistributionInfo(poolId);
 
         assertEq(storedAssetBuyback, 0.5e18);
         assertEq(storedNumeraireBuyback, 0);
         assertEq(storedBeneficiary, 0.5e18);
         assertEq(storedLp, 0);
+        assertEq(storedNumeraireRowAssetBuyback, 0.5e18);
+        assertEq(storedNumeraireRowNumeraireBuyback, 0);
+        assertEq(storedNumeraireRowBeneficiary, 0.5e18);
+        assertEq(storedNumeraireRowLp, 0);
     }
 
     function test_setFeeDistribution_RevertsWhenSenderNotAuthorized(PoolKey memory poolKey) public {
         vm.expectRevert(SenderNotAuthorized.selector);
-        dopplerHook.setFeeDistribution(poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        dopplerHook.setFeeDistribution(
+            poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
     }
 
     function test_setFeeDistribution_RevertsWhenDoesNotAddToWAD(PoolKey memory poolKey) public {
@@ -295,14 +332,16 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
 
         vm.prank(buybackDst);
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        dopplerHook.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0);
+        dopplerHook.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0, 0.5e18, 0.5e18, 0.5e18, 0);
     }
 
     /* ----------------------------------------------------------------------------- */
@@ -315,7 +354,9 @@ contract RehypeDopplerHookTest is Test {
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);

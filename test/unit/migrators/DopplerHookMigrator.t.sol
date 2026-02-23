@@ -51,7 +51,7 @@ import {
     MIN_PROTOCOL_OWNER_SHARES,
     UnorderedBeneficiaries
 } from "src/types/BeneficiaryData.sol";
-import { WAD } from "src/types/WAD.sol";
+import { WAD } from "src/types/Wad.sol";
 import { generateBeneficiaries } from "test/invariant/FeesManagerInvariants.t.sol";
 
 struct InitData {

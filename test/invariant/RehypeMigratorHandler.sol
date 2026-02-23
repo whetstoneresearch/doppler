@@ -221,6 +221,10 @@ contract RehypeMigratorHandler is Test {
             settings.assetBuybackPercentWad,
             settings.numeraireBuybackPercentWad,
             settings.beneficiaryPercentWad,
+            settings.lpPercentWad,
+            settings.assetBuybackPercentWad,
+            settings.numeraireBuybackPercentWad,
+            settings.beneficiaryPercentWad,
             settings.lpPercentWad
         );
 
@@ -431,7 +435,15 @@ contract RehypeMigratorHandler is Test {
 
         vm.prank(settingsOf[poolId].buybackDst);
         rehypeHook.setFeeDistribution(
-            poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
+            poolId,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
+            lpPercentWad,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
+            lpPercentWad
         );
     }
 

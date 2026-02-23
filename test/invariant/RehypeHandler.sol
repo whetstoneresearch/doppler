@@ -259,6 +259,10 @@ contract RehypeHandler is Test {
             settings.assetBuybackPercentWad,
             settings.numeraireBuybackPercentWad,
             settings.beneficiaryPercentWad,
+            settings.lpPercentWad,
+            settings.assetBuybackPercentWad,
+            settings.numeraireBuybackPercentWad,
+            settings.beneficiaryPercentWad,
             settings.lpPercentWad
         );
         dopplerHookInitializer.initialize(address(asset), numeraire, 1e27, bytes32(0), abi.encode(data));
@@ -517,7 +521,15 @@ contract RehypeHandler is Test {
 
         vm.prank(settingsOf[poolId].buybackDst);
         hook.setFeeDistribution(
-            poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
+            poolId,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
+            lpPercentWad,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
+            lpPercentWad
         );
     }
 

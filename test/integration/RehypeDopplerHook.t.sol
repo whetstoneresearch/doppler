@@ -194,21 +194,36 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         (bool isToken0, address asset) = _createToken(salt);
 
         (
-            uint256 assetBuybackPercentWad,
-            uint256 numeraireBuybackPercentWad,
-            uint256 beneficiaryPercentWad,
-            uint256 lpPercentWad
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
         ) = rehypeDopplerHook.getFeeDistributionInfo(poolId);
 
-        assertEq(assetBuybackPercentWad, 0.2e18, "Asset buyback percent should be 20%");
-        assertEq(numeraireBuybackPercentWad, 0.2e18, "Numeraire buyback percent should be 20%");
-        assertEq(beneficiaryPercentWad, 0.3e18, "Beneficiary percent should be 30%");
-        assertEq(lpPercentWad, 0.3e18, "LP percent should be 30%");
+        assertEq(assetFeesToAssetBuybackWad, 0.2e18, "Asset buyback percent should be 20%");
+        assertEq(assetFeesToNumeraireBuybackWad, 0.2e18, "Numeraire buyback percent should be 20%");
+        assertEq(assetFeesToBeneficiaryWad, 0.3e18, "Beneficiary percent should be 30%");
+        assertEq(assetFeesToLpWad, 0.3e18, "LP percent should be 30%");
+        assertEq(numeraireFeesToAssetBuybackWad, 0.2e18, "Numeraire row asset buyback should be 20%");
+        assertEq(numeraireFeesToNumeraireBuybackWad, 0.2e18, "Numeraire row numeraire buyback should be 20%");
+        assertEq(numeraireFeesToBeneficiaryWad, 0.3e18, "Numeraire row beneficiary should be 30%");
+        assertEq(numeraireFeesToLpWad, 0.3e18, "Numeraire row LP should be 30%");
 
         assertEq(
-            assetBuybackPercentWad + numeraireBuybackPercentWad + beneficiaryPercentWad + lpPercentWad,
+            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad
+                + assetFeesToLpWad,
             WAD,
-            "Fee distribution should add up to WAD"
+            "Asset fee distribution should add up to WAD"
+        );
+        assertEq(
+            numeraireFeesToAssetBuybackWad + numeraireFeesToNumeraireBuybackWad + numeraireFeesToBeneficiaryWad
+                + numeraireFeesToLpWad,
+            WAD,
+            "Numeraire fee distribution should add up to WAD"
         );
     }
 
@@ -242,19 +257,76 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         (bool isToken0, address asset) = _createToken(salt);
 
         vm.prank(address(buybackDst));
-        rehypeDopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
+        rehypeDopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
 
         (
-            uint256 assetBuybackPercentWad,
-            uint256 numeraireBuybackPercentWad,
-            uint256 beneficiaryPercentWad,
-            uint256 lpPercentWad
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
         ) = rehypeDopplerHook.getFeeDistributionInfo(poolId);
 
-        assertEq(assetBuybackPercentWad, 0.5e18, "Asset buyback should be 50%");
-        assertEq(numeraireBuybackPercentWad, 0, "Numeraire buyback should be 0%");
-        assertEq(beneficiaryPercentWad, 0.5e18, "Beneficiary should be 50%");
-        assertEq(lpPercentWad, 0, "LP should be 0%");
+        assertEq(assetFeesToAssetBuybackWad, 0.5e18, "Asset buyback should be 50%");
+        assertEq(assetFeesToNumeraireBuybackWad, 0, "Numeraire buyback should be 0%");
+        assertEq(assetFeesToBeneficiaryWad, 0.5e18, "Beneficiary should be 50%");
+        assertEq(assetFeesToLpWad, 0, "LP should be 0%");
+        assertEq(numeraireFeesToAssetBuybackWad, 0.5e18, "Numeraire row asset buyback should be 50%");
+        assertEq(numeraireFeesToNumeraireBuybackWad, 0, "Numeraire row numeraire buyback should be 0%");
+        assertEq(numeraireFeesToBeneficiaryWad, 0.5e18, "Numeraire row beneficiary should be 50%");
+        assertEq(numeraireFeesToLpWad, 0, "Numeraire row LP should be 0%");
+    }
+
+    function test_swap_NumeraireFeeWithFullNumeraireBuyback_ForwardsDirectlyToBuybackDst() public {
+        bytes32 salt = bytes32(uint256(70));
+        (bool isToken0, address asset) = _createToken(salt);
+
+        vm.prank(address(buybackDst));
+        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+
+        // First buy asset so we can do an exact-input asset->numeraire swap.
+        IPoolManager.SwapParams memory buyAssetParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        BalanceDelta buyDelta =
+            swapRouter.swap(poolKey, buyAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 assetBought = isToken0 ? uint256(uint128(buyDelta.amount0())) : uint256(uint128(buyDelta.amount1()));
+        int256 assetToSell = -int256(assetBought / 2);
+
+        (,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before,,,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 buybackNumeraireBefore = Currency.wrap(address(numeraire)).balanceOf(buybackDst);
+
+        // Exact-input asset->numeraire: fee token is numeraire and should be forwarded directly.
+        IPoolManager.SwapParams memory sellAssetParams = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: assetToSell,
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, sellAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 buybackNumeraireAfter = Currency.wrap(address(numeraire)).balanceOf(buybackDst);
+        assertGt(buybackNumeraireAfter, buybackNumeraireBefore, "Numeraire should be forwarded to buyback dst");
+
+        (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,,,) = rehypeDopplerHook.getHookFees(poolId);
+        if (isToken0) {
+            assertEq(
+                beneficiaryFees1After,
+                beneficiaryFees1Before,
+                "Numeraire beneficiary fees should not increase on direct forwarding"
+            );
+        } else {
+            assertEq(
+                beneficiaryFees0After,
+                beneficiaryFees0Before,
+                "Numeraire beneficiary fees should not increase on direct forwarding"
+            );
+        }
     }
 
     function test_multipleSwaps_AccumulatesFees() public {
@@ -621,10 +693,14 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             address(numeraire), // numeraire
             buybackDst, // buybackDst
             uint24(3000), // customFee (0.3%)
-            uint256(0.2e18), // assetBuybackPercentWad
-            uint256(0.2e18), // numeraireBuybackPercentWad
-            uint256(0.3e18), // beneficiaryPercentWad
-            uint256(0.3e18) // lpPercentWad
+            uint256(0.2e18), // assetFeesToAssetBuybackWad
+            uint256(0.2e18), // assetFeesToNumeraireBuybackWad
+            uint256(0.3e18), // assetFeesToBeneficiaryWad
+            uint256(0.3e18), // assetFeesToLpWad
+            uint256(0.2e18), // numeraireFeesToAssetBuybackWad
+            uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
+            uint256(0.3e18), // numeraireFeesToBeneficiaryWad
+            uint256(0.3e18) // numeraireFeesToLpWad
         );
 
         return InitData({
@@ -668,10 +744,14 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             address(numeraire), // numeraire
             buybackDst, // buybackDst
             uint24(0), // customFee = 0
-            uint256(0.25e18), // assetBuybackPercentWad
-            uint256(0.25e18), // numeraireBuybackPercentWad
-            uint256(0.25e18), // beneficiaryPercentWad
-            uint256(0.25e18) // lpPercentWad
+            uint256(0.25e18), // assetFeesToAssetBuybackWad
+            uint256(0.25e18), // assetFeesToNumeraireBuybackWad
+            uint256(0.25e18), // assetFeesToBeneficiaryWad
+            uint256(0.25e18), // assetFeesToLpWad
+            uint256(0.25e18), // numeraireFeesToAssetBuybackWad
+            uint256(0.25e18), // numeraireFeesToNumeraireBuybackWad
+            uint256(0.25e18), // numeraireFeesToBeneficiaryWad
+            uint256(0.25e18) // numeraireFeesToLpWad
         );
 
         return InitData({

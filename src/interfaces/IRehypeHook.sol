@@ -13,10 +13,14 @@ interface IRehypeHook {
         address numeraire,
         address buybackDst,
         uint24 customFee,
-        uint256 assetBuybackPercentWad,
-        uint256 numeraireBuybackPercentWad,
-        uint256 beneficiaryPercentWad,
-        uint256 lpPercentWad
+        uint256 assetFeesToAssetBuybackWad,
+        uint256 assetFeesToNumeraireBuybackWad,
+        uint256 assetFeesToBeneficiaryWad,
+        uint256 assetFeesToLpWad,
+        uint256 numeraireFeesToAssetBuybackWad,
+        uint256 numeraireFeesToNumeraireBuybackWad,
+        uint256 numeraireFeesToBeneficiaryWad,
+        uint256 numeraireFeesToLpWad
     ) external;
 
     function collectFees(PoolId poolId) external returns (BalanceDelta fees);

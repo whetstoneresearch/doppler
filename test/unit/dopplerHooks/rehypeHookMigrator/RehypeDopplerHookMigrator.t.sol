@@ -116,14 +116,8 @@ contract RehypeDopplerHookMigratorTest is Test {
         uint256 beneficiaryPercentWad = 0.25e18;
         uint256 lpPercentWad = 0.25e18;
 
-        bytes memory data = abi.encode(
-            numeraire,
-            buybackDst,
-            customFee,
-            assetBuybackPercentWad,
-            numeraireBuybackPercentWad,
-            beneficiaryPercentWad,
-            lpPercentWad
+        bytes memory data = abi.encode(numeraire, buybackDst, customFee, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
+        , assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
         );
 
         vm.prank(address(mockMigrator));
@@ -139,7 +133,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(storedBuybackDst, buybackDst);
 
         // Check fee distribution info
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
+        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp, uint256 storedNumeraireRowAssetBuyback, uint256 storedNumeraireRowNumeraireBuyback, uint256 storedNumeraireRowBeneficiary, uint256 storedNumeraireRowLp) =
             rehypeHookMigrator.getFeeDistributionInfo(poolId);
         assertEq(storedAssetBuyback, assetBuybackPercentWad);
         assertEq(storedNumeraireBuyback, numeraireBuybackPercentWad);
@@ -172,7 +166,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -276,7 +270,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -285,9 +279,9 @@ contract RehypeDopplerHookMigratorTest is Test {
 
         // Update fee distribution
         vm.prank(buybackDst);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
 
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
+        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp, uint256 storedNumeraireRowAssetBuyback, uint256 storedNumeraireRowNumeraireBuyback, uint256 storedNumeraireRowBeneficiary, uint256 storedNumeraireRowLp) =
             rehypeHookMigrator.getFeeDistributionInfo(poolId);
 
         assertEq(storedAssetBuyback, 0.5e18);
@@ -298,7 +292,7 @@ contract RehypeDopplerHookMigratorTest is Test {
 
     function test_setFeeDistribution_RevertsWhenSenderNotAuthorized(PoolKey memory poolKey) public {
         vm.expectRevert(SenderNotAuthorized.selector);
-        rehypeHookMigrator.setFeeDistribution(poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        rehypeHookMigrator.setFeeDistribution(poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
     }
 
     function test_setFeeDistribution_RevertsWhenDoesNotAddToWAD(PoolKey memory poolKey) public {
@@ -308,14 +302,14 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
 
         vm.prank(buybackDst);
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        rehypeHookMigrator.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0);
+        rehypeHookMigrator.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0, 0.5e18, 0.5e18, 0.5e18, 0);
     }
 
     function test_setFeeDistribution_AllToBuybacks(PoolKey memory poolKey) public {
@@ -325,7 +319,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -333,9 +327,9 @@ contract RehypeDopplerHookMigratorTest is Test {
         PoolId poolId = poolKey.toId();
 
         vm.prank(buybackDst);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0.5e18, 0, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0.5e18, 0, 0, 0.5e18, 0.5e18, 0, 0);
 
-        (uint256 a, uint256 n, uint256 b, uint256 l) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
+        (uint256 a, uint256 n, uint256 b, uint256 l, uint256 a2, uint256 n2, uint256 b2, uint256 l2) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
         assertEq(a, 0.5e18);
         assertEq(n, 0.5e18);
         assertEq(b, 0);
@@ -350,7 +344,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -359,13 +353,13 @@ contract RehypeDopplerHookMigratorTest is Test {
 
         // First update
         vm.prank(buybackDst);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
 
         // Second update
         vm.prank(buybackDst);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0, 0, 0, WAD);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0, 0, 0, WAD, 0, 0, 0, WAD);
 
-        (uint256 a, uint256 n, uint256 b, uint256 l) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
+        (uint256 a, uint256 n, uint256 b, uint256 l, uint256 a2, uint256 n2, uint256 b2, uint256 l2) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
         assertEq(a, 0);
         assertEq(n, 0);
         assertEq(b, 0);
@@ -408,7 +402,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address token0 = Currency.unwrap(poolKey.currency0);
         address token1 = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -433,7 +427,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address token0 = Currency.unwrap(poolKey.currency0);
         address token1 = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -461,13 +455,13 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(10_000), 0, 0, WAD, 0);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(10_000), 0, 0, WAD, 0, 0, 0, WAD, 0);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
+        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp, uint256 storedNumeraireRowAssetBuyback, uint256 storedNumeraireRowNumeraireBuyback, uint256 storedNumeraireRowBeneficiary, uint256 storedNumeraireRowLp) =
             rehypeHookMigrator.getFeeDistributionInfo(poolId);
 
         assertEq(storedAssetBuyback, 0);
@@ -483,13 +477,13 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(5000), 0, 0, 0, WAD);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(5000), 0, 0, 0, WAD, 0, 0, 0, WAD);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
-        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp) =
+        (uint256 storedAssetBuyback, uint256 storedNumeraireBuyback, uint256 storedBeneficiary, uint256 storedLp, uint256 storedNumeraireRowAssetBuyback, uint256 storedNumeraireRowNumeraireBuyback, uint256 storedNumeraireRowBeneficiary, uint256 storedNumeraireRowLp) =
             rehypeHookMigrator.getFeeDistributionInfo(poolId);
 
         assertEq(storedAssetBuyback, 0);
@@ -505,7 +499,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -560,7 +554,7 @@ contract RehypeDopplerHookMigratorTest is Test {
         uint24 customFee = 10_000; // 1%
 
         // All fees go to beneficiary for simple testing
-        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0);
+        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0, 0, 0, WAD, 0);
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
