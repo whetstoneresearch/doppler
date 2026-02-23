@@ -6,9 +6,9 @@ import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { TopUpDistributor } from "src/TopUpDistributor.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 
-contract DeployTopUpDistributorScript is Script, Config {
+contract DeployStreamableFeesLockerV2Script is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -27,19 +27,22 @@ contract DeployTopUpDistributorScript is Script, Config {
     function deployToChain(uint256 chainId) internal {
         vm.selectFork(forkOf[chainId]);
 
-        address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
+        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
+        address owner = config.get("airlock_multisig").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(TopUpDistributor).name);
+        bytes32 salt = generateCreate3Salt(msg.sender, type(StreamableFeesLockerV2).name);
         address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
-        address topUpDistributor = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(TopUpDistributor).creationCode, abi.encode(airlock)));
+        address lockerV2 = ICreateX(createX)
+            .deployCreate3(
+                salt, abi.encodePacked(type(StreamableFeesLockerV2).creationCode, abi.encode(poolManager, owner))
+            );
 
-        require(topUpDistributor == deployedTo, "Unexpected deployed address");
+        require(lockerV2 == deployedTo, "Unexpected deployed address");
 
         vm.stopBroadcast();
-        config.set("top_up_distributor", topUpDistributor);
+        config.set("streamable_fees_locker_v2", lockerV2);
     }
 }
