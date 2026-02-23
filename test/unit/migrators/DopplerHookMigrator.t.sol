@@ -27,16 +27,20 @@ import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
 import {
     ArrayLengthsMismatch,
     AssetData,
+    DelegateAuthority,
     DopplerHookMigrator,
     DopplerHookNotEnabled,
     HookRequiresDynamicLPFee,
     LPFeeTooHigh,
     MAX_LP_FEE,
+    OnlySelf,
     PoolNotDynamicFee,
     PoolStatus,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
-    WrongPoolStatus
+    SetDopplerHook,
+    WrongPoolStatus,
+    ZeroLiquidity
 } from "src/migrators/DopplerHookMigrator.sol";
 import {
     BeneficiaryData,
@@ -246,6 +250,57 @@ contract DopplerHookMigratorTest is Deployers {
         _initialize();
     }
 
+    function test_initialize_RevertsWhenTickSpacingTooLarge() public {
+        _generateInitData();
+        initData.tickSpacing = TickMath.MAX_TICK_SPACING + 1;
+        vm.expectRevert(abi.encodeWithSelector(IPoolManager.TickSpacingTooLarge.selector, initData.tickSpacing));
+        _initialize();
+    }
+
+    function test_initialize_RevertsWhenTickSpacingTooSmall() public {
+        _generateInitData();
+        initData.tickSpacing = 0;
+        vm.expectRevert(abi.encodeWithSelector(IPoolManager.TickSpacingTooSmall.selector, int24(0)));
+        _initialize();
+    }
+
+    function test_initialize_RevertsWhenAlreadyInitialized() public {
+        _generateInitData();
+        _initialize();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                WrongPoolStatus.selector, uint8(PoolStatus.Uninitialized), uint8(PoolStatus.Initialized)
+            )
+        );
+        _initialize();
+    }
+
+    function test_initialize_RevertsWhenHookNotEnabled() public {
+        _generateInitData();
+        initData.dopplerHookMigrator = vm.randomAddress();
+        // Don't enable the hook → flags == 0
+        vm.expectRevert(DopplerHookNotEnabled.selector);
+        _initialize();
+    }
+
+    function test_initialize_WithHookAndDynamicFee() public {
+        _generateInitData();
+        initData.useDynamicFee = true;
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator),
+            _singleFlag(ON_AFTER_SWAP_FLAG | REQUIRES_DYNAMIC_LP_FEE_FLAG)
+        );
+        _initialize();
+
+        (,,, uint24 feeOrInitialDynamicFee, bool useDynamicFee, address dopplerHook,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        assertTrue(useDynamicFee);
+        assertEq(dopplerHook, initData.dopplerHookMigrator);
+        assertEq(feeOrInitialDynamicFee, initData.feeOrInitialDynamicFee);
+    }
+
     /* ----------------------------------------------------------------------- */
     /*                                migrate()                                */
     /* ----------------------------------------------------------------------- */
@@ -413,6 +468,74 @@ contract DopplerHookMigratorTest is Deployers {
         assertEq(lpFee, 10_000);
     }
 
+    function test_migrate_RevertsWhenAlreadyMigrated() public {
+        _generateInitData();
+        _initializeAndMigrate();
+
+        _fundMigrator(BALANCE, BALANCE);
+        vm.prank(address(airlock));
+        vm.expectRevert(
+            abi.encodeWithSelector(WrongPoolStatus.selector, uint8(PoolStatus.Initialized), uint8(PoolStatus.Locked))
+        );
+        migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), RECIPIENT);
+    }
+
+    function test_migrate_RevertsWhenZeroLiquidity() public {
+        _generateInitData();
+        _initialize();
+        // Don't fund the migrator → zero balances → zero liquidity
+        vm.prank(address(airlock));
+        vm.expectRevert(ZeroLiquidity.selector);
+        migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), RECIPIENT);
+    }
+
+    function test_migrate_CallsHookOnInitialization() public {
+        _generateInitData();
+        address mockHook = makeAddr("MockHook");
+        initData.dopplerHookMigrator = mockHook;
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(mockHook), _singleFlag(ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG)
+        );
+        _initialize();
+        _fundMigrator(BALANCE, BALANCE);
+
+        (, PoolKey memory poolKey,,,,,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+
+        vm.mockCall(mockHook, abi.encodeWithSelector(IDopplerHookMigrator.onInitialization.selector), abi.encode());
+        vm.expectCall(
+            mockHook,
+            abi.encodeWithSelector(
+                IDopplerHookMigrator.onInitialization.selector, asset, poolKey, initData.onInitializationCalldata
+            )
+        );
+        _migrate();
+    }
+
+    function test_migrate_RevertsWhenDynamicFeeFlagRemovedAfterInit() public {
+        _generateInitData();
+        initData.useDynamicFee = true;
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator),
+            _singleFlag(ON_AFTER_SWAP_FLAG | REQUIRES_DYNAMIC_LP_FEE_FLAG)
+        );
+        _initialize();
+
+        // Remove REQUIRES_DYNAMIC_LP_FEE_FLAG after init
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG)
+        );
+
+        _fundMigrator(BALANCE, BALANCE);
+        vm.prank(address(airlock));
+        vm.expectRevert(HookRequiresDynamicLPFee.selector);
+        migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), RECIPIENT);
+    }
+
     /* ----------------------------------------------------------------------------------- */
     /*                                setDopplerHookState()                                */
     /* ----------------------------------------------------------------------------------- */
@@ -456,6 +579,27 @@ contract DopplerHookMigratorTest is Deployers {
         vm.prank(sender);
         vm.expectRevert(SenderNotAirlockOwner.selector);
         migrator.setDopplerHookState(dopplerHooks, flags);
+    }
+
+    /* ------------------------------------------------------------------------------ */
+    /*                              delegateAuthority()                              */
+    /* ------------------------------------------------------------------------------ */
+
+    function test_delegateAuthority_StoresAuthority() public {
+        address user = makeAddr("User");
+        address authority = makeAddr("Authority");
+        vm.prank(user);
+        migrator.delegateAuthority(authority);
+        assertEq(migrator.getAuthority(user), authority);
+    }
+
+    function test_delegateAuthority_EmitsEvent() public {
+        address user = makeAddr("User");
+        address authority = makeAddr("Authority");
+        vm.prank(user);
+        vm.expectEmit(true, true, false, false);
+        emit DelegateAuthority(user, authority);
+        migrator.delegateAuthority(authority);
     }
 
     /* ------------------------------------------------------------------------------ */
@@ -522,6 +666,81 @@ contract DopplerHookMigratorTest is Deployers {
         migrator.setDopplerHook(asset, mockHook, new bytes(0));
     }
 
+    function test_setDopplerHook_StoresHook() public {
+        _generateInitData();
+        _initializeAndMigrate();
+
+        address mockHook = makeAddr("MockHook");
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(mockHook), _singleFlag(ON_AFTER_SWAP_FLAG));
+
+        _mockAirlockTimelock();
+
+        vm.prank(TIMELOCK);
+        vm.expectEmit(true, true, false, false);
+        emit SetDopplerHook(asset, mockHook);
+        migrator.setDopplerHook(asset, mockHook, new bytes(0));
+
+        (,,,,, address storedHook,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        assertEq(storedHook, mockHook);
+    }
+
+    function test_setDopplerHook_UnsetsHook() public {
+        _generateInitData();
+        _initializeAndMigrate();
+
+        address mockHook = makeAddr("MockHook");
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(mockHook), _singleFlag(ON_AFTER_SWAP_FLAG));
+
+        _mockAirlockTimelock();
+
+        // Set the hook
+        vm.prank(TIMELOCK);
+        migrator.setDopplerHook(asset, mockHook, new bytes(0));
+
+        // Unset the hook
+        vm.prank(TIMELOCK);
+        migrator.setDopplerHook(asset, address(0), new bytes(0));
+
+        (,,,,, address storedHook,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        assertEq(storedHook, address(0));
+    }
+
+    function test_setDopplerHook_ViaDelegatedAuthority() public {
+        _generateInitData();
+        _initializeAndMigrate();
+
+        address mockHook = makeAddr("MockHook");
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(mockHook), _singleFlag(ON_AFTER_SWAP_FLAG));
+
+        _mockAirlockTimelock();
+
+        address delegatedAddr = makeAddr("Delegated");
+        vm.prank(TIMELOCK);
+        migrator.delegateAuthority(delegatedAddr);
+
+        vm.prank(delegatedAddr);
+        migrator.setDopplerHook(asset, mockHook, new bytes(0));
+
+        (,,,,, address storedHook,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        assertEq(storedHook, mockHook);
+    }
+
+    function test_setDopplerHook_RevertWrongPoolStatus() public {
+        _generateInitData();
+        _initialize();
+        // Pool is Initialized (not Locked). getPair[asset] is unset → returns zeros → status is Uninitialized.
+        vm.expectRevert(
+            abi.encodeWithSelector(WrongPoolStatus.selector, uint8(PoolStatus.Locked), uint8(PoolStatus.Uninitialized))
+        );
+        migrator.setDopplerHook(asset, address(0), new bytes(0));
+    }
+
     /* ---------------------------------------------------------------------------------- */
     /*                                updateDynamicLPFee()                                */
     /* ---------------------------------------------------------------------------------- */
@@ -572,6 +791,74 @@ contract DopplerHookMigratorTest is Deployers {
 
         (,,, uint24 lpFee) = manager.getSlot0(key.toId());
         assertEq(lpFee, 1000);
+    }
+
+    function test_updateDynamicLPFee_RevertsWhenPoolNotDynamic() public {
+        _generateInitData();
+        initData.useDynamicFee = false;
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG)
+        );
+        _initializeAndMigrate();
+
+        vm.prank(initData.dopplerHookMigrator);
+        vm.expectRevert(PoolNotDynamicFee.selector);
+        migrator.updateDynamicLPFee(asset, 1000);
+    }
+
+    function test_updateDynamicLPFee_RevertsWhenFeeTooHigh() public {
+        _generateInitData();
+        initData.useDynamicFee = true;
+        initData.feeOrInitialDynamicFee = 10_000;
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(REQUIRES_DYNAMIC_LP_FEE_FLAG)
+        );
+        _initializeAndMigrate();
+
+        vm.prank(initData.dopplerHookMigrator);
+        vm.expectRevert(abi.encodeWithSelector(LPFeeTooHigh.selector, MAX_LP_FEE, uint256(MAX_LP_FEE) + 1));
+        migrator.updateDynamicLPFee(asset, MAX_LP_FEE + 1);
+    }
+
+    function test_updateDynamicLPFee_RevertsWhenWrongPoolStatus() public {
+        address fakeAsset = makeAddr("FakeAsset");
+        vm.expectRevert(
+            abi.encodeWithSelector(WrongPoolStatus.selector, uint8(PoolStatus.Locked), uint8(PoolStatus.Uninitialized))
+        );
+        migrator.updateDynamicLPFee(fakeAsset, 1000);
+    }
+
+    /* ------------------------------------------------------------------------------ */
+    /*                              Hook callbacks                                    */
+    /* ------------------------------------------------------------------------------ */
+
+    function test_beforeInitialize_RevertsWhenNotSelf() public {
+        PoolKey memory key;
+        vm.prank(address(manager));
+        vm.expectRevert(OnlySelf.selector);
+        migrator.beforeInitialize(address(this), key, Constants.SQRT_PRICE_1_1);
+    }
+
+    function test_getHookPermissions() public view {
+        Hooks.Permissions memory perms = migrator.getHookPermissions();
+        assertTrue(perms.beforeInitialize);
+        assertFalse(perms.afterInitialize);
+        assertFalse(perms.beforeAddLiquidity);
+        assertFalse(perms.afterAddLiquidity);
+        assertFalse(perms.beforeRemoveLiquidity);
+        assertFalse(perms.afterRemoveLiquidity);
+        assertTrue(perms.beforeSwap);
+        assertTrue(perms.afterSwap);
+        assertFalse(perms.beforeDonate);
+        assertFalse(perms.afterDonate);
+        assertFalse(perms.beforeSwapReturnDelta);
+        assertTrue(perms.afterSwapReturnDelta);
+        assertFalse(perms.afterAddLiquidityReturnDelta);
+        assertFalse(perms.afterRemoveLiquidityReturnDelta);
     }
 
     /* ------------------------------------------------------------------------------ */
