@@ -28,10 +28,14 @@ import {
     ArrayLengthsMismatch,
     AssetData,
     DopplerHookMigrator,
+    DopplerHookNotEnabled,
     HookRequiresDynamicLPFee,
     LPFeeTooHigh,
     MAX_LP_FEE,
+    PoolNotDynamicFee,
     PoolStatus,
+    SenderNotAirlockOwner,
+    SenderNotAuthorized,
     WrongPoolStatus
 } from "src/migrators/DopplerHookMigrator.sol";
 import {
@@ -64,6 +68,10 @@ contract DopplerHookMigratorTest is Deployers {
     // Small trick so we're making sure that the protocol owner will always be at the end of the beneficiaries array
     address PROTOCOL_OWNER = address(0xb055);
     address PROCEEDS_RECIPIENT = makeAddr("PROCEEDS_RECIPIENT");
+    address RECIPIENT = makeAddr("RECIPIENT");
+    address TIMELOCK = makeAddr("TIMELOCK");
+
+    uint256 constant BALANCE = 1e6;
 
     Airlock public airlock;
     DopplerHookMigrator public migrator;
@@ -108,6 +116,10 @@ contract DopplerHookMigratorTest is Deployers {
         assertEq(address(migrator.locker()), address(locker));
         assertEq(address(migrator.TOP_UP_DISTRIBUTOR()), address(topUpDistributor));
     }
+
+    /* --------------------------------------------------------------------------- */
+    /*                                initialize()                                 */
+    /* --------------------------------------------------------------------------- */
 
     function test_initialize_StoresData() public {
         _generateInitData();
@@ -248,345 +260,179 @@ contract DopplerHookMigratorTest is Deployers {
         migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), address(0));
     }
 
-    /*
-        function test_migrate_RevertIfHookDisabledAfterInitialize() public {
-            address asset = Currency.unwrap(currency0);
-            address numeraire = Currency.unwrap(currency1);
-            address token0 = asset < numeraire ? asset : numeraire;
-            address token1 = asset < numeraire ? numeraire : asset;
-            address hookAddr = makeAddr("Hook");
+    function test_migrate_RevertIfHookDisabledAfterInitialize() public {
+        _generateInitData();
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG));
+        _initialize();
 
-            vm.prank(owner);
-            migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(ON_AFTER_SWAP_FLAG));
+        // Disable hook after initialize
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(initData.dopplerHookMigrator), _singleFlag(0));
 
-            vm.prank(address(airlock));
-            migrator.initialize(
-                asset,
-                numeraire,
-                abi.encode(
-                    FEE,
-                    TICK_SPACING,
-                    LOCK_DURATION,
-                    beneficiaries,
-                    false,
-                    hookAddr,
-                    new bytes(0),
-                    new bytes(0),
-                    address(0),
-                    uint256(0)
+        _fundMigrator(BALANCE, BALANCE);
+        vm.prank(address(airlock));
+        vm.expectRevert(DopplerHookNotEnabled.selector);
+        migrator.migrate(Constants.SQRT_PRICE_1_1, Currency.unwrap(currency0), Currency.unwrap(currency1), RECIPIENT);
+    }
+
+    function test_migrate(uint64 balance0, uint64 balance1) public {
+        vm.assume(balance0 > 1e6 && balance1 > 1e6);
+        vm.assume(balance0 < 1e12 && balance1 < 1e12);
+
+        _generateInitData();
+        _initialize();
+        _fundMigrator(balance0, balance1);
+        _migrate();
+
+        (, PoolKey memory poolKey,,,,,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (,, uint32 startDate,,) = locker.streams(poolKey.toId());
+        assertGt(startDate, 0);
+
+        assertEq(currency0.balanceOf(address(migrator)), 0);
+        assertEq(currency1.balanceOf(address(migrator)), 0);
+    }
+
+    function test_migrate_FuzzTickTwoSidedDoesNotRevert(int24 tick, uint32 balance0, uint32 balance1) public {
+        vm.assume(balance0 > 1e6 && balance1 > 1e6);
+
+        _generateInitData();
+
+        int24 tickSpacing = initData.tickSpacing;
+        int24 minTick = TickMath.minUsableTick(tickSpacing);
+        int24 maxTick = TickMath.maxUsableTick(tickSpacing);
+        vm.assume(tick >= minTick && tick <= maxTick);
+
+        _initialize();
+        _fundMigrator(balance0, balance1);
+
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(tick);
+        uint128 liq = LiquidityAmounts.getLiquidityForAmounts(
+            sqrtPriceX96, TickMath.getSqrtPriceAtTick(minTick), TickMath.getSqrtPriceAtTick(maxTick), balance0, balance1
+        );
+        vm.assume(liq > 0);
+        vm.assume(liq <= uint128(type(int128).max));
+
+        _migrate(sqrtPriceX96);
+
+        (, PoolKey memory poolKey,,,,,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (,, uint32 startDate,,) = locker.streams(poolKey.toId());
+        assertGt(startDate, 0);
+    }
+
+    function test_migrate_DistributesSplitToRecipient() public {
+        _generateInitData();
+        initData.proceedsRecipient = PROCEEDS_RECIPIENT;
+        initData.proceedsShare = 0.1e18;
+        _initialize();
+        _fundMigrator(BALANCE, BALANCE);
+        _migrate();
+
+        uint256 expectedSplit = BALANCE * initData.proceedsShare / 1e18;
+        if (isToken0) {
+            // asset=token0, numeraire=token1
+            assertEq(currency1.balanceOf(PROCEEDS_RECIPIENT), expectedSplit);
+        } else {
+            // asset=token1, numeraire=token0
+            assertEq(currency0.balanceOf(PROCEEDS_RECIPIENT), expectedSplit);
+        }
+
+        assertEq(currency0.balanceOf(address(migrator)), 0);
+        assertEq(currency1.balanceOf(address(migrator)), 0);
+    }
+
+    function test_migrate_NoSplitDistribution() public {
+        _generateInitData();
+        // Default: proceedsRecipient=address(0), proceedsShare=0 — no split configured
+        _initialize();
+        _fundMigrator(BALANCE, BALANCE);
+        _migrate();
+
+        assertEq(currency0.balanceOf(PROCEEDS_RECIPIENT), 0);
+        assertEq(currency1.balanceOf(PROCEEDS_RECIPIENT), 0);
+
+        assertEq(currency0.balanceOf(address(migrator)), 0);
+        assertEq(currency1.balanceOf(address(migrator)), 0);
+    }
+
+    function test_migrate_DistributesSplitWithETH() public {
+        // Force ETH as numeraire
+        currency0 = Currency.wrap(address(0));
+        asset = Currency.unwrap(currency1);
+        numeraire = address(0);
+        isToken0 = false;
+        isUsingETH = true;
+
+        initData = InitData({
+            feeOrInitialDynamicFee: uint24(vm.randomUint(0, uint256(MAX_LP_FEE))),
+            useDynamicFee: false,
+            tickSpacing: int24(
+                uint24(
+                    vm.randomUint(
+                        uint256(uint24(TickMath.MIN_TICK_SPACING)), uint256(uint24(TickMath.MAX_TICK_SPACING))
+                    )
                 )
-            );
+            ),
+            lockDuration: uint32(vm.randomUint(0, type(uint32).max)),
+            beneficiaries: generateBeneficiaries(PROTOCOL_OWNER, vm.randomUint()),
+            dopplerHookMigrator: address(0),
+            onInitializationCalldata: new bytes(0),
+            proceedsRecipient: PROCEEDS_RECIPIENT,
+            proceedsShare: 0.1e18
+        });
 
-            // Disable hook after initialize
-            vm.prank(owner);
-            migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(0));
+        _initialize();
+        _fundMigrator(BALANCE, BALANCE);
 
-            Currency.wrap(token0).transfer(address(migrator), 1e6);
-            Currency.wrap(token1).transfer(address(migrator), 1e6);
+        uint256 recipientBalanceBefore = PROCEEDS_RECIPIENT.balance;
+        _migrate();
 
-            vm.prank(address(airlock));
-            vm.expectRevert(abi.encodeWithSignature("DopplerHookNotEnabled()"));
-            migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-        }
+        // Asset is token1, numeraire is ETH (token0). Split comes from numeraire (ETH).
+        uint256 expectedSplit = BALANCE * initData.proceedsShare / 1e18;
+        assertEq(PROCEEDS_RECIPIENT.balance - recipientBalanceBefore, expectedSplit);
 
-    /*
-        function test_migrate(bool isUsingETH, bool hasRecipient, uint64 balance0, uint64 balance1) public {
-            vm.assume(balance0 > 1e6 && balance1 > 1e6);
-            if (balance0 >= 1e12 || balance1 >= 1e12) return;
-            vm.assume(balance0 < 1e12 && balance1 < 1e12);
-            vm.assume(balance0 < 1e12 && balance1 < 1e12);
+        assertEq(address(migrator).balance, 0);
+        assertEq(currency1.balanceOf(address(migrator)), 0);
+    }
 
-            bytes memory data = _prepareInitializeData();
+    function test_migrate_SetsInitialDynamicFee() public {
+        _generateInitData();
+        initData.useDynamicFee = true;
+        initData.feeOrInitialDynamicFee = 10_000;
+        _initialize();
+        _fundMigrator(BALANCE, BALANCE);
+        _migrate();
 
-            address asset = Currency.unwrap(currency0);
-            address numeraire = Currency.unwrap(currency1);
-            address token0 = asset < numeraire ? asset : numeraire;
-            address token1 = asset < numeraire ? numeraire : asset;
-
-            if (isUsingETH) {
-                asset = numeraire;
-                token1 = asset;
-                token0 = address(0);
-                numeraire = address(0);
-            }
-
-            vm.prank(address(airlock));
-            migrator.initialize(asset, numeraire, data);
-
-            if (isUsingETH) {
-                deal(address(migrator), balance0);
-            } else {
-                Currency.wrap(token0).transfer(address(migrator), balance0);
-            }
-            Currency.wrap(token1).transfer(address(migrator), balance1);
-
-            vm.prank(address(airlock));
-            migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, hasRecipient ? recipient : address(0xdead));
-
-            (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
-            (,, uint32 startDate,,) = locker.streams(poolKey.toId());
-            assertGt(startDate, 0);
-
-            if (isUsingETH) {
-                assertEq(address(migrator).balance, 0);
-            } else {
-                assertEq(Currency.wrap(token0).balanceOf(address(migrator)), 0);
-            }
-            assertEq(Currency.wrap(token1).balanceOf(address(migrator)), 0);
-        }
-
-        function test_migrate_FuzzTickTwoSidedDoesNotRevert(int24 tick, uint32 balance0, uint32 balance1) public {
-            vm.assume(balance0 > 1e6 && balance1 > 1e6);
-            int24 minTick = TickMath.minUsableTick(TICK_SPACING);
-            int24 maxTick = TickMath.maxUsableTick(TICK_SPACING);
-            vm.assume(tick >= minTick && tick <= maxTick);
-
-            BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-            beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-            beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-            address asset = Currency.unwrap(currency0);
-            address numeraire = Currency.unwrap(currency1);
-            address token0 = asset < numeraire ? asset : numeraire;
-            address token1 = asset < numeraire ? numeraire : asset;
-
-            vm.prank(address(airlock));
-            migrator.initialize(
-                asset,
-                numeraire,
-                abi.encode(
-                    FEE,
-                    TICK_SPACING,
-                    LOCK_DURATION,
-                    beneficiaries,
-                    false,
-                    address(0),
-                    new bytes(0),
-                    new bytes(0),
-                    address(0),
-                    uint256(0)
-                )
-            );
-
-            Currency.wrap(token0).transfer(address(migrator), balance0);
-            Currency.wrap(token1).transfer(address(migrator), balance1);
-
-            uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(tick);
-            uint128 liq = LiquidityAmounts.getLiquidityForAmounts(
-                sqrtPriceX96, TickMath.getSqrtPriceAtTick(minTick), TickMath.getSqrtPriceAtTick(maxTick), balance0, balance1
-            );
-            vm.assume(liq > 0);
-            vm.assume(liq <= uint128(type(int128).max));
-
-            vm.prank(address(airlock));
-            migrator.migrate(sqrtPriceX96, token0, token1, recipient);
-
-            (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
-            (,, uint32 startDate,,) = locker.streams(poolKey.toId());
-            assertGt(startDate, 0);
-        }
-
-        function test_migrate_DistributesSplitToRecipient() public {
-            BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-            beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-            beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-            uint256 proceedsShare = 0.1e18; // 10%
-
-            address asset = Currency.unwrap(currency0);
-            address numeraire = Currency.unwrap(currency1);
-            address token0 = asset < numeraire ? asset : numeraire;
-            address token1 = asset < numeraire ? numeraire : asset;
-
-            vm.prank(address(airlock));
-            migrator.initialize(
-                asset,
-                numeraire,
-                abi.encode(
-                    FEE,
-                    TICK_SPACING,
-                    LOCK_DURATION,
-                    beneficiaries,
-                    false,
-                    address(0),
-                    new bytes(0),
-                    new bytes(0),
-                    PROCEEDS_RECIPIENT,
-                    proceedsShare
-                )
-            );
-
-            uint256 amount0 = 1e6;
-            uint256 amount1 = 1e6;
-            Currency.wrap(token0).transfer(address(migrator), amount0);
-            Currency.wrap(token1).transfer(address(migrator), amount1);
-
-            vm.prank(address(airlock));
-            migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-            // Asset is token0, so numeraire is token1. Split comes from numeraire (token1).
-            // Expected split = amount1 * 10% = 1e5
-            bool isToken0 = asset == token0;
-            if (isToken0) {
-                uint256 expectedSplit = amount1 * proceedsShare / 1e18;
-                assertEq(Currency.wrap(token1).balanceOf(PROCEEDS_RECIPIENT), expectedSplit);
-            } else {
-                uint256 expectedSplit = amount0 * proceedsShare / 1e18;
-                assertEq(Currency.wrap(token0).balanceOf(PROCEEDS_RECIPIENT), expectedSplit);
-            }
-
-            // Migrator should have no tokens left
-            assertEq(Currency.wrap(token0).balanceOf(address(migrator)), 0);
-            assertEq(Currency.wrap(token1).balanceOf(address(migrator)), 0);
-        }
-
-        function test_migrate_NoSplitDistribution() public {
-            BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-            beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-            beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-            address asset = Currency.unwrap(currency0);
-            address numeraire = Currency.unwrap(currency1);
-            address token0 = asset < numeraire ? asset : numeraire;
-            address token1 = asset < numeraire ? numeraire : asset;
-
-            vm.prank(address(airlock));
-            migrator.initialize(
-                asset,
-                numeraire,
-                abi.encode(
-                    FEE,
-                    TICK_SPACING,
-                    LOCK_DURATION,
-                    beneficiaries,
-                    false,
-                    address(0),
-                    new bytes(0),
-                    new bytes(0),
-                    PROCEEDS_RECIPIENT,
-                    uint256(0)
-                )
-            );
-
-            uint256 amount0 = 1e6;
-            uint256 amount1 = 1e6;
-            Currency.wrap(token0).transfer(address(migrator), amount0);
-            Currency.wrap(token1).transfer(address(migrator), amount1);
-
-            vm.prank(address(airlock));
-            migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-            // No split, proceeds recipient should have nothing
-            assertEq(Currency.wrap(token0).balanceOf(PROCEEDS_RECIPIENT), 0);
-            assertEq(Currency.wrap(token1).balanceOf(PROCEEDS_RECIPIENT), 0);
-
-            // Migrator should have no tokens left
-            assertEq(Currency.wrap(token0).balanceOf(address(migrator)), 0);
-            assertEq(Currency.wrap(token1).balanceOf(address(migrator)), 0);
-        }
-
-        function test_migrate_DistributesSplitWithETH() public {
-            BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-            beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-            beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-            uint256 proceedsShare = 0.1e18; // 10%
-
-            // ETH as numeraire: token0 = address(0), token1 = asset
-            address asset = Currency.unwrap(currency1);
-            address numeraire = address(0);
-            address token0 = address(0);
-            address token1 = asset;
-
-            vm.prank(address(airlock));
-            migrator.initialize(
-                asset,
-                numeraire,
-                abi.encode(
-                    FEE,
-                    TICK_SPACING,
-                    LOCK_DURATION,
-                    beneficiaries,
-                    false,
-                    address(0),
-                    new bytes(0),
-                    new bytes(0),
-                    PROCEEDS_RECIPIENT,
-                    proceedsShare
-                )
-            );
-
-            uint256 ethAmount = 1e6;
-            uint256 tokenAmount = 1e6;
-            deal(address(migrator), ethAmount);
-            Currency.wrap(token1).transfer(address(migrator), tokenAmount);
-
-            uint256 recipientBalanceBefore = PROCEEDS_RECIPIENT.balance;
-
-            vm.prank(address(airlock));
-            migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-            // Asset is token1, numeraire is ETH (token0). Split comes from numeraire (ETH).
-            uint256 expectedSplit = ethAmount * proceedsShare / 1e18;
-            assertEq(PROCEEDS_RECIPIENT.balance - recipientBalanceBefore, expectedSplit);
-
-            // Migrator should have no ETH or tokens left
-            assertEq(address(migrator).balance, 0);
-            assertEq(Currency.wrap(token1).balanceOf(address(migrator)), 0);
-        }
-
-        function test_migrate_SetsInitialDynamicFee() public {
-            BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-            beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-            beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-            address asset = Currency.unwrap(currency0);
-            address numeraire = Currency.unwrap(currency1);
-            address token0 = asset < numeraire ? asset : numeraire;
-            address token1 = asset < numeraire ? numeraire : asset;
-
-            vm.prank(address(airlock));
-            migrator.initialize(
-                asset,
-                numeraire,
-                abi.encode(
-                    10_000,
-                    TICK_SPACING,
-                    LOCK_DURATION,
-                    beneficiaries,
-                    true,
-                    address(0),
-                    new bytes(0),
-                    new bytes(0),
-                    address(0),
-                    uint256(0)
-                )
-            );
-
-            Currency.wrap(token0).transfer(address(migrator), 1e6);
-            Currency.wrap(token1).transfer(address(migrator), 1e6);
-
-            vm.prank(address(airlock));
-            migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-            (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(token0, token1);
-            (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
-            assertEq(protocolFee, 0);
-            assertEq(lpFee, 10_000);
-        }
-        */
+        (, PoolKey memory poolKey,,,,,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
+        assertEq(protocolFee, 0);
+        assertEq(lpFee, 10_000);
+    }
 
     /* ----------------------------------------------------------------------------------- */
     /*                                setDopplerHookState()                                */
     /* ----------------------------------------------------------------------------------- */
 
-    /*
     function test_setDopplerHookState_StoresFlags(address[] calldata dopplerHooks, uint256[] calldata flags) public {
         vm.assume(dopplerHooks.length == flags.length);
-        vm.prank(owner);
+        vm.prank(PROTOCOL_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
         for (uint256 i; i < dopplerHooks.length; i++) {
-            assertEq(migrator.isDopplerHookEnabled(dopplerHooks[i]), flags[i]);
+            // Only check the last occurrence of each address (duplicates overwrite in the mapping)
+            bool isLastOccurrence = true;
+            for (uint256 j = i + 1; j < dopplerHooks.length; j++) {
+                if (dopplerHooks[j] == dopplerHooks[i]) {
+                    isLastOccurrence = false;
+                    break;
+                }
+            }
+            if (isLastOccurrence) {
+                assertEq(migrator.isDopplerHookEnabled(dopplerHooks[i]), flags[i]);
+            }
         }
     }
 
@@ -595,7 +441,7 @@ contract DopplerHookMigratorTest is Deployers {
         uint256[] calldata flags
     ) public {
         vm.assume(dopplerHooks.length != flags.length);
-        vm.prank(owner);
+        vm.prank(PROTOCOL_OWNER);
         vm.expectRevert(ArrayLengthsMismatch.selector);
         migrator.setDopplerHookState(dopplerHooks, flags);
     }
@@ -607,258 +453,126 @@ contract DopplerHookMigratorTest is Deployers {
     ) public {
         vm.assume(sender != airlock.owner());
         vm.assume(dopplerHooks.length == flags.length);
+        vm.prank(sender);
         vm.expectRevert(SenderNotAirlockOwner.selector);
         migrator.setDopplerHookState(dopplerHooks, flags);
     }
-    */
 
     /* ------------------------------------------------------------------------------ */
     /*                                setDopplerHook()                                */
     /* ------------------------------------------------------------------------------ */
 
-    /*
     function test_setDopplerHook_RevertUnauthorized() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
+        _generateInitData();
+        _initializeAndMigrate();
 
-        address asset = Currency.unwrap(currency0);
-        address numeraire = Currency.unwrap(currency1);
-
-        vm.prank(address(airlock));
-        migrator.initialize(
-            asset,
-            numeraire,
-            abi.encode(
-                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
-            )
-        );
-
-        Currency.wrap(asset < numeraire ? asset : numeraire).transfer(address(migrator), 1e6);
-        Currency.wrap(asset < numeraire ? numeraire : asset).transfer(address(migrator), 1e6);
-
-        vm.prank(address(airlock));
-        migrator.migrate(
-            Constants.SQRT_PRICE_1_1,
-            asset < numeraire ? asset : numeraire,
-            asset < numeraire ? numeraire : asset,
-            recipient
-        );
-
-        airlock.setTimelock(asset, owner);
-        vm.expectRevert(abi.encodeWithSignature("SenderNotAuthorized()"));
+        _mockAirlockTimelock();
+        // Call without pranking as TIMELOCK → SenderNotAuthorized
+        vm.expectRevert(SenderNotAuthorized.selector);
         migrator.setDopplerHook(asset, makeAddr("Hook"), new bytes(0));
     }
 
     function test_setDopplerHook_RevertNotEnabled() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
+        _generateInitData();
+        _initializeAndMigrate();
 
-        address asset = Currency.unwrap(currency0);
-        address numeraire = Currency.unwrap(currency1);
-        address token0 = asset < numeraire ? asset : numeraire;
-        address token1 = asset < numeraire ? numeraire : asset;
-
-        vm.prank(address(airlock));
-        migrator.initialize(
-            asset,
-            numeraire,
-            abi.encode(
-                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
-            )
-        );
-
-        Currency.wrap(token0).transfer(address(migrator), 1e6);
-        Currency.wrap(token1).transfer(address(migrator), 1e6);
-
-        vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-        airlock.setTimelock(asset, owner);
-        vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSignature("DopplerHookNotEnabled()"));
+        _mockAirlockTimelock();
+        vm.prank(TIMELOCK);
+        vm.expectRevert(DopplerHookNotEnabled.selector);
         migrator.setDopplerHook(asset, makeAddr("Hook"), new bytes(0));
     }
 
     function test_setDopplerHook_RevertRequiresDynamicFee() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
+        _generateInitData();
+        initData.useDynamicFee = true;
+        // dopplerHook=address(0) during init skips the hook check
+        _initializeAndMigrate();
 
-        address asset = Currency.unwrap(currency0);
-        address numeraire = Currency.unwrap(currency1);
-        address token0 = asset < numeraire ? asset : numeraire;
-        address token1 = asset < numeraire ? numeraire : asset;
+        // Enable a hook WITHOUT REQUIRES_DYNAMIC_LP_FEE_FLAG
+        address hookAddr = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(ON_AFTER_SWAP_FLAG));
 
-        address hookAddr = makeAddr("Hook");
-        vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(hookAddr), _singleFlag(REQUIRES_DYNAMIC_LP_FEE_FLAG));
-
-        vm.prank(address(airlock));
-        migrator.initialize(
-            asset,
-            numeraire,
-            abi.encode(
-                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
-            )
-        );
-
-        Currency.wrap(token0).transfer(address(migrator), 1e6);
-        Currency.wrap(token1).transfer(address(migrator), 1e6);
-
-        vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-        airlock.setTimelock(asset, owner);
-        vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSignature("HookRequiresDynamicLPFee()"));
+        _mockAirlockTimelock();
+        vm.prank(TIMELOCK);
+        vm.expectRevert(HookRequiresDynamicLPFee.selector);
         migrator.setDopplerHook(asset, hookAddr, new bytes(0));
     }
 
     function test_setDopplerHook_CallsOnInitialization() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
+        _generateInitData();
+        _initializeAndMigrate();
 
-        address asset = Currency.unwrap(currency0);
-        address numeraire = Currency.unwrap(currency1);
-        address token0 = asset < numeraire ? asset : numeraire;
-        address token1 = asset < numeraire ? numeraire : asset;
+        address mockHook = makeAddr("MockHook");
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(_singleAddr(mockHook), _singleFlag(ON_INITIALIZATION_FLAG));
 
-        address mockDopplerHookMigrator = makeAddr("MockDopplerHookMigrator");
-        vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(mockDopplerHookMigrator), _singleFlag(ON_INITIALIZATION_FLAG));
+        _mockAirlockTimelock();
 
-        vm.prank(address(airlock));
-        migrator.initialize(
-            asset,
-            numeraire,
-            abi.encode(
-                FEE, false, TICK_SPACING, LOCK_DURATION, beneficiaries, address(0), new bytes(0), address(0), uint256(0)
-            )
-        );
+        (, PoolKey memory poolKey,,,,,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
 
-        Currency.wrap(token0).transfer(address(migrator), 1e6);
-        Currency.wrap(token1).transfer(address(migrator), 1e6);
-
-        vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
+        vm.mockCall(mockHook, abi.encodeWithSelector(IDopplerHookMigrator.onInitialization.selector), abi.encode());
         vm.expectCall(
-            mockDopplerHookMigrator,
-            abi.encodeWithSelector(IDopplerHookMigrator.onInitialization.selector, asset, key, new bytes(0))
+            mockHook,
+            abi.encodeWithSelector(IDopplerHookMigrator.onInitialization.selector, asset, poolKey, new bytes(0))
         );
 
-        vm.prank(owner);
-        migrator.setDopplerHook(asset, address(mockDopplerHookMigrator), new bytes(0));
+        vm.prank(TIMELOCK);
+        migrator.setDopplerHook(asset, mockHook, new bytes(0));
     }
-    */
 
     /* ---------------------------------------------------------------------------------- */
     /*                                updateDynamicLPFee()                                */
     /* ---------------------------------------------------------------------------------- */
 
-    /*
     function test_updateDynamicLPFee_RevertUnauthorized() public {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
-
-        address asset = Currency.unwrap(currency0);
-        address numeraire = Currency.unwrap(currency1);
-        address token0 = asset < numeraire ? asset : numeraire;
-        address token1 = asset < numeraire ? numeraire : asset;
-
-        MockDopplerHook mockHook = new MockDopplerHook(address(migrator));
-        assertTrue(address(mockHook) != address(this));
-
-        vm.prank(owner);
-        migrator.setDopplerHookState(_singleAddr(address(mockHook)), _singleFlag(ON_AFTER_SWAP_FLAG));
-
-        vm.prank(address(airlock));
-        migrator.initialize(
-            asset,
-            numeraire,
-            abi.encode(
-                10_000,
-                true,
-                TICK_SPACING,
-                LOCK_DURATION,
-                beneficiaries,
-                address(mockHook),
-                new bytes(0),
-                address(0),
-                uint256(0)
-            )
+        _generateInitData();
+        initData.useDynamicFee = true;
+        initData.feeOrInitialDynamicFee = 10_000;
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(REQUIRES_DYNAMIC_LP_FEE_FLAG)
         );
+        _initializeAndMigrate();
 
-        Currency.wrap(token0).transfer(address(migrator), 1e6);
-        Currency.wrap(token1).transfer(address(migrator), 1e6);
-
-        vm.prank(address(airlock));
-        migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-        (, PoolKey memory key,,, bool useDynamicFee, address storedHook,,) = migrator.getAssetData(token0, token1);
-        assertEq(storedHook, address(mockHook));
+        (, PoolKey memory key,,, bool useDynamicFee, address storedHook,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        assertEq(storedHook, initData.dopplerHookMigrator);
         assertEq(address(key.hooks), address(migrator));
         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
         assertTrue(useDynamicFee);
-        vm.expectRevert(abi.encodeWithSignature("SenderNotAuthorized()"));
+
+        // Caller is not the stored hook → SenderNotAuthorized
+        vm.expectRevert(SenderNotAuthorized.selector);
         migrator.updateDynamicLPFee(asset, 1000);
     }
-    */
 
-    /*
+    function test_updateDynamicLPFee_SucceedsForHook() public {
+        _generateInitData();
+        initData.useDynamicFee = true;
+        initData.feeOrInitialDynamicFee = 10_000;
+        initData.dopplerHookMigrator = vm.randomAddress();
+        vm.prank(PROTOCOL_OWNER);
+        migrator.setDopplerHookState(
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(REQUIRES_DYNAMIC_LP_FEE_FLAG)
+        );
+        _initializeAndMigrate();
 
-     function test_updateDynamicLPFee_SucceedsForHook() public {
-         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-         beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
-         beneficiaries[1] = BeneficiaryData({ beneficiary: owner, shares: 0.05e18 });
+        (, PoolKey memory key,,, bool useDynamicFee, address storedHook,,) =
+            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        assertEq(storedHook, initData.dopplerHookMigrator);
+        assertEq(address(key.hooks), address(migrator));
+        assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
+        assertTrue(useDynamicFee);
 
-         address asset = Currency.unwrap(currency0);
-         address numeraire = Currency.unwrap(currency1);
-         address token0 = asset < numeraire ? asset : numeraire;
-         address token1 = asset < numeraire ? numeraire : asset;
+        vm.prank(initData.dopplerHookMigrator);
+        migrator.updateDynamicLPFee(asset, 1000);
 
-         MockDopplerHook mockHook = new MockDopplerHook(address(migrator));
-
-         vm.prank(owner);
-         migrator.setDopplerHookState(_singleAddr(address(mockHook)), _singleFlag(ON_AFTER_SWAP_FLAG));
-
-         vm.prank(address(airlock));
-         migrator.initialize(
-             asset,
-             numeraire,
-             abi.encode(
-                 10_000,
-                 TICK_SPACING,
-                 LOCK_DURATION,
-                 beneficiaries,
-                 true,
-                 address(mockHook),
-                 new bytes(0),
-                 new bytes(0),
-                 address(0),
-                 uint256(0)
-             )
-         );
-
-         Currency.wrap(token0).transfer(address(migrator), 1e6);
-         Currency.wrap(token1).transfer(address(migrator), 1e6);
-
-         vm.prank(address(airlock));
-         migrator.migrate(Constants.SQRT_PRICE_1_1, token0, token1, recipient);
-
-         (, PoolKey memory key,,, bool useDynamicFee, address storedHook,,) = migrator.getAssetData(token0, token1);
-         assertEq(storedHook, address(mockHook));
-         assertEq(address(key.hooks), address(migrator));
-         assertEq(key.fee, LPFeeLibrary.DYNAMIC_FEE_FLAG);
-         assertTrue(useDynamicFee);
-         vm.prank(address(mockHook));
-         migrator.updateDynamicLPFee(asset, 1000);
-     }
-     */
+        (,,, uint24 lpFee) = manager.getSlot0(key.toId());
+        assertEq(lpFee, 1000);
+    }
 
     /* ------------------------------------------------------------------------------ */
     /*                                     Utils                                      */
@@ -890,6 +604,49 @@ contract DopplerHookMigratorTest is Deployers {
             initData.onInitializationCalldata,
             initData.proceedsRecipient,
             initData.proceedsShare
+        );
+    }
+
+    function _fundMigrator(uint256 amount0, uint256 amount1) internal {
+        if (isUsingETH) {
+            deal(address(migrator), amount0);
+        } else {
+            currency0.transfer(address(migrator), amount0);
+        }
+        currency1.transfer(address(migrator), amount1);
+    }
+
+    function _migrate() internal {
+        _migrate(Constants.SQRT_PRICE_1_1);
+    }
+
+    function _migrate(uint160 sqrtPriceX96) internal {
+        vm.prank(address(airlock));
+        migrator.migrate(sqrtPriceX96, Currency.unwrap(currency0), Currency.unwrap(currency1), RECIPIENT);
+    }
+
+    function _initializeAndMigrate() internal {
+        _initialize();
+        _fundMigrator(BALANCE, BALANCE);
+        _migrate();
+    }
+
+    function _mockAirlockTimelock() internal {
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSignature("getAssetData(address)", asset),
+            abi.encode(
+                address(0), // numeraire
+                TIMELOCK, // timelock
+                address(0), // governance
+                address(0), // liquidityMigrator
+                address(0), // poolInitializer
+                address(0), // pool
+                address(0), // migrationPool
+                uint256(0), // numTokensToSell
+                uint256(0), // totalSupply
+                address(0) // integrator
+            )
         );
     }
 
