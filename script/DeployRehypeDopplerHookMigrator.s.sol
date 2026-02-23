@@ -12,8 +12,12 @@ contract DeployRehypeHookMigratorScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](1);
-        targets[0] = ChainIds.BASE_SEPOLIA;
+        uint256[] memory targets = new uint256[](5);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+        targets[2] = ChainIds.BASE_MAINNET;
+        targets[3] = ChainIds.BASE_SEPOLIA;
+        targets[4] = ChainIds.MONAD_MAINNET;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
@@ -29,7 +33,7 @@ contract DeployRehypeHookMigratorScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookMigrator_");
+        bytes32 salt = generateCreate3Salt(msg.sender, "_RehypeDopplerHookMigrator_");
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
 
         address rehypeDopplerHookMigrator = ICreateX(createX)

@@ -28,6 +28,10 @@ doppler_deployer = "0xb35469ee64A87Afd19B31615094fE3962d73e421"
 doppler_hook_initializer = "0xAA096F558f3d4c9226De77E7Cc05f18E180B2544"
 rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 clone_derc20_v2_votes_factory = "0x16F5ACB64F4FA17296E942C51d3395aDC318f9e1"
+top_up_distributor = "0xD8F05757B7d638a48Fd14e15EB6782bab50Ad57F"
+streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
+doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -61,6 +65,10 @@ rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 clone_derc20_v2_votes_factory = "0x16F5ACB64F4FA17296E942C51d3395aDC318f9e1"
 decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
+top_up_distributor = "0xD8F05757B7d638a48Fd14e15EB6782bab50Ad57F"
+streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
+doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"
@@ -71,6 +79,7 @@ is_testnet = false
 [8453.address]
 create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+airlock_multisig = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
 airlock = "0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12"
 token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 uniswap_v4_pool_manager = "0x498581ff718922c3f8e6a244956af099b2652b2b"
@@ -83,6 +92,10 @@ no_op_migrator = "0x6ddfed58d238ca3195e49d8ac3d4cea6386e5c33"
 clone_derc20_v2_votes_factory = "0x16F5ACB64F4FA17296E942C51d3395aDC318f9e1"
 decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
+top_up_distributor = "0xD8F05757B7d638a48Fd14e15EB6782bab50Ad57F"
+streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
+doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [130]
 endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
@@ -118,6 +131,11 @@ rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 no_op_governance_factory = "0xb4dee32eb70a5e55f3d2d861f49fb3d79f7a14d9"
 no_op_migrator = "0x5f3ba43d44375286296cb85f1ea2ebfa25dde731"
 clone_derc20_v2_votes_factory = "0x16F5ACB64F4FA17296E942C51d3395aDC318f9e1"
+top_up_distributor = "0xD8F05757B7d638a48Fd14e15EB6782bab50Ad57F"
+airlock_multisig = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
+streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
+doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [4326]
 endpoint_url = "${MEGAETH_MAINNET_RPC_URL}"
@@ -170,8 +188,8 @@ uniswap_v4_migrator_split_hook = "0x20e03085adBcfCB840De898F37617ABD08da2500"
 decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
-rehype_doppler_hook_migrator = "0x6477Ae25bCa3dB3911AF7Cbb48a0aCE38692720b"
+doppler_hook_migrator = "0x8bBbE586F9A902c15A759FC134A99a2d28bc20c4"
+rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
