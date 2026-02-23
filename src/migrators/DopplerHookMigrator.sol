@@ -228,7 +228,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             uint256 flags = isDopplerHookEnabled[dopplerHook];
             if (dopplerHook != address(0)) {
                 require(flags != 0, DopplerHookNotEnabled());
-                require(flags & REQUIRES_DYNAMIC_LP_FEE_FLAG == 0 || useDynamicFee, HookRequiresDynamicLPFee());
+                require(!useDynamicFee || flags & REQUIRES_DYNAMIC_LP_FEE_FLAG != 0, HookRequiresDynamicLPFee());
             }
 
             PoolStatus status = getAssetData[currency0][currency1].status;
@@ -285,7 +285,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         uint256 flags = isDopplerHookEnabled[data.dopplerHook];
         if (data.dopplerHook != address(0)) {
             require(flags != 0, DopplerHookNotEnabled());
-            require(flags & REQUIRES_DYNAMIC_LP_FEE_FLAG == 0 || data.useDynamicFee, HookRequiresDynamicLPFee());
+            require(!data.useDynamicFee || flags & REQUIRES_DYNAMIC_LP_FEE_FLAG != 0, HookRequiresDynamicLPFee());
         }
 
         int24 currentTick = poolManager.initialize(data.poolKey, sqrtPriceX96);
@@ -402,7 +402,7 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
         if (dopplerHook != address(0)) {
             require(flags != 0, DopplerHookNotEnabled());
 
-            if (flags & REQUIRES_DYNAMIC_LP_FEE_FLAG != 0 && data.poolKey.fee != LPFeeLibrary.DYNAMIC_FEE_FLAG) {
+            if (data.poolKey.fee == LPFeeLibrary.DYNAMIC_FEE_FLAG && flags & REQUIRES_DYNAMIC_LP_FEE_FLAG == 0) {
                 revert HookRequiresDynamicLPFee();
             }
 
