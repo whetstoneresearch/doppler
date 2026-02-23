@@ -226,7 +226,7 @@ contract RehypeMigratorHandler is Test {
 
         bytes memory migratorData = abi.encode(
             uint24(3000),
-            true,
+            false,
             int24(8),
             uint32(30 days),
             beneficiaries,
