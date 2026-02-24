@@ -748,46 +748,6 @@ contract RehypeDopplerHook is BaseDopplerHook {
         emit AirlockOwnerFeesClaimed(poolId, msg.sender, fees0, fees1);
     }
 
-    /**
-     * @notice Updates the fee distribution for a pool
-     * @param poolId Uniswap V4 poolId
-     * @param assetFeesToAssetBuybackWad Percentage of asset fees to asset buyback
-     * @param assetFeesToNumeraireBuybackWad Percentage of asset fees to numeraire buyback
-     * @param assetFeesToBeneficiaryWad Percentage of asset fees to beneficiary accounting
-     * @param assetFeesToLpWad Percentage of asset fees to LP reinvestment
-     * @param numeraireFeesToAssetBuybackWad Percentage of numeraire fees to asset buyback
-     * @param numeraireFeesToNumeraireBuybackWad Percentage of numeraire fees to numeraire buyback
-     * @param numeraireFeesToBeneficiaryWad Percentage of numeraire fees to beneficiary accounting
-     * @param numeraireFeesToLpWad Percentage of numeraire fees to LP reinvestment
-     */
-    function setFeeDistribution(
-        PoolId poolId,
-        uint256 assetFeesToAssetBuybackWad,
-        uint256 assetFeesToNumeraireBuybackWad,
-        uint256 assetFeesToBeneficiaryWad,
-        uint256 assetFeesToLpWad,
-        uint256 numeraireFeesToAssetBuybackWad,
-        uint256 numeraireFeesToNumeraireBuybackWad,
-        uint256 numeraireFeesToBeneficiaryWad,
-        uint256 numeraireFeesToLpWad
-    ) external {
-        address buybackDst = getPoolInfo[poolId].buybackDst;
-        require(msg.sender == buybackDst, SenderNotAuthorized());
-
-        FeeDistributionInfo memory feeDistributionInfo = FeeDistributionInfo({
-            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
-            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
-            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
-            assetFeesToLpWad: assetFeesToLpWad,
-            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
-            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
-            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
-            numeraireFeesToLpWad: numeraireFeesToLpWad
-        });
-        _validateFeeDistribution(feeDistributionInfo);
-        getFeeDistributionInfo[poolId] = feeDistributionInfo;
-    }
-
     function _validateFeeDistribution(FeeDistributionInfo memory feeDistributionInfo) internal pure {
         require(
             feeDistributionInfo.assetFeesToAssetBuybackWad + feeDistributionInfo.assetFeesToNumeraireBuybackWad

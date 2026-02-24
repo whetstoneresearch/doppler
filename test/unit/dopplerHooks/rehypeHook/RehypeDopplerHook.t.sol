@@ -7,13 +7,11 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { console } from "forge-std/console.sol";
 import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
 import {
     FeeDistributionMustAddUpToWAD,
     InvalidFeeRoutingMode,
-    RehypeDopplerHook,
-    SenderNotAuthorized
+    RehypeDopplerHook
 } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { FeeDistributionInfo, FeeRoutingMode, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
@@ -383,29 +381,24 @@ contract RehypeDopplerHookTest is Test {
         assertEq(delta, 0);
     }
 
-    /* ----------------------------------------------------------------------------- */
-    /*                            setFeeDistribution()                               */
-    /* ----------------------------------------------------------------------------- */
-
-    function test_setFeeDistribution_UpdatesDistribution(PoolKey memory poolKey) public {
+    function test_onInitialization_StoresCustomDistribution(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
 
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
-        address buybackDst = makeAddr("buybackDst");
 
         bytes memory data = abi.encode(
             numeraire,
-            buybackDst,
+            address(0),
             uint24(0),
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
+            0.5e18,
+            0,
+            0.5e18,
+            0,
+            0.5e18,
+            0,
+            0.5e18,
+            0,
             uint8(FeeRoutingMode.DirectBuyback)
         );
 
@@ -413,11 +406,6 @@ contract RehypeDopplerHookTest is Test {
         dopplerHook.onInitialization(asset, poolKey, data);
 
         PoolId poolId = poolKey.toId();
-        console.log("dst", buybackDst);
-        // Update fee distribution
-        vm.prank(buybackDst);
-        dopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
-
         (
             uint256 storedAssetBuyback,
             uint256 storedNumeraireBuyback,
@@ -437,43 +425,6 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedNumeraireRowNumeraireBuyback, 0);
         assertEq(storedNumeraireRowBeneficiary, 0.5e18);
         assertEq(storedNumeraireRowLp, 0);
-    }
-
-    function test_setFeeDistribution_RevertsWhenSenderNotAuthorized(PoolKey memory poolKey) public {
-        vm.expectRevert(SenderNotAuthorized.selector);
-        dopplerHook.setFeeDistribution(
-            poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
-        );
-    }
-
-    function test_setFeeDistribution_RevertsWhenDoesNotAddToWAD(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
-
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address buybackDst = makeAddr("buybackDst");
-
-        bytes memory data = abi.encode(
-            numeraire,
-            buybackDst,
-            uint24(0),
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            0.25e18,
-            uint8(FeeRoutingMode.DirectBuyback)
-        );
-
-        vm.prank(address(initializer));
-        dopplerHook.onInitialization(asset, poolKey, data);
-
-        vm.prank(buybackDst);
-        vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        dopplerHook.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0, 0.5e18, 0.5e18, 0.5e18, 0);
     }
 
     /* ----------------------------------------------------------------------------- */

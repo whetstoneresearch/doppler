@@ -28,7 +28,7 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeRoutingMode } from "src/types/RehypeTypes.sol";
+import { FeeDistributionInfo, FeeRoutingMode } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -255,12 +255,19 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertTrue(positionSalt != bytes32(0), "Position salt should be set");
     }
 
-    function test_setFeeDistribution_UpdatesDistribution() public {
+    function test_onInitialization_StoresCustomFeeDistribution() public {
         bytes32 salt = bytes32(uint256(7));
-        (bool isToken0, address asset) = _createToken(salt);
-
-        vm.prank(address(buybackDst));
-        rehypeDopplerHook.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
+        FeeDistributionInfo memory feeDistribution = FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: 0.5e18,
+            assetFeesToNumeraireBuybackWad: 0,
+            assetFeesToBeneficiaryWad: 0.5e18,
+            assetFeesToLpWad: 0,
+            numeraireFeesToAssetBuybackWad: 0.5e18,
+            numeraireFeesToNumeraireBuybackWad: 0,
+            numeraireFeesToBeneficiaryWad: 0.5e18,
+            numeraireFeesToLpWad: 0
+        });
+        (bool isToken0, address asset) = _createTokenWithConfig(salt, uint24(3000), feeDistribution, FeeRoutingMode.DirectBuyback);
 
         (
             uint256 assetFeesToAssetBuybackWad,
@@ -285,10 +292,12 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
     function test_swap_NumeraireFeeWithFullNumeraireBuyback_ForwardsDirectlyToBuybackDst() public {
         bytes32 salt = bytes32(uint256(70));
-        (bool isToken0, address asset) = _createTokenWithRoutingMode(salt, FeeRoutingMode.DirectBuyback);
-
-        vm.prank(address(buybackDst));
-        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            salt,
+            uint24(3000),
+            _fullNumeraireBuybackDistribution(),
+            FeeRoutingMode.DirectBuyback
+        );
 
         // First buy asset so we can do an exact-input asset->numeraire swap.
         IPoolManager.SwapParams memory buyAssetParams = IPoolManager.SwapParams({
@@ -334,10 +343,12 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
     function test_swap_NumeraireFeeWithFullNumeraireBuyback_RoutesToBeneficiaryFeesWhenConfigured() public {
         bytes32 salt = bytes32(uint256(71));
-        (bool isToken0, address asset) = _createTokenWithRoutingMode(salt, FeeRoutingMode.RouteToBeneficiaryFees);
-
-        vm.prank(address(buybackDst));
-        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            salt,
+            uint24(3000),
+            _fullNumeraireBuybackDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees
+        );
 
         // First buy asset so we can do an exact-input asset->numeraire swap.
         IPoolManager.SwapParams memory buyAssetParams = IPoolManager.SwapParams({
@@ -472,8 +483,6 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bool buyExactOut = (permutationSeed & 2) != 0;
         bool sellExactOut = (permutationSeed & 4) != 0;
 
-        (bool isToken0, address asset) = _createTokenWithOrientation(targetIsToken0, saltSeed);
-
         (
             uint256 assetFeesToAssetBuybackWad,
             uint256 assetFeesToNumeraireBuybackWad,
@@ -488,17 +497,22 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint256 numeraireFeesToLpWad
         ) = _distributionRowFromSeed(numeraireDistributionSeed);
 
-        vm.prank(address(buybackDst));
-        rehypeDopplerHook.setFeeDistribution(
-            poolId,
-            assetFeesToAssetBuybackWad,
-            assetFeesToNumeraireBuybackWad,
-            assetFeesToBeneficiaryWad,
-            assetFeesToLpWad,
-            numeraireFeesToAssetBuybackWad,
-            numeraireFeesToNumeraireBuybackWad,
-            numeraireFeesToBeneficiaryWad,
-            numeraireFeesToLpWad
+        FeeDistributionInfo memory feeDistribution = FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
+            assetFeesToLpWad: assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad: numeraireFeesToLpWad
+        });
+        (bool isToken0, address asset) = _createTokenWithOrientation(
+            targetIsToken0,
+            saltSeed,
+            uint24(3000),
+            feeDistribution,
+            FeeRoutingMode.DirectBuyback
         );
 
         _executeBidirectionalSwapPermutation(isToken0, asset, buyExactOut, sellExactOut);
@@ -557,10 +571,12 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
     function test_collectFees_RoutesAndTransfersCorrectly_WhenRoutingModeIsBeneficiary() public {
         bytes32 salt = bytes32(uint256(72));
-        (bool isToken0, address asset) = _createTokenWithRoutingMode(salt, FeeRoutingMode.RouteToBeneficiaryFees);
-
-        vm.prank(address(buybackDst));
-        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            salt,
+            uint24(3000),
+            _fullNumeraireBuybackDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees
+        );
 
         uint256 buybackBalanceBeforeSwap0 = poolKey.currency0.balanceOf(buybackDst);
         uint256 buybackBalanceBeforeSwap1 = poolKey.currency1.balanceOf(buybackDst);
@@ -843,10 +859,19 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     }
 
     function _prepareInitData(address token) internal returns (InitData memory) {
-        return _prepareInitData(token, FeeRoutingMode.DirectBuyback);
+        return _prepareInitData(token, uint24(3000), _defaultFeeDistribution(), FeeRoutingMode.DirectBuyback);
     }
 
     function _prepareInitData(address token, FeeRoutingMode feeRoutingMode) internal returns (InitData memory) {
+        return _prepareInitData(token, uint24(3000), _defaultFeeDistribution(), feeRoutingMode);
+    }
+
+    function _prepareInitData(
+        address token,
+        uint24 customFee,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode
+    ) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
 
@@ -875,15 +900,15 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bytes memory rehypeData = abi.encode(
             address(numeraire), // numeraire
             buybackDst, // buybackDst
-            uint24(3000), // customFee (0.3%)
-            uint256(0.2e18), // assetFeesToAssetBuybackWad
-            uint256(0.2e18), // assetFeesToNumeraireBuybackWad
-            uint256(0.3e18), // assetFeesToBeneficiaryWad
-            uint256(0.3e18), // assetFeesToLpWad
-            uint256(0.2e18), // numeraireFeesToAssetBuybackWad
-            uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
-            uint256(0.3e18), // numeraireFeesToBeneficiaryWad
-            uint256(0.3e18), // numeraireFeesToLpWad
+            customFee, // customFee
+            feeDistribution.assetFeesToAssetBuybackWad, // assetFeesToAssetBuybackWad
+            feeDistribution.assetFeesToNumeraireBuybackWad, // assetFeesToNumeraireBuybackWad
+            feeDistribution.assetFeesToBeneficiaryWad, // assetFeesToBeneficiaryWad
+            feeDistribution.assetFeesToLpWad, // assetFeesToLpWad
+            feeDistribution.numeraireFeesToAssetBuybackWad, // numeraireFeesToAssetBuybackWad
+            feeDistribution.numeraireFeesToNumeraireBuybackWad, // numeraireFeesToNumeraireBuybackWad
+            feeDistribution.numeraireFeesToBeneficiaryWad, // numeraireFeesToBeneficiaryWad
+            feeDistribution.numeraireFeesToLpWad, // numeraireFeesToLpWad
             uint8(feeRoutingMode) // feeRoutingMode
         );
 
@@ -899,64 +924,64 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         });
     }
 
-    function _prepareInitDataWithZeroFee(address token) internal returns (InitData memory) {
-        Curve[] memory curves = new Curve[](10);
-        int24 tickSpacing = 8;
-
-        for (uint256 i; i < 10; ++i) {
-            curves[i].tickLower = int24(uint24(0 + i * 16_000));
-            curves[i].tickUpper = 240_000;
-            curves[i].numPositions = 10;
-            curves[i].shares = WAD / 10;
-        }
-
-        Currency currency0 = Currency.wrap(address(numeraire));
-        Currency currency1 = Currency.wrap(address(token));
-
-        (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
-
-        poolKey = PoolKey({
-            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: initializer
-        });
-        poolId = poolKey.toId();
-
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x07), shares: uint96(0.95e18) });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: uint96(0.05e18) });
-
-        bytes memory rehypeData = abi.encode(
-            address(numeraire), // numeraire
-            buybackDst, // buybackDst
-            uint24(0), // customFee = 0
-            uint256(0.25e18), // assetFeesToAssetBuybackWad
-            uint256(0.25e18), // assetFeesToNumeraireBuybackWad
-            uint256(0.25e18), // assetFeesToBeneficiaryWad
-            uint256(0.25e18), // assetFeesToLpWad
-            uint256(0.25e18), // numeraireFeesToAssetBuybackWad
-            uint256(0.25e18), // numeraireFeesToNumeraireBuybackWad
-            uint256(0.25e18), // numeraireFeesToBeneficiaryWad
-            uint256(0.25e18), // numeraireFeesToLpWad
-            uint8(FeeRoutingMode.DirectBuyback) // feeRoutingMode
-        );
-
-        return InitData({
-            fee: 0,
-            tickSpacing: tickSpacing,
-            farTick: 200_000,
-            curves: curves,
-            beneficiaries: beneficiaries,
-            dopplerHook: address(rehypeDopplerHook),
-            onInitializationDopplerHookCalldata: rehypeData,
-            graduationDopplerHookCalldata: new bytes(0)
+    function _defaultFeeDistribution() internal pure returns (FeeDistributionInfo memory feeDistribution) {
+        return FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: uint256(0.2e18),
+            assetFeesToNumeraireBuybackWad: uint256(0.2e18),
+            assetFeesToBeneficiaryWad: uint256(0.3e18),
+            assetFeesToLpWad: uint256(0.3e18),
+            numeraireFeesToAssetBuybackWad: uint256(0.2e18),
+            numeraireFeesToNumeraireBuybackWad: uint256(0.2e18),
+            numeraireFeesToBeneficiaryWad: uint256(0.3e18),
+            numeraireFeesToLpWad: uint256(0.3e18)
         });
     }
 
+    function _quarterFeeDistribution() internal pure returns (FeeDistributionInfo memory feeDistribution) {
+        return FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: uint256(0.25e18),
+            assetFeesToNumeraireBuybackWad: uint256(0.25e18),
+            assetFeesToBeneficiaryWad: uint256(0.25e18),
+            assetFeesToLpWad: uint256(0.25e18),
+            numeraireFeesToAssetBuybackWad: uint256(0.25e18),
+            numeraireFeesToNumeraireBuybackWad: uint256(0.25e18),
+            numeraireFeesToBeneficiaryWad: uint256(0.25e18),
+            numeraireFeesToLpWad: uint256(0.25e18)
+        });
+    }
+
+    function _fullNumeraireBuybackDistribution() internal pure returns (FeeDistributionInfo memory feeDistribution) {
+        return FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: 0,
+            assetFeesToNumeraireBuybackWad: WAD,
+            assetFeesToBeneficiaryWad: 0,
+            assetFeesToLpWad: 0,
+            numeraireFeesToAssetBuybackWad: 0,
+            numeraireFeesToNumeraireBuybackWad: WAD,
+            numeraireFeesToBeneficiaryWad: 0,
+            numeraireFeesToLpWad: 0
+        });
+    }
+
+    function _prepareInitDataWithZeroFee(address token) internal returns (InitData memory) {
+        return _prepareInitData(token, uint24(0), _quarterFeeDistribution(), FeeRoutingMode.DirectBuyback);
+    }
+
     function _createToken(bytes32 salt) internal returns (bool isToken0, address asset) {
-        return _createTokenWithRoutingMode(salt, FeeRoutingMode.DirectBuyback);
+        return _createTokenWithConfig(salt, uint24(3000), _defaultFeeDistribution(), FeeRoutingMode.DirectBuyback);
     }
 
     function _createTokenWithRoutingMode(
         bytes32 salt,
+        FeeRoutingMode feeRoutingMode
+    ) internal returns (bool isToken0, address asset) {
+        return _createTokenWithConfig(salt, uint24(3000), _defaultFeeDistribution(), feeRoutingMode);
+    }
+
+    function _createTokenWithConfig(
+        bytes32 salt,
+        uint24 customFee,
+        FeeDistributionInfo memory feeDistribution,
         FeeRoutingMode feeRoutingMode
     ) internal returns (bool isToken0, address asset) {
         string memory name = "Test Token";
@@ -985,7 +1010,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             address(tokenFactory)
         );
 
-        InitData memory initData = _prepareInitData(tokenAddress, feeRoutingMode);
+        InitData memory initData = _prepareInitData(tokenAddress, customFee, feeDistribution, feeRoutingMode);
 
         CreateParams memory params = CreateParams({
             initialSupply: initialSupply,
@@ -1018,12 +1043,24 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bool targetIsToken0,
         uint256 saltSeed
     ) internal returns (bool isToken0, address asset) {
+        return _createTokenWithOrientation(
+            targetIsToken0, saltSeed, uint24(3000), _defaultFeeDistribution(), FeeRoutingMode.DirectBuyback
+        );
+    }
+
+    function _createTokenWithOrientation(
+        bool targetIsToken0,
+        uint256 saltSeed,
+        uint24 customFee,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode
+    ) internal returns (bool isToken0, address asset) {
         uint256 baseSeed = bound(saltSeed, 1, type(uint64).max - 512);
 
         for (uint256 i; i < 512; ++i) {
             bytes32 salt = bytes32(baseSeed + i);
             if (_predictTokenAddress(salt) < address(numeraire) == targetIsToken0) {
-                return _createToken(salt);
+                return _createTokenWithConfig(salt, customFee, feeDistribution, feeRoutingMode);
             }
         }
 

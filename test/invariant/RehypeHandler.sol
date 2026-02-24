@@ -63,15 +63,14 @@ contract RehyperInvariantTests is Deployers {
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](7);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
         selectors[2] = handler.buyExactOut.selector;
         selectors[3] = handler.sellExactIn.selector;
         selectors[4] = handler.sellExactOut.selector;
-        selectors[5] = handler.setFeeDistribution.selector;
-        selectors[6] = handler.collectFees.selector;
-        selectors[7] = handler.claimAirlockOwnerFees.selector;
+        selectors[5] = handler.collectFees.selector;
+        selectors[6] = handler.claimAirlockOwnerFees.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
@@ -502,36 +501,6 @@ contract RehypeHandler is Test {
         totalSells[poolId]++;
 
         _trackLiquidity(poolId);
-    }
-
-    function setFeeDistribution(uint256 seed) public {
-        if (poolKeys.length == 0) return;
-        // Only 0.5% chance to set fee distribution
-        if (seed < WAD) seed = WAD;
-        vm.assume(seed % 1000 > 5);
-
-        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
-        PoolId poolId = poolKey.toId();
-
-        (
-            uint256 assetBuybackPercentWad,
-            uint256 numeraireBuybackPercentWad,
-            uint256 beneficiaryPercentWad,
-            uint256 lpPercentWad
-        ) = _randomizeFeeDistribution(seed);
-
-        vm.prank(settingsOf[poolId].buybackDst);
-        hook.setFeeDistribution(
-            poolId,
-            assetBuybackPercentWad,
-            numeraireBuybackPercentWad,
-            beneficiaryPercentWad,
-            lpPercentWad,
-            assetBuybackPercentWad,
-            numeraireBuybackPercentWad,
-            beneficiaryPercentWad,
-            lpPercentWad
-        );
     }
 
     function collectFees(uint256 seed) public {
