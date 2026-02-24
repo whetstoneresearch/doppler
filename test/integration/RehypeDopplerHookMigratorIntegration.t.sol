@@ -13,6 +13,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
+import { console } from "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
@@ -536,8 +537,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
             uint256 numeraireFeesToLpWad
         ) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
         assertEq(
-            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad
-                + assetFeesToLpWad,
+            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad + assetFeesToLpWad,
             WAD,
             "Asset distribution should sum to WAD"
         );
@@ -611,7 +611,17 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
     function _createAndMigrateWithCustomFee(bytes32 salt, uint24 customFee) internal returns (address asset) {
         bytes memory poolInitializerData = _defaultPoolInitializerData();
         bytes memory rehypeData = abi.encode(
-            address(0), BUYBACK_DST, customFee, uint256(0.2e18), uint256(0.2e18), uint256(0.3e18), uint256(0.3e18)
+            address(0), // numeraire
+            BUYBACK_DST, // buybackDst
+            customFee, // customFee
+            uint256(0.2e18), // assetFeesToAssetBuybackWad
+            uint256(0.2e18), // assetFeesToNumeraireBuybackWad
+            uint256(0.3e18), // assetFeesToBeneficiaryWad
+            uint256(0.3e18), // assetFeesToLpWad
+            uint256(0.2e18), // numeraireFeesToAssetBuybackWad
+            uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
+            uint256(0.3e18), // numeraireFeesToBeneficiaryWad
+            uint256(0.3e18) // numeraireFeesToLpWad
         );
         bytes memory migratorData = _defaultMigratorData(address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData =

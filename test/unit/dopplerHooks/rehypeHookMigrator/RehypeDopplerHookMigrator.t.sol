@@ -183,7 +183,19 @@ contract RehypeDopplerHookMigratorTest is Test {
     }
 
     function test_onInitialization_RevertsWhenSenderNotMigrator(PoolKey memory poolKey) public {
-        bytes memory data = abi.encode(address(0), address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            address(0),
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18
+        );
 
         vm.expectRevert(SenderNotMigrator.selector);
         rehypeHookMigrator.onInitialization(address(0), poolKey, data);
@@ -194,7 +206,19 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         // Fee distribution that doesn't add up to WAD
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.24e18);
+        bytes memory data = abi.encode(
+            numeraire,
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.24e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18
+        );
 
         vm.prank(address(mockMigrator));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -206,7 +230,19 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         // Fee distribution that exceeds WAD
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.5e18, 0.5e18, 0.5e18, 0.5e18);
+        bytes memory data = abi.encode(
+            numeraire,
+            address(0),
+            uint24(0),
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18
+        );
 
         vm.prank(address(mockMigrator));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -376,7 +412,19 @@ contract RehypeDopplerHookMigratorTest is Test {
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            numeraire,
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18
+        );
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -528,7 +576,19 @@ contract RehypeDopplerHookMigratorTest is Test {
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        bytes memory data = abi.encode(
+            numeraire,
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18
+        );
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);

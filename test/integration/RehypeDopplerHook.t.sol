@@ -11,12 +11,13 @@ import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.s
 import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { console } from "forge-std/console.sol";
 
 import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -50,6 +51,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     LiquidityMigratorMock public mockLiquidityMigrator;
     RehypeDopplerHook public rehypeDopplerHook;
     TestERC20 public numeraire;
+    V4Quoter public quoter;
 
     PoolKey public poolKey;
     PoolId public poolId;
@@ -77,6 +79,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         rehypeDopplerHook = new RehypeDopplerHook(address(initializer), manager);
         vm.label(address(rehypeDopplerHook), "RehypeDopplerHook");
+        quoter = new V4Quoter(manager);
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
 
@@ -389,6 +392,70 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         assertTrue(beneficiaryFees0 + airlockOwnerFees0 > 0, "Total fees0 should be > 0");
         assertTrue(beneficiaryFees1 + airlockOwnerFees1 > 0, "Total fees1 should be > 0");
+    }
+
+    function test_property_rehypothecationAccounting_AllSwapPermutations() public {
+        uint256 saltSeed = 100_000;
+
+        for (uint256 orientation; orientation < 2; ++orientation) {
+            bool targetIsToken0 = orientation == 1;
+
+            for (uint256 modeMask; modeMask < 4; ++modeMask) {
+                bool buyExactOut = (modeMask & 1) != 0;
+                bool sellExactOut = (modeMask & 2) != 0;
+
+                (bool isToken0, address asset) = _createTokenWithOrientation(targetIsToken0, saltSeed);
+                saltSeed += 1024;
+                _executeBidirectionalSwapPermutation(isToken0, asset, buyExactOut, sellExactOut);
+                _assertHookAccountingInvariants(poolId);
+            }
+        }
+    }
+
+    /// forge-config: default.fuzz.runs = 8
+    function testFuzz_property_rehypothecationAccounting_MatrixPermutations(
+        uint256 saltSeed,
+        uint8 permutationSeed,
+        uint256 assetDistributionSeed,
+        uint256 numeraireDistributionSeed
+    )
+        public
+    {
+        bool targetIsToken0 = (permutationSeed & 1) != 0;
+        bool buyExactOut = (permutationSeed & 2) != 0;
+        bool sellExactOut = (permutationSeed & 4) != 0;
+
+        (bool isToken0, address asset) = _createTokenWithOrientation(targetIsToken0, saltSeed);
+
+        (
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad
+        ) = _distributionRowFromSeed(assetDistributionSeed);
+
+        (
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        ) = _distributionRowFromSeed(numeraireDistributionSeed);
+
+        vm.prank(address(buybackDst));
+        rehypeDopplerHook.setFeeDistribution(
+            poolId,
+            assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad,
+            assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad
+        );
+
+        _executeBidirectionalSwapPermutation(isToken0, asset, buyExactOut, sellExactOut);
+        _assertHookAccountingInvariants(poolId);
     }
 
     function test_collectFees_TransfersToBeneficiary() public {
@@ -820,6 +887,186 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+    }
+
+    function _createTokenWithOrientation(bool targetIsToken0, uint256 saltSeed)
+        internal
+        returns (bool isToken0, address asset)
+    {
+        uint256 baseSeed = bound(saltSeed, 1, type(uint64).max - 512);
+
+        for (uint256 i; i < 512; ++i) {
+            bytes32 salt = bytes32(baseSeed + i);
+            if (_predictTokenAddress(salt) < address(numeraire) == targetIsToken0) {
+                return _createToken(salt);
+            }
+        }
+
+        revert("No matching token orientation found");
+    }
+
+    function _predictTokenAddress(bytes32 salt) internal view returns (address) {
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        return vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+    }
+
+    function _executeBidirectionalSwapPermutation(bool isToken0, address asset, bool buyExactOut, bool sellExactOut)
+        internal
+    {
+        bool buyZeroForOne = !isToken0;
+        uint160 buyLimit = buyZeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1;
+
+        int256 buyAmountSpecified;
+        if (buyExactOut) {
+            (uint256 quotedAssetOut,) = quoter.quoteExactInputSingle(
+                IV4Quoter.QuoteExactSingleParams({
+                    poolKey: poolKey,
+                    zeroForOne: buyZeroForOne,
+                    exactAmount: uint128(1 ether),
+                    hookData: new bytes(0)
+                })
+            );
+            uint256 desiredAssetOut = quotedAssetOut / 2;
+            if (desiredAssetOut == 0) desiredAssetOut = quotedAssetOut;
+            if (desiredAssetOut == 0) desiredAssetOut = 1;
+            buyAmountSpecified = int256(desiredAssetOut);
+        } else {
+            buyAmountSpecified = -int256(1 ether);
+        }
+
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: buyZeroForOne,
+                amountSpecified: buyAmountSpecified,
+                sqrtPriceLimitX96: buyLimit
+            }),
+            PoolSwapTest.TestSettings(false, false),
+            new bytes(0)
+        );
+
+        uint256 assetBalance = TestERC20(asset).balanceOf(address(this));
+        if (assetBalance == 0) return;
+
+        bool sellZeroForOne = isToken0;
+        uint160 sellLimit = sellZeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1;
+
+        int256 sellAmountSpecified;
+        if (sellExactOut) {
+            (uint256 quotedNumeraireOut,) = quoter.quoteExactInputSingle(
+                IV4Quoter.QuoteExactSingleParams({
+                    poolKey: poolKey,
+                    zeroForOne: sellZeroForOne,
+                    exactAmount: uint128(assetBalance),
+                    hookData: new bytes(0)
+                })
+            );
+            uint256 desiredNumeraireOut = quotedNumeraireOut / 2;
+            if (desiredNumeraireOut == 0) desiredNumeraireOut = quotedNumeraireOut;
+            if (desiredNumeraireOut == 0) {
+                sellAmountSpecified = -int256(assetBalance / 2);
+            } else {
+                sellAmountSpecified = int256(desiredNumeraireOut);
+            }
+        } else {
+            uint256 assetAmountIn = assetBalance / 2;
+            if (assetAmountIn == 0) assetAmountIn = assetBalance;
+            sellAmountSpecified = -int256(assetAmountIn);
+        }
+
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: sellZeroForOne,
+                amountSpecified: sellAmountSpecified,
+                sqrtPriceLimitX96: sellLimit
+            }),
+            PoolSwapTest.TestSettings(false, false),
+            new bytes(0)
+        );
+    }
+
+    function _assertHookAccountingInvariants(PoolId id) internal view {
+        (
+            uint128 fees0,
+            uint128 fees1,
+            uint128 beneficiaryFees0,
+            uint128 beneficiaryFees1,
+            uint128 airlockOwnerFees0,
+            uint128 airlockOwnerFees1,
+            uint24 customFee
+        ) = rehypeDopplerHook.getHookFees(id);
+
+        assertEq(customFee, 3000, "custom fee should remain unchanged");
+        assertLe(fees0, EPSILON, "fees0 should not accumulate above EPSILON");
+        assertLe(fees1, EPSILON, "fees1 should not accumulate above EPSILON");
+
+        uint256 totalAccountedFees =
+            uint256(beneficiaryFees0) + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1;
+        assertGt(totalAccountedFees, 0, "swaps should accrue some tracked fees");
+
+        uint256 hookBalance0 = poolKey.currency0.balanceOf(address(rehypeDopplerHook));
+        uint256 hookBalance1 = poolKey.currency1.balanceOf(address(rehypeDopplerHook));
+
+        assertGe(
+            hookBalance0,
+            uint256(beneficiaryFees0) + airlockOwnerFees0,
+            "hook must remain solvent for currency0 tracked balances"
+        );
+        assertGe(
+            hookBalance1,
+            uint256(beneficiaryFees1) + airlockOwnerFees1,
+            "hook must remain solvent for currency1 tracked balances"
+        );
+    }
+
+    function _distributionRowFromSeed(uint256 seed)
+        internal
+        pure
+        returns (
+            uint256 toAssetBuybackWad,
+            uint256 toNumeraireBuybackWad,
+            uint256 toBeneficiaryWad,
+            uint256 toLpWad
+        )
+    {
+        uint256 remaining = WAD;
+
+        toAssetBuybackWad = seed % (remaining + 1);
+        remaining -= toAssetBuybackWad;
+
+        uint256 seed1 = uint256(keccak256(abi.encode(seed, uint256(1))));
+        toNumeraireBuybackWad = seed1 % (remaining + 1);
+        remaining -= toNumeraireBuybackWad;
+
+        uint256 seed2 = uint256(keccak256(abi.encode(seed, uint256(2))));
+        toBeneficiaryWad = seed2 % (remaining + 1);
+        remaining -= toBeneficiaryWad;
+
+        toLpWad = remaining;
     }
 
     function _createTokenWithZeroFee(bytes32 salt) internal returns (bool isToken0, address asset) {

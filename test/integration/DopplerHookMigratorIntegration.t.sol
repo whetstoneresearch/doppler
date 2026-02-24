@@ -201,7 +201,19 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         migrator.setDopplerHookState(dopplerHooks, flags);
 
         bytes memory initData = _defaultPoolInitializerData();
-        bytes memory rehypeData = abi.encode(address(0), address(0xBEEF), uint24(3000), 0.2e18, 0.2e18, 0.3e18, 0.3e18);
+        bytes memory rehypeData = abi.encode(
+            address(0), // numeraire
+            address(0xBEEF), // buybackDst
+            uint24(3000), // customFee
+            uint256(0.2e18), // assetFeesToAssetBuybackWad
+            uint256(0.2e18), // assetFeesToNumeraireBuybackWad
+            uint256(0.3e18), // assetFeesToBeneficiaryWad
+            uint256(0.3e18), // assetFeesToLpWad
+            uint256(0.2e18), // numeraireFeesToAssetBuybackWad
+            uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
+            uint256(0.3e18), // numeraireFeesToBeneficiaryWad
+            uint256(0.3e18) // numeraireFeesToLpWad
+        );
         bytes memory migratorData = _defaultMigratorData(false, address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 

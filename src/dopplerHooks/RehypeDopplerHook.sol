@@ -210,13 +210,24 @@ contract RehypeDopplerHook is BaseDopplerHook {
         }
 
         if (assetBuybackAmountIn > 0) {
-            (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
-                _executeSwap(key, isToken0, assetBuybackAmountIn);
-            isNumeraireToken0
-                ? key.currency0.transfer(recipient, assetBuybackAmountOut)
-                : key.currency1.transfer(recipient, assetBuybackAmountOut);
-            balance0 = isToken0 ? balance0 - assetBuybackAmountInUsed : balance0;
-            balance1 = isToken0 ? balance1 : balance1 - assetBuybackAmountInUsed;
+            Currency outputCurrency = isNumeraireToken0 ? key.currency0 : key.currency1;
+            SwapSimulation memory sim = _simulateSwap(
+                key,
+                isToken0,
+                assetBuybackAmountIn,
+                isToken0 ? balance0 : 0,
+                isToken0 ? 0 : balance1
+            );
+            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
+            if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
+                (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
+                    _executeSwap(key, isToken0, assetBuybackAmountIn);
+                isNumeraireToken0
+                    ? key.currency0.transfer(recipient, assetBuybackAmountOut)
+                    : key.currency1.transfer(recipient, assetBuybackAmountOut);
+                balance0 = isToken0 ? balance0 - assetBuybackAmountInUsed : balance0;
+                balance1 = isToken0 ? balance1 : balance1 - assetBuybackAmountInUsed;
+            }
         }
 
         if (numeraireBuybackAmountIn > 0) {
@@ -235,8 +246,11 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 isToken0
                     ? key.currency0.transfer(recipient, numeraireBuybackAmountOutResult)
                     : key.currency1.transfer(recipient, numeraireBuybackAmountOutResult);
-                balance0 = isToken0 ? balance0 - numeraireBuybackAmountInUsed : balance0;
-                balance1 = isToken0 ? balance1 : balance1 - numeraireBuybackAmountInUsed;
+                // numeraireBuybackAmountInUsed is always paid in numeraire:
+                // - when isToken0=true, numeraire is currency1
+                // - when isToken0=false, numeraire is currency0
+                balance0 = isToken0 ? balance0 : balance0 - numeraireBuybackAmountInUsed;
+                balance1 = isToken0 ? balance1 - numeraireBuybackAmountInUsed : balance1;
             }
         }
 
