@@ -2,10 +2,20 @@
 pragma solidity ^0.8.24;
 
 /**
+ * @notice Routing mode for buyback-designated fees
+ * @dev DirectBuyback keeps current behavior (immediate transfers to buybackDst).
+ * RouteToBeneficiaryFees accrues buyback outputs into beneficiary fee accounting.
+ */
+enum FeeRoutingMode {
+    DirectBuyback,
+    RouteToBeneficiaryFees
+}
+
+/**
  * @notice Core pool information for a Rehype-managed pool
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
- * @param buybackDst Address receiving buyback proceeds and beneficiary fees
+ * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
  */
 struct PoolInfo {
     address asset;

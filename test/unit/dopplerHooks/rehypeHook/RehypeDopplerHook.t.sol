@@ -11,11 +11,12 @@ import { console } from "forge-std/console.sol";
 import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
 import {
     FeeDistributionMustAddUpToWAD,
+    InvalidFeeRoutingMode,
     RehypeDopplerHook,
     SenderNotAuthorized
 } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeDistributionInfo, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
+import { FeeDistributionInfo, FeeRoutingMode, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
@@ -108,7 +109,8 @@ contract RehypeDopplerHookTest is Test {
             assetBuybackPercentWad,
             numeraireBuybackPercentWad,
             beneficiaryPercentWad,
-            lpPercentWad
+            lpPercentWad,
+            uint8(FeeRoutingMode.DirectBuyback)
         );
 
         vm.prank(address(initializer));
@@ -121,6 +123,7 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedAsset, asset);
         assertEq(storedNumeraire, numeraire);
         assertEq(storedBuybackDst, buybackDst);
+        assertEq(uint8(dopplerHook.getFeeRoutingMode(poolId)), uint8(FeeRoutingMode.DirectBuyback));
 
         // Check fee distribution info
         (
@@ -169,7 +172,18 @@ contract RehypeDopplerHookTest is Test {
         address buybackDst = makeAddr("buybackDst");
 
         bytes memory data = abi.encode(
-            numeraire, buybackDst, uint24(3000), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+            numeraire,
+            buybackDst,
+            uint24(3000),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(FeeRoutingMode.DirectBuyback)
         );
 
         vm.prank(address(initializer));
@@ -188,7 +202,20 @@ contract RehypeDopplerHookTest is Test {
 
     function test_onInitialization_RevertsWhenSenderNotInitializer(PoolKey memory poolKey) public {
         bytes memory data =
-            abi.encode(address(0), address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+            abi.encode(
+                address(0),
+                address(0),
+                uint24(0),
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                uint8(FeeRoutingMode.DirectBuyback)
+            );
 
         vm.expectRevert(SenderNotInitializer.selector);
         dopplerHook.onInitialization(address(0), poolKey, data);
@@ -200,7 +227,20 @@ contract RehypeDopplerHookTest is Test {
 
         // Fee distribution that doesn't add up to WAD
         bytes memory data =
-            abi.encode(numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.24e18, 0.25e18, 0.25e18, 0.25e18, 0.24e18);
+            abi.encode(
+                numeraire,
+                address(0),
+                uint24(0),
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.24e18,
+                0.25e18,
+                0.25e18,
+                0.25e18,
+                0.24e18,
+                uint8(FeeRoutingMode.DirectBuyback)
+            );
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -213,10 +253,80 @@ contract RehypeDopplerHookTest is Test {
 
         // Fee distribution that exceeds WAD
         bytes memory data =
-            abi.encode(numeraire, address(0), uint24(0), 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18, 0.5e18);
+            abi.encode(
+                numeraire,
+                address(0),
+                uint24(0),
+                0.5e18,
+                0.5e18,
+                0.5e18,
+                0.5e18,
+                0.5e18,
+                0.5e18,
+                0.5e18,
+                0.5e18,
+                uint8(FeeRoutingMode.DirectBuyback)
+            );
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
+        dopplerHook.onInitialization(asset, poolKey, data);
+    }
+
+    function test_onInitialization_SetsFeeRoutingModeFromCalldata(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
+
+        bytes memory data = abi.encode(
+            numeraire,
+            buybackDst,
+            uint24(3000),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(FeeRoutingMode.RouteToBeneficiaryFees)
+        );
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, data);
+
+        assertEq(
+            uint8(dopplerHook.getFeeRoutingMode(poolKey.toId())),
+            uint8(FeeRoutingMode.RouteToBeneficiaryFees),
+            "Mode should be set from initialization calldata"
+        );
+    }
+
+    function test_onInitialization_RevertsWhenFeeRoutingModeInvalid(PoolKey memory poolKey) public {
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
+
+        bytes memory data = abi.encode(
+            numeraire,
+            buybackDst,
+            uint24(3000),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(2)
+        );
+
+        vm.prank(address(initializer));
+        vm.expectRevert(InvalidFeeRoutingMode.selector);
         dopplerHook.onInitialization(asset, poolKey, data);
     }
 
@@ -241,7 +351,7 @@ contract RehypeDopplerHookTest is Test {
         uint24 customFee = 10_000; // 1%
 
         // All fees go to beneficiary for simple testing
-        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0, 0, 0, WAD, 0);
+        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0, 0, 0, WAD, 0, uint8(FeeRoutingMode.DirectBuyback));
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
@@ -285,7 +395,18 @@ contract RehypeDopplerHookTest is Test {
         address buybackDst = makeAddr("buybackDst");
 
         bytes memory data = abi.encode(
-            numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+            numeraire,
+            buybackDst,
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(FeeRoutingMode.DirectBuyback)
         );
 
         vm.prank(address(initializer));
@@ -333,7 +454,18 @@ contract RehypeDopplerHookTest is Test {
         address buybackDst = makeAddr("buybackDst");
 
         bytes memory data = abi.encode(
-            numeraire, buybackDst, uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+            numeraire,
+            buybackDst,
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(FeeRoutingMode.DirectBuyback)
         );
 
         vm.prank(address(initializer));
@@ -355,7 +487,18 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         bytes memory data = abi.encode(
-            numeraire, address(0), uint24(0), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+            numeraire,
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(FeeRoutingMode.DirectBuyback)
         );
 
         vm.prank(address(initializer));

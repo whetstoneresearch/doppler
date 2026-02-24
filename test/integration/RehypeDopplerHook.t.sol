@@ -28,6 +28,7 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { FeeRoutingMode } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -217,8 +218,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertEq(numeraireFeesToLpWad, 0.3e18, "Numeraire row LP should be 30%");
 
         assertEq(
-            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad
-                + assetFeesToLpWad,
+            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad + assetFeesToLpWad,
             WAD,
             "Asset fee distribution should add up to WAD"
         );
@@ -285,7 +285,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
     function test_swap_NumeraireFeeWithFullNumeraireBuyback_ForwardsDirectlyToBuybackDst() public {
         bytes32 salt = bytes32(uint256(70));
-        (bool isToken0, address asset) = _createToken(salt);
+        (bool isToken0, address asset) = _createTokenWithRoutingMode(salt, FeeRoutingMode.DirectBuyback);
 
         vm.prank(address(buybackDst));
         rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
@@ -328,6 +328,55 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 beneficiaryFees0After,
                 beneficiaryFees0Before,
                 "Numeraire beneficiary fees should not increase on direct forwarding"
+            );
+        }
+    }
+
+    function test_swap_NumeraireFeeWithFullNumeraireBuyback_RoutesToBeneficiaryFeesWhenConfigured() public {
+        bytes32 salt = bytes32(uint256(71));
+        (bool isToken0, address asset) = _createTokenWithRoutingMode(salt, FeeRoutingMode.RouteToBeneficiaryFees);
+
+        vm.prank(address(buybackDst));
+        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+
+        // First buy asset so we can do an exact-input asset->numeraire swap.
+        IPoolManager.SwapParams memory buyAssetParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        BalanceDelta buyDelta =
+            swapRouter.swap(poolKey, buyAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 assetBought = isToken0 ? uint256(uint128(buyDelta.amount0())) : uint256(uint128(buyDelta.amount1()));
+        int256 assetToSell = -int256(assetBought / 2);
+
+        (,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before,,,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 buybackNumeraireBefore = Currency.wrap(address(numeraire)).balanceOf(buybackDst);
+
+        // Exact-input asset->numeraire: buyback output should route into beneficiary accounting.
+        IPoolManager.SwapParams memory sellAssetParams = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: assetToSell,
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, sellAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 buybackNumeraireAfter = Currency.wrap(address(numeraire)).balanceOf(buybackDst);
+        assertEq(buybackNumeraireAfter, buybackNumeraireBefore, "Numeraire should not be forwarded directly");
+
+        (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,,,) = rehypeDopplerHook.getHookFees(poolId);
+        if (isToken0) {
+            assertGt(
+                beneficiaryFees1After,
+                beneficiaryFees1Before,
+                "Numeraire beneficiary fees should increase in routing mode"
+            );
+        } else {
+            assertGt(
+                beneficiaryFees0After,
+                beneficiaryFees0Before,
+                "Numeraire beneficiary fees should increase in routing mode"
             );
         }
     }
@@ -418,9 +467,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         uint8 permutationSeed,
         uint256 assetDistributionSeed,
         uint256 numeraireDistributionSeed
-    )
-        public
-    {
+    ) public {
         bool targetIsToken0 = (permutationSeed & 1) != 0;
         bool buyExactOut = (permutationSeed & 2) != 0;
         bool sellExactOut = (permutationSeed & 4) != 0;
@@ -506,6 +553,71 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             assertEq(beneficiaryFees0After, 0, "Fees0 should be reset");
             assertEq(beneficiaryFees1After, 0, "Fees1 should be reset");
         }
+    }
+
+    function test_collectFees_RoutesAndTransfersCorrectly_WhenRoutingModeIsBeneficiary() public {
+        bytes32 salt = bytes32(uint256(72));
+        (bool isToken0, address asset) = _createTokenWithRoutingMode(salt, FeeRoutingMode.RouteToBeneficiaryFees);
+
+        vm.prank(address(buybackDst));
+        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+
+        uint256 buybackBalanceBeforeSwap0 = poolKey.currency0.balanceOf(buybackDst);
+        uint256 buybackBalanceBeforeSwap1 = poolKey.currency1.balanceOf(buybackDst);
+
+        IPoolManager.SwapParams memory buyAssetParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        BalanceDelta buyDelta =
+            swapRouter.swap(poolKey, buyAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 assetBought = isToken0 ? uint256(uint128(buyDelta.amount0())) : uint256(uint128(buyDelta.amount1()));
+        int256 assetToSell = -int256(assetBought / 2);
+
+        IPoolManager.SwapParams memory sellAssetParams = IPoolManager.SwapParams({
+            zeroForOne: isToken0,
+            amountSpecified: assetToSell,
+            sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, sellAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 buybackBalanceAfterSwap0 = poolKey.currency0.balanceOf(buybackDst);
+        uint256 buybackBalanceAfterSwap1 = poolKey.currency1.balanceOf(buybackDst);
+        assertEq(
+            buybackBalanceAfterSwap0, buybackBalanceBeforeSwap0, "No direct currency0 transfer expected in routing mode"
+        );
+        assertEq(
+            buybackBalanceAfterSwap1, buybackBalanceBeforeSwap1, "No direct currency1 transfer expected in routing mode"
+        );
+
+        (,, uint128 beneficiaryFees0BeforeCollect, uint128 beneficiaryFees1BeforeCollect,,,) =
+            rehypeDopplerHook.getHookFees(poolId);
+        assertGt(
+            beneficiaryFees0BeforeCollect + beneficiaryFees1BeforeCollect,
+            0,
+            "Expected routed beneficiary fees before collect"
+        );
+
+        BalanceDelta fees = rehypeDopplerHook.collectFees(address(asset));
+
+        assertEq(
+            poolKey.currency0.balanceOf(buybackDst) - buybackBalanceAfterSwap0,
+            uint128(fees.amount0()),
+            "Collected currency0 should match fee delta"
+        );
+        assertEq(
+            poolKey.currency1.balanceOf(buybackDst) - buybackBalanceAfterSwap1,
+            uint128(fees.amount1()),
+            "Collected currency1 should match fee delta"
+        );
+        assertGt(uint256(uint128(fees.amount0())) + uint256(uint128(fees.amount1())), 0, "Collected fees should be > 0");
+
+        (,, uint128 beneficiaryFees0AfterCollect, uint128 beneficiaryFees1AfterCollect,,,) =
+            rehypeDopplerHook.getHookFees(poolId);
+        assertEq(beneficiaryFees0AfterCollect, 0, "Beneficiary fees0 should be reset");
+        assertEq(beneficiaryFees1AfterCollect, 0, "Beneficiary fees1 should be reset");
     }
 
     function test_hookFees_CustomFeeZero_NoFeesCollected() public {
@@ -731,6 +843,10 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     }
 
     function _prepareInitData(address token) internal returns (InitData memory) {
+        return _prepareInitData(token, FeeRoutingMode.DirectBuyback);
+    }
+
+    function _prepareInitData(address token, FeeRoutingMode feeRoutingMode) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
 
@@ -767,7 +883,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint256(0.2e18), // numeraireFeesToAssetBuybackWad
             uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
             uint256(0.3e18), // numeraireFeesToBeneficiaryWad
-            uint256(0.3e18) // numeraireFeesToLpWad
+            uint256(0.3e18), // numeraireFeesToLpWad
+            uint8(feeRoutingMode) // feeRoutingMode
         );
 
         return InitData({
@@ -818,7 +935,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint256(0.25e18), // numeraireFeesToAssetBuybackWad
             uint256(0.25e18), // numeraireFeesToNumeraireBuybackWad
             uint256(0.25e18), // numeraireFeesToBeneficiaryWad
-            uint256(0.25e18) // numeraireFeesToLpWad
+            uint256(0.25e18), // numeraireFeesToLpWad
+            uint8(FeeRoutingMode.DirectBuyback) // feeRoutingMode
         );
 
         return InitData({
@@ -834,6 +952,13 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     }
 
     function _createToken(bytes32 salt) internal returns (bool isToken0, address asset) {
+        return _createTokenWithRoutingMode(salt, FeeRoutingMode.DirectBuyback);
+    }
+
+    function _createTokenWithRoutingMode(
+        bytes32 salt,
+        FeeRoutingMode feeRoutingMode
+    ) internal returns (bool isToken0, address asset) {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -860,7 +985,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             address(tokenFactory)
         );
 
-        InitData memory initData = _prepareInitData(tokenAddress);
+        InitData memory initData = _prepareInitData(tokenAddress, feeRoutingMode);
 
         CreateParams memory params = CreateParams({
             initialSupply: initialSupply,
@@ -889,10 +1014,10 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
     }
 
-    function _createTokenWithOrientation(bool targetIsToken0, uint256 saltSeed)
-        internal
-        returns (bool isToken0, address asset)
-    {
+    function _createTokenWithOrientation(
+        bool targetIsToken0,
+        uint256 saltSeed
+    ) internal returns (bool isToken0, address asset) {
         uint256 baseSeed = bound(saltSeed, 1, type(uint64).max - 512);
 
         for (uint256 i; i < 512; ++i) {
@@ -933,9 +1058,12 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         );
     }
 
-    function _executeBidirectionalSwapPermutation(bool isToken0, address asset, bool buyExactOut, bool sellExactOut)
-        internal
-    {
+    function _executeBidirectionalSwapPermutation(
+        bool isToken0,
+        address asset,
+        bool buyExactOut,
+        bool sellExactOut
+    ) internal {
         bool buyZeroForOne = !isToken0;
         uint160 buyLimit = buyZeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1;
 
@@ -943,10 +1071,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         if (buyExactOut) {
             (uint256 quotedAssetOut,) = quoter.quoteExactInputSingle(
                 IV4Quoter.QuoteExactSingleParams({
-                    poolKey: poolKey,
-                    zeroForOne: buyZeroForOne,
-                    exactAmount: uint128(1 ether),
-                    hookData: new bytes(0)
+                    poolKey: poolKey, zeroForOne: buyZeroForOne, exactAmount: uint128(1 ether), hookData: new bytes(0)
                 })
             );
             uint256 desiredAssetOut = quotedAssetOut / 2;
@@ -960,9 +1085,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(
             poolKey,
             IPoolManager.SwapParams({
-                zeroForOne: buyZeroForOne,
-                amountSpecified: buyAmountSpecified,
-                sqrtPriceLimitX96: buyLimit
+                zeroForOne: buyZeroForOne, amountSpecified: buyAmountSpecified, sqrtPriceLimitX96: buyLimit
             }),
             PoolSwapTest.TestSettings(false, false),
             new bytes(0)
@@ -1000,9 +1123,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(
             poolKey,
             IPoolManager.SwapParams({
-                zeroForOne: sellZeroForOne,
-                amountSpecified: sellAmountSpecified,
-                sqrtPriceLimitX96: sellLimit
+                zeroForOne: sellZeroForOne, amountSpecified: sellAmountSpecified, sqrtPriceLimitX96: sellLimit
             }),
             PoolSwapTest.TestSettings(false, false),
             new bytes(0)
@@ -1046,12 +1167,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     function _distributionRowFromSeed(uint256 seed)
         internal
         pure
-        returns (
-            uint256 toAssetBuybackWad,
-            uint256 toNumeraireBuybackWad,
-            uint256 toBeneficiaryWad,
-            uint256 toLpWad
-        )
+        returns (uint256 toAssetBuybackWad, uint256 toNumeraireBuybackWad, uint256 toBeneficiaryWad, uint256 toLpWad)
     {
         uint256 remaining = WAD;
 

@@ -263,7 +263,8 @@ contract RehypeHandler is Test {
             settings.assetBuybackPercentWad,
             settings.numeraireBuybackPercentWad,
             settings.beneficiaryPercentWad,
-            settings.lpPercentWad
+            settings.lpPercentWad,
+            uint8(0)
         );
         dopplerHookInitializer.initialize(address(asset), numeraire, 1e27, bytes32(0), abi.encode(data));
 

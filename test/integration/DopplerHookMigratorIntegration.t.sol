@@ -212,7 +212,8 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             uint256(0.2e18), // numeraireFeesToAssetBuybackWad
             uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
             uint256(0.3e18), // numeraireFeesToBeneficiaryWad
-            uint256(0.3e18) // numeraireFeesToLpWad
+            uint256(0.3e18), // numeraireFeesToLpWad
+            uint8(0) // feeRoutingMode: DirectBuyback
         );
         bytes memory migratorData = _defaultMigratorData(false, address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();

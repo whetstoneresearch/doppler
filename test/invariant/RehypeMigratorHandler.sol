@@ -225,7 +225,8 @@ contract RehypeMigratorHandler is Test {
             settings.assetBuybackPercentWad,
             settings.numeraireBuybackPercentWad,
             settings.beneficiaryPercentWad,
-            settings.lpPercentWad
+            settings.lpPercentWad,
+            uint8(0)
         );
 
         bytes memory migratorData = abi.encode(

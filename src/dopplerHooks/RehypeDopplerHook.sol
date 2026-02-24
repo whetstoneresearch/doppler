@@ -16,7 +16,7 @@ import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
-import { FeeDistributionInfo, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
+import { FeeDistributionInfo, FeeRoutingMode, HookFees, PoolInfo, SwapSimulation } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 /// @notice Thrown when the fee distribution does not add up to WAD (1e18)
@@ -28,6 +28,12 @@ error SenderNotAuthorized();
 /// @notice Thrown when the sender is not the airlock owner
 error SenderNotAirlockOwner();
 
+/// @notice Thrown when initialization calldata length is invalid
+error InvalidInitializationDataLength();
+
+/// @notice Thrown when fee routing mode is invalid
+error InvalidFeeRoutingMode();
+
 /**
  * @notice Emitted when Airlock owner claims fees
  * @param poolId Pool from which fees were claimed
@@ -36,6 +42,13 @@ error SenderNotAirlockOwner();
  * @param fees1 Amount of currency1 claimed
  */
 event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
+
+/**
+ * @notice Emitted when the fee routing mode is updated
+ * @param poolId Pool for which routing mode changed
+ * @param feeRoutingMode New routing mode
+ */
+event FeeRoutingModeUpdated(PoolId indexed poolId, FeeRoutingMode feeRoutingMode);
 
 // Constants
 /// @dev Maximum swap fee denominator (1e6 = 100%)
@@ -52,6 +65,9 @@ uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
 
 /// @dev Basis points denominator
 uint256 constant BPS_DENOMINATOR = 10_000;
+
+/// @dev Rehype init payload words (with fee routing mode)
+uint256 constant REHYPE_INIT_WORDS = 12;
 
 /**
  * @title Rehype Doppler Hook
@@ -81,6 +97,9 @@ contract RehypeDopplerHook is BaseDopplerHook {
     /// @notice Pool info for each pool
     mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
 
+    /// @notice Fee routing mode for each pool
+    mapping(PoolId poolId => FeeRoutingMode feeRoutingMode) public getFeeRoutingMode;
+
     receive() external payable { }
 
     /**
@@ -94,19 +113,57 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /// @inheritdoc BaseDopplerHook
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
+        address numeraire;
+        address buybackDst;
+        uint24 customFee;
+        uint256 assetFeesToAssetBuybackWad;
+        uint256 assetFeesToNumeraireBuybackWad;
+        uint256 assetFeesToBeneficiaryWad;
+        uint256 assetFeesToLpWad;
+        uint256 numeraireFeesToAssetBuybackWad;
+        uint256 numeraireFeesToNumeraireBuybackWad;
+        uint256 numeraireFeesToBeneficiaryWad;
+        uint256 numeraireFeesToLpWad;
+
+        if (data.length != REHYPE_INIT_WORDS * 32) {
+            revert InvalidInitializationDataLength();
+        }
+        uint8 feeRoutingModeRaw;
         (
-            address numeraire,
-            address buybackDst,
-            uint24 customFee,
-            uint256 assetFeesToAssetBuybackWad,
-            uint256 assetFeesToNumeraireBuybackWad,
-            uint256 assetFeesToBeneficiaryWad,
-            uint256 assetFeesToLpWad,
-            uint256 numeraireFeesToAssetBuybackWad,
-            uint256 numeraireFeesToNumeraireBuybackWad,
-            uint256 numeraireFeesToBeneficiaryWad,
-            uint256 numeraireFeesToLpWad
-        ) = abi.decode(data, (address, address, uint24, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256));
+            numeraire,
+            buybackDst,
+            customFee,
+            assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad,
+            assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad,
+            feeRoutingModeRaw
+        ) =
+            abi.decode(
+                data,
+                (
+                    address,
+                    address,
+                    uint24,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint8
+                )
+            );
+        if (feeRoutingModeRaw > uint8(FeeRoutingMode.RouteToBeneficiaryFees)) {
+            revert InvalidFeeRoutingMode();
+        }
+        FeeRoutingMode feeRoutingMode = FeeRoutingMode(feeRoutingModeRaw);
 
         PoolId poolId = key.toId();
 
@@ -124,6 +181,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
         });
         _validateFeeDistribution(feeDistributionInfo);
         getFeeDistributionInfo[poolId] = feeDistributionInfo;
+
+        getFeeRoutingMode[poolId] = feeRoutingMode;
 
         getHookFees[poolId].customFee = customFee;
 
@@ -173,8 +232,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
             FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToAssetBuybackWad, WAD);
         uint256 assetBuybackAmountIn =
             FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToNumeraireBuybackWad, WAD);
-        uint256 assetBeneficiaryAmount =
-            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToBeneficiaryWad, WAD);
+        uint256 assetBeneficiaryAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToBeneficiaryWad, WAD);
         uint256 assetLpAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToLpWad, WAD);
 
         uint256 numeraireBuybackAmountIn =
@@ -196,35 +254,55 @@ contract RehypeDopplerHook is BaseDopplerHook {
             : assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn;
 
         address recipient = getPoolInfo[poolId].buybackDst;
+        bool routeToBeneficiaryFees = getFeeRoutingMode[poolId] == FeeRoutingMode.RouteToBeneficiaryFees;
 
         if (assetDirectBuybackAmount > 0) {
-            isToken0
-                ? key.currency0.transfer(recipient, assetDirectBuybackAmount)
-                : key.currency1.transfer(recipient, assetDirectBuybackAmount);
+            if (routeToBeneficiaryFees) {
+                if (isToken0) {
+                    balance0 += assetDirectBuybackAmount;
+                } else {
+                    balance1 += assetDirectBuybackAmount;
+                }
+            } else {
+                isToken0
+                    ? key.currency0.transfer(recipient, assetDirectBuybackAmount)
+                    : key.currency1.transfer(recipient, assetDirectBuybackAmount);
+            }
         }
 
         if (numeraireDirectBuybackAmount > 0) {
-            isNumeraireToken0
-                ? key.currency0.transfer(recipient, numeraireDirectBuybackAmount)
-                : key.currency1.transfer(recipient, numeraireDirectBuybackAmount);
+            if (routeToBeneficiaryFees) {
+                if (isNumeraireToken0) {
+                    balance0 += numeraireDirectBuybackAmount;
+                } else {
+                    balance1 += numeraireDirectBuybackAmount;
+                }
+            } else {
+                isNumeraireToken0
+                    ? key.currency0.transfer(recipient, numeraireDirectBuybackAmount)
+                    : key.currency1.transfer(recipient, numeraireDirectBuybackAmount);
+            }
         }
 
         if (assetBuybackAmountIn > 0) {
             Currency outputCurrency = isNumeraireToken0 ? key.currency0 : key.currency1;
-            SwapSimulation memory sim = _simulateSwap(
-                key,
-                isToken0,
-                assetBuybackAmountIn,
-                isToken0 ? balance0 : 0,
-                isToken0 ? 0 : balance1
-            );
+            SwapSimulation memory sim =
+                _simulateSwap(key, isToken0, assetBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1);
             uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
             if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
                 (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
                     _executeSwap(key, isToken0, assetBuybackAmountIn);
-                isNumeraireToken0
-                    ? key.currency0.transfer(recipient, assetBuybackAmountOut)
-                    : key.currency1.transfer(recipient, assetBuybackAmountOut);
+                if (routeToBeneficiaryFees) {
+                    if (isNumeraireToken0) {
+                        balance0 += assetBuybackAmountOut;
+                    } else {
+                        balance1 += assetBuybackAmountOut;
+                    }
+                } else {
+                    isNumeraireToken0
+                        ? key.currency0.transfer(recipient, assetBuybackAmountOut)
+                        : key.currency1.transfer(recipient, assetBuybackAmountOut);
+                }
                 balance0 = isToken0 ? balance0 - assetBuybackAmountInUsed : balance0;
                 balance1 = isToken0 ? balance1 : balance1 - assetBuybackAmountInUsed;
             }
@@ -233,19 +311,23 @@ contract RehypeDopplerHook is BaseDopplerHook {
         if (numeraireBuybackAmountIn > 0) {
             Currency outputCurrency = isToken0 ? key.currency0 : key.currency1;
             SwapSimulation memory sim = _simulateSwap(
-                key,
-                !isToken0,
-                numeraireBuybackAmountIn,
-                !isToken0 ? balance0 : 0,
-                !isToken0 ? 0 : balance1
+                key, !isToken0, numeraireBuybackAmountIn, !isToken0 ? balance0 : 0, !isToken0 ? 0 : balance1
             );
             uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
             if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
                 (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
                     _executeSwap(key, !isToken0, numeraireBuybackAmountIn);
-                isToken0
-                    ? key.currency0.transfer(recipient, numeraireBuybackAmountOutResult)
-                    : key.currency1.transfer(recipient, numeraireBuybackAmountOutResult);
+                if (routeToBeneficiaryFees) {
+                    if (isToken0) {
+                        balance0 += numeraireBuybackAmountOutResult;
+                    } else {
+                        balance1 += numeraireBuybackAmountOutResult;
+                    }
+                } else {
+                    isToken0
+                        ? key.currency0.transfer(recipient, numeraireBuybackAmountOutResult)
+                        : key.currency1.transfer(recipient, numeraireBuybackAmountOutResult);
+                }
                 // numeraireBuybackAmountInUsed is always paid in numeraire:
                 // - when isToken0=true, numeraire is currency1
                 // - when isToken0=false, numeraire is currency0
@@ -709,14 +791,13 @@ contract RehypeDopplerHook is BaseDopplerHook {
     function _validateFeeDistribution(FeeDistributionInfo memory feeDistributionInfo) internal pure {
         require(
             feeDistributionInfo.assetFeesToAssetBuybackWad + feeDistributionInfo.assetFeesToNumeraireBuybackWad
-                + feeDistributionInfo.assetFeesToBeneficiaryWad + feeDistributionInfo.assetFeesToLpWad == WAD,
+                    + feeDistributionInfo.assetFeesToBeneficiaryWad + feeDistributionInfo.assetFeesToLpWad == WAD,
             FeeDistributionMustAddUpToWAD()
         );
         require(
-            feeDistributionInfo.numeraireFeesToAssetBuybackWad
-                + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
-                + feeDistributionInfo.numeraireFeesToBeneficiaryWad
-                + feeDistributionInfo.numeraireFeesToLpWad == WAD,
+            feeDistributionInfo.numeraireFeesToAssetBuybackWad + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
+                    + feeDistributionInfo.numeraireFeesToBeneficiaryWad + feeDistributionInfo.numeraireFeesToLpWad
+                == WAD,
             FeeDistributionMustAddUpToWAD()
         );
     }
