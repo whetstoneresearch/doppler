@@ -51,7 +51,7 @@ import {
     MIN_PROTOCOL_OWNER_SHARES,
     UnorderedBeneficiaries
 } from "src/types/BeneficiaryData.sol";
-import { WAD } from "src/types/WAD.sol";
+import { WAD } from "src/types/Wad.sol";
 import { generateBeneficiaries } from "test/invariant/FeesManagerInvariants.t.sol";
 
 struct InitData {
@@ -289,8 +289,7 @@ contract DopplerHookMigratorTest is Deployers {
         initData.dopplerHookMigrator = vm.randomAddress();
         vm.prank(PROTOCOL_OWNER);
         migrator.setDopplerHookState(
-            _singleAddr(initData.dopplerHookMigrator),
-            _singleFlag(ON_AFTER_SWAP_FLAG | REQUIRES_DYNAMIC_LP_FEE_FLAG)
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG | REQUIRES_DYNAMIC_LP_FEE_FLAG)
         );
         _initialize();
 
@@ -341,8 +340,7 @@ contract DopplerHookMigratorTest is Deployers {
         _fundMigrator(balance0, balance1);
         _migrate();
 
-        (, PoolKey memory poolKey,,,,,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
         (,, uint32 startDate,,) = locker.streams(poolKey.toId());
         assertGt(startDate, 0);
 
@@ -372,8 +370,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         _migrate(sqrtPriceX96);
 
-        (, PoolKey memory poolKey,,,,,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
         (,, uint32 startDate,,) = locker.streams(poolKey.toId());
         assertGt(startDate, 0);
     }
@@ -461,8 +458,7 @@ contract DopplerHookMigratorTest is Deployers {
         _fundMigrator(BALANCE, BALANCE);
         _migrate();
 
-        (, PoolKey memory poolKey,,,,,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
         (,, uint24 protocolFee, uint24 lpFee) = manager.getSlot0(poolKey.toId());
         assertEq(protocolFee, 0);
         assertEq(lpFee, 10_000);
@@ -494,14 +490,11 @@ contract DopplerHookMigratorTest is Deployers {
         address mockHook = makeAddr("MockHook");
         initData.dopplerHookMigrator = mockHook;
         vm.prank(PROTOCOL_OWNER);
-        migrator.setDopplerHookState(
-            _singleAddr(mockHook), _singleFlag(ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG)
-        );
+        migrator.setDopplerHookState(_singleAddr(mockHook), _singleFlag(ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG));
         _initialize();
         _fundMigrator(BALANCE, BALANCE);
 
-        (, PoolKey memory poolKey,,,,,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
 
         vm.mockCall(mockHook, abi.encodeWithSelector(IDopplerHookMigrator.onInitialization.selector), abi.encode());
         vm.expectCall(
@@ -519,16 +512,13 @@ contract DopplerHookMigratorTest is Deployers {
         initData.dopplerHookMigrator = vm.randomAddress();
         vm.prank(PROTOCOL_OWNER);
         migrator.setDopplerHookState(
-            _singleAddr(initData.dopplerHookMigrator),
-            _singleFlag(ON_AFTER_SWAP_FLAG | REQUIRES_DYNAMIC_LP_FEE_FLAG)
+            _singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG | REQUIRES_DYNAMIC_LP_FEE_FLAG)
         );
         _initialize();
 
         // Remove REQUIRES_DYNAMIC_LP_FEE_FLAG after init
         vm.prank(PROTOCOL_OWNER);
-        migrator.setDopplerHookState(
-            _singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG)
-        );
+        migrator.setDopplerHookState(_singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG));
 
         _fundMigrator(BALANCE, BALANCE);
         vm.prank(address(airlock));
@@ -653,8 +643,7 @@ contract DopplerHookMigratorTest is Deployers {
 
         _mockAirlockTimelock();
 
-        (, PoolKey memory poolKey,,,,,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
 
         vm.mockCall(mockHook, abi.encodeWithSelector(IDopplerHookMigrator.onInitialization.selector), abi.encode());
         vm.expectCall(
@@ -681,8 +670,7 @@ contract DopplerHookMigratorTest is Deployers {
         emit SetDopplerHook(asset, mockHook);
         migrator.setDopplerHook(asset, mockHook, new bytes(0));
 
-        (,,,,, address storedHook,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (,,,,, address storedHook,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
         assertEq(storedHook, mockHook);
     }
 
@@ -704,8 +692,7 @@ contract DopplerHookMigratorTest is Deployers {
         vm.prank(TIMELOCK);
         migrator.setDopplerHook(asset, address(0), new bytes(0));
 
-        (,,,,, address storedHook,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (,,,,, address storedHook,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
         assertEq(storedHook, address(0));
     }
 
@@ -726,8 +713,7 @@ contract DopplerHookMigratorTest is Deployers {
         vm.prank(delegatedAddr);
         migrator.setDopplerHook(asset, mockHook, new bytes(0));
 
-        (,,,,, address storedHook,,) =
-            migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        (,,,,, address storedHook,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
         assertEq(storedHook, mockHook);
     }
 
@@ -798,9 +784,7 @@ contract DopplerHookMigratorTest is Deployers {
         initData.useDynamicFee = false;
         initData.dopplerHookMigrator = vm.randomAddress();
         vm.prank(PROTOCOL_OWNER);
-        migrator.setDopplerHookState(
-            _singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG)
-        );
+        migrator.setDopplerHookState(_singleAddr(initData.dopplerHookMigrator), _singleFlag(ON_AFTER_SWAP_FLAG));
         _initializeAndMigrate();
 
         vm.prank(initData.dopplerHookMigrator);
