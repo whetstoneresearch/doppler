@@ -5,6 +5,7 @@ import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Test } from "forge-std/Test.sol";
 import { Airlock } from "src/Airlock.sol";
 import {
+    InconsistentOrientation,
     InvalidETHAmount,
     PullUp,
     SenderCannotPullUp,
@@ -232,17 +233,68 @@ contract TopUpDistributorTest is Test {
         distributor.pullUp(token0, token1, recipient);
     }
 
+    /// @dev Mixed-unit accounting: an attacker tries to inflate a pair's amount counter by
+    ///      depositing worthless asset tokens via reversed topUp arguments. The fix rejects
+    ///      reversed-orientation deposits, so the victim's funds remain safe.
+    function test_pullUp_CannotPullUpMoreThanToppedUp() public {
+        vm.prank(airlockOwner);
+        distributor.setPullUp(address(this), true);
+
+        TestERC20 numeraireToken = new TestERC20(type(uint256).max);
+        TestERC20 victimAsset = new TestERC20(0);
+        TestERC20 attackerAsset = new TestERC20(type(uint256).max);
+
+        // 1. Victim tops up pair (victimAsset, numeraireToken) with 1000 real numeraire
+        numeraireToken.approve(address(distributor), type(uint256).max);
+        distributor.topUp(address(victimAsset), address(numeraireToken), 1000e18);
+
+        // 2. Attacker seeds pair (attackerAsset, numeraireToken) with 1 wei numeraire
+        //    to lock in the correct isToken0 orientation
+        address attacker = makeAddr("attacker");
+        numeraireToken.transfer(attacker, 1);
+        attackerAsset.transfer(attacker, 999e18);
+
+        vm.startPrank(attacker);
+        numeraireToken.approve(address(distributor), 1);
+        distributor.topUp(address(attackerAsset), address(numeraireToken), 1);
+
+        // 3. Attacker tries to call topUp with reversed labels — this is now rejected
+        attackerAsset.approve(address(distributor), 999e18);
+        vm.expectRevert(InconsistentOrientation.selector);
+        distributor.topUp(address(numeraireToken), address(attackerAsset), 999e18);
+        vm.stopPrank();
+
+        // 4. Attacker's pair only has the 1 wei seed — pullUp pays out just that
+        (address t0Atk, address t1Atk) = address(attackerAsset) < address(numeraireToken)
+            ? (address(attackerAsset), address(numeraireToken))
+            : (address(numeraireToken), address(attackerAsset));
+        (uint256 attackerAmount,) = distributor.topUpOf(t0Atk, t1Atk);
+        assertEq(attackerAmount, 1);
+
+        address attackerRecipient = makeAddr("AttackerRecipient");
+        distributor.pullUp(t0Atk, t1Atk, attackerRecipient);
+        assertEq(numeraireToken.balanceOf(attackerRecipient), 1);
+
+        // 5. Victim's pullUp succeeds — their 1000e18 numeraire is intact
+        (address t0Vic, address t1Vic) = address(victimAsset) < address(numeraireToken)
+            ? (address(victimAsset), address(numeraireToken))
+            : (address(numeraireToken), address(victimAsset));
+
+        address victimRecipient = makeAddr("VictimRecipient");
+        distributor.pullUp(t0Vic, t1Vic, victimRecipient);
+        assertEq(numeraireToken.balanceOf(victimRecipient), 1000e18);
+    }
+
     /* ----------------------------------------------------------------------- */
     /*                          isToken0 overwrite griefing                     */
     /* ----------------------------------------------------------------------- */
 
-    /// @dev The fix prevents overwriting isToken0 when config.amount > 0,
-    ///      but an attacker who frontruns the first legitimate deposit with
-    ///      a dust amount still corrupts isToken0, permanently locking
-    ///      the legitimate funds.
+    /// @dev Attacker frontruns with a dust deposit using swapped roles. The legitimate
+    ///      user's deposit is rejected because the orientation doesn't match, so the
+    ///      attacker can only grief by locking in a wrong orientation for a pair that
+    ///      has no legitimate deposits yet. The legitimate user must then use the same
+    ///      orientation or start fresh with a different pair.
     function test_topUp_isToken0FrontrunLocksETH() public {
-        (address token0, address token1) = address(0) < asset ? (address(0), asset) : (asset, address(0));
-
         // 1. Attacker frontruns with a 1 wei dust deposit using swapped roles
         //    (treats address(0) as asset, token as numeraire)
         address attacker = makeAddr("attacker");
@@ -252,26 +304,13 @@ contract TopUpDistributorTest is Test {
         distributor.topUp(address(0), asset, 1); // swapped roles, 1 wei of asset token
         vm.stopPrank();
 
-        // isToken0 is now set to the attacker's orientation
-        (, bool isToken0After) = distributor.topUpOf(token0, token1);
-        assertTrue(isToken0After, "attacker set isToken0 = true");
-
-        // 2. Legitimate user deposits 10 ETH — isToken0 is NOT updated because amount > 0
+        // 2. Legitimate user tries to deposit 10 ETH with the correct orientation —
+        //    this is now rejected because the stored orientation doesn't match
         vm.deal(address(this), 10 ether);
+        vm.expectRevert(InconsistentOrientation.selector);
         distributor.topUp{ value: 10 ether }(asset, address(0), 10 ether);
 
-        (, bool isToken0Final) = distributor.topUpOf(token0, token1);
-        assertTrue(isToken0Final, "isToken0 still corrupted");
-
-        // 3. pullUp reverts — tries to transfer asset token but contract mostly holds ETH
-        vm.prank(airlockOwner);
-        distributor.setPullUp(migrator, true);
-
-        vm.prank(migrator);
-        vm.expectRevert(); // safeTransfer of asset token fails
-        distributor.pullUp(token0, token1, recipient);
-
-        // ETH is permanently locked
-        assertEq(address(distributor).balance, 10 ether);
+        // Legitimate user's ETH is NOT stuck — the deposit was rejected
+        assertEq(address(this).balance, 10 ether);
     }
 }
