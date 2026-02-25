@@ -15,8 +15,12 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](1);
-        targets[0] = ChainIds.BASE_SEPOLIA;
+        uint256[] memory targets = new uint256[](5);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+        targets[2] = ChainIds.BASE_MAINNET;
+        targets[3] = ChainIds.BASE_SEPOLIA;
+        targets[4] = ChainIds.MONAD_MAINNET;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
@@ -37,7 +41,7 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
         vm.startBroadcast();
         (bytes32 hookSalt, address hookDeployedTo) = mineV4MigratorHookCreate3(msg.sender, createX);
 
-        bytes32 migratorSalt = generateCreate3Salt(msg.sender, type(UniswapV4MigratorSplit).name);
+        bytes32 migratorSalt = generateCreate3Salt(msg.sender, "UniswapV4MigratorSplit-2");
         address migratorDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(migratorSalt, msg.sender), createX);
 
         address migrator = ICreateX(createX)
