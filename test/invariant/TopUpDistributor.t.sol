@@ -45,6 +45,27 @@ contract TopUpDistributorInvariantTest is Test {
             assertLe(pulled, topped);
         }
     }
+
+    /// @dev For each numeraire, the recipient's balance must equal total pulled up
+    function invariant_RecipientBalanceMatchesPullUps() public view {
+        for (uint256 i; i < handler.numerairesLength(); i++) {
+            TestERC20 numeraire = handler.numeraires(i);
+            assertEq(numeraire.balanceOf(handler.RECIPIENT()), handler.totalPulledUp(numeraire));
+        }
+    }
+
+    /// @dev For each asset, the on-chain topUpOf amount must match the handler's shadow state
+    function invariant_OnChainAmountMatchesShadowState() public view {
+        for (uint256 i; i < handler.assetsLength(); i++) {
+            TestERC20 asset = handler.assets(i);
+            (uint256 topped, uint256 pulled, TestERC20 numeraire) = handler.dataOf(asset);
+            (address token0, address token1) = address(asset) < address(numeraire)
+                ? (address(asset), address(numeraire))
+                : (address(numeraire), address(asset));
+            (uint256 onChainAmount,) = distributor.topUpOf(token0, token1);
+            assertEq(onChainAmount, topped - pulled);
+        }
+    }
 }
 
 struct Data {
