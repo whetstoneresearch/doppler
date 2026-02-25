@@ -135,6 +135,12 @@ contract TopUpDistributorTest is Test {
         distributor.topUp{ value: 1 ether }(asset, address(numeraireToken), 100e18);
     }
 
+    function test_topUp_RevertsWhenInconsistentOrientation() public {
+        distributor.topUp{ value: 1 ether }(asset, address(0), 1 ether);
+        vm.expectRevert(InconsistentOrientation.selector);
+        distributor.topUp{ value: 1 ether }(address(0), asset, 1 ether);
+    }
+
     /* ----------------------------------------------------------------------- */
     /*                                pullUp()                                 */
     /* ----------------------------------------------------------------------- */
