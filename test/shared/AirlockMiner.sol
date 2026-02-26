@@ -38,7 +38,11 @@ function mineDopplerHookMigrator(MineDopplerHookMigratorParams memory params) vi
         bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
 
         address migrator = computeCreate3Address(guardedSalt, params.deployer);
-        if (uint160(migrator) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_MIGRATOR_FLAGS && migrator.code.length == 0) {
+        if (
+            uint160(migrator) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_MIGRATOR_FLAGS && migrator.code.length == 0
+                && migrator != 0x8bBbE586F9A902c15A759FC134A99a2d28bc20c4
+                && migrator != 0xF848fEa3329185529B50228BCb36f3B5A60960C4
+        ) {
             return (salt, migrator);
         }
     }
