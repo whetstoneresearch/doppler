@@ -18,7 +18,6 @@ import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
-import { EPSILON } from "src/types/RehypeTypes.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -29,6 +28,7 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { EPSILON } from "src/types/RehypeTypes.sol";
 import { FeeDistributionInfo, FeeRoutingMode } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -268,7 +268,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             numeraireFeesToBeneficiaryWad: 0.5e18,
             numeraireFeesToLpWad: 0
         });
-        (bool isToken0, address asset) = _createTokenWithConfig(salt, uint24(3000), feeDistribution, FeeRoutingMode.DirectBuyback);
+        (bool isToken0, address asset) =
+            _createTokenWithConfig(salt, uint24(3000), feeDistribution, FeeRoutingMode.DirectBuyback);
 
         (
             uint256 assetFeesToAssetBuybackWad,
@@ -294,10 +295,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     function test_swap_NumeraireFeeWithFullNumeraireBuyback_ForwardsDirectlyToBuybackDst() public {
         bytes32 salt = bytes32(uint256(70));
         (bool isToken0, address asset) = _createTokenWithConfig(
-            salt,
-            uint24(3000),
-            _fullNumeraireBuybackDistribution(),
-            FeeRoutingMode.DirectBuyback
+            salt, uint24(3000), _fullNumeraireBuybackDistribution(), FeeRoutingMode.DirectBuyback
         );
 
         // First buy asset so we can do an exact-input asset->numeraire swap.
@@ -345,10 +343,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     function test_swap_NumeraireFeeWithFullNumeraireBuyback_RoutesToBeneficiaryFeesWhenConfigured() public {
         bytes32 salt = bytes32(uint256(71));
         (bool isToken0, address asset) = _createTokenWithConfig(
-            salt,
-            uint24(3000),
-            _fullNumeraireBuybackDistribution(),
-            FeeRoutingMode.RouteToBeneficiaryFees
+            salt, uint24(3000), _fullNumeraireBuybackDistribution(), FeeRoutingMode.RouteToBeneficiaryFees
         );
 
         // First buy asset so we can do an exact-input asset->numeraire swap.
@@ -509,11 +504,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             numeraireFeesToLpWad: numeraireFeesToLpWad
         });
         (bool isToken0, address asset) = _createTokenWithOrientation(
-            targetIsToken0,
-            saltSeed,
-            uint24(3000),
-            feeDistribution,
-            FeeRoutingMode.DirectBuyback
+            targetIsToken0, saltSeed, uint24(3000), feeDistribution, FeeRoutingMode.DirectBuyback
         );
 
         _executeBidirectionalSwapPermutation(isToken0, asset, buyExactOut, sellExactOut);
@@ -573,10 +564,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     function test_collectFees_RoutesAndTransfersCorrectly_WhenRoutingModeIsBeneficiary() public {
         bytes32 salt = bytes32(uint256(72));
         (bool isToken0, address asset) = _createTokenWithConfig(
-            salt,
-            uint24(3000),
-            _fullNumeraireBuybackDistribution(),
-            FeeRoutingMode.RouteToBeneficiaryFees
+            salt, uint24(3000), _fullNumeraireBuybackDistribution(), FeeRoutingMode.RouteToBeneficiaryFees
         );
 
         uint256 buybackBalanceBeforeSwap0 = poolKey.currency0.balanceOf(buybackDst);

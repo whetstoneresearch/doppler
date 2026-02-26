@@ -49,8 +49,7 @@ contract CalculateExcessMigratorTest is Test {
         MockPoolManager mockPoolManager = new MockPoolManager();
         MockMigrator mockMigrator = new MockMigrator();
         harness = new RehypeDopplerHookMigratorHarness(
-            DopplerHookMigrator(payable(address(mockMigrator))),
-            IPoolManager(address(mockPoolManager))
+            DopplerHookMigrator(payable(address(mockMigrator))), IPoolManager(address(mockPoolManager))
         );
     }
 

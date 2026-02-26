@@ -60,7 +60,9 @@ contract RehypeDopplerHookMigratorHarness is RehypeDopplerHookMigrator {
                 amountSpecified: -int256(guess),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             })
-        ) returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32) {
+        ) returns (
+            int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32
+        ) {
             if (zeroForOne) {
                 if (amount0 >= 0 || amount1 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount0);
@@ -191,7 +193,9 @@ contract RehypeDopplerHookMigratorHarness is RehypeDopplerHookMigrator {
                 amountSpecified: -int256(guess),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             })
-        ) returns (int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32) {
+        ) returns (
+            int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32
+        ) {
             if (zeroForOne) {
                 if (amount0 >= 0 || amount1 <= 0) return simulation;
                 uint256 amountIn = uint256(-amount0);

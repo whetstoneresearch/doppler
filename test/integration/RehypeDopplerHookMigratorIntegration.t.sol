@@ -19,13 +19,13 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
-import { FeeDistributionMustAddUpToWAD, SenderNotAirlockOwner, SenderNotAuthorized } from "src/types/RehypeTypes.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { FeeDistributionMustAddUpToWAD, SenderNotAirlockOwner, SenderNotAuthorized } from "src/types/RehypeTypes.sol";
 import { FeeRoutingMode } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 

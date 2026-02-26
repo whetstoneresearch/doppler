@@ -8,8 +8,8 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { EPSILON } from "src/types/RehypeTypes.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
+import { EPSILON } from "src/types/RehypeTypes.sol";
 import { MockQuoter } from "test/unit/dopplerHooks/rehypeHook/MockQuoter.sol";
 
 /// @notice Minimal mock pool manager for harness construction
@@ -50,8 +50,7 @@ contract RebalanceFeesMigratorTest is Test {
         MockMigrator mockMigrator = new MockMigrator();
         mockQuoter = new MockQuoter();
         harness = new RehypeDopplerHookMigratorHarness(
-            DopplerHookMigrator(payable(address(mockMigrator))),
-            IPoolManager(address(mockPoolManager))
+            DopplerHookMigrator(payable(address(mockMigrator))), IPoolManager(address(mockPoolManager))
         );
 
         testPoolKey = PoolKey({
@@ -72,10 +71,9 @@ contract RebalanceFeesMigratorTest is Test {
         uint256 lpAmount1 = 1e18;
         uint160 sqrtPriceX96 = SQRT_PRICE_1_1;
 
-        (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96) =
-            harness.exposed_rebalanceFeesWithQuoter(
-                Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
-            );
+        (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertFalse(shouldSwap, "shouldSwap should be false when both excess below EPSILON");
         assertFalse(zeroForOne, "zeroForOne should be false (default)");
@@ -298,11 +296,7 @@ contract RebalanceFeesMigratorTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
@@ -334,11 +328,7 @@ contract RebalanceFeesMigratorTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
@@ -356,11 +346,7 @@ contract RebalanceFeesMigratorTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
@@ -438,11 +424,7 @@ contract RebalanceFeesMigratorTest is Test {
 
         mockQuoter.setDefaultResponse(
             MockQuoter.QuoteResponse({
-                amount0: 0,
-                amount1: 0,
-                sqrtPriceAfterX96: 0,
-                shouldRevert: true,
-                revertData: ""
+                amount0: 0, amount1: 0, sqrtPriceAfterX96: 0, shouldRevert: true, revertData: ""
             })
         );
 
@@ -518,15 +500,13 @@ contract RebalanceFeesMigratorTest is Test {
             })
         );
 
-        (bool shouldSwap1, bool zeroForOne1, uint256 amountIn1, uint256 amountOut1, uint160 sqrtPrice1) =
-            harness.exposed_rebalanceFeesWithQuoter(
-                Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
-            );
+        (bool shouldSwap1, bool zeroForOne1, uint256 amountIn1, uint256 amountOut1, uint160 sqrtPrice1) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
-        (bool shouldSwap2, bool zeroForOne2, uint256 amountIn2, uint256 amountOut2, uint160 sqrtPrice2) =
-            harness.exposed_rebalanceFeesWithQuoter(
-                Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
-            );
+        (bool shouldSwap2, bool zeroForOne2, uint256 amountIn2, uint256 amountOut2, uint160 sqrtPrice2) = harness.exposed_rebalanceFeesWithQuoter(
+            Quoter(address(mockQuoter)), testPoolKey, lpAmount0, lpAmount1, sqrtPriceX96
+        );
 
         assertEq(shouldSwap1, shouldSwap2, "shouldSwap should be deterministic");
         assertEq(zeroForOne1, zeroForOne2, "zeroForOne should be deterministic");

@@ -19,9 +19,9 @@ import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
-import { EPSILON } from "src/types/RehypeTypes.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { EPSILON } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 

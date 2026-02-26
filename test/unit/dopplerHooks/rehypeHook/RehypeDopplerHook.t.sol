@@ -202,21 +202,20 @@ contract RehypeDopplerHookTest is Test {
     }
 
     function test_onInitialization_RevertsWhenSenderNotInitializer(PoolKey memory poolKey) public {
-        bytes memory data =
-            abi.encode(
-                address(0),
-                address(0),
-                uint24(0),
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                uint8(FeeRoutingMode.DirectBuyback)
-            );
+        bytes memory data = abi.encode(
+            address(0),
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            uint8(FeeRoutingMode.DirectBuyback)
+        );
 
         vm.expectRevert(SenderNotInitializer.selector);
         dopplerHook.onInitialization(address(0), poolKey, data);
@@ -227,21 +226,20 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         // Fee distribution that doesn't add up to WAD
-        bytes memory data =
-            abi.encode(
-                numeraire,
-                address(0),
-                uint24(0),
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.24e18,
-                0.25e18,
-                0.25e18,
-                0.25e18,
-                0.24e18,
-                uint8(FeeRoutingMode.DirectBuyback)
-            );
+        bytes memory data = abi.encode(
+            numeraire,
+            address(0),
+            uint24(0),
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.24e18,
+            0.25e18,
+            0.25e18,
+            0.25e18,
+            0.24e18,
+            uint8(FeeRoutingMode.DirectBuyback)
+        );
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -253,21 +251,20 @@ contract RehypeDopplerHookTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
 
         // Fee distribution that exceeds WAD
-        bytes memory data =
-            abi.encode(
-                numeraire,
-                address(0),
-                uint24(0),
-                0.5e18,
-                0.5e18,
-                0.5e18,
-                0.5e18,
-                0.5e18,
-                0.5e18,
-                0.5e18,
-                0.5e18,
-                uint8(FeeRoutingMode.DirectBuyback)
-            );
+        bytes memory data = abi.encode(
+            numeraire,
+            address(0),
+            uint24(0),
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            0.5e18,
+            uint8(FeeRoutingMode.DirectBuyback)
+        );
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
@@ -352,7 +349,9 @@ contract RehypeDopplerHookTest is Test {
         uint24 customFee = 10_000; // 1%
 
         // All fees go to beneficiary for simple testing
-        bytes memory data = abi.encode(numeraire, buybackDst, customFee, 0, 0, WAD, 0, 0, 0, WAD, 0, uint8(FeeRoutingMode.DirectBuyback));
+        bytes memory data = abi.encode(
+            numeraire, buybackDst, customFee, 0, 0, WAD, 0, 0, 0, WAD, 0, uint8(FeeRoutingMode.DirectBuyback)
+        );
 
         vm.prank(address(initializer));
         dopplerHook.onInitialization(asset, poolKey, data);
