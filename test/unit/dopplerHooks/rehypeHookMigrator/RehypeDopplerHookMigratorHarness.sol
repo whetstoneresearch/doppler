@@ -5,13 +5,9 @@ import { Quoter } from "@quoter/Quoter.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import {
-    EPSILON,
-    MAX_REBALANCE_ITERATIONS,
-    RehypeDopplerHookMigrator
-} from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
+import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
-import { SwapSimulation } from "src/types/RehypeTypes.sol";
+import { EPSILON, MAX_REBALANCE_ITERATIONS, SwapSimulation } from "src/types/RehypeTypes.sol";
 
 /// @title RehypeDopplerHookMigratorHarness
 /// @notice Test harness that exposes internal functions for unit testing

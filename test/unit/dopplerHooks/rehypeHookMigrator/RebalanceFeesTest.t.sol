@@ -8,7 +8,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { EPSILON } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
+import { EPSILON } from "src/types/RehypeTypes.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { MockQuoter } from "test/unit/dopplerHooks/rehypeHook/MockQuoter.sol";
 

@@ -8,13 +8,16 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
-import {
-    FeeDistributionMustAddUpToWAD,
-    InvalidFeeRoutingMode,
-    RehypeDopplerHook
-} from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeDistributionInfo, FeeRoutingMode, HookFees, PoolInfo } from "src/types/RehypeTypes.sol";
+import {
+    FeeDistributionInfo,
+    FeeDistributionMustAddUpToWAD,
+    FeeRoutingMode,
+    HookFees,
+    InvalidFeeRoutingMode,
+    PoolInfo
+} from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {

@@ -18,12 +18,8 @@ import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
-import {
-    FeeDistributionMustAddUpToWAD,
-    RehypeDopplerHookMigrator,
-    SenderNotAirlockOwner,
-    SenderNotAuthorized
-} from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
+import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
+import { FeeDistributionMustAddUpToWAD, SenderNotAirlockOwner, SenderNotAuthorized } from "src/types/RehypeTypes.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";

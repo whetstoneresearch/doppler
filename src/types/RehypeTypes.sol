@@ -1,6 +1,58 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { PoolId } from "@v4-core/types/PoolId.sol";
+
+/// @notice Thrown when the fee distribution does not add up to WAD (1e18)
+error FeeDistributionMustAddUpToWAD();
+
+/// @notice Thrown when the sender is not authorized to perform an action
+error SenderNotAuthorized();
+
+/// @notice Thrown when the sender is not the airlock owner
+error SenderNotAirlockOwner();
+
+/// @notice Thrown when initialization calldata length is invalid
+error InvalidInitializationDataLength();
+
+/// @notice Thrown when fee routing mode is invalid
+error InvalidFeeRoutingMode();
+
+/**
+ * @notice Emitted when Airlock owner claims fees
+ * @param poolId Pool from which fees were claimed
+ * @param airlockOwner Address that received the fees
+ * @param fees0 Amount of currency0 claimed
+ * @param fees1 Amount of currency1 claimed
+ */
+event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
+
+/**
+ * @notice Emitted when the fee routing mode is updated
+ * @param poolId Pool for which routing mode changed
+ * @param feeRoutingMode New routing mode
+ */
+event FeeRoutingModeUpdated(PoolId indexed poolId, FeeRoutingMode feeRoutingMode);
+
+// Constants
+/// @dev Maximum swap fee denominator (1e6 = 100%)
+uint256 constant MAX_SWAP_FEE = 1e6;
+
+/// @dev Epsilon trigger for rebalancing swaps
+uint128 constant EPSILON = 1e6;
+
+/// @dev Maximum iterations for rebalancing swap calculation
+uint256 constant MAX_REBALANCE_ITERATIONS = 15;
+
+/// @dev Airlock owner fee in basis points (5% = 500 BPS)
+uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
+
+/// @dev Basis points denominator
+uint256 constant BPS_DENOMINATOR = 10_000;
+
+/// @dev Rehype init payload words (with fee routing mode)
+uint256 constant REHYPE_INIT_WORDS = 12;
+
 /**
  * @notice Routing mode for buyback-designated fees
  * @dev DirectBuyback keeps current behavior (immediate transfers to buybackDst).
