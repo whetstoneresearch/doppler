@@ -32,6 +32,7 @@ top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
+governance_factory = "0x9F309D79BEe3E8b2f56FaCF74b7195Df176c8F61"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -69,6 +70,7 @@ top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
+governance_factory = "0x9F309D79BEe3E8b2f56FaCF74b7195Df176c8F61"
 
 [8453]
 endpoint_url = "${BASE_MAINNET_RPC_URL}"

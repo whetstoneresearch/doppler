@@ -1,34 +1,42 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Script, console } from "forge-std/Script.sol";
+import { Config } from "forge-std/Config.sol";
+import { Script } from "forge-std/Script.sol";
+import { ChainIds } from "script/ChainIds.sol";
+import { ICreateX } from "script/ICreateX.sol";
+import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 
-struct ScriptData {
-    address airlock;
-}
-
-abstract contract DeployGovernanceFactoryScript is Script {
-    ScriptData internal _scriptData;
-
-    function setUp() public virtual;
-
+contract DeployGovernanceFactoryScript is Script, Config {
     function run() public {
-        console.log(unicode"🚀 Deploying on chain %s with sender %s...", vm.toString(block.chainid), msg.sender);
+        _loadConfigAndForks("./deployments.config.toml", true);
+
+        uint256[] memory targets = new uint256[](2);
+        targets[0] = ChainIds.ETH_MAINNET;
+        targets[1] = ChainIds.ETH_SEPOLIA;
+
+        for (uint256 i; i < targets.length; i++) {
+            uint256 chainId = targets[i];
+            deployToChain(chainId);
+        }
+    }
+
+    function deployToChain(uint256 chainId) internal {
+        vm.selectFork(forkOf[chainId]);
+
+        address createX = config.get("create_x").toAddress();
+        address airlock = config.get("airlock").toAddress();
 
         vm.startBroadcast();
+        bytes32 salt = generateCreate3Salt(msg.sender, type(GovernanceFactory).name);
+        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
-        GovernanceFactory governanceFactory = new GovernanceFactory(_scriptData.airlock);
-
-        console.log(unicode"✨ GovernanceFactory was successfully deployed!");
-        console.log("GovernanceFactory address: %s", address(governanceFactory));
+        address governanceFactory = ICreateX(createX)
+            .deployCreate3(salt, abi.encodePacked(type(GovernanceFactory).creationCode, abi.encode(airlock)));
+        require(governanceFactory == expectedAddress, "Unexpected deployed address");
 
         vm.stopBroadcast();
-    }
-}
-
-contract DeployGovernanceFactoryBaseScript is DeployGovernanceFactoryScript {
-    function setUp() public override {
-        _scriptData = ScriptData({ airlock: 0x660eAaEdEBc968f8f3694354FA8EC0b4c5Ba8D12 });
+        config.set("governance_factory", governanceFactory);
     }
 }
