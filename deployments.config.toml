@@ -30,7 +30,7 @@ rehype_doppler_hook = "0x97cAD5684FB7Cc2bEd9a9b5eBfba67138F4f2503"
 clone_derc20_v2_votes_factory = "0x16F5ACB64F4FA17296E942C51d3395aDC318f9e1"
 top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [11155111]
@@ -67,7 +67,7 @@ decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
 top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [8453]
@@ -94,7 +94,7 @@ decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
 top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [130]
@@ -134,7 +134,7 @@ clone_derc20_v2_votes_factory = "0x16F5ACB64F4FA17296E942C51d3395aDC318f9e1"
 top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 airlock_multisig = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0x65b6737C7A897029Afe54Dbb61bc4A84b232e0C4"
+doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [4326]
@@ -188,7 +188,7 @@ uniswap_v4_migrator_split_hook = "0x20e03085adBcfCB840De898F37617ABD08da2500"
 decay_multicurve_initializer_hook = "0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0"
 decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
-doppler_hook_migrator = "0x8bBbE586F9A902c15A759FC134A99a2d28bc20c4"
+doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xd199E7836e91654c0475a90E0C1d0e402bB84372"
 
 [1301]
