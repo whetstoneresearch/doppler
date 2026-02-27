@@ -44,6 +44,9 @@ error SenderNotAirlockOwner();
 /// @notice Thrown when the ETH amount sent does not match the specified amount
 error InvalidETHAmount();
 
+/// @notice Thrown when the asset/numeraire orientation does not match the existing one for this pair
+error InconsistentOrientation();
+
 /**
  * @title TopUpDistributor
  * @author Whetstone Research
@@ -86,7 +89,11 @@ contract TopUpDistributor {
         (address token0, address token1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
 
         TopUpData storage config = topUpOf[token0][token1];
-        if (config.amount == 0) config.isToken0 = asset < numeraire;
+        if (config.amount == 0) {
+            config.isToken0 = asset < numeraire;
+        } else {
+            require(config.isToken0 == (asset < numeraire), InconsistentOrientation());
+        }
 
         if (numeraire == address(0)) {
             require(msg.value == amount, InvalidETHAmount());
