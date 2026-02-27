@@ -25,7 +25,7 @@ import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookIn
 import { Curve } from "src/libraries/Multicurve.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { EPSILON } from "src/types/RehypeTypes.sol";
+import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
@@ -253,18 +253,22 @@ contract RehypeHandler is Test {
         });
 
         data.onInitializationDopplerHookCalldata = abi.encode(
-            numeraire,
-            address(0xbeef),
-            3000,
-            settings.assetBuybackPercentWad,
-            settings.numeraireBuybackPercentWad,
-            settings.beneficiaryPercentWad,
-            settings.lpPercentWad,
-            settings.assetBuybackPercentWad,
-            settings.numeraireBuybackPercentWad,
-            settings.beneficiaryPercentWad,
-            settings.lpPercentWad,
-            uint8(0)
+            RehypeInitData({
+                numeraire: numeraire,
+                buybackDst: address(0xbeef),
+                customFee: 3000,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    assetFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    assetFeesToLpWad: settings.lpPercentWad,
+                    numeraireFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    numeraireFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    numeraireFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    numeraireFeesToLpWad: settings.lpPercentWad
+                })
+            })
         );
         dopplerHookInitializer.initialize(address(asset), numeraire, 1e27, bytes32(0), abi.encode(data));
 

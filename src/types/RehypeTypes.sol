@@ -15,9 +15,6 @@ error SenderNotAirlockOwner();
 /// @notice Thrown when initialization calldata length is invalid
 error InvalidInitializationDataLength();
 
-/// @notice Thrown when fee routing mode is invalid
-error InvalidFeeRoutingMode();
-
 /**
  * @notice Emitted when Airlock owner claims fees
  * @param poolId Pool from which fees were claimed
@@ -61,6 +58,22 @@ uint256 constant REHYPE_INIT_WORDS = 12;
 enum FeeRoutingMode {
     DirectBuyback,
     RouteToBeneficiaryFees
+}
+
+/**
+ * @notice Initialization data for a Rehype-managed pool
+ * @param numeraire Address of the numeraire token
+ * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
+ * @param customFee Custom swap fee rate applied to the pool (in millionths, e.g. 5000 = 0.5%)
+ * @param feeRoutingMode Routing mode for buyback-designated fees
+ * @param feeDistributionInfo Fee routing matrix percentages for the pool
+ */
+struct InitData {
+    address numeraire;
+    address buybackDst;
+    uint24 customFee;
+    FeeRoutingMode feeRoutingMode;
+    FeeDistributionInfo feeDistributionInfo;
 }
 
 /**

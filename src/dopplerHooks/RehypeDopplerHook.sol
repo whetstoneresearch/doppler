@@ -26,7 +26,7 @@ import {
     FeeRoutingMode,
     FeeRoutingModeUpdated,
     HookFees,
-    InvalidFeeRoutingMode,
+    InitData,
     InvalidInitializationDataLength,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
@@ -82,78 +82,16 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
     /// @inheritdoc BaseDopplerHook
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
-        address numeraire;
-        address buybackDst;
-        uint24 customFee;
-        uint256 assetFeesToAssetBuybackWad;
-        uint256 assetFeesToNumeraireBuybackWad;
-        uint256 assetFeesToBeneficiaryWad;
-        uint256 assetFeesToLpWad;
-        uint256 numeraireFeesToAssetBuybackWad;
-        uint256 numeraireFeesToNumeraireBuybackWad;
-        uint256 numeraireFeesToBeneficiaryWad;
-        uint256 numeraireFeesToLpWad;
-
-        if (data.length != REHYPE_INIT_WORDS * 32) {
-            revert InvalidInitializationDataLength();
-        }
-        uint8 feeRoutingModeRaw;
-        (
-            numeraire,
-            buybackDst,
-            customFee,
-            assetFeesToAssetBuybackWad,
-            assetFeesToNumeraireBuybackWad,
-            assetFeesToBeneficiaryWad,
-            assetFeesToLpWad,
-            numeraireFeesToAssetBuybackWad,
-            numeraireFeesToNumeraireBuybackWad,
-            numeraireFeesToBeneficiaryWad,
-            numeraireFeesToLpWad,
-            feeRoutingModeRaw
-        ) =
-            abi.decode(
-                data,
-                (
-                    address,
-                    address,
-                    uint24,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint256,
-                    uint8
-                )
-            );
-        if (feeRoutingModeRaw > uint8(FeeRoutingMode.RouteToBeneficiaryFees)) {
-            revert InvalidFeeRoutingMode();
-        }
-        FeeRoutingMode feeRoutingMode = FeeRoutingMode(feeRoutingModeRaw);
+        InitData memory initData = abi.decode(data, (InitData));
 
         PoolId poolId = key.toId();
 
-        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: numeraire, buybackDst: buybackDst });
+        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
 
-        FeeDistributionInfo memory feeDistributionInfo = FeeDistributionInfo({
-            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
-            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
-            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
-            assetFeesToLpWad: assetFeesToLpWad,
-            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
-            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
-            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
-            numeraireFeesToLpWad: numeraireFeesToLpWad
-        });
-        _validateFeeDistribution(feeDistributionInfo);
-        getFeeDistributionInfo[poolId] = feeDistributionInfo;
-
-        getFeeRoutingMode[poolId] = feeRoutingMode;
-
-        getHookFees[poolId].customFee = customFee;
+        _validateFeeDistribution(initData.feeDistributionInfo);
+        getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
+        getFeeRoutingMode[poolId] = initData.feeRoutingMode;
+        getHookFees[poolId].customFee = initData.customFee;
 
         // Initialize position
         getPosition[poolId] = Position({

@@ -25,8 +25,14 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeDistributionMustAddUpToWAD, SenderNotAirlockOwner, SenderNotAuthorized } from "src/types/RehypeTypes.sol";
-import { FeeRoutingMode } from "src/types/RehypeTypes.sol";
+import {
+    FeeDistributionInfo,
+    FeeDistributionMustAddUpToWAD,
+    FeeRoutingMode,
+    InitData as RehypeInitData,
+    SenderNotAirlockOwner,
+    SenderNotAuthorized
+} from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
@@ -704,18 +710,22 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
     ) internal returns (address asset) {
         bytes memory poolInitializerData = _defaultPoolInitializerData();
         bytes memory rehypeData = abi.encode(
-            address(0), // numeraire
-            BUYBACK_DST, // buybackDst
-            customFee, // customFee
-            uint256(0.2e18), // assetFeesToAssetBuybackWad
-            uint256(0.2e18), // assetFeesToNumeraireBuybackWad
-            uint256(0.3e18), // assetFeesToBeneficiaryWad
-            uint256(0.3e18), // assetFeesToLpWad
-            uint256(0.2e18), // numeraireFeesToAssetBuybackWad
-            uint256(0.2e18), // numeraireFeesToNumeraireBuybackWad
-            uint256(0.3e18), // numeraireFeesToBeneficiaryWad
-            uint256(0.3e18), // numeraireFeesToLpWad
-            uint8(feeRoutingMode) // feeRoutingMode
+            RehypeInitData({
+                numeraire: address(0),
+                buybackDst: BUYBACK_DST,
+                customFee: customFee,
+                feeRoutingMode: feeRoutingMode,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.2e18,
+                    assetFeesToNumeraireBuybackWad: 0.2e18,
+                    assetFeesToBeneficiaryWad: 0.3e18,
+                    assetFeesToLpWad: 0.3e18,
+                    numeraireFeesToAssetBuybackWad: 0.2e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.2e18,
+                    numeraireFeesToBeneficiaryWad: 0.3e18,
+                    numeraireFeesToLpWad: 0.3e18
+                })
+            })
         );
         bytes memory migratorData = _defaultMigratorData(address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData =

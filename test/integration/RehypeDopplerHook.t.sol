@@ -28,8 +28,7 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { EPSILON } from "src/types/RehypeTypes.sol";
-import { FeeDistributionInfo, FeeRoutingMode } from "src/types/RehypeTypes.sol";
+import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -887,18 +886,13 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         // Prepare RehypeDopplerHook initialization data
         bytes memory rehypeData = abi.encode(
-            address(numeraire), // numeraire
-            buybackDst, // buybackDst
-            customFee, // customFee
-            feeDistribution.assetFeesToAssetBuybackWad, // assetFeesToAssetBuybackWad
-            feeDistribution.assetFeesToNumeraireBuybackWad, // assetFeesToNumeraireBuybackWad
-            feeDistribution.assetFeesToBeneficiaryWad, // assetFeesToBeneficiaryWad
-            feeDistribution.assetFeesToLpWad, // assetFeesToLpWad
-            feeDistribution.numeraireFeesToAssetBuybackWad, // numeraireFeesToAssetBuybackWad
-            feeDistribution.numeraireFeesToNumeraireBuybackWad, // numeraireFeesToNumeraireBuybackWad
-            feeDistribution.numeraireFeesToBeneficiaryWad, // numeraireFeesToBeneficiaryWad
-            feeDistribution.numeraireFeesToLpWad, // numeraireFeesToLpWad
-            uint8(feeRoutingMode) // feeRoutingMode
+            RehypeInitData({
+                numeraire: address(numeraire),
+                buybackDst: buybackDst,
+                customFee: customFee,
+                feeRoutingMode: feeRoutingMode,
+                feeDistributionInfo: feeDistribution
+            })
         );
 
         return InitData({
