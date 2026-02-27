@@ -18,9 +18,10 @@ import { Test } from "forge-std/Test.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
-import { EPSILON, RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
+import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
@@ -215,13 +216,22 @@ contract RehypeMigratorHandler is Test {
 
         Settings memory settings = _randomizeSettings(seed, asset, numeraire);
         bytes memory onInitCalldata = abi.encode(
-            settings.numeraire,
-            settings.buybackDst,
-            settings.customFee,
-            settings.assetBuybackPercentWad,
-            settings.numeraireBuybackPercentWad,
-            settings.beneficiaryPercentWad,
-            settings.lpPercentWad
+            RehypeInitData({
+                numeraire: settings.numeraire,
+                buybackDst: settings.buybackDst,
+                customFee: settings.customFee,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    assetFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    assetFeesToLpWad: settings.lpPercentWad,
+                    numeraireFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    numeraireFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    numeraireFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    numeraireFeesToLpWad: settings.lpPercentWad
+                })
+            })
         );
 
         bytes memory migratorData = abi.encode(
@@ -431,7 +441,15 @@ contract RehypeMigratorHandler is Test {
 
         vm.prank(settingsOf[poolId].buybackDst);
         rehypeHook.setFeeDistribution(
-            poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
+            poolId,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
+            lpPercentWad,
+            assetBuybackPercentWad,
+            numeraireBuybackPercentWad,
+            beneficiaryPercentWad,
+            lpPercentWad
         );
     }
 

@@ -1,11 +1,86 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
+import { PoolId } from "@v4-core/types/PoolId.sol";
+
+/// @notice Thrown when the fee distribution does not add up to WAD (1e18)
+error FeeDistributionMustAddUpToWAD();
+
+/// @notice Thrown when the sender is not authorized to perform an action
+error SenderNotAuthorized();
+
+/// @notice Thrown when the sender is not the airlock owner
+error SenderNotAirlockOwner();
+
+/// @notice Thrown when initialization calldata length is invalid
+error InvalidInitializationDataLength();
+
+/**
+ * @notice Emitted when Airlock owner claims fees
+ * @param poolId Pool from which fees were claimed
+ * @param airlockOwner Address that received the fees
+ * @param fees0 Amount of currency0 claimed
+ * @param fees1 Amount of currency1 claimed
+ */
+event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
+
+/**
+ * @notice Emitted when the fee routing mode is updated
+ * @param poolId Pool for which routing mode changed
+ * @param feeRoutingMode New routing mode
+ */
+event FeeRoutingModeUpdated(PoolId indexed poolId, FeeRoutingMode feeRoutingMode);
+
+// Constants
+/// @dev Maximum swap fee denominator (1e6 = 100%)
+uint256 constant MAX_SWAP_FEE = 1e6;
+
+/// @dev Epsilon trigger for rebalancing swaps
+uint128 constant EPSILON = 1e6;
+
+/// @dev Maximum iterations for rebalancing swap calculation
+uint256 constant MAX_REBALANCE_ITERATIONS = 15;
+
+/// @dev Airlock owner fee in basis points (5% = 500 BPS)
+uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
+
+/// @dev Basis points denominator
+uint256 constant BPS_DENOMINATOR = 10_000;
+
+/// @dev Rehype init payload words (with fee routing mode)
+uint256 constant REHYPE_INIT_WORDS = 12;
+
+/**
+ * @notice Routing mode for buyback-designated fees
+ * @dev DirectBuyback keeps current behavior (immediate transfers to buybackDst).
+ * RouteToBeneficiaryFees accrues buyback outputs into beneficiary fee accounting.
+ */
+enum FeeRoutingMode {
+    DirectBuyback,
+    RouteToBeneficiaryFees
+}
+
+/**
+ * @notice Initialization data for a Rehype-managed pool
+ * @param numeraire Address of the numeraire token
+ * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
+ * @param customFee Custom swap fee rate applied to the pool (in millionths, e.g. 5000 = 0.5%)
+ * @param feeRoutingMode Routing mode for buyback-designated fees
+ * @param feeDistributionInfo Fee routing matrix percentages for the pool
+ */
+struct InitData {
+    address numeraire;
+    address buybackDst;
+    uint24 customFee;
+    FeeRoutingMode feeRoutingMode;
+    FeeDistributionInfo feeDistributionInfo;
+}
+
 /**
  * @notice Core pool information for a Rehype-managed pool
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
- * @param buybackDst Address receiving buyback proceeds and beneficiary fees
+ * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
  */
 struct PoolInfo {
     address asset;
@@ -14,17 +89,26 @@ struct PoolInfo {
 }
 
 /**
- * @notice Fee distribution percentages for a pool (must sum to WAD)
- * @param assetBuybackPercentWad Percentage of fees used to buy back the asset (in WAD)
- * @param numeraireBuybackPercentWad Percentage of fees used to buy back the numeraire (in WAD)
- * @param beneficiaryPercentWad Percentage of fees allocated to the beneficiary (in WAD)
- * @param lpPercentWad Percentage of fees reinvested as LP liquidity (in WAD)
+ * @notice Fee routing matrix percentages for a pool
+ * @dev For each source token row (asset fees, numeraire fees), the 4 destination columns must sum to WAD.
+ * @param assetFeesToAssetBuybackWad Percentage of asset-denominated fees sent directly as asset buyback
+ * @param assetFeesToNumeraireBuybackWad Percentage of asset-denominated fees swapped to numeraire buyback
+ * @param assetFeesToBeneficiaryWad Percentage of asset-denominated fees sent to beneficiary accounting
+ * @param assetFeesToLpWad Percentage of asset-denominated fees allocated to LP reinvestment
+ * @param numeraireFeesToAssetBuybackWad Percentage of numeraire-denominated fees swapped to asset buyback
+ * @param numeraireFeesToNumeraireBuybackWad Percentage of numeraire-denominated fees sent directly as numeraire buyback
+ * @param numeraireFeesToBeneficiaryWad Percentage of numeraire-denominated fees sent to beneficiary accounting
+ * @param numeraireFeesToLpWad Percentage of numeraire-denominated fees allocated to LP reinvestment
  */
 struct FeeDistributionInfo {
-    uint256 assetBuybackPercentWad;
-    uint256 numeraireBuybackPercentWad;
-    uint256 beneficiaryPercentWad;
-    uint256 lpPercentWad;
+    uint256 assetFeesToAssetBuybackWad;
+    uint256 assetFeesToNumeraireBuybackWad;
+    uint256 assetFeesToBeneficiaryWad;
+    uint256 assetFeesToLpWad;
+    uint256 numeraireFeesToAssetBuybackWad;
+    uint256 numeraireFeesToNumeraireBuybackWad;
+    uint256 numeraireFeesToBeneficiaryWad;
+    uint256 numeraireFeesToLpWad;
 }
 
 /**

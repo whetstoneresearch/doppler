@@ -32,6 +32,7 @@ import {
 } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract DopplerHookMigratorIntegrationTest is Deployers {
@@ -201,7 +202,24 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         migrator.setDopplerHookState(dopplerHooks, flags);
 
         bytes memory initData = _defaultPoolInitializerData();
-        bytes memory rehypeData = abi.encode(address(0), address(0xBEEF), uint24(3000), 0.2e18, 0.2e18, 0.3e18, 0.3e18);
+        bytes memory rehypeData = abi.encode(
+            RehypeInitData({
+                numeraire: address(0),
+                buybackDst: address(0xBEEF),
+                customFee: 3000,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.2e18,
+                    assetFeesToNumeraireBuybackWad: 0.2e18,
+                    assetFeesToBeneficiaryWad: 0.3e18,
+                    assetFeesToLpWad: 0.3e18,
+                    numeraireFeesToAssetBuybackWad: 0.2e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.2e18,
+                    numeraireFeesToBeneficiaryWad: 0.3e18,
+                    numeraireFeesToLpWad: 0.3e18
+                })
+            })
+        );
         bytes memory migratorData = _defaultMigratorData(false, address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 

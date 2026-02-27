@@ -5,7 +5,8 @@ import { Quoter } from "@quoter/Quoter.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { EPSILON, MAX_REBALANCE_ITERATIONS, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { EPSILON, MAX_REBALANCE_ITERATIONS } from "src/types/RehypeTypes.sol";
 import { SwapSimulation } from "src/types/RehypeTypes.sol";
 
 /// @title RehypeDopplerHookHarness

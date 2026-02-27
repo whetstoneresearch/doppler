@@ -13,22 +13,26 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
+import { console } from "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
-import {
-    FeeDistributionMustAddUpToWAD,
-    RehypeDopplerHookMigrator,
-    SenderNotAirlockOwner,
-    SenderNotAuthorized
-} from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
+import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import {
+    FeeDistributionInfo,
+    FeeDistributionMustAddUpToWAD,
+    FeeRoutingMode,
+    InitData as RehypeInitData,
+    SenderNotAirlockOwner,
+    SenderNotAuthorized
+} from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
@@ -314,6 +318,68 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         assertEq(fees.amount1(), 0, "Should return zero fees1");
     }
 
+    function test_rehype_collectFees_RoutesAndTransfersCorrectly_WhenRoutingModeIsBeneficiary() public {
+        address asset = _createAndMigrateWithCustomFeeAndRoutingMode(
+            bytes32(uint256(203)), 3000, FeeRoutingMode.RouteToBeneficiaryFees
+        );
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        PoolId poolId = poolKey.toId();
+
+        vm.prank(BUYBACK_DST);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+
+        uint256 buybackBalanceBeforeSwap0 = Currency.unwrap(poolKey.currency0) == address(0)
+            ? BUYBACK_DST.balance
+            : ERC20(Currency.unwrap(poolKey.currency0)).balanceOf(BUYBACK_DST);
+        uint256 buybackBalanceBeforeSwap1 = ERC20(Currency.unwrap(poolKey.currency1)).balanceOf(BUYBACK_DST);
+
+        _buyAsset(asset, 0.5 ether);
+        _sellAsset(asset, ERC20(asset).balanceOf(address(this)) / 2);
+
+        uint256 buybackBalanceAfterSwap0 = Currency.unwrap(poolKey.currency0) == address(0)
+            ? BUYBACK_DST.balance
+            : ERC20(Currency.unwrap(poolKey.currency0)).balanceOf(BUYBACK_DST);
+        uint256 buybackBalanceAfterSwap1 = ERC20(Currency.unwrap(poolKey.currency1)).balanceOf(BUYBACK_DST);
+        assertEq(
+            buybackBalanceAfterSwap0, buybackBalanceBeforeSwap0, "No direct currency0 transfer expected in routing mode"
+        );
+        assertEq(
+            buybackBalanceAfterSwap1, buybackBalanceBeforeSwap1, "No direct currency1 transfer expected in routing mode"
+        );
+
+        (,, uint128 beneficiaryFees0BeforeCollect, uint128 beneficiaryFees1BeforeCollect,,,) =
+            rehypeHookMigrator.getHookFees(poolId);
+        assertGt(
+            beneficiaryFees0BeforeCollect + beneficiaryFees1BeforeCollect,
+            0,
+            "Expected routed beneficiary fees before collect"
+        );
+
+        BalanceDelta fees = rehypeHookMigrator.collectFees(asset);
+
+        uint256 buybackBalanceAfterCollect0 = Currency.unwrap(poolKey.currency0) == address(0)
+            ? BUYBACK_DST.balance
+            : ERC20(Currency.unwrap(poolKey.currency0)).balanceOf(BUYBACK_DST);
+        uint256 buybackBalanceAfterCollect1 = ERC20(Currency.unwrap(poolKey.currency1)).balanceOf(BUYBACK_DST);
+        assertEq(
+            buybackBalanceAfterCollect0 - buybackBalanceAfterSwap0,
+            uint128(fees.amount0()),
+            "Collected currency0 should match fee delta"
+        );
+        assertEq(
+            buybackBalanceAfterCollect1 - buybackBalanceAfterSwap1,
+            uint128(fees.amount1()),
+            "Collected currency1 should match fee delta"
+        );
+        assertGt(uint256(uint128(fees.amount0())) + uint256(uint128(fees.amount1())), 0, "Collected fees should be > 0");
+
+        (,, uint128 beneficiaryFees0AfterCollect, uint128 beneficiaryFees1AfterCollect,,,) =
+            rehypeHookMigrator.getHookFees(poolId);
+        assertEq(beneficiaryFees0AfterCollect, 0, "Beneficiary fees0 should be reset");
+        assertEq(beneficiaryFees1AfterCollect, 0, "Beneficiary fees1 should be reset");
+    }
+
     /* ========================================================================== */
     /*                       CLAIM AIRLOCK OWNER FEES                             */
     /* ========================================================================== */
@@ -410,22 +476,47 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         PoolId poolId = poolKey.toId();
 
         // Verify initial distribution
-        (uint256 assetBuyback, uint256 numeraireBuyback, uint256 beneficiary, uint256 lp) =
-            rehypeHookMigrator.getFeeDistributionInfo(poolId);
-        assertEq(assetBuyback, 0.2e18);
-        assertEq(numeraireBuyback, 0.2e18);
-        assertEq(beneficiary, 0.3e18);
-        assertEq(lp, 0.3e18);
+        (
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        ) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
+        assertEq(assetFeesToAssetBuybackWad, 0.2e18);
+        assertEq(assetFeesToNumeraireBuybackWad, 0.2e18);
+        assertEq(assetFeesToBeneficiaryWad, 0.3e18);
+        assertEq(assetFeesToLpWad, 0.3e18);
+        assertEq(numeraireFeesToAssetBuybackWad, 0.2e18);
+        assertEq(numeraireFeesToNumeraireBuybackWad, 0.2e18);
+        assertEq(numeraireFeesToBeneficiaryWad, 0.3e18);
+        assertEq(numeraireFeesToLpWad, 0.3e18);
 
         // Update distribution — only buybackDst can call
         vm.prank(BUYBACK_DST);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0, 0, WAD, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0, 0, WAD, 0, 0, 0, WAD, 0);
 
-        (assetBuyback, numeraireBuyback, beneficiary, lp) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
-        assertEq(assetBuyback, 0, "Asset buyback should be 0");
-        assertEq(numeraireBuyback, 0, "Numeraire buyback should be 0");
-        assertEq(beneficiary, WAD, "Beneficiary should be 100%");
-        assertEq(lp, 0, "LP should be 0");
+        (
+            assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad,
+            assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad
+        ) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
+        assertEq(assetFeesToAssetBuybackWad, 0, "Asset buyback should be 0");
+        assertEq(assetFeesToNumeraireBuybackWad, 0, "Numeraire buyback should be 0");
+        assertEq(assetFeesToBeneficiaryWad, WAD, "Beneficiary should be 100%");
+        assertEq(assetFeesToLpWad, 0, "LP should be 0");
+        assertEq(numeraireFeesToAssetBuybackWad, 0, "Numeraire row asset buyback should be 0");
+        assertEq(numeraireFeesToNumeraireBuybackWad, 0, "Numeraire row numeraire buyback should be 0");
+        assertEq(numeraireFeesToBeneficiaryWad, WAD, "Numeraire row beneficiary should be 100%");
+        assertEq(numeraireFeesToLpWad, 0, "Numeraire row LP should be 0");
     }
 
     function test_rehype_setFeeDistribution_revertsForNonBuybackDst() public {
@@ -437,7 +528,9 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         address notAuthorized = makeAddr("NotAuthorized");
         vm.prank(notAuthorized);
         vm.expectRevert(SenderNotAuthorized.selector);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
+        rehypeHookMigrator.setFeeDistribution(
+            poolId, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
     }
 
     function test_rehype_setFeeDistribution_revertsWhenNotSummingToWAD() public {
@@ -448,7 +541,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
 
         vm.prank(BUYBACK_DST);
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0.5e18, 0.5e18, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0.5e18, 0.5e18, 0, 0.5e18, 0.5e18, 0.5e18, 0);
     }
 
     function test_rehype_setFeeDistribution_affectsSubsequentSwaps() public {
@@ -459,7 +552,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
 
         // Set 100% beneficiary, 0% everything else
         vm.prank(BUYBACK_DST);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0, 0, WAD, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0, 0, WAD, 0, 0, 0, WAD, 0);
 
         // Generate fees
         _buyAsset(asset, 0.5 ether);
@@ -473,6 +566,32 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         assertTrue(
             beneficiaryFees0 + beneficiaryFees1 > 0, "Beneficiary fees should accrue with 100% beneficiary distribution"
         );
+    }
+
+    function test_rehype_onInitialization_RouteToBeneficiaryFees_routesBuybacksToBeneficiaryAccounting() public {
+        address asset = _createAndMigrateWithCustomFeeAndRoutingMode(
+            bytes32(uint256(404)), 3000, FeeRoutingMode.RouteToBeneficiaryFees
+        );
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        PoolId poolId = poolKey.toId();
+
+        _buyAsset(asset, 0.5 ether);
+
+        vm.prank(BUYBACK_DST);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+
+        (,, uint128 beneficiaryFees0Before, uint128 beneficiaryFees1Before,,,) = rehypeHookMigrator.getHookFees(poolId);
+        uint256 buybackEthBefore = BUYBACK_DST.balance;
+
+        _sellAsset(asset, ERC20(asset).balanceOf(address(this)) / 2);
+
+        (,, uint128 beneficiaryFees0After, uint128 beneficiaryFees1After,,,) = rehypeHookMigrator.getHookFees(poolId);
+        assertEq(
+            BUYBACK_DST.balance, buybackEthBefore, "ETH buyback should not be transferred directly in routing mode"
+        );
+        assertGt(beneficiaryFees0After, beneficiaryFees0Before, "Numeraire beneficiary fees should increase");
+        assertGe(beneficiaryFees1After, beneficiaryFees1Before, "Asset beneficiary fees should not decrease");
     }
 
     /* ========================================================================== */
@@ -498,9 +617,27 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
         PoolId poolId = poolKey.toId();
 
-        (uint256 assetBuyback, uint256 numeraireBuyback, uint256 beneficiary, uint256 lp) =
-            rehypeHookMigrator.getFeeDistributionInfo(poolId);
-        assertEq(assetBuyback + numeraireBuyback + beneficiary + lp, WAD, "Distribution should sum to WAD");
+        (
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        ) = rehypeHookMigrator.getFeeDistributionInfo(poolId);
+        assertEq(
+            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad + assetFeesToLpWad,
+            WAD,
+            "Asset distribution should sum to WAD"
+        );
+        assertEq(
+            numeraireFeesToAssetBuybackWad + numeraireFeesToNumeraireBuybackWad + numeraireFeesToBeneficiaryWad
+                + numeraireFeesToLpWad,
+            WAD,
+            "Numeraire distribution should sum to WAD"
+        );
     }
 
     function test_rehype_positionInitializedAsFullRange() public {
@@ -559,13 +696,36 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
     /* ========================================================================== */
 
     function _createAndMigrate(bytes32 salt) internal returns (address asset) {
-        return _createAndMigrateWithCustomFee(salt, 3000);
+        return _createAndMigrateWithCustomFeeAndRoutingMode(salt, 3000, FeeRoutingMode.DirectBuyback);
     }
 
     function _createAndMigrateWithCustomFee(bytes32 salt, uint24 customFee) internal returns (address asset) {
+        return _createAndMigrateWithCustomFeeAndRoutingMode(salt, customFee, FeeRoutingMode.DirectBuyback);
+    }
+
+    function _createAndMigrateWithCustomFeeAndRoutingMode(
+        bytes32 salt,
+        uint24 customFee,
+        FeeRoutingMode feeRoutingMode
+    ) internal returns (address asset) {
         bytes memory poolInitializerData = _defaultPoolInitializerData();
         bytes memory rehypeData = abi.encode(
-            address(0), BUYBACK_DST, customFee, uint256(0.2e18), uint256(0.2e18), uint256(0.3e18), uint256(0.3e18)
+            RehypeInitData({
+                numeraire: address(0),
+                buybackDst: BUYBACK_DST,
+                customFee: customFee,
+                feeRoutingMode: feeRoutingMode,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.2e18,
+                    assetFeesToNumeraireBuybackWad: 0.2e18,
+                    assetFeesToBeneficiaryWad: 0.3e18,
+                    assetFeesToLpWad: 0.3e18,
+                    numeraireFeesToAssetBuybackWad: 0.2e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.2e18,
+                    numeraireFeesToBeneficiaryWad: 0.3e18,
+                    numeraireFeesToLpWad: 0.3e18
+                })
+            })
         );
         bytes memory migratorData = _defaultMigratorData(address(rehypeHookMigrator), rehypeData);
         bytes memory tokenFactoryData =
