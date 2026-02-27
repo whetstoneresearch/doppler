@@ -239,7 +239,8 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator {
         (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut,) =
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
         if (shouldSwap && swapAmountIn > 0) {
-            if (Currency.wrap(numeraire).balanceOf(address(poolManager)) > swapAmountOut) {
+            Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+            if (outputCurrency.balanceOf(address(poolManager)) > swapAmountOut) {
                 uint160 postSwapSqrtPrice;
                 (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
                 lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
