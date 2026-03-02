@@ -103,7 +103,10 @@ contract RehypeDopplerHookTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: buybackDst,
-                customFee: customFee,
+                startFee: customFee,
+                endFee: customFee,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: assetBuybackPercentWad,
@@ -208,7 +211,10 @@ contract RehypeDopplerHookTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: address(0),
-                customFee: 0,
+                startFee: 0,
+                endFee: 0,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
@@ -237,7 +243,10 @@ contract RehypeDopplerHookTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: address(0),
-                customFee: 0,
+                startFee: 0,
+                endFee: 0,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.5e18,
@@ -287,6 +296,9 @@ contract RehypeDopplerHookTest is Test {
             numeraire,
             buybackDst,
             uint24(3000),
+            uint24(3000),
+            uint32(0),
+            uint32(0),
             uint8(2),
             uint256(0.25e18),
             uint256(0.25e18),
@@ -307,7 +319,7 @@ contract RehypeDopplerHookTest is Test {
     /*                                onAfterSwap()                                */
     /* ---------------------------------------------------------------------- */
 
-    function test_onSwap_RevertsWhenSenderNotInitializer(
+    function test_onAfterSwap_RevertsWhenSenderNotInitializer(
         PoolKey memory poolKey,
         IPoolManager.SwapParams memory swapParams
     ) public {
@@ -315,7 +327,7 @@ contract RehypeDopplerHookTest is Test {
         dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
-    function test_onSwap_AccumulatesFees(PoolKey memory poolKey) public {
+    function test_onAfterSwap_AccumulatesFees(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
 
         address asset = Currency.unwrap(poolKey.currency0);
@@ -328,7 +340,10 @@ contract RehypeDopplerHookTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: buybackDst,
-                customFee: customFee,
+                startFee: customFee,
+                endFee: customFee,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
@@ -361,11 +376,11 @@ contract RehypeDopplerHookTest is Test {
         // Note: Actual fee accumulation depends on the fee logic, but fees0 should have been set
     }
 
-    function test_onSwap_SkipsWhenSenderIsHook(PoolKey memory poolKey) public {
+    function test_onAfterSwap_SkipsWhenSenderIsHook(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
 
         vm.prank(address(initializer));
-        (Currency feeCurrency, int128 delta) = dopplerHook.onSwap(
+        (Currency feeCurrency, int128 delta) = dopplerHook.onAfterSwap(
             address(dopplerHook), poolKey, IPoolManager.SwapParams(false, 1, 0), BalanceDeltaLibrary.ZERO_DELTA, ""
         );
 
@@ -383,7 +398,10 @@ contract RehypeDopplerHookTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: address(0),
-                customFee: 0,
+                startFee: 0,
+                endFee: 0,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.5e18,
@@ -461,7 +479,10 @@ contract RehypeDopplerHookTest is Test {
         return InitData({
             numeraire: numeraire,
             buybackDst: buybackDst,
-            customFee: customFee,
+            startFee: customFee,
+            endFee: customFee,
+            durationSeconds: 0,
+            startingTime: 0,
             feeRoutingMode: feeRoutingMode,
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0.25e18,

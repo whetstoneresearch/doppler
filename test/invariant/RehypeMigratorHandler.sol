@@ -219,7 +219,10 @@ contract RehypeMigratorHandler is Test {
             RehypeInitData({
                 numeraire: settings.numeraire,
                 buybackDst: settings.buybackDst,
-                customFee: settings.customFee,
+                startFee: settings.customFee,
+                endFee: settings.customFee,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,

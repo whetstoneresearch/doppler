@@ -10,19 +10,17 @@ import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 /// @dev Flag for the `onInitialization` callback
 uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
 
+/// @dev Flag for the `onBeforeSwap` callback
+uint256 constant ON_BEFORE_SWAP_FLAG = 1 << 1;
+
 /// @dev Flag for the `onSwap` (afterSwap) callback
-uint256 constant ON_AFTER_SWAP_FLAG = 1 << 1;
+uint256 constant ON_AFTER_SWAP_FLAG = 1 << 2;
 
 /// @dev Flag for the `onGraduation` callback
-uint256 constant ON_GRADUATION_FLAG = 1 << 2;
+uint256 constant ON_GRADUATION_FLAG = 1 << 3;
 
-<<<<<<< feat/rehype-decaying-fee
-/// @dev Flag for the `onBeforeSwap` callback
-uint256 constant ON_BEFORE_SWAP_FLAG = 1 << 3;
-=======
 /// @dev Flag indicating the hook requires a dynamic LP fee pool
-uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 3;
->>>>>>> main
+uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 4;
 
 /// @notice Thrown when the `msg.sender` is not the DopplerHookInitializer contract
 error SenderNotInitializer();

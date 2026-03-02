@@ -64,7 +64,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             payable(address(
                     uint160(
                         Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
                             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
                     ) ^ (0x4444 << 144)
                 ))
@@ -206,7 +206,10 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             RehypeInitData({
                 numeraire: address(0),
                 buybackDst: address(0xBEEF),
-                customFee: 3000,
+                startFee: 3000,
+                endFee: 3000,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.2e18,
@@ -295,7 +298,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         vm.expectRevert(abi.encodeWithSelector(SaleHasNotStartedYet.selector, startTime, block.timestamp));
         vm.prank(address(migrator));
-        scheduledLaunchHook.onSwap(
+        scheduledLaunchHook.onAfterSwap(
             address(0), poolKey, IPoolManager.SwapParams(false, 0, 0), BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
         );
 
@@ -353,7 +356,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         });
 
         vm.prank(address(migrator));
-        swapRestrictorHook.onSwap(allowedBuyer, poolKey, swapParams, delta, new bytes(0));
+        swapRestrictorHook.onAfterSwap(allowedBuyer, poolKey, swapParams, delta, new bytes(0));
 
         assertLt(swapRestrictorHook.amountLeftOf(poolKey.toId(), allowedBuyer), 1 ether);
 
@@ -362,7 +365,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         vm.expectRevert(
             abi.encodeWithSelector(InsufficientAmountLeft.selector, poolKey.toId(), unapproved, 0.01 ether, 0)
         );
-        swapRestrictorHook.onSwap(unapproved, poolKey, swapParams, delta, new bytes(0));
+        swapRestrictorHook.onAfterSwap(unapproved, poolKey, swapParams, delta, new bytes(0));
     }
 
     function test_fullFlow_CreateAndMigrate_DynamicFee() public {

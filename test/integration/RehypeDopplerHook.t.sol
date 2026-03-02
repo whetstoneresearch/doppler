@@ -894,7 +894,10 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             RehypeInitData({
                 numeraire: address(numeraire),
                 buybackDst: buybackDst,
-                customFee: customFee,
+                startFee: customFee,
+                endFee: customFee,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: feeRoutingMode,
                 feeDistributionInfo: feeDistribution
             })

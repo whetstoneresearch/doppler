@@ -122,7 +122,10 @@ contract RehypeDopplerHookMigratorTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: buybackDst,
-                customFee: customFee,
+                startFee: customFee,
+                endFee: customFee,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: assetBuybackPercentWad,
@@ -224,7 +227,10 @@ contract RehypeDopplerHookMigratorTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: address(0),
-                customFee: 0,
+                startFee: 0,
+                endFee: 0,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
@@ -253,7 +259,10 @@ contract RehypeDopplerHookMigratorTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: address(0),
-                customFee: 0,
+                startFee: 0,
+                endFee: 0,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.5e18,
@@ -577,7 +586,10 @@ contract RehypeDopplerHookMigratorTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: buybackDst,
-                customFee: 10_000,
+                startFee: 10_000,
+                endFee: 10_000,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
@@ -624,7 +636,10 @@ contract RehypeDopplerHookMigratorTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: buybackDst,
-                customFee: 5000,
+                startFee: 5000,
+                endFee: 5000,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
@@ -726,7 +741,10 @@ contract RehypeDopplerHookMigratorTest is Test {
             InitData({
                 numeraire: numeraire,
                 buybackDst: buybackDst,
-                customFee: customFee,
+                startFee: customFee,
+                endFee: customFee,
+                durationSeconds: 0,
+                startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
@@ -773,7 +791,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         return InitData({
             numeraire: numeraire,
             buybackDst: buybackDst,
-            customFee: customFee,
+            startFee: customFee,
+            endFee: customFee,
+            durationSeconds: 0,
+            startingTime: 0,
             feeRoutingMode: feeRoutingMode,
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0.25e18,

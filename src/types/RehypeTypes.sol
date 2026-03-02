@@ -47,8 +47,53 @@ uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
 /// @dev Basis points denominator
 uint256 constant BPS_DENOMINATOR = 10_000;
 
-/// @dev Rehype init payload words (with fee routing mode)
-uint256 constant REHYPE_INIT_WORDS = 12;
+/// @dev Rehype init payload words (with fee routing mode and decaying fee fields)
+uint256 constant REHYPE_INIT_WORDS = 15;
+
+/// @notice Thrown when a fee exceeds the maximum swap fee
+error FeeTooHigh(uint24 fee);
+
+/// @notice Thrown when startFee < endFee
+error InvalidFeeRange(uint24 startFee, uint24 endFee);
+
+/// @notice Thrown when durationSeconds is zero for a descending fee schedule
+error InvalidDurationSeconds(uint32 durationSeconds);
+
+/**
+ * @notice Emitted when a fee schedule is configured for a pool
+ * @param poolId Pool id
+ * @param startingTime Schedule start timestamp
+ * @param startFee Fee at schedule start
+ * @param endFee Terminal fee after schedule completion
+ * @param durationSeconds Number of seconds over which fee linearly descends
+ */
+event FeeScheduleSet(
+    PoolId indexed poolId, uint32 startingTime, uint24 startFee, uint24 endFee, uint32 durationSeconds
+);
+
+/**
+ * @notice Emitted when the custom fee is updated for a pool
+ * @param poolId Pool id
+ * @param fee New fee
+ */
+event FeeUpdated(PoolId indexed poolId, uint24 fee);
+
+/**
+ * @notice Packed fee schedule for a pool.
+ * @dev Fits in a single storage slot to minimize read/write cost.
+ * @param startingTime Timestamp where schedule starts
+ * @param startFee Fee at schedule start
+ * @param endFee Fee at schedule end
+ * @param lastFee Last applied fee
+ * @param durationSeconds Schedule duration in seconds
+ */
+struct FeeSchedule {
+    uint32 startingTime;
+    uint24 startFee;
+    uint24 endFee;
+    uint24 lastFee;
+    uint32 durationSeconds;
+}
 
 /**
  * @notice Routing mode for buyback-designated fees
@@ -64,14 +109,20 @@ enum FeeRoutingMode {
  * @notice Initialization data for a Rehype-managed pool
  * @param numeraire Address of the numeraire token
  * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
- * @param customFee Custom swap fee rate applied to the pool (in millionths, e.g. 5000 = 0.5%)
+ * @param startFee Fee at schedule start (in millionths, e.g. 5000 = 0.5%)
+ * @param endFee Terminal fee after decay completes (in millionths)
+ * @param durationSeconds Duration of linear fee decay (0 = no decay, fee stays at startFee)
+ * @param startingTime Timestamp when decay begins (0 = use block.timestamp at initialization)
  * @param feeRoutingMode Routing mode for buyback-designated fees
  * @param feeDistributionInfo Fee routing matrix percentages for the pool
  */
 struct InitData {
     address numeraire;
     address buybackDst;
-    uint24 customFee;
+    uint24 startFee;
+    uint24 endFee;
+    uint32 durationSeconds;
+    uint32 startingTime;
     FeeRoutingMode feeRoutingMode;
     FeeDistributionInfo feeDistributionInfo;
 }
