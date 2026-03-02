@@ -40,6 +40,9 @@ error NotApprovedMigrator();
 /// @notice Thrown when a stream is not found
 error StreamNotFound();
 
+/// @notice Thrown when a stream already started
+error StreamAlreadyStarted();
+
 /**
  * @notice Emitted when a position is locked
  * @param poolId Id of the associated Uniswap V4 pool
@@ -63,7 +66,7 @@ event Unlock(PoolId indexed poolId, address recipient);
 event MigratorApproval(address indexed migrator, bool approval);
 
 /**
- * @title StreamableFeesLocker
+ * @title StreamableFeesLocker V2
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice A contract that manages fee streaming for Uniswap V4 positions
@@ -106,6 +109,8 @@ contract StreamableFeesLockerV2 is Ownable, MiniV4Manager, FeesManager {
         Position[] calldata positions
     ) external onlyApprovedMigrator {
         PoolId poolId = poolKey.toId();
+
+        require(streams[poolId].startDate == 0, StreamAlreadyStarted());
 
         // Note: If recipient is DEAD_ADDRESS (0xdead), the position will be permanently locked
         // and beneficiaries can collect fees in perpetuity

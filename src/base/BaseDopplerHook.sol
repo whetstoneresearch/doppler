@@ -16,8 +16,13 @@ uint256 constant ON_AFTER_SWAP_FLAG = 1 << 1;
 /// @dev Flag for the `onGraduation` callback
 uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
+<<<<<<< feat/rehype-decaying-fee
 /// @dev Flag for the `onBeforeSwap` callback
 uint256 constant ON_BEFORE_SWAP_FLAG = 1 << 3;
+=======
+/// @dev Flag indicating the hook requires a dynamic LP fee pool
+uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 3;
+>>>>>>> main
 
 /// @notice Thrown when the `msg.sender` is not the DopplerHookInitializer contract
 error SenderNotInitializer();

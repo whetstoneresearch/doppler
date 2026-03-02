@@ -19,12 +19,13 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock } from "src/Airlock.sol";
-import { ON_AFTER_SWAP_FLAG, ON_BEFORE_SWAP_FLAG, ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHook.sol";
-import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
@@ -63,15 +64,14 @@ contract RehyperInvariantTests is Deployers {
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](7);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
         selectors[2] = handler.buyExactOut.selector;
         selectors[3] = handler.sellExactIn.selector;
         selectors[4] = handler.sellExactOut.selector;
-        selectors[5] = handler.setFeeDistribution.selector;
-        selectors[6] = handler.collectFees.selector;
-        selectors[7] = handler.claimAirlockOwnerFees.selector;
+        selectors[5] = handler.collectFees.selector;
+        selectors[6] = handler.claimAirlockOwnerFees.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
@@ -253,13 +253,22 @@ contract RehypeHandler is Test {
         });
 
         data.onInitializationDopplerHookCalldata = abi.encode(
-            numeraire,
-            address(0xbeef),
-            3000,
-            settings.assetBuybackPercentWad,
-            settings.numeraireBuybackPercentWad,
-            settings.beneficiaryPercentWad,
-            settings.lpPercentWad
+            RehypeInitData({
+                numeraire: numeraire,
+                buybackDst: address(0xbeef),
+                customFee: 3000,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    assetFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    assetFeesToLpWad: settings.lpPercentWad,
+                    numeraireFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    numeraireFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    numeraireFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    numeraireFeesToLpWad: settings.lpPercentWad
+                })
+            })
         );
         dopplerHookInitializer.initialize(address(asset), numeraire, 1e27, bytes32(0), abi.encode(data));
 
@@ -497,28 +506,6 @@ contract RehypeHandler is Test {
         totalSells[poolId]++;
 
         _trackLiquidity(poolId);
-    }
-
-    function setFeeDistribution(uint256 seed) public {
-        if (poolKeys.length == 0) return;
-        // Only 0.5% chance to set fee distribution
-        if (seed < WAD) seed = WAD;
-        vm.assume(seed % 1000 > 5);
-
-        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
-        PoolId poolId = poolKey.toId();
-
-        (
-            uint256 assetBuybackPercentWad,
-            uint256 numeraireBuybackPercentWad,
-            uint256 beneficiaryPercentWad,
-            uint256 lpPercentWad
-        ) = _randomizeFeeDistribution(seed);
-
-        vm.prank(settingsOf[poolId].buybackDst);
-        hook.setFeeDistribution(
-            poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
-        );
     }
 
     function collectFees(uint256 seed) public {

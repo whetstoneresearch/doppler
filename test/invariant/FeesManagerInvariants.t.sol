@@ -7,12 +7,33 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 import { FeesManagerImplementation, PoolManagerMock } from "test/unit/base/FeesManager.t.sol";
 
 address constant PROTOCOL_OWNER = address(0xB16B055);
+
+/// @dev We generate an array of beneficiaries ourselves to make sure its valid
+function generateBeneficiaries(
+    address protocolOwner,
+    uint256 seed
+) pure returns (BeneficiaryData[] memory beneficiaries) {
+    uint256 length = seed % 50 + 1;
+    beneficiaries = new BeneficiaryData[](length);
+
+    uint256 S = length * (length + 1) / 2;
+    uint96 totalShares;
+
+    for (uint256 i = 1; i != beneficiaries.length; ++i) {
+        uint96 shares = uint96((WAD - MIN_PROTOCOL_OWNER_SHARES) * i / S);
+        totalShares += shares;
+
+        beneficiaries[i] =
+            BeneficiaryData({ beneficiary: address(uint160(uint160(protocolOwner) + i)), shares: shares });
+    }
+
+    beneficiaries[0] = BeneficiaryData({ beneficiary: protocolOwner, shares: uint96(WAD - totalShares) });
+}
 
 contract FeesManagerHandler is Test {
     FeesManagerImplementation public implementation;
@@ -69,7 +90,7 @@ contract FeesManagerHandler is Test {
         PoolId poolId = poolKey.toId();
         _poolKeys[poolId] = poolKey;
 
-        BeneficiaryData[] memory beneficiaries = generateBeneficiaries(seed);
+        BeneficiaryData[] memory beneficiaries = generateBeneficiaries(PROTOCOL_OWNER, seed);
 
         for (uint256 i; i != beneficiaries.length; ++i) {
             BeneficiaryData memory beneficiary = beneficiaries[i];
@@ -156,25 +177,6 @@ contract FeesManagerHandler is Test {
 
     function getBeneficiaries(PoolId poolId_) public view returns (BeneficiaryData[] memory) {
         return _beneficiaries[poolId_];
-    }
-
-    /// @dev We generate an array of beneficiaries ourselves to make sure its valid
-    function generateBeneficiaries(uint256 seed) private pure returns (BeneficiaryData[] memory beneficiaries) {
-        uint256 length = seed % 50 + 1;
-        beneficiaries = new BeneficiaryData[](length);
-
-        uint256 S = length * (length + 1) / 2;
-        uint96 totalShares;
-
-        for (uint256 i = 1; i != beneficiaries.length; ++i) {
-            uint96 shares = uint96((WAD - MIN_PROTOCOL_OWNER_SHARES) * i / S);
-            totalShares += shares;
-
-            beneficiaries[i] =
-                BeneficiaryData({ beneficiary: address(uint160(uint160(PROTOCOL_OWNER) + i)), shares: shares });
-        }
-
-        beneficiaries[0] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: uint96(WAD - totalShares) });
     }
 }
 
