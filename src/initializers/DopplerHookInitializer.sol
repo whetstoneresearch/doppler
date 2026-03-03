@@ -174,7 +174,15 @@ struct PoolState {
 }
 
 /// @dev Maximum LP fee allowed (1_000_000 = 100%)
-uint24 constant MAX_LP_FEE = 100_000;
+uint24 constant MAX_LP_FEE = 800_000;
+
+/// @dev Ordered flag layout version (beforeSwap=bit1, afterSwap=bit2, graduation=bit3)
+uint8 constant FLAG_LAYOUT_VERSION_ORDERED = 2;
+
+/// @dev Legacy flag bits for backward compatibility with previously stored values.
+uint256 constant LEGACY_ON_AFTER_SWAP_FLAG = 1 << 1;
+uint256 constant LEGACY_ON_GRADUATION_FLAG = 1 << 2;
+uint256 constant LEGACY_ON_BEFORE_SWAP_FLAG = 1 << 4;
 
 /**
  * @title Doppler Hook Uniswap V4 Multicurve Initializer
@@ -197,6 +205,9 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
     /// @notice Returns a non-zero value if a Doppler hook is enabled
     mapping(address dopplerHook => uint256 flags) public isDopplerHookEnabled;
+
+    /// @notice Flag layout version per Doppler hook (0 = legacy layout, 2 = ordered layout)
+    mapping(address dopplerHook => uint8 version) public getDopplerHookFlagLayoutVersion;
 
     /// @notice Returns the delegated authority for a user
     mapping(address user => address authority) public getAuthority;
@@ -411,7 +422,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         address dopplerHook = state.dopplerHook;
         uint256 flags = isDopplerHookEnabled[dopplerHook];
-        if (dopplerHook == address(0) || flags & ON_GRADUATION_FLAG == 0) {
+        if (dopplerHook == address(0) || !_hasGraduationFlag(dopplerHook, flags)) {
             revert CannotMigratePoolNoProvidedDopplerHook();
         }
 
@@ -452,6 +463,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         for (uint256 i; i != length; i++) {
             isDopplerHookEnabled[dopplerHooks[i]] = flags[i];
+            getDopplerHookFlagLayoutVersion[dopplerHooks[i]] = flags[i] == 0 ? 0 : FLAG_LAYOUT_VERSION_ORDERED;
             emit SetDopplerHookState(dopplerHooks[i], flags[i]);
         }
     }
@@ -541,7 +553,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         address dopplerHook = getState[asset].dopplerHook;
         uint24 lpFeeOverride;
 
-        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_BEFORE_SWAP_FLAG != 0) {
+        uint256 flags = isDopplerHookEnabled[dopplerHook];
+        if (dopplerHook != address(0) && _hasBeforeSwapFlag(dopplerHook, flags)) {
             uint24 fee = IDopplerHook(dopplerHook).onBeforeSwap(sender, key, params, data);
             if (fee > 0) {
                 lpFeeOverride = fee | LPFeeLibrary.OVERRIDE_FEE_FLAG;
@@ -565,7 +578,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         int128 delta;
 
-        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_AFTER_SWAP_FLAG != 0) {
+        uint256 flags = isDopplerHookEnabled[dopplerHook];
+        if (dopplerHook != address(0) && _hasAfterSwapFlag(dopplerHook, flags)) {
             Currency feeCurrency;
             (feeCurrency, delta) = IDopplerHook(dopplerHook).onAfterSwap(sender, key, params, balanceDelta, data);
 
@@ -604,5 +618,26 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
             afterAddLiquidityReturnDelta: false,
             afterRemoveLiquidityReturnDelta: false
         });
+    }
+
+    function _hasBeforeSwapFlag(address dopplerHook, uint256 flags) internal view returns (bool) {
+        if (getDopplerHookFlagLayoutVersion[dopplerHook] == FLAG_LAYOUT_VERSION_ORDERED) {
+            return flags & ON_BEFORE_SWAP_FLAG != 0;
+        }
+        return flags & LEGACY_ON_BEFORE_SWAP_FLAG != 0;
+    }
+
+    function _hasAfterSwapFlag(address dopplerHook, uint256 flags) internal view returns (bool) {
+        if (getDopplerHookFlagLayoutVersion[dopplerHook] == FLAG_LAYOUT_VERSION_ORDERED) {
+            return flags & ON_AFTER_SWAP_FLAG != 0;
+        }
+        return flags & LEGACY_ON_AFTER_SWAP_FLAG != 0;
+    }
+
+    function _hasGraduationFlag(address dopplerHook, uint256 flags) internal view returns (bool) {
+        if (getDopplerHookFlagLayoutVersion[dopplerHook] == FLAG_LAYOUT_VERSION_ORDERED) {
+            return flags & ON_GRADUATION_FLAG != 0;
+        }
+        return flags & LEGACY_ON_GRADUATION_FLAG != 0;
     }
 }

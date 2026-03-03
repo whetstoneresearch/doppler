@@ -647,18 +647,24 @@ contract RehypeDopplerHook is BaseDopplerHook {
     function collectFees(address asset) external returns (BalanceDelta fees) {
         (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
-        HookFees memory hookFees = getHookFees[poolId];
+        HookFees storage hookFees = getHookFees[poolId];
         address beneficiary = getPoolInfo[poolId].buybackDst;
 
-        fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
+        uint128 beneficiaryFees0 = hookFees.beneficiaryFees0;
+        uint128 beneficiaryFees1 = hookFees.beneficiaryFees1;
 
-        if (hookFees.beneficiaryFees0 > 0) {
+        fees = toBalanceDelta(int128(uint128(beneficiaryFees0)), int128(uint128(beneficiaryFees1)));
+
+        if (beneficiaryFees0 > 0 || beneficiaryFees1 > 0) {
             getHookFees[poolId].beneficiaryFees0 = 0;
-            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
-        }
-        if (hookFees.beneficiaryFees1 > 0) {
             getHookFees[poolId].beneficiaryFees1 = 0;
-            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
+        }
+
+        if (beneficiaryFees0 > 0) {
+            poolKey.currency0.transfer(beneficiary, beneficiaryFees0);
+        }
+        if (beneficiaryFees1 > 0) {
+            poolKey.currency1.transfer(beneficiary, beneficiaryFees1);
         }
 
         return fees;
