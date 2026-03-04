@@ -2,6 +2,8 @@
 pragma solidity ^0.8.26;
 
 import { Quoter } from "@quoter/Quoter.sol";
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
+import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -16,7 +18,6 @@ import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
-import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import {
     AIRLOCK_OWNER_FEE_BPS,
     AirlockOwnerFeesClaimed,
@@ -51,7 +52,7 @@ import { WAD } from "src/types/Wad.sol";
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hook that implements fee collection, distribution, buybacks, and LP fee reinvestment
  */
-contract RehypeDopplerHook is BaseDopplerHook {
+contract RehypeDopplerHook is BaseDopplerHook, ReentrancyGuard {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
     using SafeCastLib for uint256;
@@ -113,10 +114,9 @@ contract RehypeDopplerHook is BaseDopplerHook {
             require(initData.durationSeconds > 0, InvalidDurationSeconds(initData.durationSeconds));
         }
 
-        uint32 normalizedStart =
-            (initData.startingTime == 0 || initData.startingTime <= uint32(block.timestamp))
-                ? uint32(block.timestamp)
-                : initData.startingTime;
+        uint32 normalizedStart = (initData.startingTime == 0 || initData.startingTime <= uint32(block.timestamp))
+            ? uint32(block.timestamp)
+            : initData.startingTime;
 
         getFeeSchedule[poolId] = FeeSchedule({
             startingTime: normalizedStart,
@@ -644,7 +644,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param asset Asset to collect fees from
      * @return fees Collected fees as a BalanceDelta
      */
-    function collectFees(address asset) external returns (BalanceDelta fees) {
+    function collectFees(address asset) external nonReentrant returns (BalanceDelta fees) {
         (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
         HookFees memory hookFees = getHookFees[poolId];
@@ -652,12 +652,13 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
 
+        getHookFees[poolId].beneficiaryFees0 = 0;
+        getHookFees[poolId].beneficiaryFees1 = 0;
+
         if (hookFees.beneficiaryFees0 > 0) {
-            getHookFees[poolId].beneficiaryFees0 = 0;
             poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
         }
         if (hookFees.beneficiaryFees1 > 0) {
-            getHookFees[poolId].beneficiaryFees1 = 0;
             poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
         }
 
@@ -670,7 +671,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @return fees0 Amount of currency0 claimed
      * @return fees1 Amount of currency1 claimed
      */
-    function claimAirlockOwnerFees(address asset) external returns (uint128 fees0, uint128 fees1) {
+    function claimAirlockOwnerFees(address asset) external nonReentrant returns (uint128 fees0, uint128 fees1) {
         address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
         require(msg.sender == airlockOwner, SenderNotAirlockOwner());
 
@@ -679,13 +680,13 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         fees0 = getHookFees[poolId].airlockOwnerFees0;
         fees1 = getHookFees[poolId].airlockOwnerFees1;
+        getHookFees[poolId].airlockOwnerFees0 = 0;
+        getHookFees[poolId].airlockOwnerFees1 = 0;
 
         if (fees0 > 0) {
-            getHookFees[poolId].airlockOwnerFees0 = 0;
             poolKey.currency0.transfer(msg.sender, fees0);
         }
         if (fees1 > 0) {
-            getHookFees[poolId].airlockOwnerFees1 = 0;
             poolKey.currency1.transfer(msg.sender, fees1);
         }
 
