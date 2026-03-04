@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import { Quoter } from "@quoter/Quoter.sol";
 import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
-import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -26,14 +25,8 @@ import {
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
     FeeRoutingModeUpdated,
-    FeeSchedule,
-    FeeScheduleSet,
-    FeeTooHigh,
-    FeeUpdated,
     HookFees,
     InitData,
-    InvalidDurationSeconds,
-    InvalidFeeRange,
     InvalidInitializationDataLength,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
@@ -54,7 +47,6 @@ import { WAD } from "src/types/Wad.sol";
 contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
-    using SafeCastLib for uint256;
 
     /// @notice Address of the Uniswap V4 Pool Manager
     IPoolManager public immutable poolManager;
@@ -76,9 +68,6 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
 
     /// @notice Fee routing mode for each pool
     mapping(PoolId poolId => FeeRoutingMode feeRoutingMode) public getFeeRoutingMode;
-
-    /// @notice Fee schedule for each pool (decaying fee)
-    mapping(PoolId poolId => FeeSchedule feeSchedule) public getFeeSchedule;
 
     /// @notice Fallback function to receive ETH
     receive() external payable { }
@@ -103,32 +92,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         _validateFeeDistribution(initData.feeDistributionInfo);
         getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
-
-        // Validate and store fee schedule
-        require(initData.startFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(initData.startFee));
-        require(initData.endFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(initData.endFee));
-        require(initData.startFee >= initData.endFee, InvalidFeeRange(initData.startFee, initData.endFee));
-
-        bool isDescending = initData.startFee > initData.endFee;
-        if (isDescending) {
-            require(initData.durationSeconds > 0, InvalidDurationSeconds(initData.durationSeconds));
-        }
-
-        uint32 normalizedStart = (initData.startingTime == 0 || initData.startingTime <= uint32(block.timestamp))
-            ? uint32(block.timestamp)
-            : initData.startingTime;
-
-        getFeeSchedule[poolId] = FeeSchedule({
-            startingTime: normalizedStart,
-            startFee: initData.startFee,
-            endFee: initData.endFee,
-            lastFee: initData.startFee,
-            durationSeconds: initData.durationSeconds
-        });
-
         getHookFees[poolId].customFee = initData.startFee;
-
-        emit FeeScheduleSet(poolId, normalizedStart, initData.startFee, initData.endFee, initData.durationSeconds);
 
         // Initialize position
         getPosition[poolId] = Position({
@@ -741,58 +705,6 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
     }
 
     /**
-     * @dev Computes the current fee based on linear interpolation of the fee schedule
-     * @param schedule The fee schedule
-     * @param elapsed Time elapsed since schedule start
-     * @return The interpolated fee
-     */
-    function _computeCurrentFee(FeeSchedule memory schedule, uint256 elapsed) internal pure returns (uint24) {
-        uint256 feeRange = uint256(schedule.startFee - schedule.endFee);
-        uint256 feeDelta_ = feeRange * elapsed / schedule.durationSeconds;
-        return uint24(uint256(schedule.startFee) - feeDelta_);
-    }
-
-    /**
-     * @dev Returns the current fee for a pool, applying the decaying fee schedule
-     * @param poolId Uniswap V4 poolId
-     * @return currentFee The current fee rate
-     */
-    function _getCurrentFee(PoolId poolId) internal returns (uint24 currentFee) {
-        FeeSchedule memory schedule = getFeeSchedule[poolId];
-
-        // No decay: startFee == endFee or durationSeconds == 0
-        if (schedule.startFee == schedule.endFee || schedule.durationSeconds == 0) {
-            return schedule.startFee;
-        }
-
-        // Already fully decayed
-        if (schedule.lastFee == schedule.endFee) {
-            return schedule.endFee;
-        }
-
-        // Before schedule start
-        if (block.timestamp <= schedule.startingTime) {
-            return schedule.startFee;
-        }
-
-        uint256 elapsed = block.timestamp - schedule.startingTime;
-
-        if (elapsed >= schedule.durationSeconds) {
-            currentFee = schedule.endFee;
-        } else {
-            currentFee = _computeCurrentFee(schedule, elapsed);
-        }
-
-        // Only write to storage if the fee has changed (optimization to avoid redundant writes)
-        if (currentFee < schedule.lastFee) {
-            getFeeSchedule[poolId].lastFee = currentFee;
-            emit FeeUpdated(poolId, currentFee);
-        }
-
-        return currentFee;
-    }
-
-    /**
      * @dev Collects swap fees from a swap and updates hook fee tracking
      * @param params Parameters of the swap
      * @param delta BalanceDelta of the swap
@@ -829,8 +741,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
             feeBase = uint256(-inputAmount);
         }
 
-        uint24 currentFee = _getCurrentFee(poolId);
-        uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, MAX_SWAP_FEE);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
