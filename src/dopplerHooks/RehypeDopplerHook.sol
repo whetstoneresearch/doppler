@@ -351,7 +351,7 @@ contract RehypeDopplerHook is BaseDopplerHook, ReentrancyGuard {
 
             SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, lpAmount0, lpAmount1);
             if (!sim.success) {
-                if (high == 0 || high == 1) {
+                if (high == 1) {
                     break;
                 }
                 high = guess > 0 ? guess - 1 : 0;
