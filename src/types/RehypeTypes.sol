@@ -12,9 +12,6 @@ error SenderNotAuthorized();
 /// @notice Thrown when the sender is not the airlock owner
 error SenderNotAirlockOwner();
 
-/// @notice Thrown when initialization calldata length is invalid
-error InvalidInitializationDataLength();
-
 /**
  * @notice Emitted when Airlock owner claims fees
  * @param poolId Pool from which fees were claimed
@@ -23,13 +20,6 @@ error InvalidInitializationDataLength();
  * @param fees1 Amount of currency1 claimed
  */
 event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
-
-/**
- * @notice Emitted when the fee routing mode is updated
- * @param poolId Pool for which routing mode changed
- * @param feeRoutingMode New routing mode
- */
-event FeeRoutingModeUpdated(PoolId indexed poolId, FeeRoutingMode feeRoutingMode);
 
 // Constants
 /// @dev Maximum swap fee denominator (1e6 = 100%)
@@ -46,9 +36,6 @@ uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
 
 /// @dev Basis points denominator
 uint256 constant BPS_DENOMINATOR = 10_000;
-
-/// @dev Rehype init payload words (with fee routing mode and decaying fee fields)
-uint256 constant REHYPE_INIT_WORDS = 15;
 
 /// @notice Thrown when a fee exceeds the maximum swap fee
 error FeeTooHigh(uint24 fee);
@@ -128,6 +115,22 @@ struct InitData {
 }
 
 /**
+ * @notice Initialization data for a Rehype-managed migrator pool (no fee decay)
+ * @param numeraire Address of the numeraire token
+ * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
+ * @param customFee Static swap fee (in millionths, e.g. 5000 = 0.5%)
+ * @param feeRoutingMode Routing mode for buyback-designated fees
+ * @param feeDistributionInfo Fee routing matrix percentages for the pool
+ */
+struct MigratorInitData {
+    address numeraire;
+    address buybackDst;
+    uint24 customFee;
+    FeeRoutingMode feeRoutingMode;
+    FeeDistributionInfo feeDistributionInfo;
+}
+
+/**
  * @notice Core pool information for a Rehype-managed pool
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
@@ -170,7 +173,7 @@ struct FeeDistributionInfo {
  * @param beneficiaryFees1 Accumulated beneficiary fees in currency1
  * @param airlockOwnerFees0 Accumulated airlock owner fees in currency0
  * @param airlockOwnerFees1 Accumulated airlock owner fees in currency1
- * @param customFee Custom swap fee rate applied to the pool
+ * @param customFee Custom swap fee rate applied to the pool (skipped if fee schedule is active)
  */
 struct HookFees {
     uint128 fees0;
