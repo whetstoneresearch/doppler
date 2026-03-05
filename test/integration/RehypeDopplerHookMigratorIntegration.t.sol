@@ -29,7 +29,7 @@ import {
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
-    InitData as RehypeInitData,
+    MigratorInitData as RehypeInitData,
     SenderNotAirlockOwner,
     SenderNotAuthorized
 } from "src/types/RehypeTypes.sol";
@@ -713,10 +713,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
             RehypeInitData({
                 numeraire: address(0),
                 buybackDst: BUYBACK_DST,
-                startFee: customFee,
-                endFee: customFee,
-                durationSeconds: 0,
-                startingTime: 0,
+                customFee: customFee,
                 feeRoutingMode: feeRoutingMode,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.2e18,

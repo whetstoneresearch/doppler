@@ -21,7 +21,7 @@ import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDoppler
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
+import { EPSILON, FeeDistributionInfo, FeeRoutingMode, MigratorInitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 
@@ -219,10 +219,7 @@ contract RehypeMigratorHandler is Test {
             RehypeInitData({
                 numeraire: settings.numeraire,
                 buybackDst: settings.buybackDst,
-                startFee: settings.customFee,
-                endFee: settings.customFee,
-                durationSeconds: 0,
-                startingTime: 0,
+                customFee: settings.customFee,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,

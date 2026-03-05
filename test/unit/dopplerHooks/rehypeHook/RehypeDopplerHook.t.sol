@@ -14,8 +14,14 @@ import {
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
+    FeeSchedule,
+    FeeScheduleSet,
+    FeeTooHigh,
     HookFees,
     InitData,
+    InvalidDurationSeconds,
+    InvalidFeeRange,
+    MAX_SWAP_FEE,
     PoolInfo
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -439,6 +445,301 @@ contract RehypeDopplerHookTest is Test {
         assertEq(storedNumeraireRowNumeraireBuyback, 0);
         assertEq(storedNumeraireRowBeneficiary, 0.5e18);
         assertEq(storedNumeraireRowLp, 0);
+    }
+
+    /* ----------------------------------------------------------------------------- */
+    /*                         Fee Schedule / Decay Tests                           */
+    /* ----------------------------------------------------------------------------- */
+
+    function test_onInitialization_StoresFeeSchedule(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: buybackDst,
+                startFee: 10_000,
+                endFee: 3000,
+                durationSeconds: 3600,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+        (uint32 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 durationSeconds) =
+            dopplerHook.getFeeSchedule(poolId);
+
+        assertEq(startFee, 10_000);
+        assertEq(endFee, 3000);
+        assertEq(lastFee, 10_000);
+        assertEq(durationSeconds, 3600);
+        assertEq(startingTime, uint32(block.timestamp));
+    }
+
+    function test_onInitialization_EmitsFeeScheduleSet(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: 10_000,
+                endFee: 3000,
+                durationSeconds: 3600,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        PoolId poolId = poolKey.toId();
+
+        vm.expectEmit(true, false, false, true);
+        emit FeeScheduleSet(poolId, uint32(block.timestamp), 10_000, 3000, 3600);
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, data);
+    }
+
+    function test_onInitialization_RevertsWhenStartFeeTooHigh(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: uint24(MAX_SWAP_FEE) + 1,
+                endFee: 0,
+                durationSeconds: 3600,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, uint24(MAX_SWAP_FEE) + 1));
+        dopplerHook.onInitialization(asset, poolKey, data);
+    }
+
+    function test_onInitialization_RevertsWhenStartFeeLessThanEndFee(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: 3000,
+                endFee: 10_000,
+                durationSeconds: 3600,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(InvalidFeeRange.selector, uint24(3000), uint24(10_000)));
+        dopplerHook.onInitialization(asset, poolKey, data);
+    }
+
+    function test_onInitialization_RevertsWhenDescendingFeeWithZeroDuration(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: 10_000,
+                endFee: 3000,
+                durationSeconds: 0,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(InvalidDurationSeconds.selector, uint32(0)));
+        dopplerHook.onInitialization(asset, poolKey, data);
+    }
+
+    function test_onInitialization_FlatFeeAllowsZeroDuration(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: 5000,
+                endFee: 5000,
+                durationSeconds: 0,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+        (,, uint24 endFee,,) = dopplerHook.getFeeSchedule(poolId);
+        assertEq(endFee, 5000);
+    }
+
+    function test_onInitialization_FutureStartingTimeIsPreserved(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        uint32 futureTime = uint32(block.timestamp) + 1000;
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: 10_000,
+                endFee: 3000,
+                durationSeconds: 3600,
+                startingTime: futureTime,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+        (uint32 startingTime,,,,) = dopplerHook.getFeeSchedule(poolId);
+        assertEq(startingTime, futureTime);
+    }
+
+    function test_onInitialization_PastStartingTimeNormalizesToNow(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        vm.warp(1_000_000);
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        uint32 pastTime = uint32(block.timestamp) - 100;
+
+        bytes memory data = abi.encode(
+            InitData({
+                numeraire: numeraire,
+                buybackDst: address(0),
+                startFee: 10_000,
+                endFee: 3000,
+                durationSeconds: 3600,
+                startingTime: pastTime,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.25e18,
+                    assetFeesToNumeraireBuybackWad: 0.25e18,
+                    assetFeesToBeneficiaryWad: 0.25e18,
+                    assetFeesToLpWad: 0.25e18,
+                    numeraireFeesToAssetBuybackWad: 0.25e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                    numeraireFeesToBeneficiaryWad: 0.25e18,
+                    numeraireFeesToLpWad: 0.25e18
+                })
+            })
+        );
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+        (uint32 startingTime,,,,) = dopplerHook.getFeeSchedule(poolId);
+        assertEq(startingTime, uint32(block.timestamp));
     }
 
     /* ----------------------------------------------------------------------------- */

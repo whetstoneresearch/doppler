@@ -32,7 +32,7 @@ import {
 } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
+import { FeeDistributionInfo, FeeRoutingMode, MigratorInitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract DopplerHookMigratorIntegrationTest is Deployers {
@@ -206,10 +206,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             RehypeInitData({
                 numeraire: address(0),
                 buybackDst: address(0xBEEF),
-                startFee: 3000,
-                endFee: 3000,
-                durationSeconds: 0,
-                startingTime: 0,
+                customFee: 3000,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.2e18,
