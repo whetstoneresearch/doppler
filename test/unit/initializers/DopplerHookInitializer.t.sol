@@ -48,6 +48,7 @@ import {
     UnreachableFarTick,
     WrongPoolStatus
 } from "src/initializers/DopplerHookInitializer.sol";
+import { InvalidNewBeneficiary, UpdateBeneficiary } from "src/base/FeesManager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
@@ -386,6 +387,34 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         initializer.collectFees(poolId);
     }
 
+    /* ----------------------------------------------------------------------------- */
+    /*                            updateBeneficiary()                                */
+    /* ----------------------------------------------------------------------------- */
+
+    function test_updateBeneficiary_RevertsWhenNewBeneficiaryIsSender() public {
+        vm.expectRevert(InvalidNewBeneficiary.selector);
+        initializer.updateBeneficiary(PoolId.wrap(0), address(this));
+    }
+
+    function test_updateBeneficiary_TransfersShares(InitDataParams memory params, bool isToken0) public {
+        test_initialize_LocksPool(params, isToken0);
+
+        address beneficiary1 = makeAddr("Beneficiary1");
+        address newBeneficiary = makeAddr("NewBeneficiary");
+
+        uint256 sharesBefore = initializer.getShares(poolId, beneficiary1);
+        assertGt(sharesBefore, 0, "Beneficiary should have shares");
+
+        vm.expectEmit();
+        emit UpdateBeneficiary(poolId, beneficiary1, newBeneficiary);
+
+        vm.prank(beneficiary1);
+        initializer.updateBeneficiary(poolId, newBeneficiary);
+
+        assertEq(initializer.getShares(poolId, beneficiary1), 0, "Old beneficiary should have zero shares");
+        assertEq(initializer.getShares(poolId, newBeneficiary), sharesBefore, "New beneficiary should have all shares");
+    }
+
     /* --------------------------------------------------------------------------------- */
     /*                                delegateAuthority()                                */
     /* --------------------------------------------------------------------------------- */
@@ -540,6 +569,104 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         _setDopplerHook(onInitializationCalldata, onGraduationCalldata);
     }
 
+    function test_setDopplerHook_RevertsWhenNonZeroHookNotEnabled(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_LocksPool(params, isToken0);
+
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSelector(0x1652e7b7, asset),
+            abi.encode(
+                address(0),
+                address(this),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                0,
+                0,
+                address(0)
+            )
+        );
+
+        address notEnabledHook = makeAddr("NotEnabledHook");
+        vm.expectRevert(DopplerHookNotEnabled.selector);
+        initializer.setDopplerHook(asset, notEnabledHook, new bytes(0), new bytes(0));
+    }
+
+    function test_setDopplerHook_ClearsDopplerHookWhenAddressZero(
+        InitDataParams memory params,
+        bool isToken0,
+        bytes calldata onInitializationCalldata,
+        bytes calldata onGraduationCalldata
+    ) public {
+        test_setDopplerHook_SetsDopplerHookWhenSenderIsTimelock(
+            params, isToken0, onInitializationCalldata, onGraduationCalldata
+        );
+
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSelector(0x1652e7b7, asset),
+            abi.encode(
+                address(0),
+                address(this),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                0,
+                0,
+                address(0)
+            )
+        );
+
+        vm.expectEmit();
+        emit SetDopplerHook(asset, address(0));
+        initializer.setDopplerHook(asset, address(0), new bytes(0), new bytes(0));
+
+        (,, address dopplerHookAddress,,,,) = initializer.getState(asset);
+        assertEq(dopplerHookAddress, address(0), "DopplerHook should be cleared");
+    }
+
+    function test_setDopplerHook_DoesNotCallOnInitializationWhenFlagOff(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_LocksPool(params, isToken0);
+
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(dopplerHook);
+        flags[0] = ON_GRADUATION_FLAG;
+        vm.prank(airlockOwner);
+        initializer.setDopplerHookState(dopplerHooks, flags);
+
+        vm.mockCall(
+            address(airlock),
+            abi.encodeWithSelector(0x1652e7b7, asset),
+            abi.encode(
+                address(0),
+                address(this),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                address(0),
+                0,
+                0,
+                address(0)
+            )
+        );
+
+        vm.expectCall(address(dopplerHook), abi.encodeWithSelector(IDopplerHook.onInitialization.selector), 0);
+
+        initializer.setDopplerHook(asset, address(dopplerHook), new bytes(0), new bytes(0));
+    }
+
     /* ------------------------------------------------------------------------ */
     /*                                graduate()                                */
     /* ------------------------------------------------------------------------ */
@@ -570,7 +697,6 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.expectEmit();
         emit Graduate(asset);
 
-        vm.prank(address(airlock));
         initializer.graduate(asset);
 
         (,,,, PoolStatus status,,) = initializer.getState(asset);
@@ -581,7 +707,6 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         test_graduate_GraduatesPool(params, isToken0);
         vm.expectRevert(abi.encodeWithSelector(WrongPoolStatus.selector, PoolStatus.Locked, PoolStatus.Graduated));
 
-        vm.prank(address(airlock));
         initializer.graduate(asset);
     }
 
@@ -589,8 +714,26 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         test_initialize_LocksPoolWithDopplerHook(params, isToken0);
         (,,,,,, int24 farTick) = initializer.getState(asset);
         (, int24 tick,,) = manager.getSlot0(poolId);
-        vm.prank(address(airlock));
         vm.expectRevert(abi.encodeWithSelector(CannotMigrateInsufficientTick.selector, farTick, tick));
+        initializer.graduate(asset);
+    }
+
+    function test_graduate_RevertsWhenDopplerHookHasNoGraduationFlag(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
+
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(dopplerHook);
+        flags[0] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
+        vm.prank(airlockOwner);
+        initializer.setDopplerHookState(dopplerHooks, flags);
+
+        _buyUntilFarTick(isToken0);
+
+        vm.expectRevert(CannotMigratePoolNoProvidedDopplerHook.selector);
         initializer.graduate(asset);
     }
 
@@ -647,6 +790,91 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
     function test_beforeInitialize_PassesWhenSenderParamInitializer() public {
         vm.prank(address(manager));
         initializer.beforeInitialize(address(initializer), key, 0);
+    }
+
+    /* ------------------------------------------------------------------------- */
+    /*                                beforeSwap()                               */
+    /* ------------------------------------------------------------------------- */
+
+    function test_beforeSwap_RevertsWhenMsgSenderNotPoolManager(PoolKey calldata _key) public {
+        vm.expectRevert(ImmutableState.NotPoolManager.selector);
+        initializer.beforeSwap(
+            address(0),
+            _key,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            new bytes(0)
+        );
+    }
+
+    function test_beforeSwap_ReturnsZeroFeeOverrideWhenNoDopplerHook(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_InitializesPool(params, isToken0);
+
+        vm.prank(address(manager));
+        (,, uint24 lpFeeOverride) = initializer.beforeSwap(
+            address(this),
+            poolKey,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            new bytes(0)
+        );
+
+        assertEq(lpFeeOverride, 0, "Fee override should be zero when no DopplerHook is set");
+    }
+
+    function test_beforeSwap_CallsOnBeforeSwapAndReturnsOverrideFee(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
+
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(dopplerHook);
+        flags[0] = ON_INITIALIZATION_FLAG | ON_GRADUATION_FLAG | ON_AFTER_SWAP_FLAG | ON_BEFORE_SWAP_FLAG;
+        vm.prank(airlockOwner);
+        initializer.setDopplerHookState(dopplerHooks, flags);
+
+        uint24 expectedFee = 5000;
+        vm.mockCall(
+            address(dopplerHook),
+            abi.encodeWithSelector(IDopplerHook.onBeforeSwap.selector),
+            abi.encode(expectedFee)
+        );
+
+        vm.prank(address(manager));
+        (,, uint24 lpFeeOverride) = initializer.beforeSwap(
+            address(this),
+            poolKey,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            new bytes(0)
+        );
+
+        assertEq(lpFeeOverride, expectedFee | LPFeeLibrary.OVERRIDE_FEE_FLAG, "Incorrect LP fee override");
+    }
+
+    function test_beforeSwap_ReturnsZeroFeeOverrideWhenBeforeSwapFlagDisabled(
+        InitDataParams memory params,
+        bool isToken0
+    ) public {
+        test_initialize_LocksPoolWithDopplerHook(params, isToken0);
+
+        vm.expectCall(
+            address(dopplerHook),
+            abi.encodeWithSelector(IDopplerHook.onBeforeSwap.selector),
+            0
+        );
+
+        vm.prank(address(manager));
+        (,, uint24 lpFeeOverride) = initializer.beforeSwap(
+            address(this),
+            poolKey,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0 }),
+            new bytes(0)
+        );
+
+        assertEq(lpFeeOverride, 0, "Fee override should be zero when ON_BEFORE_SWAP_FLAG is not set");
     }
 
     /* --------------------------------------------------------------------------------- */
@@ -721,6 +949,11 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.prank(address(manager));
         initializer.afterSwap(sender, poolKey, swapParams, balanceDelta, data);
     }
+
+    // NOTE: The afterSwap delta > 0 path (fee extraction via take/settleFor) requires a real
+    // DopplerHook implementation (e.g., RehypeDopplerHook) that does its own poolManager.take()
+    // internally. This path cannot be properly unit-tested with a simple mock and should be
+    // covered in integration tests with the actual DopplerHook contracts.
 
     /* ------------------------------------------------------------------------------------ */
     /*                                afterRemoveLiquidity()                                */
