@@ -24,14 +24,11 @@ import {
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
-    FeeRoutingModeUpdated,
     HookFees,
-    InitData,
-    InvalidInitializationDataLength,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
+    MigratorInitData,
     PoolInfo,
-    REHYPE_INIT_WORDS,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
     SwapSimulation
@@ -83,7 +80,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
 
     /// @inheritdoc BaseDopplerHookMigrator
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
-        InitData memory initData = abi.decode(data, (InitData));
+        MigratorInitData memory initData = abi.decode(data, (MigratorInitData));
 
         PoolId poolId = key.toId();
 
@@ -92,7 +89,6 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         _validateFeeDistribution(initData.feeDistributionInfo);
         getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
-        getHookFees[poolId].customFee = initData.startFee;
 
         // Initialize position
         getPosition[poolId] = Position({
@@ -741,7 +737,8 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
             feeBase = uint256(-inputAmount);
         }
 
-        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        (,, uint24 lpFee,) = poolManager.getSlot0(poolId);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, lpFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
