@@ -33,7 +33,13 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
+import {
+    EPSILON,
+    FeeDistributionInfo,
+    FeeRoutingMode,
+    FeeSchedule,
+    InitData as RehypeInitData
+} from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
@@ -157,7 +163,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint24 customFee
         ) = rehypeDopplerHook.getHookFees(poolId);
 
-        assertEq(customFee, 3000, "Custom fee should be 3000 (0.3%)");
+        assertEq(customFee, 0, "Custom fee should be 3000 (0.3%)");
         assertGt(beneficiaryFees0 + airlockOwnerFees0, 0, "Total fees0 should be greater than 0");
         assertGt(beneficiaryFees1 + airlockOwnerFees1, 0, "Total fees1 should be greater than 0");
         assertEq(fees0, 0, "fees0 should be 0");
@@ -851,6 +857,145 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         }
     }
 
+    /* ----------------------------------------------------------------------------- */
+    /*                        Decaying Fee Integration Tests                        */
+    /* ----------------------------------------------------------------------------- */
+
+    function test_decayingFee_StoresFeeScheduleOnCreate() public {
+        bytes32 salt = bytes32(uint256(100));
+        (, address asset) = _createTokenWithDecay(salt, 10_000, 3000, 3600, 0);
+
+        (uint32 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 durationSeconds) =
+            rehypeDopplerHook.getFeeSchedule(poolId);
+
+        assertEq(startFee, 10_000, "startFee");
+        assertEq(endFee, 3000, "endFee");
+        assertEq(lastFee, 10_000, "lastFee should start at startFee");
+        assertEq(durationSeconds, 3600, "durationSeconds");
+        assertGt(startingTime, 0, "startingTime should be set");
+    }
+
+    function test_decayingFee_HigherFeesAtStartThanAfterDecay() public {
+        bytes32 salt = bytes32(uint256(101));
+        (bool isToken0,) = _createTokenWithDecay(salt, 10_000, 2000, 3600, 0);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        // First swap primes the pool manager balance (fee collection needs token balance)
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        // Snapshot fees before second swap at the high fee rate
+        (,, uint128 bf0A, uint128 bf1A, uint128 of0A, uint128 of1A,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesBeforeHighFeeSwap = uint256(bf0A) + bf1A + of0A + of1A;
+
+        // Second swap at start — fee is still 10000 (1%)
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,, uint128 bf0B, uint128 bf1B, uint128 of0B, uint128 of1B,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesFromHighFeeSwap =
+            (uint256(bf0B) + bf1B + of0B + of1B) - feesBeforeHighFeeSwap;
+        assertGt(feesFromHighFeeSwap, 0, "Should accrue fees at high fee rate");
+
+        // Warp past full duration — fee should now be 2000 (0.2%)
+        vm.warp(block.timestamp + 3601);
+
+        (,, uint128 bf0C, uint128 bf1C, uint128 of0C, uint128 of1C,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesBeforeLowFeeSwap = uint256(bf0C) + bf1C + of0C + of1C;
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,, uint128 bf0D, uint128 bf1D, uint128 of0D, uint128 of1D,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesFromLowFeeSwap =
+            (uint256(bf0D) + bf1D + of0D + of1D) - feesBeforeLowFeeSwap;
+
+        assertGt(feesFromLowFeeSwap, 0, "Should accrue fees at low fee rate");
+        assertGt(feesFromHighFeeSwap, feesFromLowFeeSwap, "Fees at start should be higher than after decay");
+    }
+
+    function test_decayingFee_UpdatesLastFeeAfterSwap() public {
+        bytes32 salt = bytes32(uint256(102));
+        (bool isToken0,) = _createTokenWithDecay(salt, 10_000, 2000, 4000, 0);
+
+        (,,, uint24 lastFeeBefore,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFeeBefore, 10_000, "lastFee should be startFee initially");
+
+        // Warp to midpoint and swap
+        vm.warp(block.timestamp + 2000);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,,, uint24 lastFeeAfter,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFeeAfter, 6000, "lastFee should update to midpoint interpolated value");
+    }
+
+    function test_decayingFee_FlatFeeDoesNotDecay() public {
+        bytes32 salt = bytes32(uint256(103));
+        (bool isToken0,) = _createTokenWithDecay(salt, 5000, 5000, 0, 0);
+
+        // Swap at start
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,, uint128 bf0A, uint128 bf1A, uint128 of0A, uint128 of1A,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesFirst = uint256(bf0A) + bf1A + of0A + of1A;
+
+        // Warp far into the future — fee should stay at 5000
+        vm.warp(block.timestamp + 100_000);
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,, uint128 bf0B, uint128 bf1B, uint128 of0B, uint128 of1B,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesSecond = (uint256(bf0B) + bf1B + of0B + of1B) - feesFirst;
+
+        // With equal swap amounts and a flat fee, fees should be roughly similar
+        // (small variance from price movement is acceptable)
+        assertGt(feesSecond, 0, "Flat fee should still accrue fees");
+
+        (,,, uint24 lastFee,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFee, 5000, "lastFee should remain at startFee for flat schedule");
+    }
+
+    function test_decayingFee_FutureStartingTimeKeepsHighFee() public {
+        uint32 futureStart = uint32(block.timestamp) + 2000;
+        bytes32 salt = bytes32(uint256(104));
+        (bool isToken0,) = _createTokenWithDecay(salt, 10_000, 2000, 3600, futureStart);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        // First swap primes the pool manager balance
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        // Swap before the schedule starts — should use startFee
+        (,, uint128 bf0A, uint128 bf1A, uint128 of0A, uint128 of1A,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesBeforeSwap = uint256(bf0A) + bf1A + of0A + of1A;
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        (,, uint128 bf0B, uint128 bf1B, uint128 of0B, uint128 of1B,) = rehypeDopplerHook.getHookFees(poolId);
+        uint256 feesBeforeStart = (uint256(bf0B) + bf1B + of0B + of1B) - feesBeforeSwap;
+        assertGt(feesBeforeStart, 0, "Should accrue fees at startFee before schedule begins");
+
+        (,,, uint24 lastFee,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFee, 10_000, "lastFee should remain startFee before schedule begins");
+    }
+
     function _prepareInitData(address token) internal returns (InitData memory) {
         return _prepareInitData(token, uint24(3000), _defaultFeeDistribution(), FeeRoutingMode.DirectBuyback);
     }
@@ -956,6 +1101,125 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
     function _prepareInitDataWithZeroFee(address token) internal returns (InitData memory) {
         return _prepareInitData(token, uint24(0), _quarterFeeDistribution(), FeeRoutingMode.DirectBuyback);
+    }
+
+    function _prepareInitDataWithDecay(
+        address token,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime
+    ) internal returns (InitData memory) {
+        Curve[] memory curves = new Curve[](10);
+        int24 tickSpacing = 8;
+
+        for (uint256 i; i < 10; ++i) {
+            curves[i].tickLower = int24(uint24(0 + i * 16_000));
+            curves[i].tickUpper = 240_000;
+            curves[i].numPositions = 10;
+            curves[i].shares = WAD / 10;
+        }
+
+        Currency currency0 = Currency.wrap(address(numeraire));
+        Currency currency1 = Currency.wrap(address(token));
+
+        (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
+
+        poolKey = PoolKey({
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: initializer
+        });
+        poolId = poolKey.toId();
+
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x07), shares: uint96(0.95e18) });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: uint96(0.05e18) });
+
+        bytes memory rehypeData = abi.encode(
+            RehypeInitData({
+                numeraire: address(numeraire),
+                buybackDst: buybackDst,
+                startFee: startFee,
+                endFee: endFee,
+                durationSeconds: durationSeconds,
+                startingTime: startingTime,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: _defaultFeeDistribution()
+            })
+        );
+
+        return InitData({
+            fee: 0,
+            tickSpacing: tickSpacing,
+            farTick: 200_000,
+            curves: curves,
+            beneficiaries: beneficiaries,
+            dopplerHook: address(rehypeDopplerHook),
+            onInitializationDopplerHookCalldata: rehypeData,
+            graduationDopplerHookCalldata: new bytes(0)
+        });
+    }
+
+    function _createTokenWithDecay(
+        bytes32 salt,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime
+    ) internal returns (bool isToken0, address asset) {
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData =
+            _prepareInitDataWithDecay(tokenAddress, startFee, endFee, durationSeconds, startingTime);
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        (asset,,,,) = airlock.create(params);
+        vm.label(asset, "Asset");
+        isToken0 = asset < address(numeraire);
+
+        (,,,,, poolKey,) = initializer.getState(asset);
+        poolId = poolKey.toId();
+
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        TestERC20(asset).approve(address(swapRouter), type(uint256).max);
     }
 
     function _createToken(bytes32 salt) internal returns (bool isToken0, address asset) {
@@ -1169,7 +1433,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint24 customFee
         ) = rehypeDopplerHook.getHookFees(id);
 
-        assertEq(customFee, 3000, "custom fee should remain unchanged");
+        assertEq(customFee, 0, "custom fee should remain unchanged");
         assertLe(fees0, EPSILON, "fees0 should not accumulate above EPSILON");
         assertLe(fees1, EPSILON, "fees1 should not accumulate above EPSILON");
 

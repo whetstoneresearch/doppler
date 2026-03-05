@@ -17,6 +17,7 @@ import {
     FeeSchedule,
     FeeScheduleSet,
     FeeTooHigh,
+    FeeUpdated,
     HookFees,
     InitData,
     InvalidDurationSeconds,
@@ -28,6 +29,19 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
+}
+
+/// @dev Harness to expose internal fee functions for testing
+contract RehypeDopplerHookHarness is RehypeDopplerHook {
+    constructor(address _initializer, IPoolManager _poolManager) RehypeDopplerHook(_initializer, _poolManager) { }
+
+    function exposed_getCurrentFee(PoolId poolId) external returns (uint24) {
+        return _getCurrentFee(poolId);
+    }
+
+    function exposed_computeCurrentFee(FeeSchedule memory schedule, uint256 elapsed) external pure returns (uint24) {
+        return _computeCurrentFee(schedule, elapsed);
+    }
 }
 
 contract MockAirlock {
@@ -66,6 +80,7 @@ contract MockInitializer {
 contract RehypeDopplerHookTest is Test {
     RehypeDopplerHook internal dopplerHook;
     RehypeDopplerHook internal dopplerHookWithMockInitializer;
+    RehypeDopplerHookHarness internal harness;
     MockInitializer internal initializer;
     MockInitializer internal mockInitializer;
     IPoolManager internal poolManager;
@@ -74,6 +89,7 @@ contract RehypeDopplerHookTest is Test {
         poolManager = IPoolManager(address(new MockPoolManager()));
         initializer = new MockInitializer();
         dopplerHook = new RehypeDopplerHook(address(initializer), poolManager);
+        harness = new RehypeDopplerHookHarness(address(initializer), poolManager);
         mockInitializer = new MockInitializer();
         dopplerHookWithMockInitializer = new RehypeDopplerHook(address(mockInitializer), poolManager);
     }
@@ -169,7 +185,7 @@ contract RehypeDopplerHookTest is Test {
             uint128 airlockOwnerFees1,
             uint24 storedCustomFee
         ) = dopplerHook.getHookFees(poolId);
-        assertEq(storedCustomFee, customFee);
+        assertEq(storedCustomFee, 0);
         assertEq(fees0, 0);
         assertEq(fees1, 0);
         assertEq(beneficiaryFees0, 0);
@@ -743,6 +759,279 @@ contract RehypeDopplerHookTest is Test {
     }
 
     /* ----------------------------------------------------------------------------- */
+    /*                       _getCurrentFee / _computeCurrentFee                   */
+    /* ----------------------------------------------------------------------------- */
+
+    function test_getCurrentFee_ReturnsFlatFeeWhenStartEqualsEnd(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 5000, 5000, 0, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 5000, "Flat fee should return startFee");
+    }
+
+    function test_getCurrentFee_ReturnsFlatFeeWhenDurationZero(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        // startFee == endFee with explicit durationSeconds == 0
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 8000, 8000, 0, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        vm.warp(block.timestamp + 9999);
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 8000, "Should always return startFee when duration is 0");
+    }
+
+    function test_getCurrentFee_ReturnsStartFeeBeforeScheduleStarts(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        uint32 futureStart = uint32(block.timestamp) + 1000;
+
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 3000, 3600, futureStart));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        // Still before futureStart
+        vm.warp(futureStart - 1);
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 10_000, "Fee should be startFee before schedule starts");
+    }
+
+    function test_getCurrentFee_ReturnsEndFeeAfterFullDuration(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 3600, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        vm.warp(block.timestamp + 3601);
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 2000, "Fee should be endFee after full duration");
+    }
+
+    function test_getCurrentFee_ReturnsEndFeeExactlyAtDurationEnd(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 3600, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        vm.warp(block.timestamp + 3600);
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 2000, "Fee should be endFee at exactly duration end");
+    }
+
+    function test_getCurrentFee_InterpolatesAtMidpoint(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        // startFee=10000, endFee=2000, range=8000, duration=4000
+        // At midpoint (2000s): fee = 10000 - 8000 * 2000/4000 = 10000 - 4000 = 6000
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 4000, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        vm.warp(block.timestamp + 2000);
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 6000, "Fee should be linearly interpolated at midpoint");
+    }
+
+    function test_getCurrentFee_InterpolatesAtQuarterPoint(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        // startFee=10000, endFee=2000, range=8000, duration=4000
+        // At 1000s: fee = 10000 - 8000 * 1000/4000 = 10000 - 2000 = 8000
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 4000, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        vm.warp(block.timestamp + 1000);
+        uint24 fee = harness.exposed_getCurrentFee(poolKey.toId());
+        assertEq(fee, 8000, "Fee should be linearly interpolated at 25%");
+    }
+
+    function test_getCurrentFee_UpdatesLastFeeInStorage(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 4000, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+
+        // Verify initial lastFee
+        (,,, uint24 lastFeeBefore,) = harness.getFeeSchedule(poolId);
+        assertEq(lastFeeBefore, 10_000, "lastFee should start at startFee");
+
+        // Warp to midpoint and call
+        vm.warp(block.timestamp + 2000);
+        harness.exposed_getCurrentFee(poolId);
+
+        (,,, uint24 lastFeeAfter,) = harness.getFeeSchedule(poolId);
+        assertEq(lastFeeAfter, 6000, "lastFee should be updated to interpolated value");
+    }
+
+    function test_getCurrentFee_EmitsFeeUpdatedOnChange(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 4000, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+        vm.warp(block.timestamp + 2000);
+
+        vm.expectEmit(true, false, false, true);
+        emit FeeUpdated(poolId, 6000);
+        harness.exposed_getCurrentFee(poolId);
+    }
+
+    function test_getCurrentFee_DoesNotEmitWhenFeeUnchanged(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 4000, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+
+        // Warp and call once to update
+        vm.warp(block.timestamp + 2000);
+        harness.exposed_getCurrentFee(poolId);
+
+        // Record lastFee before second call at same timestamp
+        (,,, uint24 lastFeeBefore,) = harness.getFeeSchedule(poolId);
+
+        // Call again at the same timestamp — fee unchanged, so no storage write
+        uint24 fee2 = harness.exposed_getCurrentFee(poolId);
+
+        (,,, uint24 lastFeeAfter,) = harness.getFeeSchedule(poolId);
+        assertEq(lastFeeBefore, lastFeeAfter, "lastFee should not change when fee is unchanged");
+    }
+
+    function test_getCurrentFee_ShortCircuitsWhenFullyDecayed(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 3600, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        PoolId poolId = poolKey.toId();
+
+        // Fully decay
+        vm.warp(block.timestamp + 3601);
+        harness.exposed_getCurrentFee(poolId);
+
+        (,,, uint24 lastFee,) = harness.getFeeSchedule(poolId);
+        assertEq(lastFee, 2000, "lastFee should be endFee after full decay");
+
+        // Subsequent calls should return endFee via short-circuit
+        vm.warp(block.timestamp + 10_000);
+        uint24 fee = harness.exposed_getCurrentFee(poolId);
+        assertEq(fee, 2000, "Should short-circuit to endFee");
+    }
+
+    function test_computeCurrentFee_LinearInterpolation() public view {
+        FeeSchedule memory schedule =
+            FeeSchedule({ startingTime: 0, startFee: 10_000, endFee: 2000, lastFee: 10_000, durationSeconds: 4000 });
+
+        assertEq(harness.exposed_computeCurrentFee(schedule, 0), 10_000, "0% elapsed");
+        assertEq(harness.exposed_computeCurrentFee(schedule, 1000), 8000, "25% elapsed");
+        assertEq(harness.exposed_computeCurrentFee(schedule, 2000), 6000, "50% elapsed");
+        assertEq(harness.exposed_computeCurrentFee(schedule, 3000), 4000, "75% elapsed");
+        assertEq(harness.exposed_computeCurrentFee(schedule, 3999), 2002, "~100% elapsed");
+    }
+
+    function testFuzz_computeCurrentFee_AlwaysBetweenStartAndEnd(
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint256 elapsed
+    ) public view {
+        startFee = uint24(bound(startFee, 1, uint24(MAX_SWAP_FEE)));
+        endFee = uint24(bound(endFee, 0, startFee));
+        durationSeconds = uint32(bound(durationSeconds, 1, type(uint32).max));
+        elapsed = bound(elapsed, 0, uint256(durationSeconds) - 1);
+
+        FeeSchedule memory schedule = FeeSchedule({
+            startingTime: 0, startFee: startFee, endFee: endFee, lastFee: startFee, durationSeconds: durationSeconds
+        });
+
+        uint24 fee = harness.exposed_computeCurrentFee(schedule, elapsed);
+        assertGe(fee, endFee, "Fee should be >= endFee");
+        assertLe(fee, startFee, "Fee should be <= startFee");
+    }
+
+    function testFuzz_getCurrentFee_MonotonicallyDecreasing(PoolKey memory poolKey, uint32 warp1, uint32 warp2) public {
+        poolKey.tickSpacing = 60;
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+
+        vm.warp(1_000_000);
+        bytes memory data = abi.encode(_decayInitData(numeraire, address(0), 10_000, 2000, 3600, 0));
+
+        vm.prank(address(initializer));
+        harness.onInitialization(asset, poolKey, data);
+
+        warp1 = uint32(bound(warp1, 0, 7200));
+        warp2 = uint32(bound(warp2, 0, 7200));
+        if (warp1 > warp2) (warp1, warp2) = (warp2, warp1);
+
+        uint256 base = block.timestamp;
+
+        vm.warp(base + warp1);
+        uint24 fee1 = harness.exposed_getCurrentFee(poolKey.toId());
+
+        vm.warp(base + warp2);
+        uint24 fee2 = harness.exposed_getCurrentFee(poolKey.toId());
+
+        assertGe(fee1, fee2, "Fee should be monotonically non-increasing over time");
+    }
+
+    /* ----------------------------------------------------------------------------- */
     /*                              collectFees()                                    */
     /* ----------------------------------------------------------------------------- */
 
@@ -785,6 +1074,35 @@ contract RehypeDopplerHookTest is Test {
             durationSeconds: 0,
             startingTime: 0,
             feeRoutingMode: feeRoutingMode,
+            feeDistributionInfo: FeeDistributionInfo({
+                assetFeesToAssetBuybackWad: 0.25e18,
+                assetFeesToNumeraireBuybackWad: 0.25e18,
+                assetFeesToBeneficiaryWad: 0.25e18,
+                assetFeesToLpWad: 0.25e18,
+                numeraireFeesToAssetBuybackWad: 0.25e18,
+                numeraireFeesToNumeraireBuybackWad: 0.25e18,
+                numeraireFeesToBeneficiaryWad: 0.25e18,
+                numeraireFeesToLpWad: 0.25e18
+            })
+        });
+    }
+
+    function _decayInitData(
+        address numeraire,
+        address buybackDst,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime
+    ) internal pure returns (InitData memory) {
+        return InitData({
+            numeraire: numeraire,
+            buybackDst: buybackDst,
+            startFee: startFee,
+            endFee: endFee,
+            durationSeconds: durationSeconds,
+            startingTime: startingTime,
+            feeRoutingMode: FeeRoutingMode.DirectBuyback,
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0.25e18,
                 assetFeesToNumeraireBuybackWad: 0.25e18,
