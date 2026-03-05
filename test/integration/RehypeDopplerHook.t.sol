@@ -896,8 +896,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         (,, uint128 bf0B, uint128 bf1B, uint128 of0B, uint128 of1B,) = rehypeDopplerHook.getHookFees(poolId);
-        uint256 feesFromHighFeeSwap =
-            (uint256(bf0B) + bf1B + of0B + of1B) - feesBeforeHighFeeSwap;
+        uint256 feesFromHighFeeSwap = (uint256(bf0B) + bf1B + of0B + of1B) - feesBeforeHighFeeSwap;
         assertGt(feesFromHighFeeSwap, 0, "Should accrue fees at high fee rate");
 
         // Warp past full duration — fee should now be 2000 (0.2%)
@@ -909,8 +908,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         (,, uint128 bf0D, uint128 bf1D, uint128 of0D, uint128 of1D,) = rehypeDopplerHook.getHookFees(poolId);
-        uint256 feesFromLowFeeSwap =
-            (uint256(bf0D) + bf1D + of0D + of1D) - feesBeforeLowFeeSwap;
+        uint256 feesFromLowFeeSwap = (uint256(bf0D) + bf1D + of0D + of1D) - feesBeforeLowFeeSwap;
 
         assertGt(feesFromLowFeeSwap, 0, "Should accrue fees at low fee rate");
         assertGt(feesFromHighFeeSwap, feesFromLowFeeSwap, "Fees at start should be higher than after decay");

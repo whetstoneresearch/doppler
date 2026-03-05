@@ -192,7 +192,8 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
+        bytes memory data =
+            abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -209,7 +210,8 @@ contract RehypeDopplerHookMigratorTest is Test {
     }
 
     function test_onInitialization_RevertsWhenSenderNotMigrator(PoolKey memory poolKey) public {
-        bytes memory data = abi.encode(_quarterMigratorInitData(address(0), address(0), 0, FeeRoutingMode.DirectBuyback));
+        bytes memory data =
+            abi.encode(_quarterMigratorInitData(address(0), address(0), 0, FeeRoutingMode.DirectBuyback));
 
         vm.expectRevert(SenderNotMigrator.selector);
         rehypeHookMigrator.onInitialization(address(0), poolKey, data);
@@ -435,7 +437,8 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
+        bytes memory data =
+            abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -461,7 +464,8 @@ contract RehypeDopplerHookMigratorTest is Test {
         address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
 
-        bytes memory data = abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
+        bytes memory data =
+            abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -520,7 +524,8 @@ contract RehypeDopplerHookMigratorTest is Test {
         address token0 = Currency.unwrap(poolKey.currency0);
         address token1 = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
+        bytes memory data =
+            abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
@@ -545,7 +550,8 @@ contract RehypeDopplerHookMigratorTest is Test {
         address token0 = Currency.unwrap(poolKey.currency0);
         address token1 = Currency.unwrap(poolKey.currency1);
 
-        bytes memory data = abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
+        bytes memory data =
+            abi.encode(_quarterMigratorInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback));
 
         vm.prank(address(mockMigrator));
         rehypeHookMigrator.onInitialization(asset, poolKey, data);
