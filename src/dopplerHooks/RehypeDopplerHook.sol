@@ -120,8 +120,6 @@ contract RehypeDopplerHook is BaseDopplerHookInitializer, ReentrancyGuard {
             durationSeconds: initData.durationSeconds
         });
 
-        getHookFees[poolId].customFee = initData.startFee;
-
         emit FeeScheduleSet(poolId, normalizedStart, initData.startFee, initData.endFee, initData.durationSeconds);
 
         // Initialize position
