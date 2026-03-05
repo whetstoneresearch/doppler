@@ -89,6 +89,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         _validateFeeDistribution(initData.feeDistributionInfo);
         getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
+        getHookFees[poolId].customFee = initData.customFee;
 
         // Initialize position
         getPosition[poolId] = Position({
@@ -737,8 +738,8 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
             feeBase = uint256(-inputAmount);
         }
 
-        (,, uint24 lpFee,) = poolManager.getSlot0(poolId);
-        uint256 feeAmount = FullMath.mulDiv(feeBase, lpFee, MAX_SWAP_FEE);
+        HookFees memory hookFees = getHookFees[poolId];
+        uint256 feeAmount = FullMath.mulDiv(feeBase, hookFees.customFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
