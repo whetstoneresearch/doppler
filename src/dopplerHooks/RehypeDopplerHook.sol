@@ -12,7 +12,7 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
+import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
 import { Position } from "src/types/Position.sol";
@@ -47,7 +47,7 @@ import { WAD } from "src/types/Wad.sol";
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hook that implements fee collection, distribution, buybacks, and LP fee reinvestment
  */
-contract RehypeDopplerHook is BaseDopplerHook, ReentrancyGuard {
+contract RehypeDopplerHook is BaseDopplerHookInitializer, ReentrancyGuard {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
 
@@ -81,12 +81,12 @@ contract RehypeDopplerHook is BaseDopplerHook, ReentrancyGuard {
      * @param initializer Address of the DopplerHookInitializer contract
      * @param poolManager_ Address of the Uniswap V4 Pool Manager
      */
-    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHook(initializer) {
+    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHookInitializer(initializer) {
         poolManager = poolManager_;
         quoter = new Quoter(poolManager_);
     }
 
-    /// @inheritdoc BaseDopplerHook
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
         InitData memory initData = abi.decode(data, (InitData));
 
@@ -133,7 +133,7 @@ contract RehypeDopplerHook is BaseDopplerHook, ReentrancyGuard {
         });
     }
 
-    /// @inheritdoc BaseDopplerHook
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onAfterSwap(
         address sender,
         PoolKey calldata key,

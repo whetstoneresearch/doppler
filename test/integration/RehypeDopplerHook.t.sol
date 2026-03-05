@@ -21,7 +21,7 @@ import {
     ON_BEFORE_SWAP_FLAG,
     ON_GRADUATION_FLAG,
     ON_INITIALIZATION_FLAG
-} from "src/base/BaseDopplerHook.sol";
+} from "src/base/BaseDopplerHookInitializer.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";

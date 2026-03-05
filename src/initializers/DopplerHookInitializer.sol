@@ -19,7 +19,7 @@ import {
     ON_BEFORE_SWAP_FLAG,
     ON_GRADUATION_FLAG,
     ON_INITIALIZATION_FLAG
-} from "src/base/BaseDopplerHook.sol";
+} from "src/base/BaseDopplerHookInitializer.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
@@ -40,7 +40,7 @@ event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 /**
  * @notice Emitted when the state of a Doppler Hook is set
  * @param dopplerHook Address of the Doppler Hook
- * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHook.sol)
+ * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHookInitializer.sol)
  */
 event SetDopplerHookState(address indexed dopplerHook, uint256 indexed flag);
 
@@ -439,7 +439,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     /**
      * @notice Sets the state of a given Doppler hooks array
      * @param dopplerHooks Array of Doppler hook addresses
-     * @param flags Array of flags to set (see flags in BaseDopplerHook.sol)
+     * @param flags Array of flags to set (see flags in BaseDopplerHookInitializer.sol)
      */
     function setDopplerHookState(address[] calldata dopplerHooks, uint256[] calldata flags) external {
         require(msg.sender == airlock.owner(), SenderNotAirlockOwner());

@@ -22,7 +22,8 @@ import {
     ON_BEFORE_SWAP_FLAG,
     ON_GRADUATION_FLAG,
     ON_INITIALIZATION_FLAG
-} from "src/base/BaseDopplerHook.sol";
+} from "src/base/BaseDopplerHookInitializer.sol";
+import { InvalidNewBeneficiary, UpdateBeneficiary } from "src/base/FeesManager.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     ArrayLengthsMismatch,
@@ -48,7 +49,6 @@ import {
     UnreachableFarTick,
     WrongPoolStatus
 } from "src/initializers/DopplerHookInitializer.sol";
-import { InvalidNewBeneficiary, UpdateBeneficiary } from "src/base/FeesManager.sol";
 import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
@@ -569,26 +569,14 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         _setDopplerHook(onInitializationCalldata, onGraduationCalldata);
     }
 
-    function test_setDopplerHook_RevertsWhenNonZeroHookNotEnabled(
-        InitDataParams memory params,
-        bool isToken0
-    ) public {
+    function test_setDopplerHook_RevertsWhenNonZeroHookNotEnabled(InitDataParams memory params, bool isToken0) public {
         test_initialize_LocksPool(params, isToken0);
 
         vm.mockCall(
             address(airlock),
             abi.encodeWithSelector(0x1652e7b7, asset),
             abi.encode(
-                address(0),
-                address(this),
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0,
-                0,
-                address(0)
+                address(0), address(this), address(0), address(0), address(0), address(0), address(0), 0, 0, address(0)
             )
         );
 
@@ -611,16 +599,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
             address(airlock),
             abi.encodeWithSelector(0x1652e7b7, asset),
             abi.encode(
-                address(0),
-                address(this),
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0,
-                0,
-                address(0)
+                address(0), address(this), address(0), address(0), address(0), address(0), address(0), 0, 0, address(0)
             )
         );
 
@@ -649,16 +628,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
             address(airlock),
             abi.encodeWithSelector(0x1652e7b7, asset),
             abi.encode(
-                address(0),
-                address(this),
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                address(0),
-                0,
-                0,
-                address(0)
+                address(0), address(this), address(0), address(0), address(0), address(0), address(0), 0, 0, address(0)
             )
         );
 
@@ -838,9 +808,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
 
         uint24 expectedFee = 5000;
         vm.mockCall(
-            address(dopplerHook),
-            abi.encodeWithSelector(IDopplerHook.onBeforeSwap.selector),
-            abi.encode(expectedFee)
+            address(dopplerHook), abi.encodeWithSelector(IDopplerHook.onBeforeSwap.selector), abi.encode(expectedFee)
         );
 
         vm.prank(address(manager));
@@ -860,11 +828,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
     ) public {
         test_initialize_LocksPoolWithDopplerHook(params, isToken0);
 
-        vm.expectCall(
-            address(dopplerHook),
-            abi.encodeWithSelector(IDopplerHook.onBeforeSwap.selector),
-            0
-        );
+        vm.expectCall(address(dopplerHook), abi.encodeWithSelector(IDopplerHook.onBeforeSwap.selector), 0);
 
         vm.prank(address(manager));
         (,, uint24 lpFeeOverride) = initializer.beforeSwap(

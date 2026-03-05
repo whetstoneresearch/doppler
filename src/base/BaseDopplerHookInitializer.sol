@@ -32,7 +32,7 @@ error SenderNotInitializer();
  * callback functions along with virtual internal functions to be overridden by child contracts
  * @custom:security-contact security@whetstone.cc
  */
-abstract contract BaseDopplerHook is IDopplerHook {
+abstract contract BaseDopplerHookInitializer is IDopplerHook {
     /// @notice Address of the DopplerHookInitializer contract
     address public immutable INITIALIZER;
 

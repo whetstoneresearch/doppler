@@ -7,7 +7,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHookInitializer.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {

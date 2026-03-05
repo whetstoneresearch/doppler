@@ -19,7 +19,11 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock } from "src/Airlock.sol";
-import { ON_AFTER_SWAP_FLAG, ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHook.sol";
+import {
+    ON_AFTER_SWAP_FLAG,
+    ON_GRADUATION_FLAG,
+    ON_INITIALIZATION_FLAG
+} from "src/base/BaseDopplerHookInitializer.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
