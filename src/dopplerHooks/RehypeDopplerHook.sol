@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import { Quoter } from "@quoter/Quoter.sol";
 import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
-import { SafeCastLib } from "@solady/utils/SafeCastLib.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -16,7 +15,6 @@ import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import {
     AIRLOCK_OWNER_FEE_BPS,
@@ -26,7 +24,6 @@ import {
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
-    FeeRoutingModeUpdated,
     FeeSchedule,
     FeeScheduleSet,
     FeeTooHigh,
@@ -35,11 +32,9 @@ import {
     InitData,
     InvalidDurationSeconds,
     InvalidFeeRange,
-    InvalidInitializationDataLength,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
     PoolInfo,
-    REHYPE_INIT_WORDS,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
     SwapSimulation
@@ -55,7 +50,6 @@ import { WAD } from "src/types/Wad.sol";
 contract RehypeDopplerHook is BaseDopplerHook, ReentrancyGuard {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
-    using SafeCastLib for uint256;
 
     /// @notice Address of the Uniswap V4 Pool Manager
     IPoolManager public immutable poolManager;
