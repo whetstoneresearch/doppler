@@ -738,8 +738,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
             feeBase = uint256(-inputAmount);
         }
 
-        HookFees memory hookFees = getHookFees[poolId];
-        uint256 feeAmount = FullMath.mulDiv(feeBase, hookFees.customFee, MAX_SWAP_FEE);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
