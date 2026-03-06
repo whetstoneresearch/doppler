@@ -11,6 +11,8 @@ import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { mineV4MigratorHookCreate3 } from "test/shared/AirlockMiner.sol";
 
+error UnexpectedAddress();
+
 contract DeployV4MigratorSplitOnlyScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
@@ -58,8 +60,8 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
                 hookSalt,
                 abi.encodePacked(type(UniswapV4MigratorSplitHook).creationCode, abi.encode(poolManager, migrator))
             );
-        require(migrator == migratorDeployedTo, "Unexpected Migrator deployed address");
-        require(migratorHook == hookDeployedTo, "Unexpected Migrator Hook deployed address");
+        require(migrator == migratorDeployedTo, UnexpectedAddress());
+        require(migratorHook == hookDeployedTo, UnexpectedAddress());
 
         vm.stopBroadcast();
         config.set("uniswap_v4_migrator_split", migrator);
