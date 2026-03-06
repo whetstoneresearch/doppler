@@ -1,29 +1,65 @@
-# Doppler Hooks
+# DopplerHookInitializer
 
 ## Overview
 
-Doppler Hooks are a set of callback functions that can be called during the lifecycle of "locked" pools initialized by the `DopplerHookInitializer` contract. Three main events will trigger these hooks:
+`DopplerHookInitializer` is a `PoolInitializer` for Uniswap v4 multicurve pools that also acts as the pool's hook contract. In addition to placing and managing liquidity, it can forward lifecycle events to an optional external Doppler Hook contract associated with the pool.
 
-- `initialization`: when a new pool is created
-- `swap`: when a swap occurs in the pool
-- `graduation`: when the pool reaches a certain price maturity
+The external Doppler Hook is configured per asset and can be set during `initialize()` or later via `setDopplerHook()`.
 
-Additionally, pools associated with a Doppler Hook can have their LP fee updated by the associated timelock governance contract or a delegated address.
+## Pool Lifecycle
 
-A couple of things to note:
+Pools managed by the initializer move through these statuses:
 
-- A pool initialized without a Doppler Hook can opt-in to use one later via the `setHook` function
-- A pool initialized with a Doppler Hook can opt-out of using it later by setting the hook address to `address(0)`
-- A pool can change its associated Doppler Hook to a different one at any time via the `setHook` function
-- Doppler Hooks are approved by the protocol multisig
-- A pool without a Doppler Hook cannot be initialized with a dynamic LP fee
+| Status | Description |
+| --- | --- |
+| `Uninitialized` | Default state before `initialize()` is called |
+| `Initialized` | Pool exists and liquidity is live, but there are no locked beneficiaries |
+| `Locked` | Pool exists and beneficiary accounting is active |
+| `Graduated` | Pool has reached its graduation condition and `graduate()` has executed |
+| `Exited` | Liquidity has been removed through `exitLiquidity()` |
 
-## Implementation
+Only `Locked` pools can change their associated Doppler Hook or graduate.
 
-Here are the different callback functions available for the Doppler Hooks, note that they can be implemented selectively based on the use case:
+## Doppler Hook Callbacks
 
-| Callback Function                                                                                                                                                                | Triggered By                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `onInitialization(address asset, PoolKey calldata key, bytes calldata data`                                                                                                      | - `initialize()` if a `dopplerHook` address is set in the `InitData`<br />- `setDopplerHook()` if a Doppler Hook is set after the pool initialization |
-| `onSwap(address sender, PoolKey calldata key, IPoolManager.SwapParams calldata params,BalanceDelta delta, bytes calldata data) returns (Currency feeCurrency, int128 hookDelta)` | `afterSwap` before each swap happening in the Uniswap V4 pool                                                                                         |
-| `onGraduation(address asset, PoolKey calldata key, bytes calldata data)`                                                                                                         | `graduate` if the graduation conditions are met (e.g. `farTick` reached)                                                                              |
+The initializer can forward four callback types to the configured external Doppler Hook. Each callback is enabled independently through `setDopplerHookState()`.
+
+| Callback | Trigger |
+| --- | --- |
+| `onInitialization(address asset, PoolKey calldata key, bytes calldata data)` | Called during `initialize()` when a hook is already configured, or during `setDopplerHook()` when a new hook is attached to an existing locked pool |
+| `onBeforeSwap(address sender, PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata data) returns (uint24 lpFeeOverride)` | Called from the initializer's `beforeSwap` hook before every swap when `ON_BEFORE_SWAP_FLAG` is enabled |
+| `onAfterSwap(address sender, PoolKey calldata key, IPoolManager.SwapParams calldata params, BalanceDelta delta, bytes calldata data) returns (Currency feeCurrency, int128 hookDelta)` | Called from the initializer's `afterSwap` hook after every swap when `ON_AFTER_SWAP_FLAG` is enabled |
+| `onGraduation(address asset, PoolKey calldata key, bytes calldata data)` | Called by `graduate()` when the pool reaches its graduation condition and `ON_GRADUATION_FLAG` is enabled |
+
+## Hook Registration
+
+External Doppler Hooks must be approved by the Airlock owner through `setDopplerHookState(address[] dopplerHooks, uint256[] flags)`.
+
+The available flags are defined in `BaseDopplerHookInitializer.sol`:
+
+- `ON_INITIALIZATION_FLAG`
+- `ON_BEFORE_SWAP_FLAG`
+- `ON_AFTER_SWAP_FLAG`
+- `ON_GRADUATION_FLAG`
+- `REQUIRES_DYNAMIC_LP_FEE_FLAG`
+
+Key behaviors:
+
+- A pool initialized without a Doppler Hook can later attach one with `setDopplerHook()`
+- A pool can opt out by setting the hook to `address(0)`
+- A pool can swap from one approved hook to another while it is `Locked`
+- `setDopplerHook()` can only be called by the asset timelock or its delegated authority
+
+## Dynamic LP Fees
+
+When a pool is initialized with a Doppler Hook, the pool itself is created as a dynamic-fee Uniswap v4 pool and the initializer seeds the initial LP fee with the `fee` field from `InitData`.
+
+If `ON_BEFORE_SWAP_FLAG` is enabled, the external hook's `onBeforeSwap()` callback may return an LP fee override for the current swap. Uniswap v4 only honors that override for dynamic-fee pools.
+
+That means:
+
+- A pool created without a Doppler Hook keeps the fixed fee from `InitData.fee`
+- Adding a hook later with `setDopplerHook()` does not retroactively convert that pool into a dynamic-fee pool
+- On a fixed-fee pool, `onBeforeSwap()` can still be called, but any returned LP fee override is ignored by Uniswap v4
+
+The external Doppler Hook associated with a locked pool can also update the pool's dynamic LP fee directly through `updateDynamicLPFee()`, subject to the initializer's max LP fee cap.
