@@ -33,7 +33,7 @@ contract DeployRehypeHookScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookInitializer-2");
+        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookInitializer-3");
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
 
         address rehypeDopplerHook = ICreateX(createX)
