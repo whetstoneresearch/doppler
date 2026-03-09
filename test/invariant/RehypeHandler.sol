@@ -19,8 +19,8 @@ import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock } from "src/Airlock.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
@@ -38,7 +38,7 @@ address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
 contract RehyperInvariantTests is Deployers {
     Airlock public airlock;
     DopplerHookInitializer public dopplerHookInitializer;
-    RehypeDopplerHook public rehypeHook;
+    RehypeDopplerHookInitializer public rehypeHook;
     RehypeHandler public handler;
     V4Quoter public quoter;
 
@@ -55,7 +55,7 @@ contract RehyperInvariantTests is Deployers {
                     ) ^ (0x4444 << 144)
                 ))
         );
-        rehypeHook = new RehypeDopplerHook(address(dopplerHookInitializer), manager);
+        rehypeHook = new RehypeDopplerHookInitializer(address(dopplerHookInitializer), manager);
         quoter = new V4Quoter(manager);
         handler = new RehypeHandler(manager, swapRouter, dopplerHookInitializer, rehypeHook, quoter);
 
@@ -140,7 +140,7 @@ contract RehypeHandler is Test {
     using LibAddressSet for AddressSet;
 
     IPoolManager public manager;
-    RehypeDopplerHook public hook;
+    RehypeDopplerHookInitializer public hook;
     PoolSwapTest public swapRouter;
     DopplerHookInitializer public dopplerHookInitializer;
     V4Quoter public quoter;
@@ -188,7 +188,7 @@ contract RehypeHandler is Test {
         IPoolManager manager_,
         PoolSwapTest swapRouter_,
         DopplerHookInitializer dopplerHookInitializer_,
-        RehypeDopplerHook hook_,
+        RehypeDopplerHookInitializer hook_,
         V4Quoter quoter_
     ) {
         manager = manager_;

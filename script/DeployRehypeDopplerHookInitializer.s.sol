@@ -6,18 +6,17 @@ import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 
 contract DeployRehypeHookScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](5);
+        uint256[] memory targets = new uint256[](4);
         targets[0] = ChainIds.ETH_MAINNET;
         targets[1] = ChainIds.ETH_SEPOLIA;
         targets[2] = ChainIds.BASE_MAINNET;
         targets[3] = ChainIds.BASE_SEPOLIA;
-        targets[4] = ChainIds.MONAD_MAINNET;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
@@ -39,7 +38,9 @@ contract DeployRehypeHookScript is Script, Config {
         address rehypeDopplerHook = ICreateX(createX)
             .deployCreate3(
                 salt,
-                abi.encodePacked(type(RehypeDopplerHook).creationCode, abi.encode(dopplerHookInitializer, poolManager))
+                abi.encodePacked(
+                    type(RehypeDopplerHookInitializer).creationCode, abi.encode(dopplerHookInitializer, poolManager)
+                )
             );
         require(rehypeDopplerHook == expectedAddress, "Unexpected deployed address");
 

@@ -7,14 +7,14 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 /**
- * @title Doppler Hook Interface
+ * @title Doppler Hook Initializer Interface
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hooks are contracts that can be hooked to Uniswap V4 pools deployed using the
  * DopplerHookInitializer, they allow for custom logic to be executed during specific pool events such
  * as initialization, swaps and graduation
  */
-interface IDopplerHook {
+interface IDopplerHookInitializer {
     /**
      * @notice Called during the pool initialization process or when the hook is added to an existing pool
      * @param asset Address of the asset token

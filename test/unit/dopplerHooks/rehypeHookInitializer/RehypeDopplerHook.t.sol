@@ -9,8 +9,8 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
     FeeDistributionInfo,
@@ -38,6 +38,7 @@ contract TrackingPoolManager {
     address public lastTakeRecipient;
     uint256 public lastTakeAmount;
     uint256 public takeCallCount;
+    uint160 internal constant MOCK_SQRT_PRICE_X96 = uint160(1 << 96);
 
     function take(Currency currency, address to, uint256 amount) external {
         lastTakeCurrency = currency;
@@ -45,11 +46,19 @@ contract TrackingPoolManager {
         lastTakeAmount = amount;
         ++takeCallCount;
     }
+
+    function extsload(bytes32) external pure returns (bytes32 value) {
+        // StateLibrary.getSlot0 reads the pool's packed slot0 word via extsload.
+        return bytes32(uint256(MOCK_SQRT_PRICE_X96));
+    }
 }
 
 /// @dev Harness to expose internal fee functions for testing
-contract RehypeDopplerHookHarness is RehypeDopplerHook {
-    constructor(address _initializer, IPoolManager _poolManager) RehypeDopplerHook(_initializer, _poolManager) { }
+contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
+    constructor(
+        address _initializer,
+        IPoolManager _poolManager
+    ) RehypeDopplerHookInitializer(_initializer, _poolManager) { }
 
     function exposed_getCurrentFee(PoolId poolId) external returns (uint24) {
         return _getCurrentFee(poolId);
@@ -93,9 +102,9 @@ contract MockInitializer {
     }
 }
 
-contract RehypeDopplerHookTest is Test {
-    RehypeDopplerHook internal dopplerHook;
-    RehypeDopplerHook internal dopplerHookWithMockInitializer;
+contract RehypeDopplerHookInitializerTest is Test {
+    RehypeDopplerHookInitializer internal dopplerHook;
+    RehypeDopplerHookInitializer internal dopplerHookWithMockInitializer;
     RehypeDopplerHookHarness internal harness;
     RehypeDopplerHookHarness internal trackingHarness;
     MockInitializer internal initializer;
@@ -108,12 +117,12 @@ contract RehypeDopplerHookTest is Test {
     function setUp() public {
         poolManager = IPoolManager(address(new MockPoolManager()));
         initializer = new MockInitializer();
-        dopplerHook = new RehypeDopplerHook(address(initializer), poolManager);
+        dopplerHook = new RehypeDopplerHookInitializer(address(initializer), poolManager);
         harness = new RehypeDopplerHookHarness(address(initializer), poolManager);
         trackingPoolManager = new TrackingPoolManager();
         trackingHarness = new RehypeDopplerHookHarness(address(initializer), IPoolManager(address(trackingPoolManager)));
         mockInitializer = new MockInitializer();
-        dopplerHookWithMockInitializer = new RehypeDopplerHook(address(mockInitializer), poolManager);
+        dopplerHookWithMockInitializer = new RehypeDopplerHookInitializer(address(mockInitializer), poolManager);
         token0 = new TestERC20(type(uint128).max);
         token1 = new TestERC20(type(uint128).max);
         token0.mint(address(trackingPoolManager), type(uint128).max);

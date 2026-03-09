@@ -16,8 +16,8 @@ import { console } from "forge-std/console.sol";
 
 import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
@@ -56,7 +56,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
     LiquidityMigratorMock public mockLiquidityMigrator;
-    RehypeDopplerHook public rehypeDopplerHook;
+    RehypeDopplerHookInitializer public rehypeDopplerHook;
     TestERC20 public numeraire;
     V4Quoter public quoter;
 
@@ -84,8 +84,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
-        rehypeDopplerHook = new RehypeDopplerHook(address(initializer), manager);
-        vm.label(address(rehypeDopplerHook), "RehypeDopplerHook");
+        rehypeDopplerHook = new RehypeDopplerHookInitializer(address(initializer), manager);
+        vm.label(address(rehypeDopplerHook), "RehypeDopplerHookInitializer");
         quoter = new V4Quoter(manager);
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
@@ -1091,7 +1091,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x07), shares: uint96(0.95e18) });
         beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: uint96(0.05e18) });
 
-        // Prepare RehypeDopplerHook initialization data
+        // Prepare RehypeDopplerHookInitializer initialization data
         bytes memory rehypeData = abi.encode(
             RehypeInitData({
                 numeraire: address(numeraire),

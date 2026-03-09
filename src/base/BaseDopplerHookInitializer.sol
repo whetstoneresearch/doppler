@@ -5,7 +5,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+import { IDopplerHookInitializer } from "src/interfaces/IDopplerHookInitializer.sol";
 
 /// @dev Flag for the `onInitialization` callback
 uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
@@ -16,20 +16,17 @@ uint256 constant ON_SWAP_FLAG = 1 << 1;
 /// @dev Flag for the `onGraduation` callback
 uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
-/// @dev Flag indicating the hook requires a dynamic LP fee pool
-uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 3;
-
 /// @notice Thrown when the `msg.sender` is not the DopplerHookInitializer contract
 error SenderNotInitializer();
 
 /**
- * @title Doppler Hook Base Contract
+ * @title Doppler Hook Initializer Base Contract
  * @author Whetstone Research
- * @dev Base contract for the Doppler Hooks, here is implemented access control for the different
+ * @dev Base contract for the Doppler Initializer Hooks, here is implemented access control for the different
  * callback functions along with virtual internal functions to be overridden by child contracts
  * @custom:security-contact security@whetstone.cc
  */
-abstract contract BaseDopplerHook is IDopplerHook {
+abstract contract BaseDopplerHookInitializer is IDopplerHookInitializer {
     /// @notice Address of the DopplerHookInitializer contract
     address public immutable INITIALIZER;
 
@@ -46,12 +43,12 @@ abstract contract BaseDopplerHook is IDopplerHook {
         INITIALIZER = initializer;
     }
 
-    /// @inheritdoc IDopplerHook
+    /// @inheritdoc IDopplerHookInitializer
     function onInitialization(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
         _onInitialization(asset, key, data);
     }
 
-    /// @inheritdoc IDopplerHook
+    /// @inheritdoc IDopplerHookInitializer
     function onSwap(
         address sender,
         PoolKey calldata key,
@@ -62,7 +59,7 @@ abstract contract BaseDopplerHook is IDopplerHook {
         return _onSwap(sender, key, params, balanceDelta, data);
     }
 
-    /// @inheritdoc IDopplerHook
+    /// @inheritdoc IDopplerHookInitializer
     function onGraduation(address asset, PoolKey calldata key, bytes calldata data) external onlyInitializer {
         _onGraduation(asset, key, data);
     }
