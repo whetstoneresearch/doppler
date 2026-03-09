@@ -25,6 +25,8 @@ At a high level, `RehypeDopplerHook` adds a post-swap fee layer on top of a Dopp
 
 Important: this fee schedule controls the Rehype hook fee collected in `onSwap`. It does not update the Uniswap v4 LP fee for the pool.
 
+Also note that initializer-side Rehype pools do not use `getHookFees(poolId).customFee` as their source of truth. The configured fee lives in `getFeeSchedule(poolId)`, and `customFee` remains `0`.
+
 ## Initialization Data
 
 On `onInitialization`, the hook decodes `RehypeTypes.InitData` and stores:
@@ -70,9 +72,11 @@ For each external swap:
 
 1. The hook ignores internal self-swaps so it does not charge itself during its own rebalance or buyback operations.
 2. It computes the current Rehype fee from the schedule.
-3. It charges that fee in the swap's unspecified token.
-4. It takes 5% of the raw fee for the Airlock owner.
-5. It accumulates the remaining 95% into per-pool fee balances.
+3. It computes the fee from the swap's unspecified token amount.
+4. It self-collects that fee with `poolManager.take(...)`.
+5. It returns the same positive `hookDelta` back to `DopplerHookInitializer`, which makes the swap accounting reflect the fee and settles the external hook's delta.
+6. It takes 5% of the raw fee for the Airlock owner.
+7. It accumulates the remaining 95% into per-pool fee balances.
 
 If both accumulated fee balances are still below `EPSILON`, the hook stops there and waits for more fees to build up.
 

@@ -45,9 +45,11 @@ All fee logic runs in `onAfterSwap`.
 For each external swap:
 
 1. The hook ignores internal self-swaps so it does not charge itself during its own rebalance or buyback operations.
-2. It charges the configured `customFee` in the swap's unspecified token.
-3. It takes 5% of the raw fee for the Airlock owner.
-4. It accumulates the remaining 95% into per-pool fee balances.
+2. It computes the fee from the swap's unspecified token amount using the configured `customFee`.
+3. It self-collects that fee with `poolManager.take(...)`.
+4. It returns the same positive `hookDelta` back to `DopplerHookMigrator`, which makes the swap accounting reflect the fee and settles the external hook's delta.
+5. It takes 5% of the raw fee for the Airlock owner.
+6. It accumulates the remaining 95% into per-pool fee balances.
 
 If both accumulated fee balances are still below `EPSILON`, the hook stops there and waits for more fees to build up.
 

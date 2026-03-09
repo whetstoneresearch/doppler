@@ -27,7 +27,7 @@ The initializer can forward three callback types to the configured external Dopp
 | Callback | Trigger |
 | --- | --- |
 | `onInitialization(address asset, PoolKey calldata key, bytes calldata data)` | Called during `initialize()` when a hook is already configured, or during `setDopplerHook()` when a new hook is attached to an existing locked pool |
-| `onSwap(address sender, PoolKey calldata key, IPoolManager.SwapParams calldata params, BalanceDelta delta, bytes calldata data) returns (Currency feeCurrency, int128 hookDelta)` | Called from the initializer's `afterSwap` hook after every swap when `ON_SWAP_FLAG` is enabled |
+| `onSwap(address sender, PoolKey calldata key, IPoolManager.SwapParams calldata params, BalanceDelta delta, bytes calldata data) returns (Currency feeCurrency, int128 hookDelta)` | Called from the initializer's `afterSwap` hook after every swap when `ON_SWAP_FLAG` is enabled. A positive `hookDelta` is settled by the initializer to the external hook in `feeCurrency` |
 | `onGraduation(address asset, PoolKey calldata key, bytes calldata data)` | Called by `graduate()` when the pool reaches its graduation condition and `ON_GRADUATION_FLAG` is enabled |
 
 ## Hook Registration
@@ -47,6 +47,7 @@ Key behaviors:
 - A pool can opt out by setting the hook to `address(0)`
 - A pool can swap from one approved hook to another while it is `Locked`
 - `setDopplerHook()` can only be called by the asset timelock or its delegated authority
+- `graduate()` only succeeds when a locked pool has a non-zero associated hook with the `ON_GRADUATION_FLAG` enabled
 
 ## Dynamic LP Fees
 
@@ -59,3 +60,4 @@ That also means:
 - A pool created without a Doppler Hook keeps the fixed fee from `InitData.fee`
 - Adding a hook later with `setDopplerHook()` does not retroactively convert that pool into a dynamic-fee pool
 - `onSwap()` itself does not override the pool LP fee on a per-swap basis; it only returns a hook fee delta back through the initializer's `afterSwap` hook
+- Any custom fee logic implemented in an external Doppler Hook is distinct from the pool LP fee and is settled through the returned `hookDelta`, not by changing the Uniswap v4 LP fee automatically on each swap
