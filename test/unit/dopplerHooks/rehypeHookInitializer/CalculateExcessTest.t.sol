@@ -10,7 +10,7 @@ import { Test } from "forge-std/Test.sol";
 contract MockPoolManager { }
 
 /// @title CalculateExcessTest
-/// @notice Unit tests for _calculateExcess() function in RehypeDopplerHook
+/// @notice Unit tests for _calculateExcess() function in RehypeDopplerHookInitializer
 /// @dev Tests the pure function that determines imbalance between token amounts at a given price
 contract CalculateExcessTest is Test {
     // ═══════════════════════════════════════════════════════════════════════════════

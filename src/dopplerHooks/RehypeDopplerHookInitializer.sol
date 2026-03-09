@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { Quoter } from "@quoter/Quoter.sol";
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -11,10 +12,9 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
+import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
-import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import {
     AIRLOCK_OWNER_FEE_BPS,
@@ -24,14 +24,17 @@ import {
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
-    FeeRoutingModeUpdated,
+    FeeSchedule,
+    FeeScheduleSet,
+    FeeTooHigh,
+    FeeUpdated,
     HookFees,
     InitData,
-    InvalidInitializationDataLength,
+    InvalidDurationSeconds,
+    InvalidFeeRange,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
     PoolInfo,
-    REHYPE_INIT_WORDS,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
     SwapSimulation
@@ -39,12 +42,12 @@ import {
 import { WAD } from "src/types/Wad.sol";
 
 /**
- * @title Rehype Doppler Hook
+ * @title Rehype Doppler Hook Initializer
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
- * @notice Doppler Hook that implements fee collection, distribution, buybacks, and LP fee reinvestment
+ * @notice Doppler Hook that implements fee collection, distribution, buybacks, LP fee reinvestment and decaying LP fee
  */
-contract RehypeDopplerHook is BaseDopplerHook {
+contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyGuard {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
 
@@ -69,18 +72,21 @@ contract RehypeDopplerHook is BaseDopplerHook {
     /// @notice Fee routing mode for each pool
     mapping(PoolId poolId => FeeRoutingMode feeRoutingMode) public getFeeRoutingMode;
 
+    /// @notice Fee schedule for each pool (decaying fee)
+    mapping(PoolId poolId => FeeSchedule feeSchedule) public getFeeSchedule;
+
     receive() external payable { }
 
     /**
      * @param initializer Address of the DopplerHookInitializer contract
      * @param poolManager_ Address of the Uniswap V4 Pool Manager
      */
-    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHook(initializer) {
+    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHookInitializer(initializer) {
         poolManager = poolManager_;
         quoter = new Quoter(poolManager_);
     }
 
-    /// @inheritdoc BaseDopplerHook
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
         InitData memory initData = abi.decode(data, (InitData));
 
@@ -91,7 +97,29 @@ contract RehypeDopplerHook is BaseDopplerHook {
         _validateFeeDistribution(initData.feeDistributionInfo);
         getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
-        getHookFees[poolId].customFee = initData.customFee;
+
+        // Validate and store fee schedule
+        require(initData.startFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(initData.startFee));
+        require(initData.endFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(initData.endFee));
+        require(initData.startFee >= initData.endFee, InvalidFeeRange(initData.startFee, initData.endFee));
+
+        if (initData.startFee > initData.endFee) {
+            require(initData.durationSeconds > 0, InvalidDurationSeconds(initData.durationSeconds));
+        }
+
+        uint32 normalizedStart = (initData.startingTime == 0 || initData.startingTime <= uint32(block.timestamp))
+            ? uint32(block.timestamp)
+            : initData.startingTime;
+
+        getFeeSchedule[poolId] = FeeSchedule({
+            startingTime: normalizedStart,
+            startFee: initData.startFee,
+            endFee: initData.endFee,
+            lastFee: initData.startFee,
+            durationSeconds: initData.durationSeconds
+        });
+
+        emit FeeScheduleSet(poolId, normalizedStart, initData.startFee, initData.endFee, initData.durationSeconds);
 
         // Initialize position
         getPosition[poolId] = Position({
@@ -102,7 +130,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
         });
     }
 
-    /// @inheritdoc BaseDopplerHook
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onSwap(
         address sender,
         PoolKey calldata key,
@@ -314,7 +342,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
             SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, lpAmount0, lpAmount1);
             if (!sim.success) {
-                if (high == 0 || high == 1) {
+                if (high == 1) {
                     break;
                 }
                 high = guess > 0 ? guess - 1 : 0;
@@ -607,7 +635,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @param asset Asset to collect fees from
      * @return fees Collected fees as a BalanceDelta
      */
-    function collectFees(address asset) external returns (BalanceDelta fees) {
+    function collectFees(address asset) external nonReentrant returns (BalanceDelta fees) {
         (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
         HookFees memory hookFees = getHookFees[poolId];
@@ -615,12 +643,13 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
 
+        getHookFees[poolId].beneficiaryFees0 = 0;
+        getHookFees[poolId].beneficiaryFees1 = 0;
+
         if (hookFees.beneficiaryFees0 > 0) {
-            getHookFees[poolId].beneficiaryFees0 = 0;
             poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
         }
         if (hookFees.beneficiaryFees1 > 0) {
-            getHookFees[poolId].beneficiaryFees1 = 0;
             poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
         }
 
@@ -633,7 +662,7 @@ contract RehypeDopplerHook is BaseDopplerHook {
      * @return fees0 Amount of currency0 claimed
      * @return fees1 Amount of currency1 claimed
      */
-    function claimAirlockOwnerFees(address asset) external returns (uint128 fees0, uint128 fees1) {
+    function claimAirlockOwnerFees(address asset) external nonReentrant returns (uint128 fees0, uint128 fees1) {
         address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
         require(msg.sender == airlockOwner, SenderNotAirlockOwner());
 
@@ -642,13 +671,13 @@ contract RehypeDopplerHook is BaseDopplerHook {
 
         fees0 = getHookFees[poolId].airlockOwnerFees0;
         fees1 = getHookFees[poolId].airlockOwnerFees1;
+        getHookFees[poolId].airlockOwnerFees0 = 0;
+        getHookFees[poolId].airlockOwnerFees1 = 0;
 
         if (fees0 > 0) {
-            getHookFees[poolId].airlockOwnerFees0 = 0;
             poolKey.currency0.transfer(msg.sender, fees0);
         }
         if (fees1 > 0) {
-            getHookFees[poolId].airlockOwnerFees1 = 0;
             poolKey.currency1.transfer(msg.sender, fees1);
         }
 
@@ -667,6 +696,58 @@ contract RehypeDopplerHook is BaseDopplerHook {
                 == WAD,
             FeeDistributionMustAddUpToWAD()
         );
+    }
+
+    /**
+     * @dev Computes the current fee based on linear interpolation of the fee schedule
+     * @param schedule The fee schedule
+     * @param elapsed Time elapsed since schedule start
+     * @return The interpolated fee
+     */
+    function _computeCurrentFee(FeeSchedule memory schedule, uint256 elapsed) internal pure returns (uint24) {
+        uint256 feeRange = uint256(schedule.startFee - schedule.endFee);
+        uint256 feeDelta_ = feeRange * elapsed / schedule.durationSeconds;
+        return uint24(uint256(schedule.startFee) - feeDelta_);
+    }
+
+    /**
+     * @dev Returns the current fee for a pool, applying the decaying fee schedule
+     * @param poolId Uniswap V4 poolId
+     * @return currentFee The current fee rate
+     */
+    function _getCurrentFee(PoolId poolId) internal returns (uint24 currentFee) {
+        FeeSchedule memory schedule = getFeeSchedule[poolId];
+
+        // No decay: startFee == endFee or durationSeconds == 0
+        if (schedule.startFee == schedule.endFee || schedule.durationSeconds == 0) {
+            return schedule.startFee;
+        }
+
+        // Already fully decayed
+        if (schedule.lastFee == schedule.endFee) {
+            return schedule.endFee;
+        }
+
+        // Before schedule start
+        if (block.timestamp <= schedule.startingTime) {
+            return schedule.startFee;
+        }
+
+        uint256 elapsed = block.timestamp - schedule.startingTime;
+
+        if (elapsed >= schedule.durationSeconds) {
+            currentFee = schedule.endFee;
+        } else {
+            currentFee = _computeCurrentFee(schedule, elapsed);
+        }
+
+        // Only write to storage if the fee has changed (optimization to avoid redundant writes)
+        if (currentFee < schedule.lastFee) {
+            getFeeSchedule[poolId].lastFee = currentFee;
+            emit FeeUpdated(poolId, currentFee);
+        }
+
+        return currentFee;
     }
 
     /**
@@ -706,7 +787,8 @@ contract RehypeDopplerHook is BaseDopplerHook {
             feeBase = uint256(-inputAmount);
         }
 
-        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        uint24 currentFee = _getCurrentFee(poolId);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, MAX_SWAP_FEE);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {

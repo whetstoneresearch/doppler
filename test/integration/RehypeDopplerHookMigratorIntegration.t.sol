@@ -29,7 +29,7 @@ import {
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
-    InitData as RehypeInitData,
+    MigratorInitData as RehypeInitData,
     SenderNotAirlockOwner,
     SenderNotAuthorized
 } from "src/types/RehypeTypes.sol";

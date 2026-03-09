@@ -8,19 +8,19 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { BaseDopplerHook, SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
+import { BaseDopplerHookInitializer, SenderNotInitializer } from "src/base/BaseDopplerHookInitializer.sol";
 
-contract DopplerHookMock is BaseDopplerHook {
-    constructor(address initializer) BaseDopplerHook(initializer) { }
+contract DopplerHookMock is BaseDopplerHookInitializer {
+    constructor(address initializer) BaseDopplerHookInitializer(initializer) { }
 }
 
 contract BaseDopplerHookTest is Test {
-    BaseDopplerHook internal dopplerHook;
+    BaseDopplerHookInitializer internal dopplerHook;
     PoolKey internal key;
     address internal initializer = makeAddr("initializer");
 
     function setUp() public {
-        dopplerHook = BaseDopplerHook(new DopplerHookMock(initializer));
+        dopplerHook = BaseDopplerHookInitializer(new DopplerHookMock(initializer));
     }
 
     /* --------------------------------------------------------------------------- */

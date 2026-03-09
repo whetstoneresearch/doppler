@@ -10,7 +10,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { EPSILON } from "src/types/RehypeTypes.sol";
-import { MockQuoter } from "test/unit/dopplerHooks/rehypeHook/MockQuoter.sol";
+import { MockQuoter } from "test/unit/dopplerHooks/rehypeHookInitializer/MockQuoter.sol";
 
 /// @notice Minimal mock pool manager for harness construction
 contract MockPoolManager { }

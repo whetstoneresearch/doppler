@@ -6,7 +6,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
+import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
 
 /// @notice Thrown when a swap request exceeds the amount left to buy for the sender
 error InsufficientAmountLeft(PoolId poolId, address sender, uint256 amountRequested, uint256 amountLeft);
@@ -20,7 +20,7 @@ event UpdatedAmountLeft(PoolId indexed poolId, address indexed sender, uint256 a
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hook allowing to limit the amount an address can swap for a given asset in a pool
  */
-contract SwapRestrictorDopplerHook is BaseDopplerHook {
+contract SwapRestrictorDopplerHook is BaseDopplerHookInitializer {
     /// @notice Returns true if the asset token is the `currency0` of the Uniswap V4 pool
     mapping(PoolId poolId => bool isToken0) public isAssetToken0;
 
@@ -28,9 +28,9 @@ contract SwapRestrictorDopplerHook is BaseDopplerHook {
     mapping(PoolId poolId => mapping(address sender => uint256 amountLeft)) public amountLeftOf;
 
     /// @param initializer Address of the DopplerHookInitializer contract
-    constructor(address initializer) BaseDopplerHook(initializer) { }
+    constructor(address initializer) BaseDopplerHookInitializer(initializer) { }
 
-    /// @inheritdoc BaseDopplerHook
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
         (address[] memory approved, uint256 maxAmount) = abi.decode(data, (address[], uint256));
 
@@ -43,7 +43,7 @@ contract SwapRestrictorDopplerHook is BaseDopplerHook {
         }
     }
 
-    /// @inheritdoc BaseDopplerHook
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onSwap(
         address sender,
         PoolKey calldata key,

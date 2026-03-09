@@ -17,7 +17,7 @@ import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
@@ -32,7 +32,7 @@ import {
 } from "src/migrators/DopplerHookMigrator.sol";
 import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
+import { FeeDistributionInfo, FeeRoutingMode, MigratorInitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 contract DopplerHookMigratorIntegrationTest is Deployers {
@@ -48,7 +48,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     StreamableFeesLockerV2 public locker;
     DopplerHookMigrator public migrator;
     TopUpDistributor public topUpDistributor;
-    RehypeDopplerHook public rehypeHook;
+    RehypeDopplerHookInitializer public rehypeHook;
     RehypeDopplerHookMigrator public rehypeHookMigrator;
     ScheduledLaunchDopplerHook public scheduledLaunchHook;
     SwapRestrictorDopplerHook public swapRestrictorHook;
@@ -84,7 +84,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             migratorHookAddress
         );
 
-        rehypeHook = new RehypeDopplerHook(address(migrator), manager);
+        rehypeHook = new RehypeDopplerHookInitializer(address(migrator), manager);
         rehypeHookMigrator = new RehypeDopplerHookMigrator(migrator, manager);
         scheduledLaunchHook = new ScheduledLaunchDopplerHook(address(migrator));
         swapRestrictorHook = new SwapRestrictorDopplerHook(address(migrator));

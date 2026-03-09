@@ -9,13 +9,13 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
 import { EPSILON } from "src/types/RehypeTypes.sol";
-import { MockQuoter } from "test/unit/dopplerHooks/rehypeHook/MockQuoter.sol";
+import { MockQuoter } from "test/unit/dopplerHooks/rehypeHookInitializer/MockQuoter.sol";
 
 /// @notice Minimal mock pool manager for harness construction
 contract MockPoolManager { }
 
 /// @title RebalanceFeesTest
-/// @notice Unit tests for _rebalanceFees() function in RehypeDopplerHook
+/// @notice Unit tests for _rebalanceFees() function in RehypeDopplerHookInitializer
 /// @dev Tests the binary search algorithm for optimal LP rebalancing
 /// @dev NOTE: Call tracking not available because quoteSingle must be view
 contract RebalanceFeesTest is Test {
@@ -26,7 +26,7 @@ contract RebalanceFeesTest is Test {
     /// @notice Price = 1 (sqrtPrice = 2^96)
     uint160 internal constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
 
-    /// @notice EPSILON from RehypeDopplerHook
+    /// @notice EPSILON from RehypeDopplerHookInitializer
     uint128 internal constant TEST_EPSILON = 1e6;
 
     // ═══════════════════════════════════════════════════════════════════════════════

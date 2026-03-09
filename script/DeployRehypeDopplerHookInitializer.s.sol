@@ -6,9 +6,9 @@ import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 
-contract DeployRehypeHookScript is Script, Config {
+contract DeployRehypeHookInitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -33,13 +33,15 @@ contract DeployRehypeHookScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookInitializer-2");
+        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookInitializer-4");
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
 
         address rehypeDopplerHook = ICreateX(createX)
             .deployCreate3(
                 salt,
-                abi.encodePacked(type(RehypeDopplerHook).creationCode, abi.encode(dopplerHookInitializer, poolManager))
+                abi.encodePacked(
+                    type(RehypeDopplerHookInitializer).creationCode, abi.encode(dopplerHookInitializer, poolManager)
+                )
             );
         require(rehypeDopplerHook == expectedAddress, "Unexpected deployed address");
 

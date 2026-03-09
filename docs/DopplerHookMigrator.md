@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `DopplerHookMigrator` is a `LiquidityMigrator` module that migrates liquidity from an auction pool into a fresh Uniswap V4 pool. It also acts as a Uniswap V4 hook itself (`beforeInitialize`, `beforeSwap`, and `afterSwap`), allowing it to gate pool creation and forward swap events to an optional [Doppler Hook](./DopplerHook.md).
+The `DopplerHookMigrator` is a `LiquidityMigrator` module that migrates liquidity from an auction pool into a fresh Uniswap V4 pool. It also acts as a Uniswap V4 hook itself (`beforeInitialize`, `beforeSwap`, and `afterSwap`), allowing it to gate pool creation and forward swap events to optional external Doppler hooks.
 
 It integrates with the [`StreamableFeesLockerV2`](./StreamableFeesLockerV2.md) to lock the migrated liquidity for a configurable duration, and with the [`ProceedsSplitter`](./ProceedsSplitter.md) to optionally distribute a share of the proceeds to a designated recipient during migration.
 
@@ -43,20 +43,23 @@ See the contract source for details on how liquidity is computed and positions a
 
 ### Doppler Hook Support
 
-The migrator supports pluggable [Doppler Hooks](./DopplerHook.md) that receive callbacks during the pool lifecycle. Doppler Hooks must be approved by the Airlock owner via `setDopplerHookState` before they can be used. Each hook is registered with a set of flags that determine which callbacks it supports (initialization, before swap, after swap, dynamic LP fee).
+The migrator supports pluggable external Doppler hooks that receive callbacks during the pool lifecycle. Doppler hooks must be approved by the Airlock owner via `setDopplerHookState` before they can be used. Each hook is registered with a set of flags that determine which callbacks it supports (`ON_INITIALIZATION_FLAG`, `ON_BEFORE_SWAP_FLAG`, `ON_AFTER_SWAP_FLAG`, `REQUIRES_DYNAMIC_LP_FEE_FLAG`).
 
 Key behaviors:
 
-- A Doppler Hook can be set at initialization time or added/changed after migration via `setDopplerHook`
+- A Doppler hook can be set at initialization time or added/changed later via `setDopplerHook`, but only once the pool is `Locked`
 - A pool can opt out of its Doppler Hook by setting the address to `address(0)`
 - Before every swap, the migrator's `beforeSwap` hook forwards the event to the associated Doppler Hook's `onBeforeSwap` callback (if the `ON_BEFORE_SWAP_FLAG` is enabled), allowing the hook to execute preparatory logic
-- After every swap, the migrator's `afterSwap` hook forwards the event to the associated Doppler Hook's `onAfterSwap` callback (if the `ON_AFTER_SWAP_FLAG` is enabled), which can return a fee delta
+- After every swap, the migrator's `afterSwap` hook forwards the event to the associated Doppler Hook's `onAfterSwap` callback (if the `ON_AFTER_SWAP_FLAG` is enabled), which can return a fee delta in the swap's unspecified token
+- A positive post-swap hook delta is settled by the migrator to the external hook in the returned `feeCurrency`
+- `setDopplerHook()` can only be called by the asset timelock or its delegated authority
 
 ### Dynamic LP Fees
 
 Pools can be configured with either a fixed LP fee or a dynamic LP fee. When using dynamic fees:
 
-- A Doppler Hook that requires dynamic fees (flag `REQUIRES_DYNAMIC_LP_FEE`) cannot be associated with a fixed-fee pool
+- The associated Doppler hook must be registered with `REQUIRES_DYNAMIC_LP_FEE_FLAG`
+- That requirement is checked during `initialize()`, re-checked during `migrate()`, and enforced again when replacing the hook on a locked pool
 - The associated Doppler Hook can update the LP fee at any time via `updateDynamicLPFee`
 - The maximum LP fee is capped at 15%
 

@@ -316,7 +316,7 @@ contract DecayMulticurveInitializerTest is Deployers {
         assertEq(duration, durationSeconds, "Incorrect schedule duration");
     }
 
-    function testFuzz_initialize_FlatScheduleCompletesImmediatelyAndNoOpsOnSwap(
+    function testFuzz_initialize_FlatScheduleCompletesImmediatelyAndNoOpsonAfterSwap(
         bool isToken0,
         uint24 rawFee,
         uint32 rawStartOffset,

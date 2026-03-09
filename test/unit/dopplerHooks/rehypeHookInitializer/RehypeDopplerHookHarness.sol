@@ -5,15 +5,18 @@ import { Quoter } from "@quoter/Quoter.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { EPSILON, MAX_REBALANCE_ITERATIONS } from "src/types/RehypeTypes.sol";
 import { SwapSimulation } from "src/types/RehypeTypes.sol";
 
 /// @title RehypeDopplerHookHarness
 /// @notice Test harness that exposes internal functions for unit testing
 /// @dev Uses Option B from spec: copies functions with quoter parameter to work around immutable quoter
-contract RehypeDopplerHookHarness is RehypeDopplerHook {
-    constructor(address initializer, IPoolManager poolManager_) RehypeDopplerHook(initializer, poolManager_) { }
+contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
+    constructor(
+        address initializer,
+        IPoolManager poolManager_
+    ) RehypeDopplerHookInitializer(initializer, poolManager_) { }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // EXPOSED PURE FUNCTIONS (Direct access - no quoter needed)
