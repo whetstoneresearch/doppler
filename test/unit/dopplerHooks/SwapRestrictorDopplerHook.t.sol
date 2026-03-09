@@ -7,7 +7,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { SenderNotInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
 import {
     InsufficientAmountLeft,
     SwapRestrictorDopplerHook,
@@ -49,7 +49,7 @@ contract SwapRestrictorDopplerHookTest is Test {
     }
 
     /* ---------------------------------------------------------------------- */
-    /*                                onAfterSwap()                                */
+    /*                                onSwap()                                */
     /* ---------------------------------------------------------------------- */
 
     function test_onSwap_RevertsWhenSenderNotInitializer(
@@ -57,7 +57,7 @@ contract SwapRestrictorDopplerHookTest is Test {
         IPoolManager.SwapParams calldata swapParams
     ) public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_DecreasesAmountLeftWhenBuyingAsset(bool isTokenZero, PoolKey calldata poolKey) public {
@@ -78,7 +78,7 @@ contract SwapRestrictorDopplerHookTest is Test {
         emit UpdatedAmountLeft(poolKey.toId(), approved[0], 0);
 
         vm.prank(initializer);
-        dopplerHook.onAfterSwap(
+        dopplerHook.onSwap(
             approved[0],
             poolKey,
             swapParams,
@@ -104,7 +104,7 @@ contract SwapRestrictorDopplerHookTest is Test {
             IPoolManager.SwapParams({ zeroForOne: !isTokenZero, amountSpecified: 0, sqrtPriceLimitX96: 0 });
 
         vm.prank(initializer);
-        dopplerHook.onAfterSwap(
+        dopplerHook.onSwap(
             approved[0],
             poolKey,
             swapParams,
@@ -140,7 +140,7 @@ contract SwapRestrictorDopplerHookTest is Test {
         );
 
         vm.prank(initializer);
-        dopplerHook.onAfterSwap(
+        dopplerHook.onSwap(
             approved[0],
             poolKey,
             swapParams,

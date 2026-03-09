@@ -6,7 +6,7 @@ import { BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { SenderNotInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
 import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 
 contract ScheduledLaunchDopplerHookTest is Test {
@@ -45,7 +45,7 @@ contract ScheduledLaunchDopplerHookTest is Test {
     }
 
     /* ---------------------------------------------------------------------- */
-    /*                                onAfterSwap()                                */
+    /*                                onSwap()                                */
     /* ---------------------------------------------------------------------- */
 
     function test_onSwap_RevertsWhenSenderNotInitializer(
@@ -53,7 +53,7 @@ contract ScheduledLaunchDopplerHookTest is Test {
         IPoolManager.SwapParams calldata swapParams
     ) public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_RevertsWhenSaleNotStarted(
@@ -70,7 +70,7 @@ contract ScheduledLaunchDopplerHookTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(SaleHasNotStartedYet.selector, startingTime, block.timestamp));
         vm.prank(initializer);
-        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
     function test_onSwap_PassesAfterStartingTime(
@@ -86,6 +86,6 @@ contract ScheduledLaunchDopplerHookTest is Test {
         dopplerHook.onInitialization(address(0), poolKey, abi.encode(startingTime));
 
         vm.prank(initializer);
-        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 }

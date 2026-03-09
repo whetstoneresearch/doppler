@@ -6,7 +6,7 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
 
 /**
  * @notice Thrown when a swap is attempted before the sale has started
@@ -21,22 +21,22 @@ error SaleHasNotStartedYet(uint256 startingTime, uint256 actualTime);
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hook allowing to schedule a launch time for a pool
  */
-contract ScheduledLaunchDopplerHook is BaseDopplerHookInitializer {
+contract ScheduledLaunchDopplerHook is BaseDopplerHook {
     /// @notice Returns the scheduled starting time associated with a Uniswap V4 poolId
     mapping(PoolId poolId => uint256 startingTime) public getStartingTimeOf;
 
     /// @param initializer Address of the DopplerHookInitializer contract
-    constructor(address initializer) BaseDopplerHookInitializer(initializer) { }
+    constructor(address initializer) BaseDopplerHook(initializer) { }
 
-    /// @inheritdoc BaseDopplerHookInitializer
+    /// @inheritdoc BaseDopplerHook
     function _onInitialization(address, PoolKey calldata key, bytes calldata data) internal override {
         uint256 startingTime = abi.decode(data, (uint256));
         PoolId poolId = key.toId();
         getStartingTimeOf[poolId] = startingTime;
     }
 
-    /// @inheritdoc BaseDopplerHookInitializer
-    function _onAfterSwap(
+    /// @inheritdoc BaseDopplerHook
+    function _onSwap(
         address,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,

@@ -7,12 +7,12 @@ This page documents the initializer-side `RehypeDopplerHook` contract, which is 
 `RehypeDopplerHook` implements two pieces of hook logic:
 
 - `onInitialization`, which stores per-pool fee configuration
-- `onAfterSwap`, which collects and routes Rehype fees after swaps
+- `onSwap`, which collects and routes Rehype fees after swaps
 
-It does not implement custom `onBeforeSwap` or `onGraduation` behavior. In practice, the expected hook registration is:
+It does not implement custom `onGraduation` behavior. In practice, the expected hook registration is:
 
 - `ON_INITIALIZATION_FLAG`
-- `ON_AFTER_SWAP_FLAG`
+- `ON_SWAP_FLAG`
 
 ## What This Hook Does
 
@@ -23,7 +23,7 @@ At a high level, `RehypeDopplerHook` adds a post-swap fee layer on top of a Dopp
 - split collected fees across buybacks, beneficiary accounting, and LP reinvestment
 - carve out a fixed 5% share of the raw hook fee for the Airlock owner
 
-Important: this fee schedule controls the Rehype hook fee collected in `onAfterSwap`. It does not update the Uniswap v4 LP fee for the pool.
+Important: this fee schedule controls the Rehype hook fee collected in `onSwap`. It does not update the Uniswap v4 LP fee for the pool.
 
 ## Initialization Data
 
@@ -64,7 +64,7 @@ This makes the fee schedule lazy: it is evaluated when swaps happen, not by a ba
 
 ## Swap Behavior
 
-All fee logic runs in `onAfterSwap`.
+All fee logic runs in `onSwap`.
 
 For each external swap:
 

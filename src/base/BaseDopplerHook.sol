@@ -10,17 +10,14 @@ import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
 /// @dev Flag for the `onInitialization` callback
 uint256 constant ON_INITIALIZATION_FLAG = 1 << 0;
 
-/// @dev Flag for the `onBeforeSwap` callback
-uint256 constant ON_BEFORE_SWAP_FLAG = 1 << 1;
-
-/// @dev Flag for the `onSwap` (afterSwap) callback
-uint256 constant ON_AFTER_SWAP_FLAG = 1 << 2;
+/// @dev Flag for the `onSwap` callback
+uint256 constant ON_SWAP_FLAG = 1 << 1;
 
 /// @dev Flag for the `onGraduation` callback
-uint256 constant ON_GRADUATION_FLAG = 1 << 3;
+uint256 constant ON_GRADUATION_FLAG = 1 << 2;
 
 /// @dev Flag indicating the hook requires a dynamic LP fee pool
-uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 4;
+uint256 constant REQUIRES_DYNAMIC_LP_FEE_FLAG = 1 << 3;
 
 /// @notice Thrown when the `msg.sender` is not the DopplerHookInitializer contract
 error SenderNotInitializer();
@@ -32,7 +29,7 @@ error SenderNotInitializer();
  * callback functions along with virtual internal functions to be overridden by child contracts
  * @custom:security-contact security@whetstone.cc
  */
-abstract contract BaseDopplerHookInitializer is IDopplerHook {
+abstract contract BaseDopplerHook is IDopplerHook {
     /// @notice Address of the DopplerHookInitializer contract
     address public immutable INITIALIZER;
 
@@ -55,24 +52,14 @@ abstract contract BaseDopplerHookInitializer is IDopplerHook {
     }
 
     /// @inheritdoc IDopplerHook
-    function onBeforeSwap(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata data
-    ) external onlyInitializer returns (uint24) {
-        return _onBeforeSwap(sender, key, params, data);
-    }
-
-    /// @inheritdoc IDopplerHook
-    function onAfterSwap(
+    function onSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         BalanceDelta balanceDelta,
         bytes calldata data
     ) external onlyInitializer returns (Currency, int128) {
-        return _onAfterSwap(sender, key, params, balanceDelta, data);
+        return _onSwap(sender, key, params, balanceDelta, data);
     }
 
     /// @inheritdoc IDopplerHook
@@ -83,16 +70,8 @@ abstract contract BaseDopplerHookInitializer is IDopplerHook {
     /// @dev Internal function to be overridden for initialization logic
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal virtual { }
 
-    /// @dev Internal function to be overridden for before-swap logic (with LP fee override support)
-    function _onBeforeSwap(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata data
-    ) internal virtual returns (uint24) { }
-
-    /// @dev Internal function to be overridden for after swap logic
-    function _onAfterSwap(
+    /// @dev Internal function to be overridden for swap logic
+    function _onSwap(
         address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,

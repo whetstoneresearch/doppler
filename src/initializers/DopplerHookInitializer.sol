@@ -9,18 +9,12 @@ import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta, BalanceDeltaLibrary } from "@v4-core/types/BalanceDelta.sol";
-import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "@v4-core/types/BeforeSwapDelta.sol";
 import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import {
-    ON_AFTER_SWAP_FLAG,
-    ON_BEFORE_SWAP_FLAG,
-    ON_GRADUATION_FLAG,
-    ON_INITIALIZATION_FLAG
-} from "src/base/BaseDopplerHookInitializer.sol";
-import { BaseMinimalHook } from "src/base/BaseMinimalHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { BaseHook } from "src/base/BaseHook.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
@@ -40,7 +34,7 @@ event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 /**
  * @notice Emitted when the state of a Doppler Hook is set
  * @param dopplerHook Address of the Doppler Hook
- * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHookInitializer.sol)
+ * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHook.sol)
  */
 event SetDopplerHookState(address indexed dopplerHook, uint256 indexed flag);
 
@@ -184,7 +178,7 @@ uint24 constant MAX_LP_FEE = 100_000;
  * in the Doppler Multicurve whitepaper (https://www.doppler.lol/multicurve.pdf), with optional support for
  * Doppler Hooks for dynamic fee adjustment and custom logic on initialization, swaps and pool graduation
  */
-contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Manager, FeesManager, IPoolInitializer {
+contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, FeesManager, IPoolInitializer {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
@@ -334,30 +328,27 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         )
     {
         require(msg.sender == address(airlock), SenderNotAirlock());
-        PoolState storage state = getState[asset];
-        PoolStatus status = state.status;
-        require(status == PoolStatus.Initialized, WrongPoolStatus(PoolStatus.Initialized, status));
-        state.status = PoolStatus.Exited;
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Initialized, WrongPoolStatus(PoolStatus.Initialized, state.status));
+        getState[asset].status = PoolStatus.Exited;
 
-        PoolKey memory poolKey = state.poolKey;
-        token0 = Currency.unwrap(poolKey.currency0);
-        token1 = Currency.unwrap(poolKey.currency1);
+        token0 = Currency.unwrap(state.poolKey.currency0);
+        token1 = Currency.unwrap(state.poolKey.currency1);
 
-        int24 farTick = state.farTick;
-        _canGraduateOrMigrate(poolKey.toId(), asset == token0, farTick);
-        sqrtPriceX96 = TickMath.getSqrtPriceAtTick(farTick);
+        _canGraduateOrMigrate(state.poolKey.toId(), asset == token0, state.farTick);
+        sqrtPriceX96 = TickMath.getSqrtPriceAtTick(state.farTick);
 
         Position[] memory positions = Multicurve.calculatePositions(
-            state.adjustedCurves, poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
+            state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
-        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(poolKey, positions);
+        (BalanceDelta balanceDelta, BalanceDelta feesAccrued) = _burn(state.poolKey, positions);
         balance0 = uint128(balanceDelta.amount0());
         balance1 = uint128(balanceDelta.amount1());
         fees0 = uint128(feesAccrued.amount0());
         fees1 = uint128(feesAccrued.amount1());
 
-        poolKey.currency0.transfer(msg.sender, balance0);
-        poolKey.currency1.transfer(msg.sender, balance1);
+        state.poolKey.currency0.transfer(msg.sender, balance0);
+        state.poolKey.currency1.transfer(msg.sender, balance1);
     }
 
     /**
@@ -382,9 +373,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         bytes calldata onInitializationCalldata,
         bytes calldata onGraduationCalldata
     ) external {
-        PoolState storage state = getState[asset];
-        PoolStatus status = state.status;
-        require(status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, status));
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
         (, address timelock,,,,,,,,) = airlock.getAssetData(asset);
         address authority = getAuthority[timelock];
@@ -396,8 +386,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
             require(dopplerHookFlag > 0, DopplerHookNotEnabled());
         }
 
-        state.dopplerHook = dopplerHook;
-        state.graduationDopplerHookCalldata = onGraduationCalldata;
+        getState[asset].dopplerHook = dopplerHook;
+        getState[asset].graduationDopplerHookCalldata = onGraduationCalldata;
         emit SetDopplerHook(asset, dopplerHook);
 
         if (dopplerHookFlag & ON_INITIALIZATION_FLAG != 0) {
@@ -410,9 +400,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
      * @param asset Address of the asset to graduate
      */
     function graduate(address asset) external {
-        PoolState storage state = getState[asset];
-        PoolStatus status = state.status;
-        require(status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, status));
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
 
         address dopplerHook = state.dopplerHook;
         uint256 flags = isDopplerHookEnabled[dopplerHook];
@@ -422,7 +411,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
 
         _canGraduateOrMigrate(state.poolKey.toId(), asset == Currency.unwrap(state.poolKey.currency0), state.farTick);
 
-        state.status = PoolStatus.Graduated;
+        getState[asset].status = PoolStatus.Graduated;
         emit Graduate(asset);
 
         IDopplerHook(dopplerHook).onGraduation(asset, state.poolKey, state.graduationDopplerHookCalldata);
@@ -434,9 +423,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
      * @param lpFee New dynamic LP fee to set
      */
     function updateDynamicLPFee(address asset, uint24 lpFee) external {
-        PoolState storage state = getState[asset];
-        PoolStatus status = state.status;
-        require(status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, status));
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
         require(msg.sender == state.dopplerHook, SenderNotAuthorized());
         require(lpFee <= MAX_LP_FEE, LPFeeTooHigh(MAX_LP_FEE, lpFee));
         poolManager.updateDynamicLPFee(state.poolKey, lpFee);
@@ -445,7 +433,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
     /**
      * @notice Sets the state of a given Doppler hooks array
      * @param dopplerHooks Array of Doppler hook addresses
-     * @param flags Array of flags to set (see flags in BaseDopplerHookInitializer.sol)
+     * @param flags Array of flags to set (see flags in BaseDopplerHook.sol)
      */
     function setDopplerHookState(address[] calldata dopplerHooks, uint256[] calldata flags) external {
         require(msg.sender == airlock.owner(), SenderNotAirlockOwner());
@@ -468,12 +456,12 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
      * @return Array of positions currently held in the Uniswap V4 pool
      */
     function getPositions(address asset) internal view returns (Position[] memory) {
-        PoolState storage state = getState[asset];
-        PoolKey memory poolKey = state.poolKey;
-        address token0 = Currency.unwrap(poolKey.currency0);
-        return Multicurve.calculatePositions(
-            state.adjustedCurves, poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
+        PoolState memory state = getState[asset];
+        address token0 = Currency.unwrap(state.poolKey.currency0);
+        Position[] memory positions = Multicurve.calculatePositions(
+            state.adjustedCurves, state.poolKey.tickSpacing, state.totalTokensOnBondingCurve, 0, asset == token0
         );
+        return positions;
     }
 
     /**
@@ -488,9 +476,8 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
     /// @inheritdoc FeesManager
     function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
         address asset = getAsset[poolId];
-        PoolState storage state = getState[asset];
-        PoolStatus status = state.status;
-        require(status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, status));
+        PoolState memory state = getState[asset];
+        require(state.status == PoolStatus.Locked, WrongPoolStatus(PoolStatus.Locked, state.status));
         fees = _collect(state.poolKey, getPositions(asset));
     }
 
@@ -505,13 +492,13 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         require(isToken0 ? tick >= farTick : tick <= farTick, CannotMigrateInsufficientTick(farTick, tick));
     }
 
-    /// @inheritdoc BaseMinimalHook
+    /// @inheritdoc BaseHook
     function _beforeInitialize(address sender, PoolKey calldata, uint160) internal view override returns (bytes4) {
         require(sender == address(this), OnlyInitializer());
-        return BaseMinimalHook.beforeInitialize.selector;
+        return BaseHook.beforeInitialize.selector;
     }
 
-    /// @inheritdoc BaseMinimalHook
+    /// @inheritdoc BaseHook
     function _afterAddLiquidity(
         address,
         PoolKey calldata key,
@@ -521,10 +508,10 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         bytes calldata
     ) internal override returns (bytes4, BalanceDelta) {
         emit ModifyLiquidity(key, params);
-        return (BaseMinimalHook.afterAddLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
+        return (BaseHook.afterAddLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
     }
 
-    /// @inheritdoc BaseMinimalHook
+    /// @inheritdoc BaseHook
     function _afterRemoveLiquidity(
         address,
         PoolKey calldata key,
@@ -534,31 +521,10 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         bytes calldata
     ) internal override returns (bytes4, BalanceDelta) {
         emit ModifyLiquidity(key, params);
-        return (BaseMinimalHook.afterRemoveLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
+        return (BaseHook.afterRemoveLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
     }
 
-    /// @inheritdoc BaseMinimalHook
-    function _beforeSwap(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata data
-    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
-        address asset = getAsset[key.toId()];
-        address dopplerHook = getState[asset].dopplerHook;
-        uint24 lpFeeOverride;
-
-        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_BEFORE_SWAP_FLAG != 0) {
-            uint24 fee = IDopplerHook(dopplerHook).onBeforeSwap(sender, key, params, data);
-            if (fee > 0) {
-                lpFeeOverride = fee | LPFeeLibrary.OVERRIDE_FEE_FLAG;
-            }
-        }
-
-        return (BaseMinimalHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, lpFeeOverride);
-    }
-
-    /// @inheritdoc BaseMinimalHook
+    /// @inheritdoc BaseHook
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -567,13 +533,14 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         bytes calldata data
     ) internal override returns (bytes4, int128) {
         address asset = getAsset[key.toId()];
-        address dopplerHook = getState[asset].dopplerHook;
+        PoolState memory state = getState[asset];
+        address dopplerHook = state.dopplerHook;
 
         int128 delta;
 
-        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_AFTER_SWAP_FLAG != 0) {
+        if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
             Currency feeCurrency;
-            (feeCurrency, delta) = IDopplerHook(dopplerHook).onAfterSwap(sender, key, params, balanceDelta, data);
+            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
 
             if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));
@@ -589,10 +556,10 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
         }
 
         emit Swap(sender, key, key.toId(), params, balanceDelta.amount0(), balanceDelta.amount1(), data);
-        return (BaseMinimalHook.afterSwap.selector, delta);
+        return (BaseHook.afterSwap.selector, delta);
     }
 
-    /// @inheritdoc BaseMinimalHook
+    /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
@@ -601,7 +568,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseMinimalHook, MiniV4Mana
             beforeRemoveLiquidity: false,
             afterAddLiquidity: true,
             afterRemoveLiquidity: true,
-            beforeSwap: true,
+            beforeSwap: false,
             afterSwap: true,
             beforeDonate: false,
             afterDonate: false,

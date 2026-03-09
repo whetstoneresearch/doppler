@@ -7,7 +7,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Test } from "forge-std/Test.sol";
-import { SenderNotInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { SenderNotInitializer } from "src/base/BaseDopplerHook.sol";
 import { RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
@@ -338,18 +338,18 @@ contract RehypeDopplerHookTest is Test {
     }
 
     /* ---------------------------------------------------------------------- */
-    /*                                onAfterSwap()                                */
+    /*                                  onSwap()                                   */
     /* ---------------------------------------------------------------------- */
 
-    function test_onAfterSwap_RevertsWhenSenderNotInitializer(
+    function test_onSwap_RevertsWhenSenderNotInitializer(
         PoolKey memory poolKey,
         IPoolManager.SwapParams memory swapParams
     ) public {
         vm.expectRevert(SenderNotInitializer.selector);
-        dopplerHook.onAfterSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
     }
 
-    function test_onAfterSwap_AccumulatesFees(PoolKey memory poolKey) public {
+    function test_onSwap_AccumulatesFees(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
 
         address asset = Currency.unwrap(poolKey.currency0);
@@ -388,7 +388,7 @@ contract RehypeDopplerHookTest is Test {
             IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1e18, sqrtPriceLimitX96: 0 });
 
         vm.prank(address(initializer));
-        dopplerHook.onAfterSwap(address(0x123), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
+        dopplerHook.onSwap(address(0x123), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0));
 
         PoolId poolId = poolKey.toId();
 
@@ -398,11 +398,11 @@ contract RehypeDopplerHookTest is Test {
         // Note: Actual fee accumulation depends on the fee logic, but fees0 should have been set
     }
 
-    function test_onAfterSwap_SkipsWhenSenderIsHook(PoolKey memory poolKey) public {
+    function test_onSwap_SkipsWhenSenderIsHook(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
 
         vm.prank(address(initializer));
-        (Currency feeCurrency, int128 delta) = dopplerHook.onAfterSwap(
+        (Currency feeCurrency, int128 delta) = dopplerHook.onSwap(
             address(dopplerHook), poolKey, IPoolManager.SwapParams(false, 1, 0), BalanceDeltaLibrary.ZERO_DELTA, ""
         );
 
