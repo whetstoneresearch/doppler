@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
@@ -29,6 +31,20 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
+}
+
+contract TrackingPoolManager {
+    Currency public lastTakeCurrency;
+    address public lastTakeRecipient;
+    uint256 public lastTakeAmount;
+    uint256 public takeCallCount;
+
+    function take(Currency currency, address to, uint256 amount) external {
+        lastTakeCurrency = currency;
+        lastTakeRecipient = to;
+        lastTakeAmount = amount;
+        ++takeCallCount;
+    }
 }
 
 /// @dev Harness to expose internal fee functions for testing
@@ -81,17 +97,27 @@ contract RehypeDopplerHookTest is Test {
     RehypeDopplerHook internal dopplerHook;
     RehypeDopplerHook internal dopplerHookWithMockInitializer;
     RehypeDopplerHookHarness internal harness;
+    RehypeDopplerHookHarness internal trackingHarness;
     MockInitializer internal initializer;
     MockInitializer internal mockInitializer;
     IPoolManager internal poolManager;
+    TrackingPoolManager internal trackingPoolManager;
+    TestERC20 internal token0;
+    TestERC20 internal token1;
 
     function setUp() public {
         poolManager = IPoolManager(address(new MockPoolManager()));
         initializer = new MockInitializer();
         dopplerHook = new RehypeDopplerHook(address(initializer), poolManager);
         harness = new RehypeDopplerHookHarness(address(initializer), poolManager);
+        trackingPoolManager = new TrackingPoolManager();
+        trackingHarness = new RehypeDopplerHookHarness(address(initializer), IPoolManager(address(trackingPoolManager)));
         mockInitializer = new MockInitializer();
         dopplerHookWithMockInitializer = new RehypeDopplerHook(address(mockInitializer), poolManager);
+        token0 = new TestERC20(type(uint128).max);
+        token1 = new TestERC20(type(uint128).max);
+        token0.mint(address(trackingPoolManager), type(uint128).max);
+        token1.mint(address(trackingPoolManager), type(uint128).max);
     }
 
     /* --------------------------------------------------------------------------- */
@@ -1031,6 +1057,158 @@ contract RehypeDopplerHookTest is Test {
         assertGe(fee1, fee2, "Fee should be monotonically non-increasing over time");
     }
 
+    function test_onSwap_ExactInput_SelfTakesAndReturnsExpectedFlatFee() public {
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 0,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(
+            address(token0),
+            poolKey,
+            abi.encode(_beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0))
+        );
+
+        IPoolManager.SwapParams memory swapParams =
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0 });
+        int128 amount0 = -int128(uint128(1 ether));
+        int128 amount1 = int128(uint128(5 ether));
+        uint256 expectedFeeAmount = 5 ether * 10_000 / MAX_SWAP_FEE;
+
+        vm.prank(address(initializer));
+        (Currency feeCurrency, int128 hookDelta) =
+            trackingHarness.onSwap(address(0x1234), poolKey, swapParams, toBalanceDelta(amount0, amount1), "");
+
+        assertEq(Currency.unwrap(feeCurrency), address(token1), "fee currency should be unspecified output token");
+        assertEq(uint256(uint128(hookDelta)), expectedFeeAmount, "returned hook delta should match expected fee");
+        assertEq(trackingPoolManager.takeCallCount(), 1, "hook should self-take exactly once");
+        assertEq(
+            Currency.unwrap(trackingPoolManager.lastTakeCurrency()),
+            address(token1),
+            "self-take should use fee currency"
+        );
+        assertEq(
+            trackingPoolManager.lastTakeRecipient(), address(trackingHarness), "self-take recipient should be hook"
+        );
+        assertEq(trackingPoolManager.lastTakeAmount(), expectedFeeAmount, "self-take amount should match expected fee");
+
+        PoolId poolId = poolKey.toId();
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
+            trackingHarness.getHookFees(poolId);
+        assertEq(beneficiaryFees0, 0, "only currency1 beneficiary fees should accrue");
+        assertEq(airlockOwnerFees0, 0, "only currency1 owner fees should accrue");
+        assertEq(
+            uint256(beneficiaryFees1) + uint256(airlockOwnerFees1),
+            expectedFeeAmount,
+            "tracked fees should equal the single collected fee"
+        );
+    }
+
+    function test_onSwap_ExactOutput_SelfTakesAndReturnsExpectedInputFee() public {
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 0,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(
+            address(token0),
+            poolKey,
+            abi.encode(_beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0))
+        );
+
+        IPoolManager.SwapParams memory swapParams =
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 0.5 ether, sqrtPriceLimitX96: 0 });
+        int128 amount0 = -int128(uint128(12 ether / 10));
+        int128 amount1 = int128(uint128(0.5 ether));
+        uint256 expectedFeeAmount = (12 ether / 10) * 10_000 / MAX_SWAP_FEE;
+
+        vm.prank(address(initializer));
+        (Currency feeCurrency, int128 hookDelta) =
+            trackingHarness.onSwap(address(0x1234), poolKey, swapParams, toBalanceDelta(amount0, amount1), "");
+
+        assertEq(Currency.unwrap(feeCurrency), address(token0), "fee currency should be unspecified input token");
+        assertEq(uint256(uint128(hookDelta)), expectedFeeAmount, "returned hook delta should match expected fee");
+        assertEq(trackingPoolManager.takeCallCount(), 1, "hook should self-take exactly once");
+        assertEq(
+            Currency.unwrap(trackingPoolManager.lastTakeCurrency()),
+            address(token0),
+            "self-take should use fee currency"
+        );
+        assertEq(
+            trackingPoolManager.lastTakeRecipient(), address(trackingHarness), "self-take recipient should be hook"
+        );
+        assertEq(trackingPoolManager.lastTakeAmount(), expectedFeeAmount, "self-take amount should match expected fee");
+
+        PoolId poolId = poolKey.toId();
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
+            trackingHarness.getHookFees(poolId);
+        assertEq(beneficiaryFees1, 0, "only currency0 beneficiary fees should accrue");
+        assertEq(airlockOwnerFees1, 0, "only currency0 owner fees should accrue");
+        assertEq(
+            uint256(beneficiaryFees0) + uint256(airlockOwnerFees0),
+            expectedFeeAmount,
+            "tracked fees should equal the single collected fee"
+        );
+    }
+
+    function test_onSwap_SelfTakesAndReturnsExpectedDecayedFeeAtMidpoint() public {
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 0,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+
+        vm.warp(1_000_000);
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(
+            address(token0),
+            poolKey,
+            abi.encode(_beneficiaryOnlyInitData(address(token1), address(0), 10_000, 2000, 4000, 0))
+        );
+
+        vm.warp(block.timestamp + 2000);
+
+        IPoolManager.SwapParams memory swapParams =
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0 });
+        int128 amount0 = -int128(uint128(1 ether));
+        int128 amount1 = int128(uint128(5 ether));
+        uint256 expectedFeeAmount = 5 ether * 6000 / MAX_SWAP_FEE;
+
+        vm.prank(address(initializer));
+        (Currency feeCurrency, int128 hookDelta) =
+            trackingHarness.onSwap(address(0x1234), poolKey, swapParams, toBalanceDelta(amount0, amount1), "");
+
+        assertEq(Currency.unwrap(feeCurrency), address(token1), "fee currency should be unspecified output token");
+        assertEq(uint256(uint128(hookDelta)), expectedFeeAmount, "returned hook delta should use midpoint fee");
+        assertEq(trackingPoolManager.takeCallCount(), 1, "hook should self-take exactly once");
+        assertEq(trackingPoolManager.lastTakeAmount(), expectedFeeAmount, "self-take amount should use midpoint fee");
+
+        PoolId poolId = poolKey.toId();
+        (,,, uint24 lastFee,) = trackingHarness.getFeeSchedule(poolId);
+        assertEq(lastFee, 6000, "lastFee should update to the midpoint fee");
+
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
+            trackingHarness.getHookFees(poolId);
+        assertEq(beneficiaryFees0, 0, "only currency1 beneficiary fees should accrue");
+        assertEq(airlockOwnerFees0, 0, "only currency1 owner fees should accrue");
+        assertEq(
+            uint256(beneficiaryFees1) + uint256(airlockOwnerFees1),
+            expectedFeeAmount,
+            "tracked fees should equal the single decayed fee"
+        );
+    }
+
     /* ----------------------------------------------------------------------------- */
     /*                              collectFees()                                    */
     /* ----------------------------------------------------------------------------- */
@@ -1112,6 +1290,35 @@ contract RehypeDopplerHookTest is Test {
                 numeraireFeesToNumeraireBuybackWad: 0.25e18,
                 numeraireFeesToBeneficiaryWad: 0.25e18,
                 numeraireFeesToLpWad: 0.25e18
+            })
+        });
+    }
+
+    function _beneficiaryOnlyInitData(
+        address numeraire,
+        address buybackDst,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime
+    ) internal pure returns (InitData memory) {
+        return InitData({
+            numeraire: numeraire,
+            buybackDst: buybackDst,
+            startFee: startFee,
+            endFee: endFee,
+            durationSeconds: durationSeconds,
+            startingTime: startingTime,
+            feeRoutingMode: FeeRoutingMode.DirectBuyback,
+            feeDistributionInfo: FeeDistributionInfo({
+                assetFeesToAssetBuybackWad: 0,
+                assetFeesToNumeraireBuybackWad: 0,
+                assetFeesToBeneficiaryWad: WAD,
+                assetFeesToLpWad: 0,
+                numeraireFeesToAssetBuybackWad: 0,
+                numeraireFeesToNumeraireBuybackWad: 0,
+                numeraireFeesToBeneficiaryWad: WAD,
+                numeraireFeesToLpWad: 0
             })
         });
     }

@@ -909,6 +909,70 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertGt(feesFromHighFeeSwap, feesFromLowFeeSwap, "Fees at start should be higher than after decay");
     }
 
+    function test_decayingFee_Integration_ChargesInterpolatedMidpointFee() public {
+        uint24 startFee = 10_000;
+        uint24 endFee = 2000;
+        uint24 midpointFee = 6000;
+        uint32 durationSeconds = 4000;
+        uint256 swapAmount = 1 ether;
+        FeeDistributionInfo memory beneficiaryOnlyDistribution = _fullBeneficiaryDistribution();
+
+        (bool startIsToken0,) = _createTokenWithDecayAndOrientation(
+            true, 1001, startFee, endFee, durationSeconds, 0, beneficiaryOnlyDistribution, FeeRoutingMode.DirectBuyback
+        );
+        PoolKey memory startPoolKey = poolKey;
+        PoolId startPoolId = poolId;
+
+        IPoolManager.SwapParams memory startSwapParams = IPoolManager.SwapParams({
+            zeroForOne: !startIsToken0,
+            amountSpecified: int256(swapAmount),
+            sqrtPriceLimitX96: !startIsToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(startPoolKey, startSwapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        uint256 startFeesBeforeMeasuredSwap = _totalTrackedFees(startPoolId);
+        swapRouter.swap(startPoolKey, startSwapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        uint256 startFeesAfterMeasuredSwap = _totalTrackedFees(startPoolId);
+
+        uint256 feesAtStart = startFeesAfterMeasuredSwap - startFeesBeforeMeasuredSwap;
+        (,,, uint24 lastFeeAtStart,) = rehypeDopplerHook.getFeeSchedule(startPoolId);
+        assertEq(lastFeeAtStart, startFee, "Measured start swap should use the start fee");
+
+        (bool midpointIsToken0,) = _createTokenWithDecayAndOrientation(
+            true, 2001, startFee, endFee, durationSeconds, 0, beneficiaryOnlyDistribution, FeeRoutingMode.DirectBuyback
+        );
+        PoolKey memory midpointPoolKey = poolKey;
+        PoolId midpointPoolId = poolId;
+
+        IPoolManager.SwapParams memory midpointSwapParams = IPoolManager.SwapParams({
+            zeroForOne: !midpointIsToken0,
+            amountSpecified: int256(swapAmount),
+            sqrtPriceLimitX96: !midpointIsToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(midpointPoolKey, midpointSwapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        vm.warp(block.timestamp + durationSeconds / 2);
+
+        uint256 midpointFeesBeforeMeasuredSwap = _totalTrackedFees(midpointPoolId);
+        swapRouter.swap(midpointPoolKey, midpointSwapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        uint256 midpointFeesAfterMeasuredSwap = _totalTrackedFees(midpointPoolId);
+
+        uint256 feesAtMidpoint = midpointFeesAfterMeasuredSwap - midpointFeesBeforeMeasuredSwap;
+        (,,, uint24 lastFeeAtMidpoint,) = rehypeDopplerHook.getFeeSchedule(midpointPoolId);
+
+        assertEq(lastFeeAtMidpoint, midpointFee, "Measured midpoint swap should use the interpolated fee");
+        assertGt(feesAtStart, 0, "Start swap should accrue a fee");
+        assertGt(feesAtMidpoint, 0, "Midpoint swap should accrue a fee");
+        assertLt(feesAtMidpoint, feesAtStart, "Midpoint swap should charge less than the start swap");
+        assertApproxEqAbs(
+            feesAtMidpoint,
+            feesAtStart * midpointFee / startFee,
+            1,
+            "Midpoint fee accrual should match the interpolated fee rate on the same swap path"
+        );
+    }
+
     function test_decayingFee_UpdatesLastFeeAfterSwap() public {
         bytes32 salt = bytes32(uint256(102));
         (bool isToken0,) = _createTokenWithDecay(salt, 10_000, 2000, 4000, 0);
@@ -1092,6 +1156,19 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         });
     }
 
+    function _fullBeneficiaryDistribution() internal pure returns (FeeDistributionInfo memory feeDistribution) {
+        return FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: 0,
+            assetFeesToNumeraireBuybackWad: 0,
+            assetFeesToBeneficiaryWad: WAD,
+            assetFeesToLpWad: 0,
+            numeraireFeesToAssetBuybackWad: 0,
+            numeraireFeesToNumeraireBuybackWad: 0,
+            numeraireFeesToBeneficiaryWad: WAD,
+            numeraireFeesToLpWad: 0
+        });
+    }
+
     function _prepareInitDataWithZeroFee(address token) internal returns (InitData memory) {
         return _prepareInitData(token, uint24(0), _quarterFeeDistribution(), FeeRoutingMode.DirectBuyback);
     }
@@ -1102,6 +1179,26 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         uint24 endFee,
         uint32 durationSeconds,
         uint32 startingTime
+    ) internal returns (InitData memory) {
+        return _prepareInitDataWithDecay(
+            token,
+            startFee,
+            endFee,
+            durationSeconds,
+            startingTime,
+            _defaultFeeDistribution(),
+            FeeRoutingMode.DirectBuyback
+        );
+    }
+
+    function _prepareInitDataWithDecay(
+        address token,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode
     ) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
@@ -1135,8 +1232,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 endFee: endFee,
                 durationSeconds: durationSeconds,
                 startingTime: startingTime,
-                feeRoutingMode: FeeRoutingMode.DirectBuyback,
-                feeDistributionInfo: _defaultFeeDistribution()
+                feeRoutingMode: feeRoutingMode,
+                feeDistributionInfo: feeDistribution
             })
         );
 
@@ -1158,6 +1255,26 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         uint24 endFee,
         uint32 durationSeconds,
         uint32 startingTime
+    ) internal returns (bool isToken0, address asset) {
+        return _createTokenWithDecayConfig(
+            salt,
+            startFee,
+            endFee,
+            durationSeconds,
+            startingTime,
+            _defaultFeeDistribution(),
+            FeeRoutingMode.DirectBuyback
+        );
+    }
+
+    function _createTokenWithDecayConfig(
+        bytes32 salt,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode
     ) internal returns (bool isToken0, address asset) {
         string memory name = "Test Token";
         string memory symbol = "TEST";
@@ -1185,8 +1302,9 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             address(tokenFactory)
         );
 
-        InitData memory initData =
-            _prepareInitDataWithDecay(tokenAddress, startFee, endFee, durationSeconds, startingTime);
+        InitData memory initData = _prepareInitDataWithDecay(
+            tokenAddress, startFee, endFee, durationSeconds, startingTime, feeDistribution, feeRoutingMode
+        );
 
         CreateParams memory params = CreateParams({
             initialSupply: initialSupply,
@@ -1213,6 +1331,30 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+    }
+
+    function _createTokenWithDecayAndOrientation(
+        bool targetIsToken0,
+        uint256 saltSeed,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode
+    ) internal returns (bool isToken0, address asset) {
+        uint256 baseSeed = bound(saltSeed, 1, type(uint64).max - 512);
+
+        for (uint256 i; i < 512; ++i) {
+            bytes32 salt = bytes32(baseSeed + i);
+            if (_predictTokenAddress(salt) < address(numeraire) == targetIsToken0) {
+                return _createTokenWithDecayConfig(
+                    salt, startFee, endFee, durationSeconds, startingTime, feeDistribution, feeRoutingMode
+                );
+            }
+        }
+
+        revert("No matching token orientation found");
     }
 
     function _createToken(bytes32 salt) internal returns (bool isToken0, address asset) {
@@ -1447,6 +1589,13 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             uint256(beneficiaryFees1) + airlockOwnerFees1,
             "hook must remain solvent for currency1 tracked balances"
         );
+    }
+
+    function _totalTrackedFees(PoolId id) internal view returns (uint256) {
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
+            rehypeDopplerHook.getHookFees(id);
+
+        return uint256(beneficiaryFees0) + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1;
     }
 
     function _distributionRowFromSeed(uint256 seed)
