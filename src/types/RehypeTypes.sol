@@ -23,7 +23,7 @@ event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwne
 
 // Constants
 /// @dev Maximum swap fee denominator (1e6 = 100%)
-uint256 constant MAX_SWAP_FEE = 1e6;
+uint256 constant MAX_SWAP_FEE = 0.8e6;
 
 /// @dev Epsilon trigger for rebalancing swaps
 uint128 constant EPSILON = 1e6;
