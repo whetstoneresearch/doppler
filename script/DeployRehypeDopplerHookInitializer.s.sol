@@ -8,7 +8,7 @@ import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 
-contract DeployRehypeHookScript is Script, Config {
+contract DeployRehypeHookInitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -32,7 +32,7 @@ contract DeployRehypeHookScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
 
         vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookInitializer-3");
+        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookInitializer-4");
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
 
         address rehypeDopplerHook = ICreateX(createX)
