@@ -36,7 +36,7 @@ abstract contract BaseMinimalHook is IHooks, ImmutableState {
 
     function _beforeInitialize(address, PoolKey calldata, uint160) internal virtual returns (bytes4);
 
-    function afterInitialize(address, PoolKey calldata, uint160, int24) external pure returns (bytes4) {
+    function afterInitialize(address, PoolKey calldata, uint160, int24) external view onlyPoolManager returns (bytes4) {
         revert HookNotImplemented();
     }
 
@@ -45,7 +45,7 @@ abstract contract BaseMinimalHook is IHooks, ImmutableState {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) external pure returns (bytes4) {
+    ) external view onlyPoolManager returns (bytes4) {
         revert HookNotImplemented();
     }
 
@@ -54,7 +54,7 @@ abstract contract BaseMinimalHook is IHooks, ImmutableState {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         bytes calldata
-    ) external pure returns (bytes4) {
+    ) external view onlyPoolManager returns (bytes4) {
         revert HookNotImplemented();
     }
 
@@ -132,11 +132,23 @@ abstract contract BaseMinimalHook is IHooks, ImmutableState {
         bytes calldata
     ) internal virtual returns (bytes4, int128);
 
-    function beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4) {
+    function beforeDonate(
+        address,
+        PoolKey calldata,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external view onlyPoolManager returns (bytes4) {
         revert HookNotImplemented();
     }
 
-    function afterDonate(address, PoolKey calldata, uint256, uint256, bytes calldata) external pure returns (bytes4) {
+    function afterDonate(
+        address,
+        PoolKey calldata,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external view onlyPoolManager returns (bytes4) {
         revert HookNotImplemented();
     }
 }
