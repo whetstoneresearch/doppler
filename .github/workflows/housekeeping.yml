@@ -52,7 +52,17 @@ jobs:
 
       - name: Copy deployments file from contracts to docs
         run: |
-          cp contracts/Deployments.md docs/resources/contract-addresses.md
+          if [[ ! -f contracts/Deployments.md ]]; then
+            echo "Expected contracts/Deployments.md to exist after generation"
+            exit 1
+          fi
+
+          if [[ ! -d docs/reference ]]; then
+            echo "Expected docs/reference directory to exist in docs repo checkout"
+            exit 1
+          fi
+
+          cp contracts/Deployments.md docs/reference/contract-addresses.md
 
       - name: Commit and push to the docs repository
         run: |
