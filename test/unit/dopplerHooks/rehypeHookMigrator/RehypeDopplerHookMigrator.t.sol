@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
@@ -16,6 +17,7 @@ import {
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
     HookFees,
+    InsufficientFeeCurrency,
     MigratorInitData,
     PoolInfo,
     SenderNotAirlockOwner,
@@ -25,7 +27,8 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
-}
+
+    }
 
 contract MockAirlockForMigrator {
     address public owner;
@@ -347,6 +350,49 @@ contract RehypeDopplerHookMigratorTest is Test {
 
         assertEq(Currency.unwrap(feeCurrency), address(0));
         assertEq(delta, 0);
+    }
+
+    function test_onAfterSwap_RevertsWhenPoolManagerFeeCurrencyBalanceInsufficient() public {
+        TestERC20 asset = new TestERC20(type(uint128).max);
+        TestERC20 numeraire = new TestERC20(type(uint128).max);
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(asset)),
+            currency1: Currency.wrap(address(numeraire)),
+            fee: 0,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+
+        bytes memory data = abi.encode(
+            MigratorInitData({
+                numeraire: address(numeraire),
+                buybackDst: address(0),
+                customFee: 10_000,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0,
+                    assetFeesToNumeraireBuybackWad: 0,
+                    assetFeesToBeneficiaryWad: WAD,
+                    assetFeesToLpWad: 0,
+                    numeraireFeesToAssetBuybackWad: 0,
+                    numeraireFeesToNumeraireBuybackWad: 0,
+                    numeraireFeesToBeneficiaryWad: WAD,
+                    numeraireFeesToLpWad: 0
+                })
+            })
+        );
+
+        vm.prank(address(mockMigrator));
+        rehypeHookMigrator.onInitialization(address(asset), poolKey, data);
+
+        IPoolManager.SwapParams memory swapParams =
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0 });
+
+        vm.prank(address(mockMigrator));
+        vm.expectRevert(InsufficientFeeCurrency.selector);
+        rehypeHookMigrator.onAfterSwap(
+            address(0x1234), poolKey, swapParams, toBalanceDelta(-int128(1 ether), int128(5 ether)), ""
+        );
     }
 
     /* ---------------------------------------------------------------------- */

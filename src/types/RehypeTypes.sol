@@ -12,6 +12,9 @@ error SenderNotAuthorized();
 /// @notice Thrown when the sender is not the airlock owner
 error SenderNotAirlockOwner();
 
+/// @notice Thrown when the pool manager fee currency is insufficient
+error InsufficientFeeCurrency();
+
 /**
  * @notice Emitted when Airlock owner claims fees
  * @param poolId Pool from which fees were claimed
