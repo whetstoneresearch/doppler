@@ -1439,6 +1439,9 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+
+        deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
     }
 
     function _createTokenWithDecayAndOrientation(
@@ -1535,6 +1538,9 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+
+        deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
     }
 
     function _createTokenWithOrientation(

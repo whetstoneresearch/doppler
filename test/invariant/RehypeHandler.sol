@@ -12,7 +12,7 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { Currency, equals, lessThan } from "@v4-core/types/Currency.sol";
+import { Currency, CurrencyLibrary, equals, lessThan } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
@@ -276,6 +276,14 @@ contract RehypeHandler is Test {
         dopplerHookInitializer.initialize(address(asset), numeraire, 1e27, bytes32(0), abi.encode(data));
 
         settingsOf[poolId] = settings;
+
+        if (poolKey.currency0 == (CurrencyLibrary.ADDRESS_ZERO)) {
+            deal(address(manager), 1e26);
+        } else {
+            deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        }
+
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
     }
 
     function buyExactIn(uint256 amount) public createActor {
@@ -458,7 +466,7 @@ contract RehypeHandler is Test {
         (uint256 amountOut,) = quoter.quoteExactInputSingle(
             IV4Quoter.QuoteExactSingleParams({
                 poolKey: poolKey,
-                zeroForOne: !settings.isToken0,
+                zeroForOne: settings.isToken0,
                 exactAmount: uint128(currentBalance),
                 hookData: new bytes(0)
             })
@@ -469,10 +477,7 @@ contract RehypeHandler is Test {
 
         (uint256 amountIn,) = quoter.quoteExactOutputSingle(
             IV4Quoter.QuoteExactSingleParams({
-                poolKey: poolKey,
-                zeroForOne: !settings.isToken0,
-                exactAmount: uint128(amountOut),
-                hookData: new bytes(0)
+                poolKey: poolKey, zeroForOne: settings.isToken0, exactAmount: uint128(amountOut), hookData: new bytes(0)
             })
         );
 
