@@ -29,6 +29,7 @@ import {
     FeeTooHigh,
     FeeUpdated,
     HookFees,
+    InsufficientFeeCurrency,
     InitData,
     InvalidDurationSeconds,
     InvalidFeeRange,
@@ -792,7 +793,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
-            return (feeCurrency, feeDelta);
+            revert InsufficientFeeCurrency();
         }
 
         poolManager.take(feeCurrency, address(this), feeAmount);

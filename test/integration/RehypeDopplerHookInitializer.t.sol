@@ -2,7 +2,10 @@
 pragma solidity ^0.8.13;
 
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
+import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
@@ -13,6 +16,7 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { console } from "forge-std/console.sol";
+import { CurrencySettler } from "lib/v4-core/test/utils/CurrencySettler.sol";
 
 import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
@@ -33,7 +37,8 @@ import {
     FeeDistributionInfo,
     FeeRoutingMode,
     FeeSchedule,
-    InitData as RehypeInitData
+    InitData as RehypeInitData,
+    InsufficientFeeCurrency
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -47,6 +52,59 @@ contract LiquidityMigratorMock is ILiquidityMigrator {
     }
 }
 
+contract FeeBypassAttemptRouter is IUnlockCallback {
+    using CurrencySettler for Currency;
+
+    struct AttackData {
+        PoolKey key;
+        IPoolManager.SwapParams params;
+        address recipient;
+    }
+
+    IPoolManager public immutable poolManager;
+
+    constructor(IPoolManager poolManager_) {
+        poolManager = poolManager_;
+    }
+
+    function attack(
+        PoolKey memory key,
+        IPoolManager.SwapParams memory params,
+        address recipient
+    ) external returns (bytes memory) {
+        return poolManager.unlock(abi.encode(AttackData({ key: key, params: params, recipient: recipient })));
+    }
+
+    function unlockCallback(bytes calldata rawData) external override returns (bytes memory) {
+        require(msg.sender == address(poolManager), "not pool manager");
+
+        AttackData memory data = abi.decode(rawData, (AttackData));
+        bool exactInput = data.params.amountSpecified < 0;
+        Currency feeCurrency = data.params.zeroForOne == exactInput ? data.key.currency1 : data.key.currency0;
+        uint256 drainedAmount = feeCurrency.balanceOf(address(poolManager));
+
+        if (drainedAmount > 0) {
+            feeCurrency.take(poolManager, address(this), drainedAmount, false);
+        }
+
+        BalanceDelta delta = poolManager.swap(data.key, data.params, new bytes(0));
+
+        if (drainedAmount > 0) {
+            feeCurrency.settle(poolManager, address(this), drainedAmount, false);
+        }
+
+        if (data.params.zeroForOne) {
+            data.key.currency0.settle(poolManager, address(this), uint256(int256(-delta.amount0())), false);
+            data.key.currency1.take(poolManager, data.recipient, uint256(int256(delta.amount1())), false);
+        } else {
+            data.key.currency1.settle(poolManager, address(this), uint256(int256(-delta.amount1())), false);
+            data.key.currency0.take(poolManager, data.recipient, uint256(int256(delta.amount0())), false);
+        }
+
+        return abi.encode(drainedAmount, delta);
+    }
+}
+
 contract RehypeDopplerHookIntegrationTest is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     address public buybackDst = makeAddr("BuybackDst");
@@ -57,6 +115,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     GovernanceFactory public governanceFactory;
     LiquidityMigratorMock public mockLiquidityMigrator;
     RehypeDopplerHookInitializer public rehypeDopplerHook;
+    FeeBypassAttemptRouter public feeBypassAttemptRouter;
     TestERC20 public numeraire;
     V4Quoter public quoter;
 
@@ -86,6 +145,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         rehypeDopplerHook = new RehypeDopplerHookInitializer(address(initializer), manager);
         vm.label(address(rehypeDopplerHook), "RehypeDopplerHookInitializer");
+        feeBypassAttemptRouter = new FeeBypassAttemptRouter(manager);
+        vm.label(address(feeBypassAttemptRouter), "FeeBypassAttemptRouter");
         quoter = new V4Quoter(manager);
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
@@ -1053,6 +1114,53 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertEq(lastFee, 10_000, "lastFee should remain startFee before schedule begins");
     }
 
+    function test_decayingFee_UnlockDrainAttemptRevertsInsteadOfBypassingFee() public {
+        bytes32 salt = bytes32(uint256(105));
+        uint24 startFee = 800_000;
+        uint24 endFee = 5000;
+        uint32 durationSeconds = 10;
+        (bool isToken0,) = _createTokenWithDecayConfig(
+            salt, startFee, endFee, durationSeconds, 0, _fullBeneficiaryDistribution(), FeeRoutingMode.DirectBuyback
+        );
+
+        uint256 amountIn = 1 ether;
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(amountIn),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        Currency feeCurrency = isToken0 ? poolKey.currency0 : poolKey.currency1;
+        uint256 poolManagerFeeBalanceBefore = feeCurrency.balanceOf(address(manager));
+        assertGt(poolManagerFeeBalanceBefore, 0, "pool manager must hold fee currency before drain");
+
+        numeraire.transfer(address(feeBypassAttemptRouter), amountIn * 2);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CustomRevert.WrappedError.selector,
+                address(initializer),
+                IHooks.afterSwap.selector,
+                abi.encodeWithSelector(InsufficientFeeCurrency.selector),
+                abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+            )
+        );
+        feeBypassAttemptRouter.attack(poolKey, swapParams, address(this));
+
+        assertEq(
+            feeCurrency.balanceOf(address(manager)),
+            poolManagerFeeBalanceBefore,
+            "drained balance should be restored by revert"
+        );
+        assertEq(_totalTrackedFees(poolId), 0, "failed bypass attempt must not accrue tracked fees");
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        assertGt(_totalTrackedFees(poolId), 0, "normal swap should still accrue fees after failed bypass attempt");
+
+        (,,, uint24 lastFee,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFee, startFee, "successful normal swap should keep start fee before decay elapses");
+    }
+
     function _prepareInitData(address token) internal returns (InitData memory) {
         return _prepareInitData(token, uint24(3000), _defaultFeeDistribution(), FeeRoutingMode.DirectBuyback);
     }
@@ -1331,6 +1439,9 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+
+        deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
     }
 
     function _createTokenWithDecayAndOrientation(
@@ -1427,6 +1538,9 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         numeraire.approve(address(swapRouter), type(uint256).max);
         TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+
+        deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
     }
 
     function _createTokenWithOrientation(

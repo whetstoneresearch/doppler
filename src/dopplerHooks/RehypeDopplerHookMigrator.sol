@@ -25,6 +25,7 @@ import {
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
     HookFees,
+    InsufficientFeeCurrency,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
     MigratorInitData,
@@ -742,7 +743,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
-            return (feeCurrency, feeDelta);
+          revert InsufficientFeeCurrency();
         }
 
         poolManager.take(feeCurrency, address(this), feeAmount);

@@ -22,6 +22,7 @@ import {
     FeeUpdated,
     HookFees,
     InitData,
+    InsufficientFeeCurrency,
     InvalidDurationSeconds,
     InvalidFeeRange,
     MAX_SWAP_FEE,
@@ -31,7 +32,8 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
-}
+
+    }
 
 contract TrackingPoolManager {
     Currency public lastTakeCurrency;
@@ -1216,6 +1218,32 @@ contract RehypeDopplerHookInitializerTest is Test {
             expectedFeeAmount,
             "tracked fees should equal the single decayed fee"
         );
+    }
+
+    function test_onSwap_RevertsWhenPoolManagerFeeCurrencyBalanceInsufficient() public {
+        TestERC20 asset = new TestERC20(type(uint128).max);
+        TestERC20 numeraire = new TestERC20(type(uint128).max);
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(asset)),
+            currency1: Currency.wrap(address(numeraire)),
+            fee: 0,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(
+            address(asset),
+            poolKey,
+            abi.encode(_beneficiaryOnlyInitData(address(numeraire), address(0), 10_000, 10_000, 0, 0))
+        );
+
+        IPoolManager.SwapParams memory swapParams =
+            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0 });
+
+        vm.prank(address(initializer));
+        vm.expectRevert(InsufficientFeeCurrency.selector);
+        dopplerHook.onSwap(address(0x1234), poolKey, swapParams, toBalanceDelta(-int128(1 ether), int128(5 ether)), "");
     }
 
     /* ----------------------------------------------------------------------------- */
