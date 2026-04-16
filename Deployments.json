@@ -206,6 +206,7 @@
     "DopplerHookMigrator": "0x1e40b0875dda35f41e15cfb475403859b8c860c4",
     "DopplerLensQuoter": "0x4a8d81db741248a36d9eb3bc6ef648bf798b47a7",
     "GovernanceFactory": "0x9dbfaadc8c0cb2c34ba698dd9426555336992e20",
+    "LaunchpadGovernanceFactory": "0x0902e7c7207df8ed6303aef4382bcab181b5fbfa",
     "LockableUniswapV3Initializer": "0x16ada5be50c3c2d94af5feae6b539c40a78ad53c",
     "MulticurveLibrary": "0x32238a39ba5af060efbfada59979b639e0945fe0",
     "NoOpGovernanceFactory": "0x7bd798fafc99a3b17e261f8308a8c11b56935ea1",
