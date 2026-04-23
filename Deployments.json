@@ -132,7 +132,7 @@
     "GovernanceFactory": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b",
     "LaunchpadGovernanceFactory": "0x40bcb4dda3bcf7dba30c5d10c31ee2791ed9ddca",
     "LockableUniswapV3Initializer": "0xe0dc4012ac9c868f09c6e4b20d66ed46d6f258d0",
-    "NoOpGovernanceFactory": "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299",
+    "NoOpGovernanceFactory": "0xe7dfbd5b0a2c3b4464653a9becdc489229ef090e",
     "NoOpMigrator": "0x6ddfed58d238ca3195e49d8ac3d4cea6386e5c33",
     "Quoter": "0xfd44b773b21ac485c95db1ff38554b7699f8c042",
     "RehypeDopplerHook": "0x3ec4798a9b11e8243a8db99687f7a23597b96623",
