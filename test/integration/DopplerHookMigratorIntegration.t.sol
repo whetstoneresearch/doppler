@@ -687,6 +687,125 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         assertGt(startDate, 0);
     }
 
+    function test_fullFlow_CreateAndMigrate_WithRehypeHookAndSplit() public {
+        address[] memory dopplerHooks = new address[](1);
+        uint256[] memory flags = new uint256[](1);
+        dopplerHooks[0] = address(rehypeHookMigrator);
+        flags[0] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
+        vm.prank(AIRLOCK_OWNER);
+        migrator.setDopplerHookState(dopplerHooks, flags);
+
+        uint24 customFee = 3000;
+        uint256 proceedsShare = 0.1e18;
+        address buybackDst = address(0xBEEF);
+
+        bytes memory initData = _defaultPoolInitializerData();
+        bytes memory rehypeData = abi.encode(
+            RehypeInitData({
+                numeraire: address(0),
+                buybackDst: buybackDst,
+                customFee: customFee,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.2e18,
+                    assetFeesToNumeraireBuybackWad: 0.2e18,
+                    assetFeesToBeneficiaryWad: 0.3e18,
+                    assetFeesToLpWad: 0.3e18,
+                    numeraireFeesToAssetBuybackWad: 0.2e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.2e18,
+                    numeraireFeesToBeneficiaryWad: 0.3e18,
+                    numeraireFeesToLpWad: 0.3e18
+                })
+            })
+        );
+        bytes memory migratorData =
+            _splitMigratorData(false, address(rehypeHookMigrator), rehypeData, PROCEEDS_RECIPIENT, proceedsShare);
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,, address timelock,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: initData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(11))
+            })
+        );
+
+        (address storedRecipient,, uint256 storedShare) = migrator.splitConfigurationOf(address(0), asset);
+        assertEq(storedRecipient, PROCEEDS_RECIPIENT);
+        assertEq(storedShare, proceedsShare);
+
+        uint256 recipientBalanceBefore = PROCEEDS_RECIPIENT.balance;
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        (, PoolKey memory poolKey,,,,,, MigratorStatus migratorStatus) = migrator.getAssetData(address(0), asset);
+        assertEq(uint8(migratorStatus), uint8(MigratorStatus.Locked), "Pool should be Locked after migrate");
+
+        (address storedAsset, address storedNumeraire, address storedBuybackDst) =
+            rehypeHookMigrator.getPoolInfo(poolKey.toId());
+        assertEq(storedAsset, asset, "Rehype hook should store the migrated asset");
+        assertEq(storedNumeraire, address(0), "Rehype hook should store the migrated numeraire");
+        assertEq(storedBuybackDst, buybackDst, "Rehype hook should store the configured buyback destination");
+
+        (
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        ) = rehypeHookMigrator.getFeeDistributionInfo(poolKey.toId());
+
+        assertEq(assetFeesToAssetBuybackWad, 0.2e18);
+        assertEq(assetFeesToNumeraireBuybackWad, 0.2e18);
+        assertEq(assetFeesToBeneficiaryWad, 0.3e18);
+        assertEq(assetFeesToLpWad, 0.3e18);
+        assertEq(numeraireFeesToAssetBuybackWad, 0.2e18);
+        assertEq(numeraireFeesToNumeraireBuybackWad, 0.2e18);
+        assertEq(numeraireFeesToBeneficiaryWad, 0.3e18);
+        assertEq(numeraireFeesToLpWad, 0.3e18);
+        assertEq(uint8(rehypeHookMigrator.getFeeRoutingMode(poolKey.toId())), uint8(FeeRoutingMode.DirectBuyback));
+
+        (,,,,,, uint24 storedCustomFee) = rehypeHookMigrator.getHookFees(poolKey.toId());
+        assertEq(storedCustomFee, customFee, "Rehype hook should store the configured custom fee");
+
+        assertGt(
+            PROCEEDS_RECIPIENT.balance - recipientBalanceBefore,
+            0,
+            "Proceeds recipient should receive a split during migration"
+        );
+
+        (PoolKey memory streamKey, address streamRecipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) =
+            locker.streams(poolKey.toId());
+        assertEq(address(streamKey.hooks), address(migrator));
+        assertEq(streamRecipient, timelock);
+        assertEq(lockDuration, 30 days);
+        assertEq(isUnlocked, false);
+        assertGt(startDate, 0);
+
+        _swapOnMigrationPool(asset);
+
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 airlockOwnerFees0, uint128 airlockOwnerFees1,) =
+            rehypeHookMigrator.getHookFees(poolKey.toId());
+        assertTrue(
+            beneficiaryFees0 + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1 > 0,
+            "Rehype hook should still accrue post-migration fees when a split is configured"
+        );
+    }
+
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
         return
             abi.encode(
