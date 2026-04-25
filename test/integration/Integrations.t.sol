@@ -9,7 +9,9 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
+import { PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
@@ -49,7 +51,8 @@ import {
 import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
 import {
     deployUniswapV4MigratorSplit,
-    prepareUniswapV4MigratorSplitData
+    prepareUniswapV4MigratorSplitData,
+    prepareUniswapV4MigratorSplitDataWithSplit
 } from "test/integration/UniswapV4MigratorSplitIntegration.t.sol";
 import {
     deployUniswapV4MulticurveInitializer,
@@ -214,13 +217,20 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryNo
     }
 }
 
-contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4MigratorIntegrationTest is
+contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4MigratorSplitIntegrationTest is
     BaseIntegrationTest
 {
+    using PoolIdLibrary for PoolKey;
+
+    address internal constant PROCEEDS_RECIPIENT = address(0x5555);
+
+    StreamableFeesLockerV2 internal locker;
+    UniswapV4MigratorSplit internal migrator;
+
     function setUp() public override {
         super.setUp();
 
-        name = "CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Migrator";
+        name = "CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4MigratorSplit";
 
         CloneERC20VotesFactory tokenFactory = deployCloneERC20VotesFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.tokenFactory = tokenFactory;
@@ -242,7 +252,7 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
 
         TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
 
-        (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
+        (locker,, migrator) = deployUniswapV4MigratorSplit(
             vm,
             _deployCodeTo,
             airlock,
@@ -257,6 +267,47 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
         GovernanceFactory governanceFactory = deployGovernanceFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.governanceFactory = governanceFactory;
         createParams.governanceFactoryData = prepareGovernanceFactoryData();
+    }
+
+    function test_migrate_SetsStreamMetadataAndBeneficiaryShares() public {
+        (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
+        _beforeMigrate();
+        airlock.migrate(asset);
+
+        (PoolKey memory poolKey,) = migrator.getAssetData(address(0), asset);
+        (PoolKey memory streamKey, address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) =
+            locker.streams(poolKey.toId());
+
+        assertEq(address(streamKey.hooks), address(poolKey.hooks));
+        assertEq(recipient, timelock);
+        assertEq(lockDuration, 30 days);
+        assertFalse(isUnlocked);
+        assertGt(startDate, 0);
+        assertEq(locker.getShares(poolKey.toId(), AIRLOCK_OWNER), 0.05e18);
+        assertEq(locker.getShares(poolKey.toId(), address(0xbeef)), 0.05e18);
+        assertEq(locker.getShares(poolKey.toId(), address(0xb0b)), 0.9e18);
+    }
+
+    function test_migrate_DistributesConfiguredSplit() public {
+        createParams.liquidityMigratorData =
+            prepareUniswapV4MigratorSplitDataWithSplit(airlock, PROCEEDS_RECIPIENT, 0.1e18);
+
+        uint256 proceedsRecipientBalanceBefore = PROCEEDS_RECIPIENT.balance;
+
+        (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
+        _beforeMigrate();
+        airlock.migrate(asset);
+
+        (address storedRecipient,, uint256 storedShare) = migrator.splitConfigurationOf(address(0), asset);
+        assertEq(storedRecipient, PROCEEDS_RECIPIENT);
+        assertEq(storedShare, 0.1e18);
+        assertGt(PROCEEDS_RECIPIENT.balance - proceedsRecipientBalanceBefore, 0);
+
+        (PoolKey memory poolKey,) = migrator.getAssetData(address(0), asset);
+        (, address recipient,, uint32 lockDuration, bool isUnlocked) = locker.streams(poolKey.toId());
+        assertEq(recipient, timelock);
+        assertEq(lockDuration, 30 days);
+        assertFalse(isUnlocked);
     }
 
     function _beforeMigrate() internal override {
@@ -290,13 +341,16 @@ contract CloneVotesERC20FactoryUniswapV4InitializerGovernanceFactoryUniswapV4Mig
     }
 }
 
-contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUniswapV4MigratorIntegrationTest is
+contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUniswapV4MigratorSplitIntegrationTest is
     BaseIntegrationTest
 {
+    StreamableFeesLockerV2 internal locker;
+    UniswapV4MigratorSplit internal migrator;
+
     function setUp() public override {
         super.setUp();
 
-        name = "CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUniswapV4Migrator";
+        name = "CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUniswapV4MigratorSplit";
 
         CloneERC20VotesFactory tokenFactory = deployCloneERC20VotesFactory(vm, airlock, AIRLOCK_OWNER);
         createParams.tokenFactory = tokenFactory;
@@ -312,7 +366,7 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUn
 
         TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
 
-        (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
+        (locker,, migrator) = deployUniswapV4MigratorSplit(
             vm,
             _deployCodeTo,
             airlock,
@@ -351,15 +405,19 @@ contract CloneVotesERC20FactoryUniswapV4MulticurveInitializerGovernanceFactoryUn
     }
 }
 
-contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorIntegrationTest is BaseIntegrationTest {
+contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorSplitIntegrationTest is
+    BaseIntegrationTest
+{
     TestERC20 internal numeraire;
     bool internal isToken0;
+    StreamableFeesLockerV2 internal locker;
+    UniswapV4MigratorSplit internal migrator;
 
     function setUp() public override {
         vm.createSelectFork(vm.envString("ETH_MAINNET_RPC_URL"), 21_093_509);
         super.setUp();
 
-        name = "TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4Migrator";
+        name = "TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorSplit";
 
         numeraire = new TestERC20(0);
 
@@ -382,7 +440,7 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
 
         TopUpDistributor topUpDistributor = deployTopUpDistributor(vm, airlock);
 
-        (,, UniswapV4MigratorSplit migrator) = deployUniswapV4MigratorSplit(
+        (locker,, migrator) = deployUniswapV4MigratorSplit(
             vm,
             _deployCodeTo,
             airlock,
@@ -398,6 +456,29 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
         createParams.governanceFactory = governanceFactory;
     }
 
+    function test_migrate_NoOpGovernanceStreamRemainsLockedAfterCollectFees() public {
+        (asset, pool, governance, timelock, migrationPool) = airlock.create(createParams);
+        _beforeMigrate();
+        airlock.migrate(asset);
+
+        (PoolKey memory poolKey,) =
+            migrator.getAssetData(isToken0 ? asset : address(numeraire), isToken0 ? address(numeraire) : asset);
+        (, address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) = locker.streams(poolKey.toId());
+
+        assertEq(recipient, address(0xdead));
+        assertEq(lockDuration, 30 days);
+        assertFalse(isUnlocked);
+        assertGt(startDate, 0);
+
+        vm.warp(block.timestamp + 30 days + 1);
+        locker.collectFees(poolKey.toId());
+
+        (, recipient,, lockDuration, isUnlocked) = locker.streams(poolKey.toId());
+        assertEq(recipient, address(0xdead));
+        assertEq(lockDuration, 30 days);
+        assertFalse(isUnlocked);
+    }
+
     function _beforeMigrate() internal override {
         numeraire.mint(address(this), 1e48);
         numeraire.approve(UNISWAP_V3_ROUTER_MAINNET, type(uint256).max);
@@ -405,15 +486,15 @@ contract TokenFactoryUniswapV3InitializerNoOpGovernanceFactoryUniswapV4MigratorI
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                tokenIn: address(numeraire),
-                tokenOut: asset,
-                fee: uint24(3000),
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: 1e48,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
-            })
+                    tokenIn: address(numeraire),
+                    tokenOut: asset,
+                    fee: uint24(3000),
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: 1e48,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(isToken0 ? int24(-167_520) : int24(167_520))
+                })
             );
     }
 }

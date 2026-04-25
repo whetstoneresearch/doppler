@@ -5,12 +5,12 @@ import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { IPositionManager, PositionManager } from "@v4-periphery/PositionManager.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
@@ -50,7 +50,7 @@ abstract contract BaseForkTest is Test {
     UniswapV2MigratorSplit public v2Migrator;
     UniswapV4MigratorSplit public v4Migrator;
     UniswapV4MigratorSplitHook public v4MigratorHook;
-    StreamableFeesLocker public streamableFeesLocker;
+    StreamableFeesLockerV2 public streamableFeesLocker;
     GovernanceFactory public governanceFactory;
     NoOpGovernanceFactory public noOpGovernanceFactory;
     TopUpDistributor public topUpDistributor;
@@ -169,12 +169,12 @@ abstract contract BaseForkTest is Test {
         address positionManager = _getPositionManager();
         require(positionManager != address(0), "Position Manager not available for this chain");
 
-        // Deploy StreamableFeesLocker
-        streamableFeesLocker = new StreamableFeesLocker(
-            IPositionManager(positionManager),
+        // Deploy StreamableFeesLockerV2
+        streamableFeesLocker = new StreamableFeesLockerV2(
+            IPoolManager(v4PoolManager),
             impersonatedAddress // protocol owner
         );
-        console.log("StreamableFeesLocker deployed at:", address(streamableFeesLocker));
+        console.log("StreamableFeesLockerV2 deployed at:", address(streamableFeesLocker));
 
         // Use a hardcoded hook address that matches the expected pattern
         // The hook must have the BEFORE_INITIALIZE_FLAG set
@@ -202,7 +202,7 @@ abstract contract BaseForkTest is Test {
 
         // Approve migrator in locker
         streamableFeesLocker.approveMigrator(address(v4Migrator));
-        console.log("V4 Migrator approved in StreamableFeesLocker");
+        console.log("V4 Migrator approved in StreamableFeesLockerV2");
     }
 
     function _registerModules() internal {

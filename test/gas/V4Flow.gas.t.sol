@@ -14,13 +14,12 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory, IGovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
@@ -28,6 +27,7 @@ import { DopplerDeployer, IPoolInitializer, UniswapV4Initializer } from "src/ini
 import { ILiquidityMigrator, UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { ITokenFactory, TokenFactory } from "src/tokens/TokenFactory.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 
 // TODO: Since now we're taking gas snapshots in the unit tests we can also remove that file, but before doing so
@@ -36,13 +36,13 @@ contract V4FlowGas is Deployers, DeployPermit2 {
     IAllowanceTransfer public permit2;
     UniswapV4MigratorSplit public migrator;
     UniswapV4MigratorSplitHook public migratorHook;
-    IPositionManager public positionManager;
+    PositionManager public positionManager;
     Airlock public airlock;
     DopplerDeployer public deployer;
     UniswapV4Initializer public initializer;
     TokenFactory public tokenFactory;
     GovernanceFactory public governanceFactory;
-    StreamableFeesLocker public locker;
+    StreamableFeesLockerV2 public locker;
     TopUpDistributor public topUpDistributor;
 
     address integrator = makeAddr("integrator");
@@ -54,10 +54,10 @@ contract V4FlowGas is Deployers, DeployPermit2 {
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
-        positionManager = Deploy.positionManager(
+        positionManager = PositionManager(payable(address(Deploy.positionManager(
             address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
-        );
-        locker = new StreamableFeesLocker(positionManager, address(this));
+        ))));
+        locker = new StreamableFeesLockerV2(manager, address(this));
         migratorHook = UniswapV4MigratorSplitHook(
             address(
                 uint160(
@@ -65,11 +65,11 @@ contract V4FlowGas is Deployers, DeployPermit2 {
                 ) ^ (0x4444 << 144)
             )
         );
-        TopUpDistributor topUpDistributor = new TopUpDistributor(address(airlock));
+        topUpDistributor = new TopUpDistributor(address(airlock));
         migrator = new UniswapV4MigratorSplit(
             address(airlock),
             IPoolManager(manager),
-            PositionManager(payable(address(positionManager))),
+            positionManager,
             locker,
             IHooks(migratorHook),
             topUpDistributor

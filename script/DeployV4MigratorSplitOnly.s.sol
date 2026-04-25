@@ -38,7 +38,7 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
         address positionManager = config.get("uniswap_v4_position_manager").toAddress();
         address topUpDistributor = config.get("top_up_distributor").toAddress();
-        address locker = config.get("streamable_fees_locker").toAddress();
+        address locker = config.get("streamable_fees_locker_v2").toAddress();
 
         vm.startBroadcast();
         (bytes32 hookSalt, address hookDeployedTo) = mineV4MigratorHookCreate3(msg.sender, createX);

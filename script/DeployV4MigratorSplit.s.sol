@@ -6,8 +6,7 @@ import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { Airlock } from "src/Airlock.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { mineV4MigratorHookCreate3 } from "test/shared/AirlockMiner.sol";
@@ -39,7 +38,7 @@ contract DeployV4MigratorScript is Script, Config {
         vm.startBroadcast();
         (bytes32 hookSalt, address hookDeployedTo) = mineV4MigratorHookCreate3(msg.sender, createX);
 
-        bytes32 lockerSalt = generateCreate3Salt(msg.sender, type(StreamableFeesLocker).name);
+        bytes32 lockerSalt = generateCreate3Salt(msg.sender, type(StreamableFeesLockerV2).name);
         address lockerDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(lockerSalt, msg.sender), createX);
 
         bytes32 migratorSalt = generateCreate3Salt(msg.sender, type(UniswapV4MigratorSplit).name);
@@ -48,7 +47,7 @@ contract DeployV4MigratorScript is Script, Config {
         address locker = ICreateX(createX)
             .deployCreate3(
                 lockerSalt,
-                abi.encodePacked(type(StreamableFeesLocker).creationCode, abi.encode(positionManager, multisig))
+                abi.encodePacked(type(StreamableFeesLockerV2).creationCode, abi.encode(poolManager, multisig))
             );
 
         address migrator = ICreateX(createX)
@@ -70,7 +69,7 @@ contract DeployV4MigratorScript is Script, Config {
         require(migratorHook == hookDeployedTo, "Unexpected Migrator Hook deployed address");
 
         vm.stopBroadcast();
-        config.set("streamable_fees_locker", locker);
+        config.set("streamable_fees_locker_v2", locker);
         config.set("uniswap_v4_migrator_split", migrator);
         config.set("uniswap_v4_migrator_split_hook", migratorHook);
     }

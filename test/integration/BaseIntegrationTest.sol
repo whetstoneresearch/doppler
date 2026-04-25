@@ -182,7 +182,7 @@ function deployUniswapV2MigratorSplit(
 }
 
 function deployTopUpDistributor(Vm vm, Airlock airlock) returns (TopUpDistributor topUpDistributor) {
-    new TopUpDistributor(address(airlock));
+    topUpDistributor = new TopUpDistributor(address(airlock));
 }
 
 // Utility functions
@@ -209,4 +209,3 @@ function deployUniswapV2(Vm vm, address weth) returns (address factory, address 
         )
     );
 }
-

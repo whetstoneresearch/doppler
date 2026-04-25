@@ -5,13 +5,13 @@ import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { BeneficiaryData, StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
+import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 
 function deployUniswapV4MigratorSplit(
     Vm vm,
@@ -21,8 +21,8 @@ function deployUniswapV4MigratorSplit(
     address poolManager,
     address positionManager,
     address topUpDistributor
-) returns (StreamableFeesLocker locker, UniswapV4MigratorSplitHook migratorHook, UniswapV4MigratorSplit migrator) {
-    locker = new StreamableFeesLocker(IPositionManager(positionManager), airlockOwner);
+) returns (StreamableFeesLockerV2 locker, UniswapV4MigratorSplitHook migratorHook, UniswapV4MigratorSplit migrator) {
+    locker = new StreamableFeesLockerV2(IPoolManager(poolManager), airlockOwner);
     migratorHook = UniswapV4MigratorSplitHook(
         address(
             uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG)
@@ -48,10 +48,19 @@ function deployUniswapV4MigratorSplit(
     vm.startPrank(airlockOwner);
     airlock.setModuleState(modules, states);
     locker.approveMigrator(address(migrator));
+    TopUpDistributor(topUpDistributor).setPullUp(address(migrator), true);
     vm.stopPrank();
 }
 
 function prepareUniswapV4MigratorSplitData(Airlock airlock) view returns (bytes memory) {
+    return prepareUniswapV4MigratorSplitDataWithSplit(airlock, address(0), 0);
+}
+
+function prepareUniswapV4MigratorSplitDataWithSplit(
+    Airlock airlock,
+    address proceedsRecipient,
+    uint256 proceedsShare
+) view returns (bytes memory) {
     BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
     beneficiaries[0] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
     beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbeef), shares: 0.05e18 });
@@ -60,7 +69,7 @@ function prepareUniswapV4MigratorSplitData(Airlock airlock) view returns (bytes 
 
     int24 tickSpacing = 8;
 
-    return abi.encode(2000, tickSpacing, 30 days, beneficiaries, address(0), 0);
+    return abi.encode(2000, tickSpacing, 30 days, beneficiaries, proceedsRecipient, proceedsShare);
 }
 
 function sortBeneficiaries(BeneficiaryData[] memory beneficiaries) pure returns (BeneficiaryData[] memory) {
