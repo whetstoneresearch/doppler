@@ -106,8 +106,12 @@ contract CloneERC20VotesTest is Test {
         assertEq(token.symbol(), symbol, "Wrong symbol");
         assertEq(token.tokenURI(), tokenURI, "Wrong token URI");
         assertEq(token.totalSupply(), initialSupply, "Wrong total supply");
-        assertEq(token.balanceOf(recipient), initialSupply - totalPreMint, "Wrong balance of recipient");
-        assertEq(token.balanceOf(address(token)), totalPreMint, "Wrong balance of vested tokens");
+
+        uint256 expectedRecipientBalance = recipient == address(token) ? initialSupply : initialSupply - totalPreMint;
+        uint256 expectedTokenBalance = recipient == address(token) ? initialSupply : totalPreMint;
+
+        assertEq(token.balanceOf(recipient), expectedRecipientBalance, "Wrong balance of recipient");
+        assertEq(token.balanceOf(address(token)), expectedTokenBalance, "Wrong balance of vested tokens");
         assertEq(token.lastMintTimestamp(), 0, "Wrong mint timestamp");
         assertEq(token.owner(), owner, "Wrong owner");
         assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint rate");
