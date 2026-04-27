@@ -836,6 +836,21 @@ contract CloneDERC20V3Test is Test {
         assertEq(token.balanceOf(address(0xa)), 1e24, "Tokens should go to beneficiary");
     }
 
+    function test_release_RevertsWhenUnknownScheduleId() public {
+        _createSingleScheduleToken(address(0xa), 1e24, 0, 365 days);
+
+        vm.prank(address(0xa));
+        vm.expectRevert(abi.encodeWithSelector(UnknownScheduleId.selector, 1));
+        token.release(1, 0);
+    }
+
+    function test_releaseFor_RevertsWhenUnknownScheduleId() public {
+        _createSingleScheduleToken(address(0xa), 1e24, 0, 365 days);
+
+        vm.expectRevert(abi.encodeWithSelector(UnknownScheduleId.selector, 1));
+        token.releaseFor(address(0xa), 1, 0);
+    }
+
     // =========================================================================
     // Pool Lock Tests
     // =========================================================================
@@ -999,6 +1014,53 @@ contract CloneDERC20V3Test is Test {
         );
     }
 
+    function test_balanceLimit_TransferFromBlocksTransferToNonExcludedAddress() public {
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            _defaultLimitEnd(),
+            CONTROLLER,
+            _emptyAddresses()
+        );
+
+        address spender = address(0x1234);
+        vm.prank(RECIPIENT);
+        token.approve(spender, DEFAULT_MAX_BALANCE_LIMIT + 1);
+
+        vm.prank(spender);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BalanceLimitExceeded.selector, DEFAULT_MAX_BALANCE_LIMIT + 1, DEFAULT_MAX_BALANCE_LIMIT
+            )
+        );
+        token.transferFrom(RECIPIENT, address(0xbeef), DEFAULT_MAX_BALANCE_LIMIT + 1);
+    }
+
+    function test_balanceLimit_TransferFromAllowsTransferUpToLimit() public {
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            _defaultLimitEnd(),
+            CONTROLLER,
+            _emptyAddresses()
+        );
+
+        address spender = address(0x1234);
+        vm.prank(RECIPIENT);
+        token.approve(spender, DEFAULT_MAX_BALANCE_LIMIT);
+
+        vm.prank(spender);
+        token.transferFrom(RECIPIENT, address(0xbeef), DEFAULT_MAX_BALANCE_LIMIT);
+
+        assertEq(token.balanceOf(address(0xbeef)), DEFAULT_MAX_BALANCE_LIMIT, "Wrong transferFrom balance");
+    }
+
     function test_balanceLimit_RevertsWhenNonControllerDisables() public {
         _createToken(
             _emptySchedules(),
@@ -1079,6 +1141,33 @@ contract CloneDERC20V3Test is Test {
         );
     }
 
+    function test_balanceLimit_ExcludedTransferAfterExpiryDoesNotLazyDisable() public {
+        address[] memory excluded = new address[](1);
+        excluded[0] = address(0xbeef);
+        uint48 limitEnd = uint48(block.timestamp + 7 days);
+
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            limitEnd,
+            CONTROLLER,
+            excluded
+        );
+
+        vm.warp(limitEnd);
+
+        vm.prank(RECIPIENT);
+        token.transfer(address(0xbeef), DEFAULT_MAX_BALANCE_LIMIT + 1);
+
+        vm.prank(RECIPIENT);
+        token.transfer(address(0xcafe), DEFAULT_MAX_BALANCE_LIMIT + 1);
+
+        assertFalse(token.isBalanceLimitActive(), "Non-excluded transfer should lazy-disable");
+    }
+
     function test_balanceLimit_UnlockedPoolCanReceiveAboveCap() public {
         _createToken(
             _emptySchedules(),
@@ -1131,6 +1220,40 @@ contract CloneDERC20V3Test is Test {
         assertGt(token.balanceOf(OWNER), ownerBalanceBefore, "Owner should receive minted tokens");
     }
 
+    function test_mintInflation_ExactOneYearAmount() public {
+        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
+
+        vm.prank(OWNER);
+        token.unlockPool();
+
+        vm.warp(block.timestamp + 365 days);
+        token.mintInflation();
+
+        uint256 expectedMint = INITIAL_SUPPLY * YEARLY_MINT_RATE / 1e18;
+        assertEq(token.balanceOf(OWNER), expectedMint, "Wrong one-year mint amount");
+    }
+
+    function test_mintInflation_ExactMultipleYearsCompounds() public {
+        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
+
+        vm.prank(OWNER);
+        token.unlockPool();
+
+        uint256 supply = INITIAL_SUPPLY;
+        uint256 expectedMint;
+        for (uint256 i; i < 3; i++) {
+            uint256 yearMint = supply * YEARLY_MINT_RATE / 1e18;
+            expectedMint += yearMint;
+            supply += yearMint;
+        }
+
+        vm.warp(block.timestamp + 3 * 365 days);
+        token.mintInflation();
+
+        assertEq(token.balanceOf(OWNER), expectedMint, "Wrong compounded mint amount");
+        assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedMint, "Wrong compounded total supply");
+    }
+
     function test_updateMintRate_RevertsWhenNotOwner() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -1146,6 +1269,26 @@ contract CloneDERC20V3Test is Test {
         vm.prank(OWNER);
         token.updateMintRate(newRate);
         assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
+    }
+
+    function test_updateMintRate_MintsElapsedTimeAtOldRate() public {
+        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
+
+        vm.prank(OWNER);
+        token.unlockPool();
+
+        uint256 elapsed = 180 days;
+        uint256 newRate = 0.01 ether;
+        uint256 expectedMint = INITIAL_SUPPLY * YEARLY_MINT_RATE * elapsed / (1e18 * 365 days);
+
+        vm.warp(block.timestamp + elapsed);
+
+        vm.prank(OWNER);
+        token.updateMintRate(newRate);
+
+        assertEq(token.balanceOf(OWNER), expectedMint, "Should mint elapsed amount at old rate");
+        assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
+        assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
     }
 
     // =========================================================================
