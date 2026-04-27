@@ -4,10 +4,13 @@ pragma solidity ^0.8.13;
 import { Ownable } from "@solady/auth/Ownable.sol";
 import { Initializable } from "@solady/utils/Initializable.sol";
 import { Test } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 import {
     ArrayLengthsMismatch,
+    BalanceLimitDisabled,
     BalanceLimitExceeded,
-    CloneDERC20V3,
+    BalanceLimitNotActive,
+    DopplerERC20V1,
     InsufficientReleasableAmount,
     InvalidAllocation,
     InvalidBalanceLimit,
@@ -28,23 +31,25 @@ import {
     UpdateMintRate,
     UpdateTokenURI,
     VestingSchedule
-} from "src/tokens/CloneDERC20V3.sol";
+} from "src/tokens/DopplerERC20V1.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
 uint256 constant YEARLY_MINT_RATE = 0.02e18;
 uint256 constant DEFAULT_MAX_BALANCE_LIMIT = 5e23;
-string constant NAME = "TestV3";
-string constant SYMBOL = "TSTV3";
+string constant NAME = "TestV1";
+string constant SYMBOL = "TSTV1";
 string constant TOKEN_URI = "ipfs://QmInitialURI";
 address constant RECIPIENT = address(0xa71ce);
 address constant OWNER = address(0xb0b);
 address constant CONTROLLER = address(0xc0ffee);
 
-contract CloneDERC20V3Test is Test {
-    CloneDERC20V3 public token;
+contract DopplerERC20V1Test is Test {
+    DopplerERC20V1 public token;
+    DopplerERC20V1 internal implementation;
 
     function setUp() public {
-        token = new CloneDERC20V3();
+        implementation = new DopplerERC20V1();
+        token = DopplerERC20V1(LibClone.clone(address(implementation)));
     }
 
     // =========================================================================
@@ -983,9 +988,31 @@ contract CloneDERC20V3Test is Test {
             _emptyAddresses()
         );
 
+        vm.expectEmit();
+        emit BalanceLimitDisabled(false);
         vm.prank(CONTROLLER);
         token.disableBalanceLimit();
         assertFalse(token.isBalanceLimitActive(), "Balance limit should be disabled");
+    }
+
+    function test_balanceLimit_RevertsWhenControllerDisablesTwice() public {
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            _defaultLimitEnd(),
+            CONTROLLER,
+            _emptyAddresses()
+        );
+
+        vm.prank(CONTROLLER);
+        token.disableBalanceLimit();
+
+        vm.prank(CONTROLLER);
+        vm.expectRevert(BalanceLimitNotActive.selector);
+        token.disableBalanceLimit();
     }
 
     function test_balanceLimit_ControllerDisableAllowsOverLimitTransfer() public {
@@ -1130,6 +1157,8 @@ contract CloneDERC20V3Test is Test {
 
         vm.warp(limitEnd);
 
+        vm.expectEmit();
+        emit BalanceLimitDisabled(true);
         vm.prank(RECIPIENT);
         token.transfer(address(0xbeef), DEFAULT_MAX_BALANCE_LIMIT + 1);
 
@@ -1166,6 +1195,29 @@ contract CloneDERC20V3Test is Test {
         token.transfer(address(0xcafe), DEFAULT_MAX_BALANCE_LIMIT + 1);
 
         assertFalse(token.isBalanceLimitActive(), "Non-excluded transfer should lazy-disable");
+    }
+
+    function test_balanceLimit_TransferOwnershipExcludesNewOwner() public {
+        address newOwner = address(0xfeed);
+
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            _defaultLimitEnd(),
+            CONTROLLER,
+            _emptyAddresses()
+        );
+
+        assertFalse(token.isExcludedFromBalanceLimit(newOwner), "New owner should start non-excluded");
+
+        vm.prank(OWNER);
+        token.transferOwnership(newOwner);
+
+        assertEq(token.owner(), newOwner, "Ownership should transfer");
+        assertTrue(token.isExcludedFromBalanceLimit(newOwner), "New owner should be excluded from balance limit");
     }
 
     function test_balanceLimit_UnlockedPoolCanReceiveAboveCap() public {
@@ -1218,6 +1270,39 @@ contract CloneDERC20V3Test is Test {
         uint256 ownerBalanceBefore = token.balanceOf(OWNER);
         token.mintInflation();
         assertGt(token.balanceOf(OWNER), ownerBalanceBefore, "Owner should receive minted tokens");
+    }
+
+    function test_mintInflation_NewOwnerReceivesTokensAfterTransferOwnershipWhileCapActive() public {
+        address newOwner = address(0xfeed);
+
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            _defaultLimitEnd(),
+            CONTROLLER,
+            _emptyAddresses()
+        );
+
+        vm.prank(RECIPIENT);
+        token.transfer(newOwner, DEFAULT_MAX_BALANCE_LIMIT);
+
+        vm.prank(OWNER);
+        token.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        token.unlockPool();
+
+        vm.warp(block.timestamp + 365 days);
+
+        uint256 ownerBalanceBefore = token.balanceOf(newOwner);
+        vm.prank(newOwner);
+        token.mintInflation();
+
+        assertGt(token.balanceOf(newOwner), ownerBalanceBefore, "New owner should receive minted inflation");
+        assertGt(token.balanceOf(newOwner), DEFAULT_MAX_BALANCE_LIMIT, "New owner mint should bypass active cap");
     }
 
     function test_mintInflation_ExactOneYearAmount() public {
@@ -1288,6 +1373,42 @@ contract CloneDERC20V3Test is Test {
 
         assertEq(token.balanceOf(OWNER), expectedMint, "Should mint elapsed amount at old rate");
         assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
+        assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
+    }
+
+    function test_updateMintRate_NewOwnerCanMintElapsedAmountAfterTransferOwnershipWhileCapActive() public {
+        address newOwner = address(0xfeed);
+        uint256 newRate = 0.01 ether;
+
+        _createToken(
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            DEFAULT_MAX_BALANCE_LIMIT,
+            _defaultLimitEnd(),
+            CONTROLLER,
+            _emptyAddresses()
+        );
+
+        vm.prank(RECIPIENT);
+        token.transfer(newOwner, DEFAULT_MAX_BALANCE_LIMIT);
+
+        vm.prank(OWNER);
+        token.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        token.unlockPool();
+
+        vm.warp(block.timestamp + 180 days);
+
+        uint256 ownerBalanceBefore = token.balanceOf(newOwner);
+        vm.prank(newOwner);
+        token.updateMintRate(newRate);
+
+        assertGt(token.balanceOf(newOwner), ownerBalanceBefore, "New owner should receive accrued mint amount");
+        assertGt(token.balanceOf(newOwner), DEFAULT_MAX_BALANCE_LIMIT, "Accrued mint should bypass active cap");
+        assertEq(token.yearlyMintRate(), newRate, "Mint rate should update for transferred owner");
         assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
     }
 

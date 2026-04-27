@@ -1,27 +1,65 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Initializable } from "@solady/utils/Initializable.sol";
 import { Test } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     ArrayLengthsMismatch,
     BalanceLimitExceeded,
-    CloneDERC20V3,
+    DopplerERC20V1,
     InvalidBalanceLimit,
+    MAX_PRE_MINT_PER_ADDRESS_WAD,
+    MAX_TOTAL_PRE_MINT_WAD,
     MAX_YEARLY_MINT_RATE_WAD,
     MaxYearlyMintRateExceeded,
     VestingSchedule
-} from "src/tokens/CloneDERC20V3.sol";
-import { CloneDERC20V3Factory } from "src/tokens/CloneDERC20V3Factory.sol";
-import { generateRecipients } from "test/unit/tokens/CloneERC20Votes.t.sol";
+} from "src/tokens/DopplerERC20V1.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 
-contract CloneDERC20V3FactoryTest is Test {
+function generateRecipients(
+    uint256 seed,
+    uint256 initialSupply
+) pure returns (uint256 totalPreMint, address[] memory recipients, uint256[] memory amounts) {
+    uint256 length = seed % 500;
+
+    address[] memory _recipients = new address[](length);
+    uint256[] memory _amounts = new uint256[](length);
+
+    uint256 maxPreMintPerAddress = initialSupply * MAX_PRE_MINT_PER_ADDRESS_WAD / 1 ether;
+    uint256 maxTotalPreMint = initialSupply * MAX_TOTAL_PRE_MINT_WAD / 1 ether;
+
+    uint256 actualLength;
+
+    for (uint256 i; i < length; ++i) {
+        uint256 amount = uint256(keccak256(abi.encode(seed, i))) % maxPreMintPerAddress;
+        if (amount > maxTotalPreMint) amount = maxTotalPreMint;
+        totalPreMint += amount;
+
+        _recipients[i] = address(uint160(address(0xbeef)) + uint160(i));
+        _amounts[i] = amount;
+        maxTotalPreMint -= amount;
+        actualLength++;
+
+        if (maxTotalPreMint == 0) break;
+    }
+
+    recipients = new address[](actualLength);
+    amounts = new uint256[](actualLength);
+
+    for (uint256 i; i < actualLength; ++i) {
+        recipients[i] = _recipients[i];
+        amounts[i] = _amounts[i];
+    }
+}
+
+contract DopplerERC20V1FactoryTest is Test {
     address internal AIRLOCK = makeAddr("Airlock");
-    CloneDERC20V3Factory internal factory;
+    DopplerERC20V1Factory internal factory;
 
     function setUp() public {
-        factory = new CloneDERC20V3Factory(AIRLOCK);
+        factory = new DopplerERC20V1Factory(AIRLOCK);
     }
 
     /* --------------------------------------------------------------------------- */
@@ -33,18 +71,41 @@ contract CloneDERC20V3FactoryTest is Test {
         assertNotEq(factory.IMPLEMENTATION(), address(0), "Implementation not set");
     }
 
+    function test_constructor_DisablesImplementationInitializers() public {
+        DopplerERC20V1 implementation = DopplerERC20V1(factory.IMPLEMENTATION());
+
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        implementation.initialize(
+            "Implementation",
+            "IMPL",
+            1e18,
+            address(0xa71ce),
+            address(0xb0b),
+            0,
+            new VestingSchedule[](0),
+            new address[](0),
+            new uint256[](0),
+            new uint256[](0),
+            "ipfs://implementation",
+            0,
+            0,
+            address(0),
+            new address[](0)
+        );
+    }
+
     /* ---------------------------------------------------------------------- */
     /*                                create()                                */
     /* ---------------------------------------------------------------------- */
 
     function test_create() public {
-        string memory name = "Test V3";
-        string memory symbol = "TV3";
+        string memory name = "Test Doppler V1";
+        string memory symbol = "TDV1";
         uint256 initialSupply = 1e26;
         address recipient = address(0xa71ce);
         address owner = address(0xb0b);
         uint256 yearlyMintRate = MAX_YEARLY_MINT_RATE_WAD;
-        string memory tokenURI = "ipfs://clone-v3";
+        string memory tokenURI = "ipfs://doppler-v1";
         bytes32 salt = bytes32(uint256(1234));
         uint256 maxBalanceLimit = 5e23;
         uint48 balanceLimitEnd = uint48(block.timestamp + 7 days);
@@ -83,7 +144,7 @@ contract CloneDERC20V3FactoryTest is Test {
         );
 
         vm.prank(AIRLOCK);
-        CloneDERC20V3 token = CloneDERC20V3(factory.create(initialSupply, recipient, owner, salt, tokenData));
+        DopplerERC20V1 token = DopplerERC20V1(factory.create(initialSupply, recipient, owner, salt, tokenData));
 
         address predicted = LibClone.predictDeterministicAddress(factory.IMPLEMENTATION(), salt, address(factory));
         assertEq(address(token), predicted, "Asset address mismatch");
@@ -113,14 +174,14 @@ contract CloneDERC20V3FactoryTest is Test {
     function test_create_RevertsOnDuplicateSalt() public {
         bytes32 salt = bytes32(uint256(1234));
         bytes memory tokenData = abi.encode(
-            "Test V3",
-            "TV3",
+            "Test Doppler V1",
+            "TDV1",
             uint256(0),
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            "ipfs://clone-v3",
+            "ipfs://doppler-v1",
             uint256(0),
             uint48(0),
             address(0),
@@ -140,14 +201,14 @@ contract CloneDERC20V3FactoryTest is Test {
     function test_create_RevertedInitializationDoesNotLeaveCloneCode() public {
         bytes32 salt = bytes32(uint256(5678));
         bytes memory tokenData = abi.encode(
-            "Test V3",
-            "TV3",
+            "Test Doppler V1",
+            "TDV1",
             MAX_YEARLY_MINT_RATE_WAD + 1,
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            "ipfs://clone-v3",
+            "ipfs://doppler-v1",
             uint256(0),
             uint48(0),
             address(0),
@@ -174,14 +235,14 @@ contract CloneDERC20V3FactoryTest is Test {
         beneficiaries[0] = address(0xbeef);
 
         bytes memory tokenData = abi.encode(
-            "Test V3",
-            "TV3",
+            "Test Doppler V1",
+            "TDV1",
             uint256(0),
             schedules,
             beneficiaries,
             new uint256[](0),
             new uint256[](1),
-            "ipfs://clone-v3",
+            "ipfs://doppler-v1",
             uint256(0),
             uint48(0),
             address(0),
@@ -195,14 +256,14 @@ contract CloneDERC20V3FactoryTest is Test {
 
     function test_create_RevertsWhenDecodedBalanceLimitInvalid() public {
         bytes memory tokenData = abi.encode(
-            "Test V3",
-            "TV3",
+            "Test Doppler V1",
+            "TDV1",
             uint256(0),
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            "ipfs://clone-v3",
+            "ipfs://doppler-v1",
             uint256(0),
             uint48(block.timestamp + 7 days),
             address(0xc0ffee),
@@ -222,14 +283,14 @@ contract CloneDERC20V3FactoryTest is Test {
         address controller = address(0xc0ffee);
 
         bytes memory tokenData = abi.encode(
-            "Test V3",
-            "TV3",
+            "Test Doppler V1",
+            "TDV1",
             uint256(0),
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            "ipfs://clone-v3",
+            "ipfs://doppler-v1",
             maxBalanceLimit,
             uint48(block.timestamp + 7 days),
             controller,
@@ -237,8 +298,8 @@ contract CloneDERC20V3FactoryTest is Test {
         );
 
         vm.prank(AIRLOCK);
-        CloneDERC20V3 token =
-            CloneDERC20V3(factory.create(initialSupply, recipient, owner, bytes32(uint256(151_617)), tokenData));
+        DopplerERC20V1 token =
+            DopplerERC20V1(factory.create(initialSupply, recipient, owner, bytes32(uint256(151_617)), tokenData));
 
         vm.prank(recipient);
         vm.expectRevert(abi.encodeWithSelector(BalanceLimitExceeded.selector, maxBalanceLimit + 1, maxBalanceLimit));
@@ -280,14 +341,14 @@ contract CloneDERC20V3FactoryTest is Test {
         amounts[2] = 3e24;
 
         bytes memory tokenData = abi.encode(
-            "Test V3",
-            "TV3",
+            "Test Doppler V1",
+            "TDV1",
             uint256(0),
             schedules,
             beneficiaries,
             scheduleIds,
             amounts,
-            "ipfs://clone-v3",
+            "ipfs://doppler-v1",
             uint256(0),
             uint48(0),
             address(0),
@@ -295,8 +356,8 @@ contract CloneDERC20V3FactoryTest is Test {
         );
 
         vm.prank(AIRLOCK);
-        CloneDERC20V3 token =
-            CloneDERC20V3(factory.create(initialSupply, recipient, owner, bytes32(uint256(181_920)), tokenData));
+        DopplerERC20V1 token =
+            DopplerERC20V1(factory.create(initialSupply, recipient, owner, bytes32(uint256(181_920)), tokenData));
 
         assertEq(token.vestingScheduleCount(), 2, "Wrong schedule count");
         assertEq(token.vestedTotalAmount(), 6e24, "Wrong vested total");
@@ -357,9 +418,9 @@ contract CloneDERC20V3FactoryTest is Test {
         );
 
         vm.prank(AIRLOCK);
-        vm.startSnapshotGas("TokenFactory", "CloneDERC20V3/Recipients");
-        CloneDERC20V3 token = CloneDERC20V3(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
-        vm.stopSnapshotGas("TokenFactory", "CloneDERC20V3/Recipients");
+        vm.startSnapshotGas("TokenFactory", "DopplerERC20V1/Recipients");
+        DopplerERC20V1 token = DopplerERC20V1(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
+        vm.stopSnapshotGas("TokenFactory", "DopplerERC20V1/Recipients");
 
         address predicted =
             LibClone.predictDeterministicAddress(factory.IMPLEMENTATION(), bytes32(seed), address(factory));
@@ -409,7 +470,7 @@ contract CloneDERC20V3FactoryTest is Test {
         );
 
         vm.prank(AIRLOCK);
-        CloneDERC20V3 token = CloneDERC20V3(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
+        DopplerERC20V1 token = DopplerERC20V1(factory.create(initialSupply, recipient, owner, bytes32(seed), tokenData));
 
         assertEq(token.maxBalanceLimit(), maxBalanceLimit, "Wrong balance limit");
         assertEq(token.controller(), controller, "Wrong controller");

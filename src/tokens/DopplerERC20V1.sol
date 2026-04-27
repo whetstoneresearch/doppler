@@ -22,6 +22,9 @@ error NoMintableAmount();
 /// @dev Thrown when trying to mint before the start date
 error MintingNotStartedYet();
 
+/// @dev Thrown when the balance limit is not active
+error BalanceLimitNotActive();
+
 /// @dev Thrown when the schedule ID is out of range
 error UnknownScheduleId(uint256 scheduleId);
 
@@ -102,14 +105,18 @@ event UpdateTokenURI(string tokenURI);
 /// @notice Emitted when the yearly mint rate is updated
 event UpdateMintRate(uint256 newMintRate);
 
+/// @notice Emitted when the balance limit is disabled
+event BalanceLimitDisabled(bool expired);
+
 /**
- * @title Clonable DERC20 V3
+ * @title DopplerERC20 V1.0.0
  * @author Whetstone Research
- * @notice Clonable ERC20 token with multi-schedule vesting, inflation, pool lock, votes and Permit2 support
+ * @notice Clonable ERC20 token with multi-schedule vesting, inflation, pool lock,
+ *         votes, max balance limit, and Permit2 support
  * @dev This contract is designed to be cloned using the ERC1167 minimal proxy pattern
  * @custom:security-contact security@whetstone.cc
  */
-contract CloneDERC20V3 is ERC20, Initializable, Ownable, ERC20Votes {
+contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
     /// @dev Name of the token
     string private _name;
 
@@ -175,6 +182,10 @@ contract CloneDERC20V3 is ERC20, Initializable, Ownable, ERC20Votes {
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initializes the token with the given parameters
      * @param name_ Name of the token
@@ -188,6 +199,10 @@ contract CloneDERC20V3 is ERC20, Initializable, Ownable, ERC20Votes {
      * @param scheduleIds Array of schedule IDs corresponding to each allocation
      * @param amounts Array of amounts for each allocation
      * @param tokenURI_ Uniform Resource Identifier (URI)
+     * @param maxBalanceLimit_ Maximum balance limit
+     * @param balanceLimitEnd_ Balance limit end timestamp
+     * @param controller_ Controller address (optional, excluding it prevents disabling the balance limit earlier)
+     * @param excludedFromBalanceLimit Array of addresses to exclude from the balance limit
      */
     function initialize(
         string memory name_,
@@ -329,8 +344,12 @@ contract CloneDERC20V3 is ERC20, Initializable, Ownable, ERC20Votes {
     /* ------------------------------------------------------------------------- */
 
     /// @notice Permanently disables the balance limit
+    /// @dev Only callable by the controller, which is set during initialization
+    ///      If the controller was not set, the balance limit cannot be disabled early
     function disableBalanceLimit() external onlyController {
+        require(isBalanceLimitActive, BalanceLimitNotActive());
         isBalanceLimitActive = false;
+        emit BalanceLimitDisabled(false);
     }
 
     /* ---------------------------------------------------------------------------- */
@@ -620,6 +639,7 @@ contract CloneDERC20V3 is ERC20, Initializable, Ownable, ERC20Votes {
                     } else {
                         // Lazily disable balance limit on first post expiration transfer
                         isBalanceLimitActive = false;
+                        emit BalanceLimitDisabled(true);
                     }
                 }
             }
@@ -634,5 +654,13 @@ contract CloneDERC20V3 is ERC20, Initializable, Ownable, ERC20Votes {
     /// @inheritdoc ERC20Votes
     function _afterTokenTransfer(address from, address to, uint256 amount) internal override(ERC20Votes, ERC20) {
         super._afterTokenTransfer(from, to, amount);
+    }
+
+    /// @inheritdoc Ownable
+    function _setOwner(address newOwner) internal override {
+        // Exclude new owners from balance limit to prevent inflation mints from reverting
+        // This is only relevant if the balance limit is still enabled during/after migration
+        if (balanceLimitEnd > block.timestamp) isExcludedFromBalanceLimit[newOwner] = true;
+        super._setOwner(newOwner);
     }
 }
