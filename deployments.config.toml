@@ -33,6 +33,7 @@ streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xea95DfdF69B90c65C827070852F7039D6aF6Dd7b"
 governance_factory = "0x9F309D79BEe3E8b2f56FaCF74b7195Df176c8F61"
+uniswap_v4_state_view = "0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -98,6 +99,8 @@ top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xea95DfdF69B90c65C827070852F7039D6aF6Dd7b"
+uniswap_v4_state_view = "0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71"
+doppler_lens_quoter = "0x43d0D97EC9241A8F05A264f94B82A1d2E600f2B3"
 
 [130]
 endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
@@ -138,6 +141,7 @@ airlock_multisig = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0x82d5E22911fbbCB8d3e45812d74eE6203c5824e0"
+uniswap_v4_state_view = "0x77395F3b2E73aE90843717371294fa97cC419D64"
 
 [4326]
 endpoint_url = "${MEGAETH_MAINNET_RPC_URL}"
@@ -193,6 +197,8 @@ decay_multicurve_initializer = "0xD59cE43E53D69F190E15d9822Fb4540dCcc91178"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xea95DfdF69B90c65C827070852F7039D6aF6Dd7b"
+uniswap_v4_state_view = "0x571291b572ed32ce6751a2Cb2486EbEe8DEfB9B4"
+doppler_lens_quoter = "0x4a8d81Db741248a36D9eb3bc6eF648Bf798B47a7"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
