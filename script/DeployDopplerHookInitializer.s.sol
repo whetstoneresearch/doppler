@@ -12,11 +12,14 @@ contract DeployDopplerHookInitializerScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](4);
+        /*uint256[] memory targets = new uint256[](4);
         targets[0] = ChainIds.ETH_MAINNET;
         targets[1] = ChainIds.ETH_SEPOLIA;
         targets[2] = ChainIds.BASE_MAINNET;
-        targets[3] = ChainIds.BASE_SEPOLIA;
+        targets[3] = ChainIds.BASE_SEPOLIA;*/
+
+        uint256[] memory targets = new uint256[](1);
+        targets[0] = ChainIds.BASE_SEPOLIA;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];

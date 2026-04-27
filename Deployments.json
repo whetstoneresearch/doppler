@@ -202,7 +202,7 @@
     "DecayMulticurveInitializer": "0xd59ce43e53d69f190e15d9822fb4540dccc91178",
     "DecayMulticurveInitializerHook": "0xbb7784a4d481184283ed89619a3e3ed143e1adc0",
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
-    "DopplerHookInitializer": "0xbdf938149ac6a781f94faa0ed45e6a0e984c6544",
+    "DopplerHookInitializer": "0x0fcbfef4d90f6e2fd2154cb5970b1d35e79f2544",
     "DopplerHookMigrator": "0x1e40b0875dda35f41e15cfb475403859b8c860c4",
     "DopplerLensQuoter": "0x4a8d81db741248a36d9eb3bc6ef648bf798b47a7",
     "GovernanceFactory": "0x9dbfaadc8c0cb2c34ba698dd9426555336992e20",
