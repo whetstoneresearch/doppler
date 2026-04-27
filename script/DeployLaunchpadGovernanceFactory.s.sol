@@ -22,6 +22,13 @@ abstract contract DeployLaunchpadGovernanceFactoryScript is Script {
     }
 }
 
+/// @dev forge script DeployLaunchpadGovernanceFactoryEthereumMainnetScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $ETH_MAINNET_RPC_URL
+contract DeployLaunchpadGovernanceFactoryEthereumMainnetScript is DeployLaunchpadGovernanceFactoryScript {
+    function setUp() public override {
+        _scriptData = ScriptData({ chainId: ChainIds.ETH_MAINNET });
+    }
+}
+
 /// @dev forge script DeployLaunchpadGovernanceFactoryBaseScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $BASE_MAINNET_RPC_URL
 contract DeployLaunchpadGovernanceFactoryBaseScript is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
