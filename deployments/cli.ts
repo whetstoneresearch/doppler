@@ -86,12 +86,12 @@ const chains: {[chainId: number]: ChainDetails } = {
 };
 
 type Transaction = {
-  hash: `0x${string}`;
-  contractName: string;
+  hash: null | `0x${string}`;
+  contractName: null | string;
   transactionType: 'CREATE' | 'CREATE2' | 'CALL';
   contractAddress: `0x${string}`;
-  function?: string;
-  arguments: `0x${string}`[];
+  function?: null | string;
+  arguments: string[];
   additionalContracts: {
     transactionType: 'CREATE' | 'CREATE2';
     contractName: null | string;
@@ -109,10 +109,19 @@ type Broadcast = {
 type Deployment = {
   contractName: string;
   contractAddress: `0x${string}`;
-  hash: `0x${string}`;
-  arguments: `0x${string}`[];  
-  commit: string;
+  hash: null | `0x${string}`;
+  arguments: string[];
+  commit: null | string;
   timestamp: number;
+  source: 'broadcast' | 'manual';
+};
+
+type ManualDeployment = Omit<Deployment, 'source' | 'arguments'> & {
+  arguments?: string[];
+};
+
+type ManualDeployments = {
+  [chainId: string]: ManualDeployment[];
 };
 
 function shorten(a: string, length: number = 4): string {
@@ -120,10 +129,12 @@ function shorten(a: string, length: number = 4): string {
 }
 
 // Foundry changed the timestamp from s to ms so we need to handle both cases
+function normalizeTimestamp(timestamp: number): number {
+  return new Date(timestamp).getFullYear() === 1970 ? timestamp * 1000 : timestamp;
+}
+
 function convertTimestamp(timestamp: number): string {
-  return new Date(
-    new Date(timestamp).getFullYear() === 1970 ? timestamp * 1000 :timestamp
-  ).toUTCString();
+  return new Date(normalizeTimestamp(timestamp)).toUTCString();
 }
 
 function generateTable(deployments: Deployment[], chainId: string): string {
@@ -133,14 +144,70 @@ function generateTable(deployments: Deployment[], chainId: string): string {
   content += '|---|---|---|---|\n';
 
   deployments.forEach((d) => {
+    const transaction = d.hash
+      ? `[${shorten(d.hash, 4)}](${explorerUrl}/tx/${d.hash})`
+      : '—';
+    const commit = d.commit
+      ? `[${d.commit}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`
+      : '—';
+
     content += `| ${d.contractName}`;
     content += ` | [${shorten(d.contractAddress)}](${explorerUrl}/address/${d.contractAddress})`;
-    content += ` | [${shorten(d.hash, 4)}](${explorerUrl}/tx/${d.hash})`;
-    content += ` | [${d.commit}](https://github.com/whetstoneresearch/doppler/commit/${d.commit})`;
+    content += ` | ${transaction}`;
+    content += ` | ${commit}`;
     content += ` | \n`;
   });
 
   return content;
+}
+
+function isPreferredDeployment(candidate: Deployment, current: Deployment): boolean {
+  const candidateTimestamp = normalizeTimestamp(candidate.timestamp);
+  const currentTimestamp = normalizeTimestamp(current.timestamp);
+
+  if (candidateTimestamp !== currentTimestamp) {
+    return candidateTimestamp > currentTimestamp;
+  }
+
+  if (candidate.source !== current.source) {
+    return candidate.source === 'broadcast';
+  }
+
+  if (candidate.hash !== current.hash) {
+    return candidate.hash !== null;
+  }
+
+  if (candidate.commit !== current.commit) {
+    return candidate.commit !== null;
+  }
+
+  return false;
+}
+
+function getDeploymentIdentity(deployment: Deployment): string {
+  return [
+    deployment.contractName,
+    deployment.contractAddress.toLowerCase(),
+    normalizeTimestamp(deployment.timestamp),
+  ].join(':');
+}
+
+function dedupeDeployments(deployments: Deployment[]): Deployment[] {
+  const dedupedDeployments: {[key: string]: Deployment} = {};
+
+  deployments.forEach((deployment) => {
+    const key = getDeploymentIdentity(deployment);
+
+    if (!dedupedDeployments[key] || isPreferredDeployment(deployment, dedupedDeployments[key])) {
+      dedupedDeployments[key] = deployment;
+    }
+  });
+
+  return Object.values(dedupedDeployments);
+}
+
+function sortDeploymentsByContractName(deployments: Deployment[]): Deployment[] {
+  return [...deployments].sort((a, b) => a.contractName.localeCompare(b.contractName));
 }
 
 function getLatestDeployments(deployments: Deployment[]): Deployment[] {
@@ -149,14 +216,49 @@ function getLatestDeployments(deployments: Deployment[]): Deployment[] {
   deployments.forEach((deployment) => {
     if (!latestDeployments[deployment.contractName]) {
       latestDeployments[deployment.contractName] = deployment;
-    } else {
-      if (latestDeployments[deployment.contractName].timestamp < deployment.timestamp) {
-        latestDeployments[deployment.contractName] = deployment;
-      }
+    } else if (isPreferredDeployment(deployment, latestDeployments[deployment.contractName])) {
+      latestDeployments[deployment.contractName] = deployment;
     }
   });
 
   return Object.values(latestDeployments);
+}
+
+function addDeployment(
+  deployments: {[chainId: string]: Deployment[]},
+  chainId: number | string,
+  deployment: Deployment,
+): void {
+  const normalizedChainId = String(chainId);
+
+  if (chains[Number(normalizedChainId)] === undefined) {
+    throw new Error(`Missing chain metadata for chain ID ${normalizedChainId}`);
+  }
+
+  if (deployments[normalizedChainId] === undefined) {
+    deployments[normalizedChainId] = [];
+  }
+
+  deployments[normalizedChainId].push(deployment);
+}
+
+async function loadManualDeployments(): Promise<ManualDeployments> {
+  const manualPath = './deployments/manual.json';
+  const manualFile = Bun.file(manualPath);
+
+  if (!(await manualFile.exists())) {
+    return {};
+  }
+
+  const manualDeployments = await manualFile.json() as ManualDeployments;
+
+  for (const chainId in manualDeployments) {
+    if (!Array.isArray(manualDeployments[chainId])) {
+      throw new Error(`Expected deployments/manual.json chain ${chainId} to contain an array of deployments`);
+    }
+  }
+
+  return manualDeployments;
 }
 
 async function generateHistoryLogs(): Promise<void> {
@@ -181,10 +283,6 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
 
-    if (deployments[broadcast.chain] === undefined) {
-      deployments[broadcast.chain] = [];
-    }
-
     const transactions = broadcast.transactions
       .filter((transaction) => (transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
         && transaction.hash !== null && transaction.contractName !== null && transaction.contractName !== 'AirlockMultisig')
@@ -193,11 +291,14 @@ async function generateHistoryLogs(): Promise<void> {
         contractAddress: transaction.contractAddress,
         hash: transaction.hash,
         arguments: transaction.arguments,
-        commit: broadcast.commit as `0x${string}`,
+        commit: broadcast.commit,
         timestamp: broadcast.timestamp,
+        source: 'broadcast' as const,
       }));
 
-    deployments[broadcast.chain].push(...transactions);
+    transactions.forEach((transaction) => {
+      addDeployment(deployments, broadcast.chain, transaction);
+    });
 
     // Also process additionalContracts from individual chain broadcasts
     for (const transaction of broadcast.transactions) {
@@ -208,13 +309,14 @@ async function generateHistoryLogs(): Promise<void> {
             && additional.contractName !== 'AirlockMultisig'
             && transaction.hash !== null
           ) {
-            deployments[broadcast.chain].push({
+            addDeployment(deployments, broadcast.chain, {
               contractName: additional.contractName,
               contractAddress: additional.address,
               hash: transaction.hash,
               arguments: [],
-              commit: broadcast.commit as `0x${string}`,
+              commit: broadcast.commit,
               timestamp: broadcast.timestamp,
+              source: 'broadcast',
             });
           }
         }
@@ -261,17 +363,14 @@ async function generateHistoryLogs(): Promise<void> {
           transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
           && transaction.hash !== null && transaction.contractName !== null
         ) {
-          if (deployments[broadcast.chain] === undefined) {
-            deployments[broadcast.chain] = [];
-          }
-
-          deployments[broadcast.chain].push({
+          addDeployment(deployments, broadcast.chain, {
             contractName: transaction.contractName,
             contractAddress: transaction.contractAddress,
             hash: transaction.hash,
             arguments: transaction.arguments,
-            commit: broadcast.commit as `0x${string}`,
+            commit: broadcast.commit,
             timestamp: broadcast.timestamp,
+            source: 'broadcast',
           });
         }
 
@@ -280,17 +379,14 @@ async function generateHistoryLogs(): Promise<void> {
           if ((additional.transactionType === 'CREATE' || additional.transactionType === 'CREATE2')
             && additional.contractName !== null && transaction.hash !== null
           ) {
-            if (deployments[broadcast.chain] === undefined) {
-              deployments[broadcast.chain] = [];
-            }
-
-            deployments[broadcast.chain].push({
+            addDeployment(deployments, broadcast.chain, {
               contractName: additional.contractName,
               contractAddress: additional.address,
               hash: transaction.hash,
               arguments: [],
-              commit: broadcast.commit as `0x${string}`,
+              commit: broadcast.commit,
               timestamp: broadcast.timestamp,
+              source: 'broadcast',
             });
           }
         }
@@ -308,21 +404,36 @@ async function generateHistoryLogs(): Promise<void> {
           // Convert snake_case config name to PascalCase contract name (e.g., "airlock" -> "Airlock")
           const formattedName = contractName.split('_').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
 
-          if (deployments[broadcast.chain] === undefined) {
-            deployments[broadcast.chain] = [];
-          }
-
-          deployments[broadcast.chain].push({
+          addDeployment(deployments, broadcast.chain, {
             contractName: formattedName,
-            contractAddress: deployedAddress,
+            contractAddress: deployedAddress as `0x${string}`,
             hash: transaction.hash,
             arguments: [],
-            commit: broadcast.commit as `0x${string}`,
+            commit: broadcast.commit,
             timestamp: broadcast.timestamp,
+            source: 'broadcast',
           });
         }
       }
     }
+  }
+
+  const manualDeployments = await loadManualDeployments();
+
+  for (const chainId in manualDeployments) {
+    manualDeployments[chainId].forEach((deployment) => {
+      addDeployment(deployments, chainId, {
+        ...deployment,
+        hash: deployment.hash ?? null,
+        arguments: deployment.arguments ?? [],
+        commit: deployment.commit ?? null,
+        source: 'manual',
+      });
+    });
+  }
+
+  for (const chainId in deployments) {
+    deployments[chainId] = dedupeDeployments(deployments[chainId]);
   }
 
   // Now we're going to generate the history logs for each chain
@@ -338,17 +449,19 @@ async function generateHistoryLogs(): Promise<void> {
     let timestamps: {[key: number]: Deployment[]} = {};
 
     deployments[chainId].forEach((d) => {
-      if (!timestamps[d.timestamp]) {
-        timestamps[d.timestamp] = [];
+      const normalizedTimestamp = normalizeTimestamp(d.timestamp);
+
+      if (!timestamps[normalizedTimestamp]) {
+        timestamps[normalizedTimestamp] = [];
       }
-      timestamps[d.timestamp].push(d);
+      timestamps[normalizedTimestamp].push(d);
     });
 
     const sortedTimestamps = Object.keys(timestamps).sort((a, b) => Number(b) - Number(a));
 
     for (const timestamp of sortedTimestamps) {
       const t = timestamps[timestamp];
-      content += `### ${convertTimestamp(t[0].timestamp)}\n`;
+      content += `### ${convertTimestamp(Number(timestamp))}\n`;
       content += generateTable(t, chainId);
     }
 
@@ -366,8 +479,8 @@ async function generateHistoryLogs(): Promise<void> {
 
     // Filter out any deployments with null/undefined contractName
     deployments[chainId] = deployments[chainId].filter(d => d.contractName);
-    deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
     let latestDeployments = getLatestDeployments(deployments[chainId]);
+    latestDeployments = sortDeploymentsByContractName(latestDeployments);
     latestDeployments = latestDeployments.filter(d => d.contractName !== 'AirlockMultisig');
     mainnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     mainnetDeployments += generateTable(latestDeployments, chainId);
@@ -384,8 +497,7 @@ async function generateHistoryLogs(): Promise<void> {
 
     // Filter out any deployments with null/undefined contractName
     deployments[chainId] = deployments[chainId].filter(d => d.contractName);
-    deployments[chainId].sort((a, b) => a.contractName.localeCompare(b.contractName));
-    const latestDeployments = getLatestDeployments(deployments[chainId]);
+    const latestDeployments = sortDeploymentsByContractName(getLatestDeployments(deployments[chainId]));
     testnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     testnetDeployments += generateTable(latestDeployments, chainId);
     testnetLabels.push(chains[chainId].name);
@@ -401,7 +513,7 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
     
-    const latestDeployments = getLatestDeployments(deployments[chainId]);
+    const latestDeployments = sortDeploymentsByContractName(getLatestDeployments(deployments[chainId]));
     addressesJson[chainId] = {};
     
     latestDeployments.forEach((deployment) => {
@@ -412,7 +524,7 @@ async function generateHistoryLogs(): Promise<void> {
   await Bun.write(`./Deployments.json`, JSON.stringify(addressesJson, null, 2));
 }
 
-function generateDeploymentsFile(mainnetLabels: string[], mainnets: string, testnetLabels: string[], testnets): string {
+function generateDeploymentsFile(mainnetLabels: string[], mainnets: string, testnetLabels: string[], testnets: string): string {
   return `---
 icon: pen-field
 ---
