@@ -62,8 +62,9 @@
     "LockableUniswapV3Initializer": "0x8b4c7db9121fc885689c0a50d5a1429f15aec2a0",
     "NoOpGovernanceFactory": "0xb4dee32eb70a5e55f3d2d861f49fb3d79f7a14d9",
     "NoOpMigrator": "0x5f3ba43d44375286296cb85f1ea2ebfa25dde731",
-    "Quoter": "0x525b6c00e1d32677ccaec5cf07e3045c0fe7102d",
+    "Quoter": "0x588cfe3d69a6b2c50f4ac46efb25b46c7011093c",
     "RehypeDopplerHook": "0x97cad5684fb7cc2bed9a9b5ebfba67138f4f2503",
+    "RehypeDopplerHookInitializer": "0x34159d65bf89015d0be068a99e41de6e399b111b",
     "RehypeDopplerHookMigrator": "0xd199e7836e91654c0475a90e0c1d0e402bb84372",
     "StreamableFeesLocker": "0x63f8c8f9befaab2facd7ece0b0242f78b920ee90",
     "StreamableFeesLockerV2": "0xce3212e6536f33cd6fbfee265224131353ca3d47",
@@ -239,6 +240,14 @@
     "UniswapV4ScheduledMulticurveInitializer": "0xf84378c9f39e0ff267f3101c88773359c5393876",
     "UniswapV4ScheduledMulticurveInitializerHook": "0xc6a562cb5cbfa29bcb1bdccf903b8b8f2e4a2dc0",
     "WETH": "0x660eaaedebc968f8f3694354fa8ec0b4c5ba8d12"
+  },
+  "763373": {
+    "Airlock": "0x5cadb034267751a364ddd4d321c99e07a307f915",
+    "GovernanceFactory": "0x9f4e56be80f08ba1a2445645efa6d231e27b43ec",
+    "TokenFactory": "0x77ebfbae15ad200758e9e2e61597c0b07d731254",
+    "UniswapV2Migrator": "0x99c94b9df930e1e21a4e4a2c105dbff21bf5c5ae",
+    "UniswapV3Initializer": "0x43d0d97ec9241a8f05a264f94b82a1d2e600f2b3",
+    "WETH": "0xa82c66b6ddeb92089015c3565e05b5c9750b2d4b"
   },
   "11155111": {
     "Airlock": "0xde3599a2ec440b296373a983c85c365da55d9dfa",
