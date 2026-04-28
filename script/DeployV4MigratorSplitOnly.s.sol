@@ -3,9 +3,12 @@ pragma solidity ^0.8.24;
 
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
+import { VmSafe } from "forge-std/Vm.sol";
+import { console } from "forge-std/console.sol";
 import { ChainIds } from "script/ChainIds.sol";
 import { ICreateX } from "script/ICreateX.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
+import { LibString } from "solady/utils/LibString.sol";
 import { Airlock } from "src/Airlock.sol";
 import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
@@ -17,22 +20,20 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
-        uint256[] memory targets = new uint256[](5);
+        uint256[] memory targets = new uint256[](4);
         targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+        targets[1] = ChainIds.MONAD_MAINNET;
         targets[2] = ChainIds.BASE_MAINNET;
         targets[3] = ChainIds.BASE_SEPOLIA;
-        targets[4] = ChainIds.MONAD_MAINNET;
 
         for (uint256 i; i < targets.length; i++) {
             uint256 chainId = targets[i];
+            vm.selectFork(forkOf[chainId]);
             deployToChain(chainId);
         }
     }
 
     function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
-
         address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
@@ -43,7 +44,7 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
         vm.startBroadcast();
         (bytes32 hookSalt, address hookDeployedTo) = mineV4MigratorHookCreate3(msg.sender, createX);
 
-        bytes32 migratorSalt = generateCreate3Salt(msg.sender, "UniswapV4MigratorSplit-2");
+        bytes32 migratorSalt = generateCreate3Salt(msg.sender, type(UniswapV4MigratorSplit).name);
         address migratorDeployedTo = computeCreate3Address(computeCreate3GuardedSalt(migratorSalt, msg.sender), createX);
 
         address migrator = ICreateX(createX)
@@ -62,9 +63,23 @@ contract DeployV4MigratorSplitOnlyScript is Script, Config {
             );
         require(migrator == migratorDeployedTo, UnexpectedAddress());
         require(migratorHook == hookDeployedTo, UnexpectedAddress());
-
         vm.stopBroadcast();
-        config.set("uniswap_v4_migrator_split", migrator);
-        config.set("uniswap_v4_migrator_split_hook", migratorHook);
+
+        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
+            config.set("uniswap_v4_migrator_split", migrator);
+            config.set("uniswap_v4_migrator_split_hook", migratorHook);
+        }
+        console.log(
+            "UniswapV4MigratorSplit was deployed to",
+            LibString.toHexString(uint256(uint160(migrator))),
+            "on chain ID",
+            LibString.toString(chainId)
+        );
+        console.log(
+            "UniswapV4MigratorSplitHook was deployed to",
+            LibString.toHexString(uint256(uint160(migratorHook))),
+            "on chain ID",
+            LibString.toString(chainId)
+        );
     }
 }
