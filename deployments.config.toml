@@ -147,11 +147,11 @@ top_up_distributor = "0x435312320C0330B1999746753551CdFbD83aD814"
 airlock_multisig = "0x21E2ce70511e4FE542a97708e89520471DAa7A66"
 streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
-rehype_doppler_hook_migrator = "0x82d5E22911fbbCB8d3e45812d74eE6203c5824e0"
 uniswap_v4_state_view = "0x77395F3b2E73aE90843717371294fa97cC419D64"
 uniswap_v3_factory = "0x204faca1764b154221e35c0d20abb3c525710498"
 lockable_uniswap_v3_initializer = "0x8b4C7DB9121FC885689C0A50D5a1429F15AEc2a0"
-quoter = "0x588cFe3D69a6b2C50f4ac46EFb25B46c7011093C"
+rehype_doppler_hook_migrator = "0xaa6b67BB06C5cb2502530d190261a9f3d57A2065"
+quoter = "0x066A536604F1668D21f48eAfe0360638D6Ed71c4"
 
 [4326]
 endpoint_url = "${MEGAETH_MAINNET_RPC_URL}"
