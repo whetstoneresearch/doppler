@@ -12,6 +12,7 @@
     "DopplerHookMigrator": "0x1e40b0875dda35f41e15cfb475403859b8c860c4",
     "GovernanceFactory": "0x9f309d79bee3e8b2f56facf74b7195df176c8f61",
     "LaunchpadGovernanceFactory": "0x2a8da67f277442cff7dc2143e52fdd0cbf5a8175",
+    "LockableUniswapV3Initializer": "0xa2e0435225d52a8b950122752978007d758056d7",
     "NoOpGovernanceFactory": "0xddae8b3ed08184682f7bc32b74d943ceefeab638",
     "NoOpMigrator": "0x233a71a7bb928b1357a1ebf454298320989ca5b5",
     "Quoter": "0xfd44b773b21ac485c95db1ff38554b7699f8c042",

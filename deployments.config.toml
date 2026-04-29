@@ -34,6 +34,8 @@ doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xea95DfdF69B90c65C827070852F7039D6aF6Dd7b"
 governance_factory = "0x9F309D79BEe3E8b2f56FaCF74b7195Df176c8F61"
 uniswap_v4_state_view = "0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227"
+uniswap_v3_factory = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+lockable_uniswap_v3_initializer = "0xA2E0435225D52a8B950122752978007D758056d7"
 
 [11155111]
 endpoint_url = "${ETH_SEPOLIA_RPC_URL}"
@@ -101,6 +103,8 @@ doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xea95DfdF69B90c65C827070852F7039D6aF6Dd7b"
 uniswap_v4_state_view = "0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71"
 doppler_lens_quoter = "0x43d0D97EC9241A8F05A264f94B82A1d2E600f2B3"
+uniswap_v3_factory = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
+lockable_uniswap_v3_initializer = "0xE0dC4012AC9C868F09c6e4b20d66ED46D6F258d0"
 
 [130]
 endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
@@ -116,6 +120,7 @@ token_factory_80 = "0xf0B5141dD9096254B2ca624dff26024f46087229"
 uniswap_v4_pool_manager = "0x1f98400000000000000000000000000000000004"
 no_op_governance_factory = "0x3ad727ee0fbbb8ee0920933fdb96f23fd56f1299"
 no_op_migrator = "0x917da361072ce968acd810bbfc9b64079426ebf0"
+uniswap_v3_factory = "0x1F98400000000000000000000000000000000003"
 
 [143]
 endpoint_url = "${MONAD_MAINNET_RPC_URL}"
@@ -142,6 +147,8 @@ streamable_fees_locker_v2 = "0xcE3212e6536F33cD6fbFEE265224131353Ca3D47"
 doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0x82d5E22911fbbCB8d3e45812d74eE6203c5824e0"
 uniswap_v4_state_view = "0x77395F3b2E73aE90843717371294fa97cC419D64"
+uniswap_v3_factory = "0x204faca1764b154221e35c0d20abb3c525710498"
+lockable_uniswap_v3_initializer = "0x8b4C7DB9121FC885689C0A50D5a1429F15AEc2a0"
 
 [4326]
 endpoint_url = "${MEGAETH_MAINNET_RPC_URL}"
@@ -199,6 +206,8 @@ doppler_hook_migrator = "0x1E40b0875DDa35f41E15cFB475403859B8c860c4"
 rehype_doppler_hook_migrator = "0xea95DfdF69B90c65C827070852F7039D6aF6Dd7b"
 uniswap_v4_state_view = "0x571291b572ed32ce6751a2Cb2486EbEe8DEfB9B4"
 doppler_lens_quoter = "0x4a8d81Db741248a36D9eb3bc6eF648Bf798B47a7"
+uniswap_v3_factory = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
+lockable_uniswap_v3_initializer = "0x16AdA5Be50C3c2D94Af5fEae6b539C40A78Ad53c"
 
 [1301]
 endpoint_url = "${UNICHAIN_SEPOLIA_RPC_URL}"
@@ -217,6 +226,7 @@ uniswap_v4_scheduled_multicurve_hook = "0xc6a562cb5CbFA29BCB1bDCCF903b8B8f2E4A2D
 uniswap_v4_scheduled_multicurve_initializer = "0xF84378C9F39e0FF267f3101c88773359c5393876"
 no_op_governance_factory = "0x7e5d336a6e9e453c9f02e5102cc039e015fd8fb8"
 no_op_migrator = "0x193f48a45b6025dded10bc4baeef65c833696387"
+uniswap_v3_factory = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
 
 [10143]
 endpoint_url = "${MONAD_TESTNET_RPC_URL}"
