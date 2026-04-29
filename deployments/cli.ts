@@ -267,9 +267,16 @@ async function generateHistoryLogs(): Promise<void> {
     recursive: true,
   });
 
-  // Then we keep only the .json files and filter out the dry runs and multi broadcasts
-  const jsonFiles = broadcastFiles.filter((file) => file.endsWith('.json')
-    && !file.includes('dry') && !file.includes('latest') && !file.startsWith('multi'));
+  // Then we keep only the .json files and filter out the dry runs and multi broadcasts.
+  // If a run only has a run-latest.json file, we still need to process it.
+  const jsonFiles = broadcastFiles
+    .filter((file) => file.endsWith('.json')
+      && !file.includes('dry') && !file.startsWith('multi'))
+    .filter((file) => {
+      if (!file.includes('-latest')) return true;
+      const scriptName = file.split('-latest')[0];
+      return !broadcastFiles.some((f) => f.startsWith(scriptName) && !f.includes('-latest') && f.endsWith('.json'));
+    });
 
   // Then we're going to iterate over each file to fetch the deployments
   const deployments: {[chainId: string]: Deployment[] } = {};
