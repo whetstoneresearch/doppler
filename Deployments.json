@@ -196,7 +196,7 @@
     "Airlock": "0x3411306ce66c9469bff1535ba955503c4bde1c6e",
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",
     "BasicMultisig": "0x6f645fa08b7eadad620cec85634204b1d7a46dc2",
-    "Bundler": "0xab7bacb0d5c2c10152f92d34e07f530eb3cb0fb1",
+    "Bundler": "0x69db7c20cdda49bed2bfb21e16fa218330c50661",
     "CloneDERC20VotesV2": "0x4bbfed1c27cde12ef6638251d81ab4e3be7556b7",
     "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "CloneERC20": "0xe7f1cc50cca68975ed6e56ee4b0aaf171d02732a",
