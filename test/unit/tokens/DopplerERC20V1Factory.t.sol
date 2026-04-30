@@ -12,8 +12,6 @@ import {
     InvalidBalanceLimit,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
-    MAX_YEARLY_MINT_RATE_WAD,
-    MaxYearlyMintRateExceeded,
     VestingSchedule
 } from "src/tokens/DopplerERC20V1.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
@@ -81,7 +79,6 @@ contract DopplerERC20V1FactoryTest is Test {
             1e18,
             address(0xa71ce),
             address(0xb0b),
-            0,
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
@@ -104,7 +101,6 @@ contract DopplerERC20V1FactoryTest is Test {
         uint256 initialSupply = 1e26;
         address recipient = address(0xa71ce);
         address owner = address(0xb0b);
-        uint256 yearlyMintRate = MAX_YEARLY_MINT_RATE_WAD;
         string memory tokenURI = "ipfs://doppler-v1";
         bytes32 salt = bytes32(uint256(1234));
         uint256 maxBalanceLimit = 5e23;
@@ -131,7 +127,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             name,
             symbol,
-            yearlyMintRate,
             schedules,
             beneficiaries,
             scheduleIds,
@@ -153,7 +148,6 @@ contract DopplerERC20V1FactoryTest is Test {
         assertEq(token.tokenURI(), tokenURI, "Wrong token URI");
         assertEq(token.totalSupply(), initialSupply, "Wrong total supply");
         assertEq(token.owner(), owner, "Wrong owner");
-        assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint rate");
         assertEq(token.maxBalanceLimit(), maxBalanceLimit, "Wrong balance limit");
         assertEq(token.balanceLimitEnd(), balanceLimitEnd, "Wrong balance limit end");
         assertEq(token.controller(), controller, "Wrong controller");
@@ -176,7 +170,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             "Test Doppler V1",
             "TDV1",
-            uint256(0),
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
@@ -203,25 +196,20 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             "Test Doppler V1",
             "TDV1",
-            MAX_YEARLY_MINT_RATE_WAD + 1,
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
             new uint256[](0),
             "ipfs://doppler-v1",
             uint256(0),
-            uint48(0),
+            uint48(block.timestamp + 7 days),
             address(0),
             new address[](0)
         );
         address predicted = LibClone.predictDeterministicAddress(factory.IMPLEMENTATION(), salt, address(factory));
 
         vm.prank(AIRLOCK);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MaxYearlyMintRateExceeded.selector, MAX_YEARLY_MINT_RATE_WAD + 1, MAX_YEARLY_MINT_RATE_WAD
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidBalanceLimit.selector, 0));
         factory.create(1e26, address(0xa71ce), address(0xb0b), salt, tokenData);
 
         assertEq(predicted.code.length, 0, "Reverted initialization should roll back clone deployment");
@@ -237,7 +225,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             "Test Doppler V1",
             "TDV1",
-            uint256(0),
             schedules,
             beneficiaries,
             new uint256[](0),
@@ -258,7 +245,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             "Test Doppler V1",
             "TDV1",
-            uint256(0),
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
@@ -285,7 +271,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             "Test Doppler V1",
             "TDV1",
-            uint256(0),
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),
@@ -343,7 +328,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             "Test Doppler V1",
             "TDV1",
-            uint256(0),
             schedules,
             beneficiaries,
             scheduleIds,
@@ -388,14 +372,12 @@ contract DopplerERC20V1FactoryTest is Test {
         uint256 initialSupply,
         address recipient,
         address owner,
-        uint256 yearlyMintRate,
         string memory tokenURI,
         uint256 seed
     ) public {
         initialSupply = bound(initialSupply, 1e18 + 1, type(uint128).max);
         vm.assume(recipient != address(0));
         vm.assume(owner != address(0));
-        vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
 
         (, address[] memory recipients, uint256[] memory amounts) = generateRecipients(seed, initialSupply);
         uint256[] memory scheduleIds = new uint256[](recipients.length);
@@ -405,7 +387,6 @@ contract DopplerERC20V1FactoryTest is Test {
         bytes memory tokenData = abi.encode(
             name,
             symbol,
-            yearlyMintRate,
             schedules,
             recipients,
             scheduleIds,
@@ -430,9 +411,7 @@ contract DopplerERC20V1FactoryTest is Test {
         assertEq(token.tokenURI(), tokenURI, "Wrong token URI");
         assertEq(token.totalSupply(), initialSupply, "Wrong total supply");
         assertEq(token.owner(), owner, "Wrong owner");
-        assertEq(token.yearlyMintRate(), yearlyMintRate, "Wrong yearly mint rate");
         assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
-        assertEq(token.lastMintTimestamp(), 0, "Wrong mint timestamp");
         assertFalse(token.isBalanceLimitActive(), "Balance limit should be inactive");
     }
 
@@ -442,7 +421,6 @@ contract DopplerERC20V1FactoryTest is Test {
         uint256 initialSupply,
         address recipient,
         address owner,
-        uint256 yearlyMintRate,
         string memory tokenURI,
         uint256 maxBalanceLimit,
         address controller,
@@ -451,13 +429,11 @@ contract DopplerERC20V1FactoryTest is Test {
         initialSupply = bound(initialSupply, 1e18 + 1, type(uint128).max);
         vm.assume(recipient != address(0));
         vm.assume(owner != address(0));
-        vm.assume(yearlyMintRate <= MAX_YEARLY_MINT_RATE_WAD);
         maxBalanceLimit = bound(maxBalanceLimit, 1, initialSupply - 1);
 
         bytes memory tokenData = abi.encode(
             name,
             symbol,
-            yearlyMintRate,
             new VestingSchedule[](0),
             new address[](0),
             new uint256[](0),

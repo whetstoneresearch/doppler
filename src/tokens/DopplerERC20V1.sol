@@ -23,12 +23,6 @@ error PoolAlreadyUnlocked();
 /// @dev Thrown when there is no releasable amount
 error NoReleasableAmount();
 
-/// @dev Thrown when there is no amount to mint
-error NoMintableAmount();
-
-/// @dev Thrown when trying to mint before the start date
-error MintingNotStartedYet();
-
 /// @dev Thrown when the balance limit is not active
 error BalanceLimitNotActive();
 
@@ -62,17 +56,11 @@ error MaxTotalPreMintExceeded(uint256 amount, uint256 limit);
 /// @dev Thrown when trying to mint more than the maximum allowed in total
 error MaxTotalVestedExceeded(uint256 amount, uint256 limit);
 
-/// @dev Thrown when trying to set the mint rate to a value higher than the maximum allowed
-error MaxYearlyMintRateExceeded(uint256 amount, uint256 limit);
-
 /// @dev Max amount of tokens that can be pre-minted per address (% expressed in WAD)
 uint256 constant MAX_PRE_MINT_PER_ADDRESS_WAD = 0.8 ether;
 
 /// @dev Max amount of tokens that can be pre-minted in total (% expressed in WAD)
 uint256 constant MAX_TOTAL_PRE_MINT_WAD = 0.8 ether;
-
-/// @dev Maximum amount of tokens that can be minted in a year (% expressed in WAD)
-uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
 
 /// @dev Minimum vesting duration (prevents trivially short vesting periods)
 uint256 constant MIN_VESTING_DURATION = 1 days;
@@ -112,17 +100,13 @@ event TokensReleased(address indexed beneficiary, uint256 indexed scheduleId, ui
 /// @notice Emitted when the token URI is updated
 event UpdateTokenURI(string tokenURI);
 
-/// @notice Emitted when the yearly mint rate is updated
-event UpdateMintRate(uint256 newMintRate);
-
 /// @notice Emitted when the balance limit is disabled
 event BalanceLimitDisabled(bool expired);
 
 /**
  * @title DopplerERC20 V1.0.0
  * @author Whetstone Research
- * @notice Clonable ERC20 token with multi-schedule vesting, inflation, pool lock,
- *         votes, max balance limit, and Permit2 support
+ * @notice Clonable ERC20 token with multi-schedule vesting, pool lock, votes, max balance limit, and Permit2 support
  * @dev This contract is designed to be cloned using the ERC1167 minimal proxy pattern
  * @custom:security-contact security@whetstone.cc
  */
@@ -160,15 +144,6 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
     /// @notice Maximum balance limit
     uint256 public maxBalanceLimit;
 
-    /// @notice Maximum rate of tokens that can be minted in a year
-    uint256 public yearlyMintRate;
-
-    /// @notice Timestamp of the start of the current year
-    uint256 public currentYearStart;
-
-    /// @notice Timestamp of the last inflation mint
-    uint256 public lastMintTimestamp;
-
     /// @notice Array of vesting schedules (scheduleId = index)
     VestingSchedule[] public vestingSchedules;
 
@@ -200,7 +175,6 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
      * @param initialSupply Initial supply of the token
      * @param recipient Address receiving the non-vested initial supply
      * @param owner_ Address receiving the ownership of the token
-     * @param yearlyMintRate_ Maximum inflation rate of token in a year
      * @param schedules Array of vesting schedules
      * @param beneficiaries Array of beneficiary addresses for allocations
      * @param scheduleIds Array of schedule IDs corresponding to each allocation
@@ -218,7 +192,6 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
         uint256 initialSupply,
         address recipient,
         address owner_,
-        uint256 yearlyMintRate_,
         VestingSchedule[] memory schedules,
         address[] memory beneficiaries,
         uint256[] memory scheduleIds,
@@ -231,15 +204,8 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
     ) external initializer {
         _initializeOwner(owner_);
 
-        // Validate yearly mint rate
-        require(
-            yearlyMintRate_ <= MAX_YEARLY_MINT_RATE_WAD,
-            MaxYearlyMintRateExceeded(yearlyMintRate_, MAX_YEARLY_MINT_RATE_WAD)
-        );
-
         _name = name_;
         _symbol = symbol_;
-        yearlyMintRate = yearlyMintRate_;
         vestingStart = block.timestamp;
         tokenURI = tokenURI_;
 
@@ -346,7 +312,6 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
     function unlockPool() external onlyOwner {
         require(isPoolLocked, PoolAlreadyUnlocked());
         isPoolLocked = false;
-        currentYearStart = lastMintTimestamp = block.timestamp;
     }
 
     /* ------------------------------------------------------------------------- */
@@ -363,46 +328,8 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
     }
 
     /* ---------------------------------------------------------------------------- */
-    /*                                Supply Changes                                */
+    /*                                    Burn                                      */
     /* ---------------------------------------------------------------------------- */
-
-    /**
-     * @notice Mints inflation tokens to the owner
-     */
-    function mintInflation() public {
-        require(currentYearStart != 0, MintingNotStartedYet());
-
-        uint256 mintableAmount;
-        uint256 yearMint;
-        uint256 timeLeftInCurrentYear;
-        uint256 supply = totalSupply();
-        uint256 currentYearStart_ = currentYearStart;
-        uint256 lastMintTimestamp_ = lastMintTimestamp;
-        uint256 yearlyMintRate_ = yearlyMintRate;
-
-        // Handle any outstanding full years
-        while (block.timestamp > currentYearStart_ + 365 days) {
-            timeLeftInCurrentYear = (currentYearStart_ + 365 days - lastMintTimestamp_);
-            yearMint = (supply * yearlyMintRate_ * timeLeftInCurrentYear) / (WAD * 365 days);
-            supply += yearMint;
-            mintableAmount += yearMint;
-            currentYearStart_ += 365 days;
-            lastMintTimestamp_ = currentYearStart_;
-        }
-
-        // Handle partial current year
-        if (block.timestamp > lastMintTimestamp_) {
-            uint256 partialYearMint =
-                (supply * yearlyMintRate_ * (block.timestamp - lastMintTimestamp_)) / (WAD * 365 days);
-            mintableAmount += partialYearMint;
-        }
-
-        require(mintableAmount > 0, NoMintableAmount());
-
-        currentYearStart = currentYearStart_;
-        lastMintTimestamp = block.timestamp;
-        _mint(owner(), mintableAmount);
-    }
 
     /**
      * @notice Burns `amount` of tokens from the caller's balance
@@ -412,26 +339,9 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
         _burn(msg.sender, amount);
     }
 
-    /**
-     * @notice Updates the maximum rate of tokens that can be minted in a year
-     * @param newMintRate New maximum rate of tokens that can be minted in a year
-     */
-    function updateMintRate(uint256 newMintRate) external onlyOwner {
-        require(
-            newMintRate <= MAX_YEARLY_MINT_RATE_WAD, MaxYearlyMintRateExceeded(newMintRate, MAX_YEARLY_MINT_RATE_WAD)
-        );
-
-        if (currentYearStart != 0 && (block.timestamp - lastMintTimestamp) != 0) {
-            if (yearlyMintRate == 0) {
-                currentYearStart = lastMintTimestamp = block.timestamp;
-            } else {
-                mintInflation();
-            }
-        }
-
-        yearlyMintRate = newMintRate;
-        emit UpdateMintRate(newMintRate);
-    }
+    /* ---------------------------------------------------------------------------- */
+    /*                                  Token URI                                   */
+    /* ---------------------------------------------------------------------------- */
 
     /**
      * @notice Updates the token Uniform Resource Identifier (URI)

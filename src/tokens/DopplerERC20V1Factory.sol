@@ -32,7 +32,6 @@ contract DopplerERC20V1Factory is ImmutableAirlock, ITokenFactory {
      * @param tokenData Creation parameters encoded as bytes:
      * - string name
      * - string symbol
-     * - uint256 yearlyMintRate
      * - VestingSchedule[] schedules
      * - address[] beneficiaries
      * - uint256[] scheduleIds
@@ -54,7 +53,6 @@ contract DopplerERC20V1Factory is ImmutableAirlock, ITokenFactory {
         (
             string memory name,
             string memory symbol,
-            uint256 yearlyMintRate,
             VestingSchedule[] memory schedules,
             address[] memory beneficiaries,
             uint256[] memory scheduleIds,
@@ -69,7 +67,6 @@ contract DopplerERC20V1Factory is ImmutableAirlock, ITokenFactory {
             (
                 string,
                 string,
-                uint256,
                 VestingSchedule[],
                 address[],
                 uint256[],
@@ -90,7 +87,6 @@ contract DopplerERC20V1Factory is ImmutableAirlock, ITokenFactory {
                 initialSupply,
                 recipient,
                 owner,
-                yearlyMintRate,
                 schedules,
                 beneficiaries,
                 scheduleIds,

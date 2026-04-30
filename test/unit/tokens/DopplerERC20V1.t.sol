@@ -18,25 +18,19 @@ import {
     InvalidSchedule,
     MAX_PRE_MINT_PER_ADDRESS_WAD,
     MAX_TOTAL_PRE_MINT_WAD,
-    MAX_YEARLY_MINT_RATE_WAD,
     MIN_VESTING_DURATION,
     MaxPreMintPerAddressExceeded,
     MaxTotalPreMintExceeded,
-    MaxYearlyMintRateExceeded,
-    MintingNotStartedYet,
-    NoMintableAmount,
     NoReleasableAmount,
     PoolAlreadyLocked,
     PoolAlreadyUnlocked,
     PoolLocked,
     UnknownScheduleId,
-    UpdateMintRate,
     UpdateTokenURI,
     VestingSchedule
 } from "src/tokens/DopplerERC20V1.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e26;
-uint256 constant YEARLY_MINT_RATE = 0.02e18;
 uint256 constant DEFAULT_MAX_BALANCE_LIMIT = 5e23;
 string constant NAME = "TestV1";
 string constant SYMBOL = "TSTV1";
@@ -160,7 +154,6 @@ contract DopplerERC20V1Test is Test {
             INITIAL_SUPPLY,
             RECIPIENT,
             OWNER,
-            YEARLY_MINT_RATE,
             schedules,
             beneficiaries,
             scheduleIds,
@@ -208,7 +201,6 @@ contract DopplerERC20V1Test is Test {
         assertEq(token.vestingStart(), block.timestamp, "Wrong vesting start");
         assertEq(token.vestedTotalAmount(), 4e24, "Wrong vested total");
         assertEq(token.owner(), OWNER, "Wrong owner");
-        assertEq(token.yearlyMintRate(), YEARLY_MINT_RATE, "Wrong yearly mint rate");
         assertEq(token.tokenURI(), TOKEN_URI, "Wrong token URI");
 
         // Token balances
@@ -462,31 +454,6 @@ contract DopplerERC20V1Test is Test {
 
         vm.expectRevert(abi.encodeWithSelector(MaxTotalPreMintExceeded.selector, perAddress * 2, maxTotal));
         _createToken(schedules, beneficiaries, scheduleIds, amounts);
-    }
-
-    function test_initialize_RevertsWhenYearlyMintRateExceedsMax() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MaxYearlyMintRateExceeded.selector, MAX_YEARLY_MINT_RATE_WAD + 1, MAX_YEARLY_MINT_RATE_WAD
-            )
-        );
-        token.initialize(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            OWNER,
-            MAX_YEARLY_MINT_RATE_WAD + 1,
-            new VestingSchedule[](0),
-            new address[](0),
-            new uint256[](0),
-            new uint256[](0),
-            TOKEN_URI,
-            0,
-            0,
-            address(0),
-            new address[](0)
-        );
     }
 
     function test_initialize_RevertsWhenInvalidBalanceLimit() public {
@@ -916,16 +883,11 @@ contract DopplerERC20V1Test is Test {
 
         _unlockPool(OWNER);
 
-        uint256 currentYearStart = token.currentYearStart();
-        uint256 lastMintTimestamp = token.lastMintTimestamp();
         vm.warp(block.timestamp + 180 days);
 
         vm.prank(OWNER);
         vm.expectRevert(PoolAlreadyUnlocked.selector);
         token.unlockPool();
-
-        assertEq(token.currentYearStart(), currentYearStart, "Current year start should not reset");
-        assertEq(token.lastMintTimestamp(), lastMintTimestamp, "Mint timestamp should not reset");
     }
 
     // =========================================================================
@@ -1292,195 +1254,6 @@ contract DopplerERC20V1Test is Test {
             DEFAULT_MAX_BALANCE_LIMIT + 1,
             "Unlocked excluded pool should receive over-cap transfer"
         );
-    }
-
-    // =========================================================================
-    // Mint Tests
-    // =========================================================================
-
-    function test_mintInflation_RevertsBeforeUnlock() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-        vm.warp(block.timestamp + 365 days);
-        vm.expectRevert(MintingNotStartedYet.selector);
-        token.mintInflation();
-    }
-
-    function test_mintInflation_OwnerReceivesTokens() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-        _unlockPool(OWNER);
-        vm.warp(block.timestamp + 365 days);
-
-        uint256 ownerBalanceBefore = token.balanceOf(OWNER);
-        token.mintInflation();
-        assertGt(token.balanceOf(OWNER), ownerBalanceBefore, "Owner should receive minted tokens");
-    }
-
-    function test_mintInflation_NewOwnerReceivesTokensAfterTransferOwnershipWhileCapActive() public {
-        address newOwner = address(0xfeed);
-
-        _createToken(
-            _emptySchedules(),
-            _emptyAddresses(),
-            _emptyUints(),
-            _emptyUints(),
-            DEFAULT_MAX_BALANCE_LIMIT,
-            _defaultLimitEnd(),
-            CONTROLLER,
-            _emptyAddresses()
-        );
-
-        vm.prank(RECIPIENT);
-        token.transfer(newOwner, DEFAULT_MAX_BALANCE_LIMIT);
-
-        vm.prank(OWNER);
-        token.transferOwnership(newOwner);
-
-        _unlockPool(newOwner);
-
-        vm.warp(block.timestamp + 365 days);
-
-        uint256 ownerBalanceBefore = token.balanceOf(newOwner);
-        vm.prank(newOwner);
-        token.mintInflation();
-
-        assertGt(token.balanceOf(newOwner), ownerBalanceBefore, "New owner should receive minted inflation");
-        assertGt(token.balanceOf(newOwner), DEFAULT_MAX_BALANCE_LIMIT, "New owner mint should bypass active cap");
-    }
-
-    function test_mintInflation_ExactOneYearAmount() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        _unlockPool(OWNER);
-
-        vm.warp(block.timestamp + 365 days);
-        token.mintInflation();
-
-        uint256 expectedMint = INITIAL_SUPPLY * YEARLY_MINT_RATE / 1e18;
-        assertEq(token.balanceOf(OWNER), expectedMint, "Wrong one-year mint amount");
-    }
-
-    function test_mintInflation_ExactMultipleYearsCompounds() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        _unlockPool(OWNER);
-
-        uint256 supply = INITIAL_SUPPLY;
-        uint256 expectedMint;
-        for (uint256 i; i < 3; i++) {
-            uint256 yearMint = supply * YEARLY_MINT_RATE / 1e18;
-            expectedMint += yearMint;
-            supply += yearMint;
-        }
-
-        vm.warp(block.timestamp + 3 * 365 days);
-        token.mintInflation();
-
-        assertEq(token.balanceOf(OWNER), expectedMint, "Wrong compounded mint amount");
-        assertEq(token.totalSupply(), INITIAL_SUPPLY + expectedMint, "Wrong compounded total supply");
-    }
-
-    function test_updateMintRate_RevertsWhenNotOwner() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        token.updateMintRate(0.01 ether);
-    }
-
-    function test_updateMintRate_NewRateApplies() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-        uint256 newRate = 0.01 ether;
-
-        vm.expectEmit();
-        emit UpdateMintRate(newRate);
-        vm.prank(OWNER);
-        token.updateMintRate(newRate);
-        assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
-    }
-
-    function test_updateMintRate_MintsElapsedTimeAtOldRate() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        _unlockPool(OWNER);
-
-        uint256 elapsed = 180 days;
-        uint256 newRate = 0.01 ether;
-        uint256 expectedMint = INITIAL_SUPPLY * YEARLY_MINT_RATE * elapsed / (1e18 * 365 days);
-
-        vm.warp(block.timestamp + elapsed);
-
-        vm.prank(OWNER);
-        token.updateMintRate(newRate);
-
-        assertEq(token.balanceOf(OWNER), expectedMint, "Should mint elapsed amount at old rate");
-        assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
-        assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
-    }
-
-    function test_updateMintRate_FromZeroSkipsElapsedInflation() public {
-        token.initialize(
-            NAME,
-            SYMBOL,
-            INITIAL_SUPPLY,
-            RECIPIENT,
-            OWNER,
-            0,
-            _emptySchedules(),
-            _emptyAddresses(),
-            _emptyUints(),
-            _emptyUints(),
-            TOKEN_URI,
-            0,
-            0,
-            address(0),
-            _emptyAddresses()
-        );
-
-        _unlockPool(OWNER);
-
-        vm.warp(block.timestamp + 180 days);
-
-        uint256 newRate = 0.01 ether;
-        vm.prank(OWNER);
-        token.updateMintRate(newRate);
-
-        assertEq(token.balanceOf(OWNER), 0, "Zero-rate elapsed time should not mint");
-        assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
-        assertEq(token.currentYearStart(), block.timestamp, "Current year should restart at the new rate");
-        assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
-    }
-
-    function test_updateMintRate_NewOwnerCanMintElapsedAmountAfterTransferOwnershipWhileCapActive() public {
-        address newOwner = address(0xfeed);
-        uint256 newRate = 0.01 ether;
-
-        _createToken(
-            _emptySchedules(),
-            _emptyAddresses(),
-            _emptyUints(),
-            _emptyUints(),
-            DEFAULT_MAX_BALANCE_LIMIT,
-            _defaultLimitEnd(),
-            CONTROLLER,
-            _emptyAddresses()
-        );
-
-        vm.prank(RECIPIENT);
-        token.transfer(newOwner, DEFAULT_MAX_BALANCE_LIMIT);
-
-        vm.prank(OWNER);
-        token.transferOwnership(newOwner);
-
-        _unlockPool(newOwner);
-
-        vm.warp(block.timestamp + 180 days);
-
-        uint256 ownerBalanceBefore = token.balanceOf(newOwner);
-        vm.prank(newOwner);
-        token.updateMintRate(newRate);
-
-        assertGt(token.balanceOf(newOwner), ownerBalanceBefore, "New owner should receive accrued mint amount");
-        assertGt(token.balanceOf(newOwner), DEFAULT_MAX_BALANCE_LIMIT, "Accrued mint should bypass active cap");
-        assertEq(token.yearlyMintRate(), newRate, "Mint rate should update for transferred owner");
-        assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
     }
 
     // =========================================================================
@@ -1955,21 +1728,6 @@ contract DopplerERC20V1Test is Test {
     // =========================================================================
     // Regression Tests
     // =========================================================================
-
-    function test_regression_InflationAfterVesting() public {
-        _createSingleScheduleToken(address(0xa), 1e24, 0, 365 days);
-
-        vm.warp(token.vestingStart() + 365 days);
-        vm.prank(address(0xa));
-        token.release(0, 0);
-
-        _unlockPool(OWNER);
-
-        vm.warp(block.timestamp + 365 days);
-        token.mintInflation();
-
-        assertTrue(token.balanceOf(OWNER) > 0, "Owner should have inflation tokens");
-    }
 
     function test_regression_BurnAfterRelease() public {
         _createSingleScheduleToken(address(0xa), 1e24, 0, 365 days);
@@ -2548,17 +2306,6 @@ contract DopplerERC20V1Test is Test {
         token.unlockPool();
     }
 
-    function testFuzz_access_OnlyOwnerCanUpdateMintRate(address caller, uint256 newRate) public {
-        vm.assume(caller != OWNER);
-        newRate = bound(newRate, 0, 0.02 ether);
-
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        vm.prank(caller);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        token.updateMintRate(newRate);
-    }
-
     function testFuzz_access_AnyoneCanReleaseFor(address caller) public {
         vm.assume(caller != address(0));
 
@@ -2570,38 +2317,6 @@ contract DopplerERC20V1Test is Test {
         token.releaseFor(address(0xa), 0, 0);
 
         assertEq(token.balanceOf(address(0xa)), 1e24, "Beneficiary should receive tokens");
-    }
-
-    function test_mintInflation_MultipleYears() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        _unlockPool(OWNER);
-
-        vm.warp(block.timestamp + (365 days * 3));
-        token.mintInflation();
-
-        assertTrue(token.balanceOf(OWNER) > 0, "Should mint for multiple years");
-    }
-
-    function test_mintInflation_RevertsWhenCalledTwiceInSameBlock() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        _unlockPool(OWNER);
-
-        vm.warp(block.timestamp + 365 days);
-        token.mintInflation();
-
-        vm.expectRevert(NoMintableAmount.selector);
-        token.mintInflation();
-    }
-
-    function test_updateMintRate_ToZero() public {
-        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-
-        vm.prank(OWNER);
-        token.updateMintRate(0);
-
-        assertEq(token.yearlyMintRate(), 0, "Should allow zero mint rate");
     }
 
     function test_vestingScheduleCount_WithMultipleSchedules() public {
