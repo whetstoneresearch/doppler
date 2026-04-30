@@ -11,3 +11,9 @@ out/
 
 /node_modules
 .DS_Store
+
+# AI
+.claude/
+.codex/
+.cursor/
+.opencode/
