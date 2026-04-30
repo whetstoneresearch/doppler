@@ -5,6 +5,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
 import { ERC20Votes } from "solady/tokens/ERC20Votes.sol";
 import { Initializable } from "solady/utils/Initializable.sol";
+import { LibTransient } from "solady/utils/LibTransient.sol";
 import { WAD } from "src/types/Wad.sol";
 
 /// @dev Thrown when two arrays have different lengths
@@ -12,6 +13,12 @@ error ArrayLengthsMismatch();
 
 /// @dev Thrown when trying to transfer tokens into the pool while it is locked
 error PoolLocked();
+
+/// @dev Thrown when trying to lock the pool while it is already locked
+error PoolAlreadyLocked();
+
+/// @dev Thrown when trying to unlock the pool while it is already unlocked
+error PoolAlreadyUnlocked();
 
 /// @dev Thrown when there is no releasable amount
 error NoReleasableAmount();
@@ -69,6 +76,9 @@ uint256 constant MAX_YEARLY_MINT_RATE_WAD = 0.02 ether;
 
 /// @dev Minimum vesting duration (prevents trivially short vesting periods)
 uint256 constant MIN_VESTING_DURATION = 1 days;
+
+/// @dev Transient storage namespace for initializer schedule deduplication
+bytes32 constant HAS_SCHEDULE_TRANSIENT_SLOT = keccak256("doppler.DopplerERC20V1.hasSchedule.transient");
 
 /**
  * @notice Vesting schedule definition
@@ -171,9 +181,6 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
     /// @notice List of schedule IDs for each beneficiary
     mapping(address beneficiary => uint256[]) internal _scheduleIdsOf;
 
-    /// @notice Whether a schedule ID is already in _scheduleIdsOf for a beneficiary
-    mapping(address beneficiary => mapping(uint256 scheduleId => bool)) internal _hasSchedule;
-
     /// @notice Whether an address is excluded from the balance limit
     mapping(address account => bool excluded) public isExcludedFromBalanceLimit;
 
@@ -202,7 +209,8 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
      * @param maxBalanceLimit_ Maximum balance limit
      * @param balanceLimitEnd_ Balance limit end timestamp
      * @param controller_ Controller address (optional, excluding it prevents disabling the balance limit earlier)
-     * @param excludedFromBalanceLimit Array of addresses to exclude from the balance limit
+     * @param excludedFromBalanceLimit Array of addresses to exclude from the balance limit.
+     *                                 This should include initializers, migrators, Uniswap PoolManager, treasury, etc.
      */
     function initialize(
         string memory name_,
@@ -297,8 +305,8 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
             isExcludedFromBalanceLimit[beneficiary] = true;
 
             // Track schedule IDs for this beneficiary
-            if (!_hasSchedule[beneficiary][scheduleId]) {
-                _hasSchedule[beneficiary][scheduleId] = true;
+            if (!_hasTransientSchedule(beneficiary, scheduleId)) {
+                _setTransientSchedule(beneficiary, scheduleId);
                 _scheduleIdsOf[beneficiary].push(scheduleId);
             }
 
@@ -328,6 +336,7 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
      * @param pool_ Address of the pool to lock
      */
     function lockPool(address pool_) external onlyOwner {
+        require(!isPoolLocked, PoolAlreadyLocked());
         pool = pool_;
         isPoolLocked = true;
         isExcludedFromBalanceLimit[pool_] = true;
@@ -335,6 +344,7 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
 
     /// @notice Unlocks the pool, allowing it to receive tokens
     function unlockPool() external onlyOwner {
+        require(isPoolLocked, PoolAlreadyUnlocked());
         isPoolLocked = false;
         currentYearStart = lastMintTimestamp = block.timestamp;
     }
@@ -412,7 +422,11 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
         );
 
         if (currentYearStart != 0 && (block.timestamp - lastMintTimestamp) != 0) {
-            mintInflation();
+            if (yearlyMintRate == 0) {
+                currentYearStart = lastMintTimestamp = block.timestamp;
+            } else {
+                mintInflation();
+            }
         }
 
         yearlyMintRate = newMintRate;
@@ -545,6 +559,18 @@ contract DopplerERC20V1 is ERC20, Initializable, Ownable, ERC20Votes {
 
         uint256 released = vd.releasedAmount;
         return vested > released ? vested - released : 0;
+    }
+
+    function _hasTransientSchedule(address beneficiary, uint256 scheduleId) internal view returns (bool) {
+        return LibTransient.get(LibTransient.tBool(_transientScheduleSlot(beneficiary, scheduleId)));
+    }
+
+    function _setTransientSchedule(address beneficiary, uint256 scheduleId) internal {
+        LibTransient.set(LibTransient.tBool(_transientScheduleSlot(beneficiary, scheduleId)), true);
+    }
+
+    function _transientScheduleSlot(address beneficiary, uint256 scheduleId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(HAS_SCHEDULE_TRANSIENT_SLOT, beneficiary, scheduleId));
     }
 
     /**

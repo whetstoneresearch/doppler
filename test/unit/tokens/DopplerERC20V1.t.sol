@@ -26,6 +26,8 @@ import {
     MintingNotStartedYet,
     NoMintableAmount,
     NoReleasableAmount,
+    PoolAlreadyLocked,
+    PoolAlreadyUnlocked,
     PoolLocked,
     UnknownScheduleId,
     UpdateMintRate,
@@ -70,6 +72,13 @@ contract DopplerERC20V1Test is Test {
 
     function _defaultLimitEnd() internal view returns (uint48) {
         return uint48(block.timestamp + 7 days);
+    }
+
+    function _unlockPool(address owner_) internal {
+        vm.startPrank(owner_);
+        token.lockPool(address(0xdeadbeef));
+        token.unlockPool();
+        vm.stopPrank();
     }
 
     function _maxPerAddress() internal pure returns (uint256) {
@@ -871,6 +880,24 @@ contract DopplerERC20V1Test is Test {
         token.transfer(address(0xdeadbeef), 1);
     }
 
+    function test_poolLock_LockRevertsWhenAlreadyLocked() public {
+        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
+
+        address poolAddr = address(0xdeadbeef);
+        address newPoolAddr = address(0xbeef);
+
+        vm.startPrank(OWNER);
+        token.lockPool(poolAddr);
+        vm.expectRevert(PoolAlreadyLocked.selector);
+        token.lockPool(newPoolAddr);
+        vm.stopPrank();
+
+        assertTrue(token.isPoolLocked(), "Pool should remain locked");
+        assertEq(token.pool(), poolAddr, "Pool should not change");
+        assertTrue(token.isExcludedFromBalanceLimit(poolAddr), "Original pool should remain excluded");
+        assertFalse(token.isExcludedFromBalanceLimit(newPoolAddr), "Rejected pool should not be excluded");
+    }
+
     function test_poolLock_UnlockAllowsTransfer() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
 
@@ -882,6 +909,23 @@ contract DopplerERC20V1Test is Test {
         vm.prank(RECIPIENT);
         token.transfer(address(0xdeadbeef), 1);
         assertEq(token.balanceOf(address(0xdeadbeef)), 1, "Transfer should succeed after unlock");
+    }
+
+    function test_poolLock_UnlockRevertsWhenAlreadyUnlocked() public {
+        _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
+
+        _unlockPool(OWNER);
+
+        uint256 currentYearStart = token.currentYearStart();
+        uint256 lastMintTimestamp = token.lastMintTimestamp();
+        vm.warp(block.timestamp + 180 days);
+
+        vm.prank(OWNER);
+        vm.expectRevert(PoolAlreadyUnlocked.selector);
+        token.unlockPool();
+
+        assertEq(token.currentYearStart(), currentYearStart, "Current year start should not reset");
+        assertEq(token.lastMintTimestamp(), lastMintTimestamp, "Mint timestamp should not reset");
     }
 
     // =========================================================================
@@ -1263,8 +1307,7 @@ contract DopplerERC20V1Test is Test {
 
     function test_mintInflation_OwnerReceivesTokens() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
         vm.warp(block.timestamp + 365 days);
 
         uint256 ownerBalanceBefore = token.balanceOf(OWNER);
@@ -1292,8 +1335,7 @@ contract DopplerERC20V1Test is Test {
         vm.prank(OWNER);
         token.transferOwnership(newOwner);
 
-        vm.prank(newOwner);
-        token.unlockPool();
+        _unlockPool(newOwner);
 
         vm.warp(block.timestamp + 365 days);
 
@@ -1308,8 +1350,7 @@ contract DopplerERC20V1Test is Test {
     function test_mintInflation_ExactOneYearAmount() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
 
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
 
         vm.warp(block.timestamp + 365 days);
         token.mintInflation();
@@ -1321,8 +1362,7 @@ contract DopplerERC20V1Test is Test {
     function test_mintInflation_ExactMultipleYearsCompounds() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
 
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
 
         uint256 supply = INITIAL_SUPPLY;
         uint256 expectedMint;
@@ -1359,8 +1399,7 @@ contract DopplerERC20V1Test is Test {
     function test_updateMintRate_MintsElapsedTimeAtOldRate() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
 
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
 
         uint256 elapsed = 180 days;
         uint256 newRate = 0.01 ether;
@@ -1373,6 +1412,39 @@ contract DopplerERC20V1Test is Test {
 
         assertEq(token.balanceOf(OWNER), expectedMint, "Should mint elapsed amount at old rate");
         assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
+        assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
+    }
+
+    function test_updateMintRate_FromZeroSkipsElapsedInflation() public {
+        token.initialize(
+            NAME,
+            SYMBOL,
+            INITIAL_SUPPLY,
+            RECIPIENT,
+            OWNER,
+            0,
+            _emptySchedules(),
+            _emptyAddresses(),
+            _emptyUints(),
+            _emptyUints(),
+            TOKEN_URI,
+            0,
+            0,
+            address(0),
+            _emptyAddresses()
+        );
+
+        _unlockPool(OWNER);
+
+        vm.warp(block.timestamp + 180 days);
+
+        uint256 newRate = 0.01 ether;
+        vm.prank(OWNER);
+        token.updateMintRate(newRate);
+
+        assertEq(token.balanceOf(OWNER), 0, "Zero-rate elapsed time should not mint");
+        assertEq(token.yearlyMintRate(), newRate, "Mint rate should be updated");
+        assertEq(token.currentYearStart(), block.timestamp, "Current year should restart at the new rate");
         assertEq(token.lastMintTimestamp(), block.timestamp, "Mint timestamp should advance");
     }
 
@@ -1397,8 +1469,7 @@ contract DopplerERC20V1Test is Test {
         vm.prank(OWNER);
         token.transferOwnership(newOwner);
 
-        vm.prank(newOwner);
-        token.unlockPool();
+        _unlockPool(newOwner);
 
         vm.warp(block.timestamp + 180 days);
 
@@ -1892,8 +1963,7 @@ contract DopplerERC20V1Test is Test {
         vm.prank(address(0xa));
         token.release(0, 0);
 
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
 
         vm.warp(block.timestamp + 365 days);
         token.mintInflation();
@@ -2505,8 +2575,7 @@ contract DopplerERC20V1Test is Test {
     function test_mintInflation_MultipleYears() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
 
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
 
         vm.warp(block.timestamp + (365 days * 3));
         token.mintInflation();
@@ -2517,8 +2586,7 @@ contract DopplerERC20V1Test is Test {
     function test_mintInflation_RevertsWhenCalledTwiceInSameBlock() public {
         _createToken(_emptySchedules(), _emptyAddresses(), _emptyUints(), _emptyUints());
 
-        vm.prank(OWNER);
-        token.unlockPool();
+        _unlockPool(OWNER);
 
         vm.warp(block.timestamp + 365 days);
         token.mintInflation();
