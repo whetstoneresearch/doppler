@@ -13,6 +13,7 @@ fs_permissions = [
 ]
 optimizer_runs = 0
 bytecode_hash = "none"
+cbor_metadata = false
 optimizer = true
 # gas_limit = "8000000000"
 create2_deployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
