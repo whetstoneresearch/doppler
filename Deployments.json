@@ -62,7 +62,7 @@
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
     "DopplerERC20V1": "0xdb7b520bb5c3a2c5d4871198081911359f93be87",
     "DopplerERC20V1Factory": "0x89c261c05b5f9b6bcba07c199b8dee7cfad45292",
-    "DopplerHookInitializer": "0xaa096f558f3d4c9226de77e7cc05f18e180b2544",
+    "DopplerHookInitializer": "0x56ea13da5f39863d3b3d54826187306af7ada544",
     "DopplerHookMigrator": "0x1e40b0875dda35f41e15cfb475403859b8c860c4",
     "GovernanceFactory": "0xfaafde6a5b658684cc5eb0c5c2c755b00a246f45",
     "LaunchpadGovernanceFactory": "0x5fbe931dc4b923a7abe4c47ad68d5bf9eda5b76d",
