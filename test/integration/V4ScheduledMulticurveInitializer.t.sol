@@ -13,6 +13,8 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
+import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import {
     InitData,
@@ -27,6 +29,7 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
+import { DN404Factory } from "src/tokens/DN404Factory.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -47,6 +50,7 @@ contract V4ScheduledMulticurveInitializer is Deployers {
     UniswapV4ScheduledMulticurveInitializer public initializer;
     UniswapV4ScheduledMulticurveInitializerHook public multicurveHook;
     TokenFactory public tokenFactory;
+    DN404Factory public dn404Factory;
     GovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
     LiquidityMigratorMock public mockLiquidityMigrator;
@@ -62,6 +66,7 @@ contract V4ScheduledMulticurveInitializer is Deployers {
 
         airlock = new Airlock(airlockOwner);
         tokenFactory = new TokenFactory(address(airlock));
+        dn404Factory = new DN404Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         multicurveHook = UniswapV4ScheduledMulticurveInitializerHook(
             address(
@@ -79,17 +84,19 @@ contract V4ScheduledMulticurveInitializer is Deployers {
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
 
-        address[] memory modules = new address[](4);
+        address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(mockLiquidityMigrator);
+        modules[1] = address(dn404Factory);
+        modules[2] = address(governanceFactory);
+        modules[3] = address(initializer);
+        modules[4] = address(mockLiquidityMigrator);
 
-        ModuleState[] memory states = new ModuleState[](4);
+        ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.LiquidityMigrator;
+        states[1] = ModuleState.TokenFactory;
+        states[2] = ModuleState.GovernanceFactory;
+        states[3] = ModuleState.PoolInitializer;
+        states[4] = ModuleState.LiquidityMigrator;
 
         vm.startPrank(airlockOwner);
         airlock.setModuleState(modules, states);
@@ -207,6 +214,57 @@ contract V4ScheduledMulticurveInitializer is Deployers {
         airlock.migrate(asset);
     }
 
+    function test_create_DN404_ScheduledMulticurveInitializerV4(bytes32 salt) public {
+        uint256 initialSupply = 1e27;
+        uint256 unit = initialSupply;
+        uint32 startingTime = uint32(block.timestamp + 1 hours);
+        address tokenAddress = _computeDN404Address(salt, initialSupply, unit);
+        InitData memory initData = _prepareInitData(tokenAddress);
+        initData.startingTime = startingTime;
+
+        CreateParams memory params = _prepareDN404CreateParams(salt, initialSupply, unit, initData);
+
+        (address asset,,,,) = airlock.create(params);
+
+        assertEq(asset, tokenAddress, "Asset address mismatch");
+        assertEq(DopplerDN404Mirror(payable(DopplerDN404(payable(asset)).mirrorERC721())).baseERC20(), asset);
+        assertEq(multicurveHook.startingTimeOf(poolId), startingTime);
+    }
+
+    function test_migrate_DN404_ScheduledMulticurveInitializerV4(bytes32 salt) public {
+        uint256 initialSupply = 1e27;
+        uint256 unit = initialSupply;
+        uint32 startingTime = uint32(block.timestamp + 1 hours);
+        address tokenAddress = _computeDN404Address(salt, initialSupply, unit);
+        InitData memory initData = _prepareInitData(tokenAddress);
+        initData.startingTime = startingTime;
+        CreateParams memory params = _prepareDN404CreateParams(salt, initialSupply, unit, initData);
+
+        (address asset,,,,) = airlock.create(params);
+        require(asset == tokenAddress, "Asset address mismatch");
+        assertEq(multicurveHook.startingTimeOf(poolId), startingTime);
+
+        vm.label(asset, "DN404Asset");
+        bool isToken0 = asset < address(numeraire);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: int256(initialSupply),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        vm.expectRevert();
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        vm.warp(startingTime);
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        vm.prank(airlockOwner);
+        airlock.migrate(asset);
+
+        assertTrue(DopplerDN404(payable(asset)).isPoolUnlocked());
+    }
+
     function _prepareInitData(address token) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
@@ -230,6 +288,44 @@ contract V4ScheduledMulticurveInitializer is Deployers {
 
         return InitData({
             fee: 0, tickSpacing: tickSpacing, curves: curves, beneficiaries: new BeneficiaryData[](0), startingTime: 0
+        });
+    }
+
+    function _computeDN404Address(bytes32 salt, uint256 initialSupply, uint256 unit) internal view returns (address) {
+        return vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DopplerDN404).creationCode,
+                    abi.encode(
+                        "Test DN404", "DN404", initialSupply, address(airlock), address(airlock), "ipfs://dn404/", unit
+                    )
+                )
+            ),
+            address(dn404Factory)
+        );
+    }
+
+    function _prepareDN404CreateParams(
+        bytes32 salt,
+        uint256 initialSupply,
+        uint256 unit,
+        InitData memory initData
+    ) internal view returns (CreateParams memory) {
+        return CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(dn404Factory),
+            tokenFactoryData: abi.encode("Test DN404", "DN404", "ipfs://dn404/", unit),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test DN404", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
         });
     }
 }
