@@ -1,19 +1,37 @@
-# Auth-Bridge Oracle Interface (Minimal)
+# Auth-Bridge Oracle Interface
 
-This describes the on-chain interface expected by the hook.
+The Auth Bridge oracle verifies user and auth-signer signatures, checks
+executor/deadline constraints, consumes unordered nonces, and lets a disable
+authority permanently turn authorization off for a lane.
 
 ## Structs
 
 ```solidity
+struct AuthBridgeInitData {
+    address authSigner;
+    address disableAuthority;
+}
+
 struct AuthSwap {
     address user;
     address executor;
+    address asset;
     bytes32 poolId;
-    bool    zeroForOne;
-    int256  amountSpecified;
+    bool zeroForOne;
+    int256 amountSpecified;
     uint160 sqrtPriceLimitX96;
-    uint64  nonce;
-    uint64  deadline;
+    bytes32 nonce;
+    uint64 deadline;
+}
+
+struct AuthTransfer {
+    address token;
+    address from;
+    address to;
+    uint256 amount;
+    address executor;
+    bytes32 nonce;
+    uint64 deadline;
 }
 ```
 
@@ -21,26 +39,50 @@ struct AuthSwap {
 
 ```solidity
 interface IAuthBridgeOracle {
-    function initialize(PoolId poolId, address asset, bytes calldata data) external;
+    function initializeSwapAuthorization(
+        PoolId poolId,
+        address authSigner,
+        address disableAuthority
+    ) external;
 
-    function isAuthorized(
-        AuthSwap calldata swap,
+    function initializeTransferAuthorization(
+        address token,
+        address authSigner,
+        address disableAuthority
+    ) external;
+
+    function setTrustedCaller(address caller, bool trusted) external;
+
+    function authorizeSwap(
+        AuthSwap calldata swapAuth,
         address sender,
         bytes calldata userSig,
-        bytes calldata platformSig
-    ) external returns (bool);
+        bytes calldata authSig
+    ) external;
+
+    function authorizeTransfer(
+        AuthTransfer calldata transferAuth,
+        address sender,
+        bytes calldata userSig,
+        bytes calldata authSig
+    ) external;
+
+    function disableSwapAuthorization(PoolId poolId) external;
+    function disableTransferAuthorization(address token) external;
+
+    function isSwapAuthorizationDisabled(PoolId poolId) external view returns (bool);
+    function isTransferAuthorizationDisabled(address token) external view returns (bool);
 }
 ```
 
-### Semantics
+## Semantics
 
-- `initialize` is called once per pool by the hook during `onInitialization`.
-- `isAuthorized` returns `true` only if:
-  - signatures are valid (user + platform)
-  - nonce is expected
-  - deadline is not expired
-  - executor binding matches (if provided)
-  - platform signer matches the single immutable signer for the pool
-
-Oracle is responsible for all replay protection and signature verification logic.
-The platform signer is configured once per pool during `initialize` and cannot be changed.
+- Swap lanes are initialized by trusted callers during hook initialization.
+- Transfer lanes are initialized by the oracle owner/admin.
+- Swap and transfer lane initialization share the same explicit signer/disable-authority parameters.
+- `authorizeSwap` and `authorizeTransfer` revert on failure.
+- Nonces are unordered `bytes32` values keyed by `(lane, user, nonce)`.
+- `executor` must match the sender provided by the trusted caller.
+- The disable authority can permanently disable its lane.
+- Disabled swap lanes allow the Doppler hook to skip hook data and signature checks.
+- Disabled transfer lanes make `AuthBridgeTransferExecutor` revert instead of skipping auth.

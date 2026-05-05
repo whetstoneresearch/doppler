@@ -1,26 +1,42 @@
-# Auth-Bridge Oracle Integration Guide
+# Auth-Bridge Integration Guide
 
-This guide explains how to wire the Auth-Bridge hook + oracle for a new pool.
+Auth Bridge gates Doppler hook swaps and provides an optional authorized token
+transfer route. This is a hard-break interface: the existing
+`AuthBridgeOracle`, `AuthBridgeDopplerHook`, and `IAuthBridgeOracle` names are
+kept, but the old swap-only `isAuthorized` surface is replaced.
+
+Auth Bridge is not an identity registry. It only checks signatures for a
+specific action, executor, nonce, and deadline. Each lane also has a
+`disableAuthority` that can permanently turn the auth check off.
 
 ## Contracts
 
 - Hook: `AuthBridgeDopplerHook`
 - Oracle: `AuthBridgeOracle`
+- Transfer route: `AuthBridgeTransferExecutor`
 - Interface: `IAuthBridgeOracle`
 
-The hook is a thin orchestrator. All signature verification, nonce tracking,
-deadline checks, executor binding, and signer allowlist enforcement live in the oracle.
+Source layout:
 
-## Initialization Flow
+- `src/dopplerHooks/AuthBridgeDopplerHook.sol`
+- `src/implementations/authBridge/AuthBridgeOracle.sol`
+- `src/implementations/authBridge/AuthBridgeTransferExecutor.sol`
 
-1. Deploy the hook and oracle:
+## Deployment
 
 ```solidity
-AuthBridgeDopplerHook hook = new AuthBridgeDopplerHook(address(initializer));
-AuthBridgeOracle oracle = new AuthBridgeOracle(address(hook));
+AuthBridgeOracle oracle = new AuthBridgeOracle(owner);
+AuthBridgeDopplerHook hook = new AuthBridgeDopplerHook(address(initializer), address(oracle));
+AuthBridgeTransferExecutor transferExecutor = new AuthBridgeTransferExecutor(address(oracle));
+
+vm.prank(owner);
+oracle.setTrustedCaller(address(hook), true);
+
+vm.prank(owner);
+oracle.setTrustedCaller(address(transferExecutor), true);
 ```
 
-2. Enable the hook on the initializer:
+Enable the hook on `DopplerHookInitializer`:
 
 ```solidity
 initializer.setDopplerHookState(
@@ -29,137 +45,107 @@ initializer.setDopplerHookState(
 );
 ```
 
-3. Encode oracle init data (single immutable signer):
+## Pool Initialization
+
+Pool initialization data no longer carries an oracle address. The hook uses the
+oracle configured in its constructor.
 
 ```solidity
-AuthBridgeOracleInitData memory oracleInit = AuthBridgeOracleInitData({
-    platformSigner: platformSigner
+AuthBridgeInitData memory authInit = AuthBridgeInitData({
+    authSigner: authSigner,
+    disableAuthority: disableAuthority
 });
 
-AuthBridgeInitData memory hookInit = AuthBridgeInitData({
-    oracle: address(oracle),
-    oracleData: abi.encode(oracleInit)
-});
-```
-
-4. Pass `hookInit` during pool creation:
-
-```solidity
 InitData memory initData = InitData({
     // ...other fields...
     dopplerHook: address(hook),
-    onInitializationDopplerHookCalldata: abi.encode(hookInit),
+    onInitializationDopplerHookCalldata: abi.encode(authInit),
     graduationDopplerHookCalldata: new bytes(0)
 });
 ```
 
+The hook initializes a swap lane keyed by `poolId`.
+
 ## Swap Authorization
 
-Swappers must include `hookData` that ABI-decodes to:
+Swappers include `hookData` that ABI-decodes to:
 
 ```solidity
 struct AuthBridgeData {
     address user;
-    address executor;     // 0 = any
-    uint64  deadline;
-    uint64  nonce;
-    bytes   userSig;
-    bytes   platformSig;
+    address executor;
+    bytes32 nonce;
+    uint64 deadline;
+    bytes userSig;
+    bytes authSig;
 }
 ```
 
-The oracle verifies:
-
-- EIP-712 signature over `AuthSwap` (same digest for user + platform)
-- Deadline not expired
-- Executor binding (if non-zero)
-- Sequential nonce per user per pool
-- Platform signer allowlist
-- EIP-1271 support for contract wallets
-
-## Oracle Immutability
-
-The oracle and its single `platformSigner` are set once per pool during `onInitialization`
-and cannot be changed. Attempts to re-initialize will revert.
-
-## Signature Generation (SDK Guide)
-
-The oracle verifies an EIP-712 signature over the `AuthSwap` struct. The **same digest**
-is signed by both the user and the platform signer.
-
-### Typed Data
-
-- **Domain**
-  - `name`: `"AuthBridgeDopplerHook"`
-  - `version`: `"1"`
-  - `chainId`: current chain ID
-  - `verifyingContract`: `AuthBridgeOracle` address (per pool)
-
-- **Primary Type**: `AuthSwap`
+The hook reconstructs and authorizes:
 
 ```solidity
-AuthSwap(
-  address user,
-  address executor,
-  bytes32 poolId,
-  bool    zeroForOne,
-  int256  amountSpecified,
-  uint160 sqrtPriceLimitX96,
-  uint64  nonce,
-  uint64  deadline
-)
+struct AuthSwap {
+    address user;
+    address executor;
+    address asset;
+    bytes32 poolId;
+    bool zeroForOne;
+    int256 amountSpecified;
+    uint160 sqrtPriceLimitX96;
+    bytes32 nonce;
+    uint64 deadline;
+}
 ```
 
-### Example (TypeScript + ethers v6)
+EIP-712 domain:
 
 ```ts
-import { ethers } from "ethers";
-
 const domain = {
-  name: "AuthBridgeDopplerHook",
+  name: "AuthBridge",
   version: "1",
   chainId,
   verifyingContract: authBridgeOracleAddress,
 };
-
-const types = {
-  AuthSwap: [
-    { name: "user", type: "address" },
-    { name: "executor", type: "address" },
-    { name: "poolId", type: "bytes32" },
-    { name: "zeroForOne", type: "bool" },
-    { name: "amountSpecified", type: "int256" },
-    { name: "sqrtPriceLimitX96", type: "uint160" },
-    { name: "nonce", type: "uint64" },
-    { name: "deadline", type: "uint64" },
-  ],
-};
-
-const value = {
-  user,
-  executor,        // 0x000...000 to allow any executor
-  poolId,          // bytes32
-  zeroForOne,
-  amountSpecified, // int256
-  sqrtPriceLimitX96,
-  nonce,
-  deadline,        // unix seconds
-};
-
-const userSig = await userWallet.signTypedData(domain, types, value);
-const platformSig = await platformWallet.signTypedData(domain, types, value);
-
-// Hook data
-const hookData = ethers.AbiCoder.defaultAbiCoder().encode(
-  [
-    "tuple(address user,address executor,uint64 deadline,uint64 nonce,bytes userSig,bytes platformSig)"
-  ],
-  [{ user, executor, deadline, nonce, userSig, platformSig }]
-);
 ```
 
-### Notes
+Auth Bridge uses unordered `bytes32` nonces per `(lane, user, nonce)`, so SDKs
+can prepare multiple swaps concurrently.
 
-- `nonce` is sequential per `(poolId, user)` and is stored in the oracle.
-- `deadline` is enforced by the oracle. Use short TTLs.
-- `executor` binding is optional; set to zero address to allow any sender.
+## Transfer Authorization
+
+The transfer executor authorizes this typed data:
+
+```solidity
+struct AuthTransfer {
+    address token;
+    address from;
+    address to;
+    uint256 amount;
+    address executor;
+    bytes32 nonce;
+    uint64 deadline;
+}
+```
+
+Initialize a token transfer lane before using the route:
+
+```solidity
+vm.prank(owner);
+oracle.initializeTransferAuthorization(token, authSigner, disableAuthority);
+```
+
+Then users grant allowance to `AuthBridgeTransferExecutor` and callers submit
+`transferWithAuthorization(authTransfer, userSig, authSig)`.
+
+The executor never bypasses token transfer hooks. For `DopplerERC20V1`, pool-lock
+and balance-limit checks still run during `transferFrom`.
+
+## Permanent Disable
+
+Each lane has a `disableAuthority`.
+
+- `disableSwapAuthorization(poolId)` permanently turns off swap auth for that pool lane.
+- `disableTransferAuthorization(token)` permanently disables the transfer route for that token lane.
+
+Disabled transfer lanes make `AuthBridgeTransferExecutor` revert instead of
+pulling tokens without auth. Direct ERC20/Permit2 routes remain available.

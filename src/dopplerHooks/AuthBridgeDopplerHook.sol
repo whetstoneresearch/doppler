@@ -6,36 +6,40 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId, PoolIdLibrary } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { BaseDopplerHook } from "src/base/BaseDopplerHook.sol";
-import { IAuthBridgeOracle, AuthSwap } from "src/interfaces/IAuthBridgeOracle.sol";
+import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { AuthBridgeInitData, AuthSwap, IAuthBridgeOracle } from "src/interfaces/IAuthBridgeOracle.sol";
 
-// ============ Errors ============
-
-/// @notice Thrown when hookData is missing or cannot be decoded
+/// @notice Thrown when swap authorization is enabled but no hook data was provided.
 error AuthBridge_MissingHookData();
 
-/// @notice Thrown when the executor does not match the expected executor
+/// @notice Thrown when the configured oracle address is zero.
 error AuthBridge_InvalidOracle(address oracle);
-error AuthBridge_OracleAlreadySet(PoolId poolId);
-error AuthBridge_OracleNotSet(PoolId poolId);
-error AuthBridge_Unauthorized();
 
-// ============ Structs ============
+/// @notice Thrown when a pool is initialized more than once.
+error AuthBridge_PoolAlreadyInitialized(PoolId poolId);
 
-/// @notice Data passed in hookData for swap authorization
+/// @notice Thrown when swap auth is requested for an unknown pool.
+error AuthBridge_PoolNotInitialized(PoolId poolId);
+
+/// @notice Data passed in hookData for swap authorization.
 struct AuthBridgeData {
-    address user; // the user identity being authorized (EOA for P1)
-    address executor; // optional: required swap executor (0 = allow any executor)
-    uint64 deadline; // unix seconds timestamp
-    uint64 nonce; // expected nonce for (poolId, user)
-    bytes userSig; // ECDSA sig over EIP-712 digest
-    bytes platformSig; // ECDSA sig over EIP-712 digest
-}
+    /// @notice User whose signature authorizes the swap.
+    address user;
 
-/// @notice Data passed during pool initialization
-struct AuthBridgeInitData {
-    address oracle;
-    bytes oracleData;
+    /// @notice Swap executor that must match the sender reported by `DopplerHookInitializer`.
+    address executor;
+
+    /// @notice Unordered nonce consumed for this user and pool.
+    bytes32 nonce;
+
+    /// @notice Last timestamp at which the authorization is valid.
+    uint64 deadline;
+
+    /// @notice Signature from `user` over the reconstructed swap authorization.
+    bytes userSig;
+
+    /// @notice Signature from the lane's auth signer over the reconstructed swap authorization.
+    bytes authSig;
 }
 
 /**
@@ -43,41 +47,40 @@ struct AuthBridgeInitData {
  * @author Whetstone Research
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hook that gates swaps using two-party EIP-712 signature authorization.
- * Each swap requires both a user signature and a platform signature over the same digest.
- * @dev Auth logic (nonces, signatures, deadlines) lives in the oracle.
+ * @dev The hook only authorizes swaps. It does not alter swap accounting and always returns no hook delta.
  */
-contract AuthBridgeDopplerHook is BaseDopplerHook {
+contract AuthBridgeDopplerHook is BaseDopplerHookInitializer {
     using PoolIdLibrary for PoolKey;
 
-    // ============ State ============
+    address internal constant NO_CURRENCY_ADDRESS = address(0);
+    int128 internal constant NO_HOOK_DELTA = 0;
 
-    /// @notice Oracle per pool (set once at initialization)
-    mapping(PoolId poolId => address oracle) public poolOracle;
+    /// @notice Shared Auth Bridge oracle used by all pools on this hook.
+    IAuthBridgeOracle public immutable AUTH_BRIDGE_ORACLE;
 
-    // ============ Constructor ============
+    /// @notice Doppler asset for each initialized pool.
+    mapping(PoolId poolId => address asset) public poolAsset;
 
     /**
-     * @param initializer Address of the DopplerHookInitializer contract
+     * @param initializer DopplerHookInitializer allowed to call this hook.
+     * @param authBridgeOracle Shared Auth Bridge oracle.
      */
-    constructor(address initializer) BaseDopplerHook(initializer) { }
-
-    // ============ Initialization ============
-
-    /// @inheritdoc BaseDopplerHook
-    function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
-        PoolId poolId = key.toId();
-        if (poolOracle[poolId] != address(0)) revert AuthBridge_OracleAlreadySet(poolId);
-
-        AuthBridgeInitData memory initData = abi.decode(data, (AuthBridgeInitData));
-        if (initData.oracle == address(0)) revert AuthBridge_InvalidOracle(initData.oracle);
-
-        poolOracle[poolId] = initData.oracle;
-        IAuthBridgeOracle(initData.oracle).initialize(poolId, asset, initData.oracleData);
+    constructor(address initializer, address authBridgeOracle) BaseDopplerHookInitializer(initializer) {
+        if (authBridgeOracle == address(0)) revert AuthBridge_InvalidOracle(authBridgeOracle);
+        AUTH_BRIDGE_ORACLE = IAuthBridgeOracle(authBridgeOracle);
     }
 
-    // ============ Swap Validation ============
+    /// @inheritdoc BaseDopplerHookInitializer
+    function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
+        PoolId poolId = key.toId();
+        if (poolAsset[poolId] != address(0)) revert AuthBridge_PoolAlreadyInitialized(poolId);
 
-    /// @inheritdoc BaseDopplerHook
+        AuthBridgeInitData memory initData = abi.decode(data, (AuthBridgeInitData));
+        poolAsset[poolId] = asset;
+        AUTH_BRIDGE_ORACLE.initializeSwapAuthorization(poolId, initData.authSigner, initData.disableAuthority);
+    }
+
+    /// @inheritdoc BaseDopplerHookInitializer
     function _onSwap(
         address sender,
         PoolKey calldata key,
@@ -85,20 +88,22 @@ contract AuthBridgeDopplerHook is BaseDopplerHook {
         BalanceDelta,
         bytes calldata data
     ) internal override returns (Currency, int128) {
-        // 1. Decode AuthBridgeData from hookData
-        if (data.length == 0) {
-            revert AuthBridge_MissingHookData();
+        PoolId poolId = key.toId();
+        address asset = poolAsset[poolId];
+        if (asset == address(0)) revert AuthBridge_PoolNotInitialized(poolId);
+
+        IAuthBridgeOracle oracle = AUTH_BRIDGE_ORACLE;
+        if (oracle.isSwapAuthorizationDisabled(poolId)) {
+            return _noSwapAdjustment();
         }
 
+        if (data.length == 0) revert AuthBridge_MissingHookData();
         AuthBridgeData memory authData = abi.decode(data, (AuthBridgeData));
 
-        PoolId poolId = key.toId();
-        address oracle = poolOracle[poolId];
-        if (oracle == address(0)) revert AuthBridge_OracleNotSet(poolId);
-
-        AuthSwap memory swapData = AuthSwap({
+        AuthSwap memory swapAuth = AuthSwap({
             user: authData.user,
             executor: authData.executor,
+            asset: asset,
             poolId: PoolId.unwrap(poolId),
             zeroForOne: params.zeroForOne,
             amountSpecified: params.amountSpecified,
@@ -107,16 +112,11 @@ contract AuthBridgeDopplerHook is BaseDopplerHook {
             deadline: authData.deadline
         });
 
-        bool authorized = IAuthBridgeOracle(oracle).isAuthorized(
-            swapData,
-            sender,
-            authData.userSig,
-            authData.platformSig
-        );
-
-        if (!authorized) revert AuthBridge_Unauthorized();
-
-        return (Currency.wrap(address(0)), 0);
+        oracle.authorizeSwap(swapAuth, sender, authData.userSig, authData.authSig);
+        return _noSwapAdjustment();
     }
 
+    function _noSwapAdjustment() internal pure returns (Currency, int128) {
+        return (Currency.wrap(NO_CURRENCY_ADDRESS), NO_HOOK_DELTA);
+    }
 }
