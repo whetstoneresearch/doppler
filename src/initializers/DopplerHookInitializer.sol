@@ -13,12 +13,12 @@ import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
 import { BaseHook } from "src/base/BaseHook.sol";
 import { FeesManager } from "src/base/FeesManager.sol";
 import { ImmutableAirlock, SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { MiniV4Manager } from "src/base/MiniV4Manager.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+import { IDopplerHookInitializer } from "src/interfaces/IDopplerHookInitializer.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
@@ -34,7 +34,7 @@ event Lock(address indexed pool, BeneficiaryData[] beneficiaries);
 /**
  * @notice Emitted when the state of a Doppler Hook is set
  * @param dopplerHook Address of the Doppler Hook
- * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHook.sol)
+ * @param flag Flag of the Doppler Hook (see flags in BaseDopplerHookInitializer.sol)
  */
 event SetDopplerHookState(address indexed dopplerHook, uint256 indexed flag);
 
@@ -255,7 +255,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         }
 
         if (dopplerHookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDopplerHook(dopplerHook).onInitialization(asset, poolKey, onInitializationDopplerHookCalldata);
+            IDopplerHookInitializer(dopplerHook).onInitialization(asset, poolKey, onInitializationDopplerHookCalldata);
         }
 
         // Uniswap V4 pools don't have addresses, so we are returning the asset address
@@ -391,7 +391,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         emit SetDopplerHook(asset, dopplerHook);
 
         if (dopplerHookFlag & ON_INITIALIZATION_FLAG != 0) {
-            IDopplerHook(dopplerHook).onInitialization(asset, state.poolKey, onInitializationCalldata);
+            IDopplerHookInitializer(dopplerHook).onInitialization(asset, state.poolKey, onInitializationCalldata);
         }
     }
 
@@ -414,7 +414,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
         getState[asset].status = PoolStatus.Graduated;
         emit Graduate(asset);
 
-        IDopplerHook(dopplerHook).onGraduation(asset, state.poolKey, state.graduationDopplerHookCalldata);
+        IDopplerHookInitializer(dopplerHook).onGraduation(asset, state.poolKey, state.graduationDopplerHookCalldata);
     }
 
     /**
@@ -433,7 +433,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
     /**
      * @notice Sets the state of a given Doppler hooks array
      * @param dopplerHooks Array of Doppler hook addresses
-     * @param flags Array of flags to set (see flags in BaseDopplerHook.sol)
+     * @param flags Array of flags to set (see flags in BaseDopplerHookInitializer.sol)
      */
     function setDopplerHookState(address[] calldata dopplerHooks, uint256[] calldata flags) external {
         require(msg.sender == airlock.owner(), SenderNotAirlockOwner());
@@ -540,7 +540,7 @@ contract DopplerHookInitializer is ImmutableAirlock, BaseHook, MiniV4Manager, Fe
 
         if (dopplerHook != address(0) && isDopplerHookEnabled[dopplerHook] & ON_SWAP_FLAG != 0) {
             Currency feeCurrency;
-            (feeCurrency, delta) = IDopplerHook(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
+            (feeCurrency, delta) = IDopplerHookInitializer(dopplerHook).onSwap(sender, key, params, balanceDelta, data);
 
             if (delta > 0) {
                 poolManager.take(feeCurrency, address(this), uint128(delta));

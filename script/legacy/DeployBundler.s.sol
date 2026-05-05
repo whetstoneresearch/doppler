@@ -27,7 +27,8 @@ contract DeployBundlerScript is Script, Config {
         vm.selectFork(forkOf[chainId]);
 
         address airlock = config.get("airlock").toAddress();
-        address quoter = config.get("quoter").toAddress();
+        address quoterV2 = config.get("quoter_v2").toAddress();
+        address quoterV4 = config.get("quoter_v4").toAddress();
         address router = config.get("universal_router").toAddress();
         address createX = config.get("create_x").toAddress();
 
@@ -36,7 +37,9 @@ contract DeployBundlerScript is Script, Config {
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
         address bundler = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(Bundler).creationCode, abi.encode(airlock, router, quoter)));
+            .deployCreate3(
+                salt, abi.encodePacked(type(Bundler).creationCode, abi.encode(airlock, router, quoterV2, quoterV4))
+            );
         require(bundler == expectedAddress, "Unexpected deployed address");
 
         vm.stopBroadcast();

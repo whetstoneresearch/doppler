@@ -17,7 +17,7 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 
 import { Airlock } from "src/Airlock.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     ArrayLengthsMismatch,
@@ -43,14 +43,14 @@ import {
     UnreachableFarTick,
     WrongPoolStatus
 } from "src/initializers/DopplerHookInitializer.sol";
-import { IDopplerHook } from "src/interfaces/IDopplerHook.sol";
+import { IDopplerHookInitializer } from "src/interfaces/IDopplerHookInitializer.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve, Multicurve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import { WAD } from "src/types/Wad.sol";
 
-contract MockDopplerHook is IDopplerHook {
+contract MockDopplerHook is IDopplerHookInitializer {
     function onInitialization(address, PoolKey calldata, bytes calldata) external { }
     function onSwap(
         address,
@@ -236,7 +236,10 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.expectCall(
             address(dopplerHook),
             abi.encodeWithSelector(
-                IDopplerHook.onInitialization.selector, asset, poolKey, initData.onInitializationDopplerHookCalldata
+                IDopplerHookInitializer.onInitialization.selector,
+                asset,
+                poolKey,
+                initData.onInitializationDopplerHookCalldata
             )
         );
 
@@ -260,7 +263,7 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         vm.expectCall(
             address(dopplerHook),
             abi.encodeWithSelector(
-                IDopplerHook.onInitialization.selector, asset, initData.onInitializationDopplerHookCalldata
+                IDopplerHookInitializer.onInitialization.selector, asset, initData.onInitializationDopplerHookCalldata
             ),
             0
         );
@@ -468,7 +471,9 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
     function _setDopplerHook(bytes calldata onInitializationCalldata, bytes calldata onGraduationCalldata) public {
         vm.expectCall(
             address(dopplerHook),
-            abi.encodeWithSelector(IDopplerHook.onInitialization.selector, asset, poolKey, onInitializationCalldata)
+            abi.encodeWithSelector(
+                IDopplerHookInitializer.onInitialization.selector, asset, poolKey, onInitializationCalldata
+            )
         );
         vm.expectEmit();
         emit SetDopplerHook(asset, address(dopplerHook));
@@ -705,7 +710,9 @@ contract DopplerHookMulticurveInitializerTest is Deployers {
         test_initialize_LocksPoolWithDopplerHook(initParams, isToken0);
         vm.expectCall(
             address(dopplerHook),
-            abi.encodeWithSelector(IDopplerHook.onSwap.selector, sender, poolKey, swapParams, balanceDelta, data)
+            abi.encodeWithSelector(
+                IDopplerHookInitializer.onSwap.selector, sender, poolKey, swapParams, balanceDelta, data
+            )
         );
         vm.prank(address(manager));
         initializer.afterSwap(sender, poolKey, swapParams, balanceDelta, data);

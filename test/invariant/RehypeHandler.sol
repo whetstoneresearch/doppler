@@ -12,19 +12,20 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
-import { Currency, equals, lessThan } from "@v4-core/types/Currency.sol";
+import { Currency, CurrencyLibrary, equals, lessThan } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
 import { Airlock } from "src/Airlock.sol";
-import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHook.sol";
-import { EPSILON, RehypeDopplerHook } from "src/dopplerHooks/RehypeDopplerHook.sol";
+import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
+import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
@@ -37,7 +38,7 @@ address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
 contract RehyperInvariantTests is Deployers {
     Airlock public airlock;
     DopplerHookInitializer public dopplerHookInitializer;
-    RehypeDopplerHook public rehypeHook;
+    RehypeDopplerHookInitializer public rehypeHook;
     RehypeHandler public handler;
     V4Quoter public quoter;
 
@@ -54,7 +55,7 @@ contract RehyperInvariantTests is Deployers {
                     ) ^ (0x4444 << 144)
                 ))
         );
-        rehypeHook = new RehypeDopplerHook(address(dopplerHookInitializer), manager);
+        rehypeHook = new RehypeDopplerHookInitializer(address(dopplerHookInitializer), manager);
         quoter = new V4Quoter(manager);
         handler = new RehypeHandler(manager, swapRouter, dopplerHookInitializer, rehypeHook, quoter);
 
@@ -63,15 +64,14 @@ contract RehyperInvariantTests is Deployers {
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](7);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
         selectors[2] = handler.buyExactOut.selector;
         selectors[3] = handler.sellExactIn.selector;
         selectors[4] = handler.sellExactOut.selector;
-        selectors[5] = handler.setFeeDistribution.selector;
-        selectors[6] = handler.collectFees.selector;
-        selectors[7] = handler.claimAirlockOwnerFees.selector;
+        selectors[5] = handler.collectFees.selector;
+        selectors[6] = handler.claimAirlockOwnerFees.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
@@ -140,7 +140,7 @@ contract RehypeHandler is Test {
     using LibAddressSet for AddressSet;
 
     IPoolManager public manager;
-    RehypeDopplerHook public hook;
+    RehypeDopplerHookInitializer public hook;
     PoolSwapTest public swapRouter;
     DopplerHookInitializer public dopplerHookInitializer;
     V4Quoter public quoter;
@@ -188,7 +188,7 @@ contract RehypeHandler is Test {
         IPoolManager manager_,
         PoolSwapTest swapRouter_,
         DopplerHookInitializer dopplerHookInitializer_,
-        RehypeDopplerHook hook_,
+        RehypeDopplerHookInitializer hook_,
         V4Quoter quoter_
     ) {
         manager = manager_;
@@ -253,17 +253,37 @@ contract RehypeHandler is Test {
         });
 
         data.onInitializationDopplerHookCalldata = abi.encode(
-            numeraire,
-            address(0xbeef),
-            3000,
-            settings.assetBuybackPercentWad,
-            settings.numeraireBuybackPercentWad,
-            settings.beneficiaryPercentWad,
-            settings.lpPercentWad
+            RehypeInitData({
+                numeraire: numeraire,
+                buybackDst: address(0xbeef),
+                startFee: 3000,
+                endFee: 3000,
+                durationSeconds: 0,
+                startingTime: 0,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    assetFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    assetFeesToLpWad: settings.lpPercentWad,
+                    numeraireFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
+                    numeraireFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
+                    numeraireFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
+                    numeraireFeesToLpWad: settings.lpPercentWad
+                })
+            })
         );
         dopplerHookInitializer.initialize(address(asset), numeraire, 1e27, bytes32(0), abi.encode(data));
 
         settingsOf[poolId] = settings;
+
+        if (poolKey.currency0 == (CurrencyLibrary.ADDRESS_ZERO)) {
+            deal(address(manager), 1e26);
+        } else {
+            deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        }
+
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
     }
 
     function buyExactIn(uint256 amount) public createActor {
@@ -446,7 +466,7 @@ contract RehypeHandler is Test {
         (uint256 amountOut,) = quoter.quoteExactInputSingle(
             IV4Quoter.QuoteExactSingleParams({
                 poolKey: poolKey,
-                zeroForOne: !settings.isToken0,
+                zeroForOne: settings.isToken0,
                 exactAmount: uint128(currentBalance),
                 hookData: new bytes(0)
             })
@@ -457,10 +477,7 @@ contract RehypeHandler is Test {
 
         (uint256 amountIn,) = quoter.quoteExactOutputSingle(
             IV4Quoter.QuoteExactSingleParams({
-                poolKey: poolKey,
-                zeroForOne: !settings.isToken0,
-                exactAmount: uint128(amountOut),
-                hookData: new bytes(0)
+                poolKey: poolKey, zeroForOne: settings.isToken0, exactAmount: uint128(amountOut), hookData: new bytes(0)
             })
         );
 
@@ -497,28 +514,6 @@ contract RehypeHandler is Test {
         totalSells[poolId]++;
 
         _trackLiquidity(poolId);
-    }
-
-    function setFeeDistribution(uint256 seed) public {
-        if (poolKeys.length == 0) return;
-        // Only 0.5% chance to set fee distribution
-        if (seed < WAD) seed = WAD;
-        vm.assume(seed % 1000 > 5);
-
-        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
-        PoolId poolId = poolKey.toId();
-
-        (
-            uint256 assetBuybackPercentWad,
-            uint256 numeraireBuybackPercentWad,
-            uint256 beneficiaryPercentWad,
-            uint256 lpPercentWad
-        ) = _randomizeFeeDistribution(seed);
-
-        vm.prank(settingsOf[poolId].buybackDst);
-        hook.setFeeDistribution(
-            poolId, assetBuybackPercentWad, numeraireBuybackPercentWad, beneficiaryPercentWad, lpPercentWad
-        );
     }
 
     function collectFees(uint256 seed) public {

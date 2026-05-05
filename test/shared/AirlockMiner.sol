@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { DecayMulticurveInitializer } from "src/initializers/DecayMulticurveInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
@@ -11,8 +12,70 @@ import {
     UniswapV4ScheduledMulticurveInitializerHook
 } from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { UniswapV4MigratorHook } from "src/migrators/UniswapV4MigratorHook.sol";
+import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
+import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
+
+/* -------------------------------------------------------------------------------- */
+/*                                DopplerHookMigrator                               */
+/* -------------------------------------------------------------------------------- */
+
+uint160 constant DOPPLER_HOOK_MIGRATOR_FLAGS = uint160(
+    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+);
+
+struct MineDopplerHookMigratorParams {
+    address deployer;
+    address sender;
+}
+
+function mineDopplerHookMigrator(MineDopplerHookMigratorParams memory params) view returns (bytes32, address) {
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(msg.sender)) << 96) | (keccak256(abi.encode(type(DopplerHookMigrator).name)) >> 168);
+
+    for (uint96 seed; seed < type(uint96).max; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address migrator = computeCreate3Address(guardedSalt, params.deployer);
+        if (
+            uint160(migrator) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_MIGRATOR_FLAGS && migrator.code.length == 0
+                && migrator != 0x8bBbE586F9A902c15A759FC134A99a2d28bc20c4
+                && migrator != 0xF848fEa3329185529B50228BCb36f3B5A60960C4
+        ) {
+            return (salt, migrator);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
+
+/* ---------------------------------------------------------------------------------------- */
+/*                                DecayMulticurveInitializer                                */
+/* ---------------------------------------------------------------------------------------- */
+
+function mineDecayMulticurveInitializer(address sender, address deployer) view returns (bytes32, address) {
+    bytes32 baseSalt =
+        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(DecayMulticurveInitializer).name)) >> 168;
+
+    for (uint256 seed; seed < 100_000; seed++) {
+        bytes32 salt = bytes32(uint256(baseSalt) + seed);
+        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
+
+        address hook = computeCreate3Address(guardedSalt, deployer);
+        if (
+            uint160(hook) & Hooks.ALL_HOOK_MASK
+                    == uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+                    ) && hook.code.length == 0
+        ) {
+            return (salt, hook);
+        }
+    }
+
+    revert("AirlockMiner: could not find salt");
+}
 
 /* ----------------------------------------------------------------------------------- */
 /*                                DopplerHookInitializer                               */
@@ -75,7 +138,7 @@ function computeCreate3Address(bytes32 guardedSalt, address deployer) pure retur
 }
 
 /* ---------------------------------------------------------------------------------- */
-/*                                UniswapV4MigratorHook                               */
+/*                                UniswapV4MigratorSplitHook                               */
 /* ---------------------------------------------------------------------------------- */
 
 uint160 constant MIGRATOR_HOOK_FLAGS =
@@ -89,7 +152,7 @@ struct MineV4MigratorHookParams {
 
 function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
     bytes32 migratorHookInitHash = keccak256(
-        abi.encodePacked(type(UniswapV4MigratorHook).creationCode, abi.encode(params.poolManager, params.migrator))
+        abi.encodePacked(type(UniswapV4MigratorSplitHook).creationCode, abi.encode(params.poolManager, params.migrator))
     );
 
     for (uint256 salt; salt < 200_000; ++salt) {
@@ -103,7 +166,7 @@ function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns
 
 function mineV4MigratorHookCreate3(address sender, address deployer) view returns (bytes32, address) {
     bytes32 baseSalt =
-        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(UniswapV4MigratorHook).name)) >> 168;
+        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(UniswapV4MigratorSplitHook).name)) >> 168;
 
     for (uint256 seed; seed < 100_000; seed++) {
         bytes32 salt = bytes32(uint256(baseSalt) + seed);

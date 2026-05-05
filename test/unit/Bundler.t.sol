@@ -5,6 +5,7 @@ import { Create2 } from "@openzeppelin/utils/Create2.sol";
 import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
 import { Commands } from "@universal-router/libraries/Commands.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
+import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
 import { Airlock, ModuleState } from "src/Airlock.sol";
 import { CreateParams } from "src/Airlock.sol";
@@ -24,12 +25,15 @@ address constant WETH = 0x4200000000000000000000000000000000000006;
 contract BundlerTest is Test {
     Bundler bundler;
     TokenFactory tokenFactory;
+    DummyV4Quoter dummyV4Quoter;
 
     receive() external payable { }
 
     function setUp() public {
         vm.createSelectFork(vm.envString("UNICHAIN_MAINNET_RPC_URL"), 10_594_210);
-        bundler = new Bundler(Airlock(airlock), UniversalRouter(ur), IQuoterV2(quoterV2));
+        dummyV4Quoter = new DummyV4Quoter();
+        bundler =
+            new Bundler(Airlock(airlock), UniversalRouter(ur), IQuoterV2(quoterV2), IV4Quoter(address(dummyV4Quoter)));
 
         tokenFactory = new TokenFactory(airlock);
         vm.prank(Airlock(airlock).owner());
@@ -97,5 +101,23 @@ contract BundlerTest is Test {
 
         assertEq(address(this).balance, 0, "Wrong ETH balance");
         assertGt(DERC20(asset).balanceOf(address(this)), 0, "Wrong asset balance");
+    }
+}
+
+contract DummyV4Quoter {
+    function quoteExactOutputSingle(IV4Quoter.QuoteExactSingleParams memory)
+        external
+        pure
+        returns (uint256 amountIn, uint256 gasEstimate)
+    {
+        return (0, 0);
+    }
+
+    function quoteExactInputSingle(IV4Quoter.QuoteExactSingleParams memory)
+        external
+        pure
+        returns (uint256 amountOut, uint256 gasEstimate)
+    {
+        return (0, 0);
     }
 }
