@@ -288,16 +288,18 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
         actions[positionsToMint] = bytes1(uint8(Actions.SETTLE_PAIR));
         params[positionsToMint] = abi.encode(poolKey.currency0, poolKey.currency1);
 
+        address permit2 = address(positionManager.permit2());
+
         if (token0 == address(0)) {
             // Parameters for the `SWEEP` action
             actions[length - 1] = bytes1(uint8(Actions.SWEEP));
             params[length - 1] = abi.encode(CurrencyLibrary.ADDRESS_ZERO, address(this));
         } else {
-            ERC20(token0).approve(address(positionManager.permit2()), balance0);
+            _approvePermit2(token0, permit2, balance0);
             positionManager.permit2().approve(token0, address(positionManager), uint160(balance0), type(uint48).max);
         }
 
-        ERC20(token1).approve(address(positionManager.permit2()), balance1);
+        _approvePermit2(token1, permit2, balance1);
         positionManager.permit2().approve(token1, address(positionManager), uint160(balance1), type(uint48).max);
 
         // We're storing the tokenId of the first position we're going to mint
@@ -341,4 +343,10 @@ contract UniswapV4MigratorSplit is ILiquidityMigrator, ImmutableAirlock, Proceed
 
     /// @dev NoOp function to pass to `storeBeneficiaries()`, since we don't need to store the beneficiaries
     function storeBeneficiary(PoolId, BeneficiaryData memory) private pure { }
+
+    function _approvePermit2(address token, address permit2, uint256 amount) private {
+        if (ERC20(token).allowance(address(this), permit2) != type(uint256).max) {
+            ERC20(token).approve(permit2, amount);
+        }
+    }
 }

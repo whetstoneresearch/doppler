@@ -9,6 +9,7 @@ import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { ERC20 as SoladyERC20 } from "solady/tokens/ERC20.sol";
 import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
 import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
 import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
@@ -167,6 +168,37 @@ contract UniswapV4MigratorTest is PosmTestSetup {
         assertEq(TestERC20(token1).balanceOf(address(migrator)), 0, "Migrator should have no token1 left");
     }
 
+    function test_migrate_WithFixedPermit2AllowanceToken() public {
+        FixedPermit2ERC20 fixedPermit2Token = new FixedPermit2ERC20();
+        TestERC20 otherToken = new TestERC20(0);
+        asset = address(fixedPermit2Token);
+        numeraire = address(otherToken);
+        token0 = asset;
+        token1 = numeraire;
+        (token0, token1) = token0 < token1 ? (token0, token1) : (token1, token0);
+
+        uint160 sqrtPriceX96 = 6_786_529_797_232_128_452_535_845;
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: BENEFICIARY_1, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlock.owner(), shares: 0.05e18 });
+
+        vm.prank(address(airlock));
+        migrator.initialize(
+            asset, numeraire, abi.encode(FEE, 1, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
+        );
+
+        fixedPermit2Token.mint(address(migrator), 2e18);
+        otherToken.mint(address(migrator), 0.5e18);
+
+        vm.prank(address(airlock));
+        migrator.migrate(sqrtPriceX96, token0, token1, RECIPIENT);
+
+        assertGe(ERC721(address(lpm)).balanceOf(RECIPIENT), 1, "Wrong recipient balance");
+        assertGe(ERC721(address(lpm)).balanceOf(address(locker)), 1, "Wrong locker balance");
+        assertEq(fixedPermit2Token.balanceOf(address(migrator)), 0, "Migrator should have no fixed token left");
+        assertEq(otherToken.balanceOf(address(migrator)), 0, "Migrator should have no other token left");
+    }
+
     function test_initialize_RevertZeroAddressBeneficiary() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
         beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 0.95e18 });
@@ -255,5 +287,23 @@ contract UniswapV4MigratorTest is PosmTestSetup {
             address(numeraire),
             abi.encode(FEE, TICK_SPACING, LOCK_DURATION, beneficiaries, PROCEEDS_RECIPIENT, PROCEEDS_SHARE)
         );
+    }
+}
+
+contract FixedPermit2ERC20 is SoladyERC20 {
+    function name() public pure override returns (string memory) {
+        return "Fixed Permit2 Token";
+    }
+
+    function symbol() public pure override returns (string memory) {
+        return "FIXED";
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function _givePermit2InfiniteAllowance() internal pure override returns (bool) {
+        return true;
     }
 }
