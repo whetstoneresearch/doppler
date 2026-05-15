@@ -236,6 +236,7 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
 
         (,,,,,,, MigratorStatus status) = hookMigrator.getAssetData(address(0), asset);
         assertEq(uint8(status), uint8(MigratorStatus.Locked), "migration pool should be locked");
+        _swapOnMigrationPoolFor(asset, address(0));
         _assertActiveLimit(token);
         assertEq(token.owner(), timelock, "owner should transfer to timelock");
         assertTrue(token.isExcludedFromBalanceLimit(timelock), "timelock should be auto-excluded on ownership transfer");
@@ -501,6 +502,7 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
 
         (,,,,,,, MigratorStatus status) = hookMigrator.getAssetData(address(0), asset);
         assertEq(uint8(status), uint8(MigratorStatus.Locked), "migration pool should be locked");
+        _swapOnMigrationPoolFor(asset, address(0));
         _assertActiveLimit(token);
         assertEq(token.owner(), timelock, "owner should transfer to timelock");
         assertTrue(token.isExcludedFromBalanceLimit(timelock), "timelock should be auto-excluded on ownership transfer");
@@ -708,6 +710,7 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
             WETH_MAINNET < asset ? WETH_MAINNET : asset, WETH_MAINNET < asset ? asset : WETH_MAINNET
         );
         assertEq(uint8(status), uint8(MigratorStatus.Locked), "migration pool should be locked");
+        _swapOnMigrationPoolFor(asset, WETH_MAINNET);
         _assertActiveLimit(token);
         assertEq(token.owner(), actualTimelock, "owner should transfer to timelock");
         assertGt(token.balanceOf(address(hookMigratorLocker)), 0, "locker should receive migrated asset");
@@ -1207,6 +1210,40 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
 
         vm.prank(buyer);
         swapRouter.swap{ value: swapAmount }(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
+    }
+
+    function _swapOnMigrationPoolFor(address asset, address numeraire) internal {
+        (address currency0, address currency1) = numeraire < asset ? (numeraire, asset) : (asset, numeraire);
+        (, PoolKey memory poolKey,,,,,, MigratorStatus status) = hookMigrator.getAssetData(currency0, currency1);
+        assertEq(uint8(status), uint8(MigratorStatus.Locked), "migration pool should be locked");
+
+        address buyer = address(0xBEEFCAFE);
+        uint256 swapAmount = 0.1 ether;
+        uint256 balanceBefore = DopplerERC20V1(asset).balanceOf(buyer);
+        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(swapAmount),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        if (numeraire == address(0)) {
+            deal(buyer, swapAmount);
+            vm.prank(buyer);
+            swapRouter.swap{ value: swapAmount }(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
+        } else {
+            deal(numeraire, buyer, swapAmount);
+            vm.startPrank(buyer);
+            WETH(payable(numeraire)).approve(address(swapRouter), swapAmount);
+            swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
+            vm.stopPrank();
+        }
+
+        uint256 balanceAfter = DopplerERC20V1(asset).balanceOf(buyer);
+        assertGt(balanceAfter, balanceBefore, "buyer should receive asset");
+        if (DopplerERC20V1(asset).isBalanceLimitActive()) {
+            assertLe(balanceAfter, MAX_BALANCE_LIMIT, "buyer should stay below max balance");
+        }
     }
 
     function _assertActiveLimit(DopplerERC20V1 token) internal view {
