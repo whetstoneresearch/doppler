@@ -1,0 +1,84 @@
+name: Gas benchmark comment
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    paths:
+      - snapshots/GasBenchmark.json
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: gas-benchmark-comment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    name: Comment gas benchmark changes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Read base gas benchmark snapshot
+        run: git show "${{ github.event.pull_request.base.sha }}:snapshots/GasBenchmark.json" > /tmp/GasBenchmark.base.json
+
+      - name: Generate gas benchmark report
+        run: bun scripts/gas-benchmark-report.ts --base /tmp/GasBenchmark.base.json --head snapshots/GasBenchmark.json --out /tmp/gas-benchmark-report.md
+
+      - name: Upsert pull request comment
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- doppler-gas-benchmark-report -->';
+            const body = fs.readFileSync('/tmp/gas-benchmark-report.md', 'utf8');
+            const {owner, repo} = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existingComments = comments
+              .filter((comment) => comment.user.type === 'Bot' && comment.body?.includes(marker))
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+            const [existing, ...duplicates] = existingComments;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+            for (const duplicate of duplicates) {
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id: duplicate.id,
+              });
+            }
