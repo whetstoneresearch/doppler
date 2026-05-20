@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${SKIP_GAS_BENCHMARK_HOOK:-}" = "1" ]; then
+  exit 0
+fi
+
+watched_file_changed=0
+
+if [ "${GAS_BENCHMARK_FORCE:-}" = "1" ]; then
+  watched_file_changed=1
+else
+  while IFS= read -r staged_file; do
+    [ -z "$staged_file" ] && continue
+
+    case "$staged_file" in
+      src/Airlock.sol|\
+      src/StreamableFeesLockerV2.sol|\
+      src/TopUpDistributor.sol|\
+      src/UniswapV2Locker.sol|\
+      src/base/BaseDopplerHookInitializer.sol|\
+      src/base/BaseDopplerHookMigrator.sol|\
+      src/base/BaseHook.sol|\
+      src/base/FeesManager.sol|\
+      src/base/ImmutableAirlock.sol|\
+      src/base/MiniV4Manager.sol|\
+      src/base/ProceedsSplitter.sol|\
+      src/governance/Governance.sol|\
+      src/governance/GovernanceFactory.sol|\
+      src/governance/LaunchpadGovernanceFactory.sol|\
+      src/governance/NoOpGovernanceFactory.sol|\
+      src/initializers/Doppler.sol|\
+      src/initializers/DopplerHookInitializer.sol|\
+      src/initializers/LockableUniswapV3Initializer.sol|\
+      src/initializers/UniswapV4Initializer.sol|\
+      src/libraries/MigrationMath.sol|\
+      src/libraries/Multicurve.sol|\
+      src/libraries/TickLibrary.sol|\
+      src/migrators/DopplerHookMigrator.sol|\
+      src/migrators/NoOpMigrator.sol|\
+      src/migrators/UniswapV2MigratorSplit.sol|\
+      src/tokens/DopplerERC20V1.sol|\
+      src/tokens/DopplerERC20V1Factory.sol|\
+      src/types/BeneficiaryData.sol|\
+      src/types/Constants.sol|\
+      src/types/Position.sol|\
+      src/types/Wad.sol|\
+      test/gas/GasBenchmark.t.sol)
+        watched_file_changed=1
+        break
+        ;;
+    esac
+  done < <(git diff --cached --name-only --diff-filter=ACMRD)
+fi
+
+if [ "$watched_file_changed" -ne 1 ]; then
+  exit 0
+fi
+
+if ! command -v forge >/dev/null 2>&1; then
+  echo "Gas benchmark hook: forge is not installed or not on PATH." >&2
+  exit 1
+fi
+
+echo "Gas benchmark hook: relevant contract change detected. Running GasBenchmark..."
+forge test --match-path "test/gas/GasBenchmark.t.sol" --gas-snapshot-check=false
+
+if ! git diff --quiet -- "snapshots/GasBenchmark.json"; then
+  git add "snapshots/GasBenchmark.json"
+  cat >&2 <<'MSG'
+Gas benchmark hook: snapshots/GasBenchmark.json changed and was staged for this commit.
+
+MSG
+fi
