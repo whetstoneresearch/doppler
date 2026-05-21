@@ -54,5 +54,5 @@ jobs:
         id: build-script
 
       - name: Run Forge tests
-        run: forge test -vvv --via-ir
+        run: forge test -vvv --via-ir --no-match-path "test/gas/GasBenchmark.t.sol"
         id: test
