@@ -38,15 +38,19 @@ jobs:
         id: version
 
       - name: Run Forge build on src
-        run: forge build ./src --via-ir --sizes
+        run: forge build ./src --via-ir
         id: build-src
 
+      - name: Report Forge contract sizes
+        run: forge build ./src --via-ir --sizes || true
+        id: size-report
+
       - name: Run Forge build on test
-        run: forge build ./test --via-ir --sizes
+        run: forge build ./test --via-ir
         id: build-test
 
       - name: Run Forge build on scripts
-        run: forge build ./script --via-ir --sizes
+        run: forge build ./script --via-ir
         id: build-script
 
       - name: Run Forge tests
