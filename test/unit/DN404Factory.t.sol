@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
-import { DN404Factory } from "src/tokens/DN404Factory.sol";
+import { DN404Factory, InvalidDN404InitialSupply, InvalidDN404Unit } from "src/tokens/DN404Factory.sol";
 
 contract DN404FactoryTest is Test {
     DN404Factory public factory;
@@ -71,5 +71,27 @@ contract DN404FactoryTest is Test {
         vm.startPrank(address(0xdead));
         vm.expectRevert(SenderNotAirlock.selector);
         factory.create(initialSupply, recipient, owner, salt, abi.encode(name, symbol, baseURI, unit));
+    }
+
+    function test_create_RevertsWhenUnitIsZero() public {
+        vm.expectRevert(InvalidDN404Unit.selector);
+        factory.create(
+            100_000e18,
+            address(0xa71c3),
+            address(0xb0b),
+            hex"beef",
+            abi.encode("Test Token", "TT", "https://example.com/token/", uint256(0))
+        );
+    }
+
+    function test_create_RevertsWhenInitialSupplyIsNotMultipleOfUnit() public {
+        vm.expectRevert(InvalidDN404InitialSupply.selector);
+        factory.create(
+            100_000e18 + 1,
+            address(0xa71c3),
+            address(0xb0b),
+            hex"beef",
+            abi.encode("Test Token", "TT", "https://example.com/token/", uint256(1000e18))
+        );
     }
 }

@@ -8,6 +8,13 @@ import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
 
 /// @dev Thrown when trying to transfer tokens into the pool while it is locked
 error PoolLocked();
+error InvalidUnit();
+error InitialSupplyNotMultipleOfUnit();
+error InsufficientBalanceToFreeze();
+error TokenIDIndexOutOfBounds();
+error InsufficientUnfrozenBalance();
+error OwnerIndexOutOfBounds();
+error GlobalIndexOutOfBounds();
 
 /// @title DopplerDN404
 /// @notice DN404-based asset token used by the Doppler protocol. From Doppler's point of view,
@@ -39,6 +46,9 @@ contract DopplerDN404 is DN404, Ownable {
         string memory baseURI_,
         uint256 unit_
     ) Ownable(owner_) {
+        if (unit_ == 0) revert InvalidUnit();
+        if (initialTokenSupply % unit_ != 0) revert InitialSupplyNotMultipleOfUnit();
+
         _name = name_;
         _symbol = symbol_;
         _baseURI = baseURI_;
@@ -94,11 +104,11 @@ contract DopplerDN404 is DN404, Ownable {
         isPoolUnlocked = true;
     }
 
-    function freezeTokenIDsByIndex(uint256[] memory tokenIDIndexes) external {
+    function freezeTokenIDsByIndex(uint256[] calldata tokenIDIndexes) external {
         uint256 amountToFreeze = tokenIDIndexes.length * UNIT;
         uint256 currentFrozen = frozenBalances[msg.sender];
         if (balanceOf(msg.sender) < currentFrozen + amountToFreeze) {
-            revert("Not enough balance to freeze");
+            revert InsufficientBalanceToFreeze();
         }
         // Number of NFTs already frozen corresponds to the first `startIndex` slots.
         uint256 startIndex = currentFrozen / UNIT;
@@ -114,7 +124,7 @@ contract DopplerDN404 is DN404, Ownable {
         // DN404 burns/transfers from the end of the list first, so front items are protected.
         for (uint256 i = 0; i < tokenIDIndexes.length; i++) {
             uint256 tokenIDIndex = tokenIDIndexes[i];
-            if (tokenIDIndex >= fromIndex) revert("Token ID index out of bounds");
+            if (tokenIDIndex >= fromIndex) revert TokenIDIndexOutOfBounds();
             if (tokenIDIndex < startIndex) continue; // Already frozen.
             if (tokenIDIndex != startIndex) {
                 uint32 tokenIDAtIndex = _get(fromOwned, tokenIDIndex);
@@ -135,9 +145,10 @@ contract DopplerDN404 is DN404, Ownable {
     /// @inheritdoc DN404
     function _transfer(address from, address to, uint256 amount) internal override {
         if (to == pool && isPoolUnlocked == false) revert PoolLocked();
-        // enforce sender cannot send frozen balance
-        if (from != address(0) && balanceOf(from) - amount < frozenBalances[from]) {
-            revert("Transfer exceeds available balance");
+        if (from != address(0)) {
+            uint256 balance = balanceOf(from);
+            uint256 frozen = frozenBalances[from];
+            if (frozen > balance || amount > balance - frozen) revert InsufficientUnfrozenBalance();
         }
         super._transfer(from, to, amount);
     }
@@ -196,7 +207,7 @@ contract DopplerDN404 is DN404, Ownable {
     function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256 id) {
         DN404Storage storage $ = _getDN404Storage();
         uint256 len = $.addressData[owner].ownedLength;
-        if (index >= len) revert("Owner index out of bounds");
+        if (index >= len) revert OwnerIndexOutOfBounds();
         Uint32Map storage owned = $.owned[owner];
         id = _get(owned, index);
     }
@@ -204,12 +215,13 @@ contract DopplerDN404 is DN404, Ownable {
     /// @notice Returns the token ID at the given global `index` across all existing NFTs.
     /// Mirrors the behavior of ERC721Enumerable's `tokenByIndex`, iterating over the
     /// DN404 ownership map in token ID order. Reverts if `index` is out of bounds.
+    /// @dev Intended for off-chain/indexer reads; cost is linear in the minted token ID space.
     /// @param index Zero-based index into the global ordered list of existing token IDs.
     /// @return id The token ID at the given global index.
     function tokenByIndex(uint256 index) external view returns (uint256 id) {
         DN404Storage storage $ = _getDN404Storage();
         uint256 total = $.totalNFTSupply;
-        if (index >= total) revert("Global index out of bounds");
+        if (index >= total) revert GlobalIndexOutOfBounds();
 
         // Iterate over the possible token ID space [start .. start + idLimit - 1]
         // and count existing tokens until we reach `index`.
@@ -231,6 +243,6 @@ contract DopplerDN404 is DN404, Ownable {
             }
         }
 
-        revert("Global index out of bounds");
+        revert GlobalIndexOutOfBounds();
     }
 }

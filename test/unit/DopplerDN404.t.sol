@@ -4,7 +4,17 @@ pragma solidity >=0.8.7 <0.9.0;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { Test } from "forge-std/Test.sol";
-import { DopplerDN404, PoolLocked } from "src/dn404/DopplerDN404.sol";
+import {
+    DopplerDN404,
+    GlobalIndexOutOfBounds,
+    InitialSupplyNotMultipleOfUnit,
+    InsufficientBalanceToFreeze,
+    InsufficientUnfrozenBalance,
+    InvalidUnit,
+    OwnerIndexOutOfBounds,
+    PoolLocked,
+    TokenIDIndexOutOfBounds
+} from "src/dn404/DopplerDN404.sol";
 import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e23;
@@ -35,6 +45,16 @@ contract DopplerDN404Test is Test {
         assertEq(token.mirrorERC721(), address(mirror));
         assertEq(mirror.baseERC20(), address(token));
         assertEq(mirror.balanceOf(address(this)), 0);
+    }
+
+    function test_constructor_RevertsWhenUnitIsZero() public {
+        vm.expectRevert(InvalidUnit.selector);
+        new DopplerDN404(NAME, SYMBOL, INITIAL_SUPPLY, address(this), address(this), BASE_URI, 0);
+    }
+
+    function test_constructor_RevertsWhenInitialSupplyIsNotMultipleOfUnit() public {
+        vm.expectRevert(InitialSupplyNotMultipleOfUnit.selector);
+        new DopplerDN404(NAME, SYMBOL, INITIAL_SUPPLY + 1, address(this), address(this), BASE_URI, UNIT);
     }
 
     function test_setBaseURI() public {
@@ -175,7 +195,18 @@ contract DopplerDN404Test is Test {
         uint256[] memory idx = new uint256[](1);
         idx[0] = 2; // out of bounds for length 2 (valid: 0,1)
         vm.prank(alice);
-        vm.expectRevert(bytes("Token ID index out of bounds"));
+        vm.expectRevert(TokenIDIndexOutOfBounds.selector);
+        token.freezeTokenIDsByIndex(idx);
+    }
+
+    function test_freezeTokenIDsByIndex_RevertsWhenInsufficientBalance() public {
+        address alice = address(0xa11ce);
+        token.transfer(alice, UNIT);
+        uint256[] memory idx = new uint256[](2);
+        idx[0] = 0;
+        idx[1] = 0;
+        vm.prank(alice);
+        vm.expectRevert(InsufficientBalanceToFreeze.selector);
         token.freezeTokenIDsByIndex(idx);
     }
 
@@ -194,7 +225,7 @@ contract DopplerDN404Test is Test {
 
         // Alice tries to send more than (balance - frozen) -> should revert.
         vm.prank(alice);
-        vm.expectRevert(bytes("Transfer exceeds available balance"));
+        vm.expectRevert(InsufficientUnfrozenBalance.selector);
         token.transfer(bob, (3 * UNIT) - (2 * UNIT) + 1);
 
         // But she can send exactly (balance - frozen) units.
@@ -284,7 +315,7 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.tokenOfOwnerByIndex(alice, 4), 5);
 
         // Out of bounds should revert.
-        vm.expectRevert(bytes("Owner index out of bounds"));
+        vm.expectRevert(OwnerIndexOutOfBounds.selector);
         mirror.tokenOfOwnerByIndex(alice, 5);
     }
 
@@ -305,13 +336,13 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.tokenOfOwnerByIndex(alice, 1), 2);
         assertEq(mirror.tokenOfOwnerByIndex(alice, 2), 5);
         assertEq(mirror.tokenOfOwnerByIndex(alice, 3), 4);
-        vm.expectRevert(bytes("Owner index out of bounds"));
+        vm.expectRevert(OwnerIndexOutOfBounds.selector);
         mirror.tokenOfOwnerByIndex(alice, 4);
 
         // Bob received tokenId 3 at index 0
         assertEq(mirror.balanceOf(bob), 1);
         assertEq(mirror.tokenOfOwnerByIndex(bob, 0), 3);
-        vm.expectRevert(bytes("Owner index out of bounds"));
+        vm.expectRevert(OwnerIndexOutOfBounds.selector);
         mirror.tokenOfOwnerByIndex(bob, 1);
     }
 
@@ -357,7 +388,7 @@ contract DopplerDN404Test is Test {
     function test_tokenOfOwnerByIndex_EmptyOwnerReverts() public {
         address nobody = address(0x1234);
         assertEq(mirror.balanceOf(nobody), 0);
-        vm.expectRevert(bytes("Owner index out of bounds"));
+        vm.expectRevert(OwnerIndexOutOfBounds.selector);
         mirror.tokenOfOwnerByIndex(nobody, 0);
     }
 
@@ -367,7 +398,7 @@ contract DopplerDN404Test is Test {
         token.setSkipNFT(true);
         token.transfer(alice, 3 * UNIT);
         assertEq(mirror.balanceOf(alice), 0);
-        vm.expectRevert(bytes("Owner index out of bounds"));
+        vm.expectRevert(OwnerIndexOutOfBounds.selector);
         mirror.tokenOfOwnerByIndex(alice, 0);
     }
 
@@ -376,7 +407,7 @@ contract DopplerDN404Test is Test {
         // Contracts default to skipNFT=true.
         token.transfer(address(receiver), 2 * UNIT);
         assertEq(mirror.balanceOf(address(receiver)), 0);
-        vm.expectRevert(bytes("Owner index out of bounds"));
+        vm.expectRevert(OwnerIndexOutOfBounds.selector);
         mirror.tokenOfOwnerByIndex(address(receiver), 0);
     }
 
@@ -469,7 +500,7 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.tokenByIndex(4), 5);
 
         // Out of bounds should revert.
-        vm.expectRevert(bytes("Global index out of bounds"));
+        vm.expectRevert(GlobalIndexOutOfBounds.selector);
         mirror.tokenByIndex(5);
     }
 
@@ -489,7 +520,7 @@ contract DopplerDN404Test is Test {
         assertEq(mirror.tokenByIndex(0), 1);
         assertEq(mirror.tokenByIndex(1), 2);
         assertEq(mirror.tokenByIndex(2), 3);
-        vm.expectRevert(bytes("Global index out of bounds"));
+        vm.expectRevert(GlobalIndexOutOfBounds.selector);
         mirror.tokenByIndex(3);
     }
 
