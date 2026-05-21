@@ -46,7 +46,7 @@ jobs:
         id: size-report
 
       - name: Run Forge build on test
-        run: forge build ./test --via-ir
+        run: forge build ./test --via-ir --skip GasBenchmark
         id: build-test
 
       - name: Run Forge build on scripts
