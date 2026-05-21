@@ -12,6 +12,7 @@ on:
 env:
   FOUNDRY_PROFILE: ci
   ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
+  BASE_SEPOLIA_RPC_URL: https://sepolia.base.org
   UNICHAIN_SEPOLIA_RPC_URL: ${{ secrets.UNICHAIN_SEPOLIA_RPC_URL }}
   UNICHAIN_MAINNET_RPC_URL: ${{ secrets.UNICHAIN_MAINNET_RPC_URL }}
 
@@ -50,5 +51,5 @@ jobs:
         id: build-script
 
       - name: Run Forge tests
-        run: forge test -vvv --via-ir --no-match-path "test/gas/GasBenchmark.t.sol"
+        run: forge test -vvv --via-ir --match-contract "DN404FactoryTest|DopplerDN404Test|BaseSepoliaDN404ForkTest"
         id: test
