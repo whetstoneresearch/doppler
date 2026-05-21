@@ -33,7 +33,7 @@ contract BaseSepoliaDN404ForkTest is Test {
     using PoolIdLibrary for PoolKey;
 
     address internal constant AIRLOCK = 0x3411306Ce66c9469BFF1535BA955503c4Bde1C6e;
-    address internal constant DN404_FACTORY = 0x98b0Aa2e0f134dbB3eb157b5646D387E6D55243a;
+    address internal constant DEFAULT_DN404_FACTORY = 0x98b0Aa2e0f134dbB3eb157b5646D387E6D55243a;
     address internal constant MULTICURVE_INITIALIZER = 0x1718405E58c61425cDc0083262bC9f72198F5232;
     address internal constant SCHEDULED_MULTICURVE_INITIALIZER = 0xF84378C9F39e0FF267f3101c88773359c5393876;
     address internal constant NO_OP_GOVERNANCE_FACTORY = 0x7bD798fafC99A3b17E261F8308A8C11B56935ea1;
@@ -45,7 +45,8 @@ contract BaseSepoliaDN404ForkTest is Test {
     string internal constant BASE_URI = "ipfs://fork-dn404/";
 
     Airlock internal airlock = Airlock(payable(AIRLOCK));
-    DN404Factory internal dn404Factory = DN404Factory(DN404_FACTORY);
+    address internal dn404FactoryAddress;
+    DN404Factory internal dn404Factory;
     UniswapV4MulticurveInitializer internal multicurveInitializer =
         UniswapV4MulticurveInitializer(payable(MULTICURVE_INITIALIZER));
     UniswapV4ScheduledMulticurveInitializer internal scheduledMulticurveInitializer =
@@ -53,9 +54,12 @@ contract BaseSepoliaDN404ForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_SEPOLIA_RPC_URL"));
+        dn404FactoryAddress = vm.envOr("BASE_SEPOLIA_DN404_FACTORY", DEFAULT_DN404_FACTORY);
+        dn404Factory = DN404Factory(dn404FactoryAddress);
+
         assertEq(block.chainid, 84_532);
         assertEq(address(dn404Factory.airlock()), AIRLOCK);
-        assertEq(uint256(airlock.getModuleState(DN404_FACTORY)), uint256(ModuleState.TokenFactory));
+        assertEq(uint256(airlock.getModuleState(dn404FactoryAddress)), uint256(ModuleState.TokenFactory));
         assertEq(uint256(airlock.getModuleState(MULTICURVE_INITIALIZER)), uint256(ModuleState.PoolInitializer));
         assertEq(
             uint256(airlock.getModuleState(SCHEDULED_MULTICURVE_INITIALIZER)), uint256(ModuleState.PoolInitializer)
@@ -128,12 +132,12 @@ contract BaseSepoliaDN404ForkTest is Test {
         uint256 unit,
         address poolInitializer,
         bytes memory poolInitializerData
-    ) internal pure returns (CreateParams memory) {
+    ) internal view returns (CreateParams memory) {
         return CreateParams({
             initialSupply: initialSupply,
             numTokensToSell: initialSupply,
             numeraire: WETH,
-            tokenFactory: ITokenFactory(DN404_FACTORY),
+            tokenFactory: ITokenFactory(dn404FactoryAddress),
             tokenFactoryData: abi.encode(NAME, SYMBOL, BASE_URI, unit),
             governanceFactory: IGovernanceFactory(NO_OP_GOVERNANCE_FACTORY),
             governanceFactoryData: new bytes(0),
@@ -173,18 +177,5 @@ contract BaseSepoliaDN404ForkTest is Test {
             curves[i].numPositions = 10;
             curves[i].shares = WAD / 10;
         }
-    }
-
-    function _computeDN404Address(bytes32 salt, uint256 initialSupply, uint256 unit) internal returns (address) {
-        return vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DopplerDN404).creationCode,
-                    abi.encode(NAME, SYMBOL, initialSupply, AIRLOCK, AIRLOCK, BASE_URI, unit)
-                )
-            ),
-            DN404_FACTORY
-        );
     }
 }
