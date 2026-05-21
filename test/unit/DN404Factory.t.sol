@@ -2,7 +2,9 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
+import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
 import { DN404Factory } from "src/tokens/DN404Factory.sol";
 
 contract DN404FactoryTest is Test {
@@ -17,7 +19,7 @@ contract DN404FactoryTest is Test {
     }
 
     function test_create() public {
-        uint256 initialSupply = 1e20;
+        uint256 initialSupply = 100_000e18;
         address recipient = address(0xa71c3);
         address owner = address(0xb0b);
         bytes32 salt = hex"beef";
@@ -26,7 +28,34 @@ contract DN404FactoryTest is Test {
         string memory baseURI = "https://example.com/token/";
         uint256 unit = 1000e18;
 
-        factory.create(initialSupply, recipient, owner, salt, abi.encode(name, symbol, baseURI, unit));
+        vm.recordLogs();
+        address tokenAddress =
+            factory.create(initialSupply, recipient, owner, salt, abi.encode(name, symbol, baseURI, unit));
+
+        DopplerDN404 token = DopplerDN404(payable(tokenAddress));
+        address collection = token.mirrorERC721();
+
+        assertEq(token.name(), name);
+        assertEq(token.symbol(), symbol);
+        assertEq(token.baseURI(), baseURI);
+        assertEq(token.unit(), unit);
+        assertEq(token.totalSupply(), initialSupply);
+        assertEq(token.balanceOf(recipient), initialSupply);
+        assertEq(token.owner(), owner);
+        assertEq(token.mirrorERC721(), collection);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 eventSig = keccak256("DN404Created(address,address,address,uint256)");
+        bool found;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] != eventSig) continue;
+            found = true;
+            assertEq(address(uint160(uint256(logs[i].topics[1]))), tokenAddress);
+            assertEq(address(uint160(uint256(logs[i].topics[2]))), collection);
+            assertEq(address(uint160(uint256(logs[i].topics[3]))), owner);
+            assertEq(abi.decode(logs[i].data, (uint256)), initialSupply);
+        }
+        assertTrue(found);
     }
 
     function test_create_RevertsWhenSenderNotAirlock() public {
