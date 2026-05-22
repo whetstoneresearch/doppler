@@ -22,3 +22,6 @@
 [submodule "lib/view-quoter-v4"]
 	path = lib/view-quoter-v4
 	url = git@github.com:whetstoneresearch/view-quoter-v4
+[submodule "lib/dn404"]
+	path = lib/dn404
+	url = https://github.com/vectorized/dn404
