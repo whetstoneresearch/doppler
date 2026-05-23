@@ -55,7 +55,9 @@ contract SwapRestrictorDopplerHook is BaseDopplerHookInitializer {
 
         // This condition checks if the asset token is being bought
         if (params.zeroForOne != isToken0) {
-            uint256 amountRequested = isToken0 ? uint128(balanceDelta.amount0()) : uint128(balanceDelta.amount1());
+            int128 assetDelta = isToken0 ? balanceDelta.amount0() : balanceDelta.amount1();
+            require(assetDelta > 0, "SwapRestrictor: non-positive asset delta");
+            uint256 amountRequested = uint256(uint128(assetDelta));
             PoolId poolId = key.toId();
             require(
                 amountLeftOf[poolId][sender] >= amountRequested,
