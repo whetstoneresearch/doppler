@@ -52,6 +52,8 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
 
+    bytes32 private constant TEMP_FEE_EXEMPTION_SLOT = keccak256("doppler.rehype.tempFeeExemption");
+
     /// @notice Address of the Uniswap V4 Pool Manager
     IPoolManager public immutable poolManager;
 
@@ -92,6 +94,10 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
         InitData memory initData = abi.decode(data, (InitData));
 
         PoolId poolId = key.toId();
+
+        if (_isAirlockCreate(asset)) {
+            _setTempFeeExemption(poolId);
+        }
 
         getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
 
@@ -777,6 +783,11 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
         // Fee is always taken from the unspecified token:
         feeCurrency = params.zeroForOne == exactInput ? key.currency1 : key.currency0;
 
+        if (_checkTempFeeExemption(poolId)) {
+            _clearTempFeeExemption(poolId);
+            return (feeCurrency, feeDelta);
+        }
+
         // Compute fee based on the feeCurrency amount
         uint256 feeBase;
         if (exactInput) {
@@ -811,5 +822,48 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
         }
 
         return (feeCurrency, int128(uint128(feeAmount)));
+    }
+
+    function _isAirlockCreate(address asset) internal view returns (bool) {
+        (bool success, bytes memory data) = address(DopplerHookInitializer(payable(INITIALIZER)).airlock())
+            .staticcall(
+                abi.encodeWithSelector(
+                    DopplerHookInitializer(payable(INITIALIZER)).airlock().getAssetData.selector, asset
+                )
+            );
+
+        if (!success || data.length == 0) {
+            return false;
+        }
+
+        (,,,, address poolInitializer,,,,,) = abi.decode(
+            data, (address, address, address, address, address, address, address, uint256, uint256, address)
+        );
+        return poolInitializer == address(0);
+    }
+
+    function _setTempFeeExemption(PoolId poolId) internal {
+        bytes32 slot = _tempFeeExemptionSlot(poolId);
+        assembly ("memory-safe") {
+            tstore(slot, 1)
+        }
+    }
+
+    function _clearTempFeeExemption(PoolId poolId) internal {
+        bytes32 slot = _tempFeeExemptionSlot(poolId);
+        assembly ("memory-safe") {
+            tstore(slot, 0)
+        }
+    }
+
+    function _checkTempFeeExemption(PoolId poolId) internal view returns (bool exempt) {
+        bytes32 slot = _tempFeeExemptionSlot(poolId);
+        assembly ("memory-safe") {
+            exempt := tload(slot)
+        }
+    }
+
+    function _tempFeeExemptionSlot(PoolId poolId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(TEMP_FEE_EXEMPTION_SLOT, PoolId.unwrap(poolId)));
     }
 }

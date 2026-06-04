@@ -2,9 +2,12 @@
 pragma solidity ^0.8.13;
 
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
+import { UniversalRouter } from "@universal-router/UniversalRouter.sol";
+import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
+import { IERC20Minimal } from "@v4-core/interfaces/external/IERC20Minimal.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
@@ -20,6 +23,7 @@ import { CurrencySettler } from "lib/v4-core/test/utils/CurrencySettler.sol";
 
 import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { Bundler } from "src/Bundler.sol";
 import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
 import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
@@ -40,7 +44,11 @@ import {
     InsufficientFeeCurrency
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
+import { BundlerSwapRouter } from "test/shared/BundlerSwapRouter.sol";
 import { dopplerERC20V1FactoryData, predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
+import { LaunchAndSwapRouter } from "test/shared/LaunchAndSwapRouter.sol";
+
+contract DummyV3Quoter { }
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
     function initialize(address, address, bytes memory) external pure override returns (address) {
@@ -116,6 +124,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     LiquidityMigratorMock public mockLiquidityMigrator;
     RehypeDopplerHookInitializer public rehypeDopplerHook;
     FeeBypassAttemptRouter public feeBypassAttemptRouter;
+    LaunchAndSwapRouter public launchAndSwapRouter;
     TestERC20 public numeraire;
     V4Quoter public quoter;
 
@@ -147,6 +156,8 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         vm.label(address(rehypeDopplerHook), "RehypeDopplerHookInitializer");
         feeBypassAttemptRouter = new FeeBypassAttemptRouter(manager);
         vm.label(address(feeBypassAttemptRouter), "FeeBypassAttemptRouter");
+        launchAndSwapRouter = new LaunchAndSwapRouter(airlock, initializer, swapRouter);
+        vm.label(address(launchAndSwapRouter), "LaunchAndSwapRouter");
         quoter = new V4Quoter(manager);
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
@@ -931,6 +942,192 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertGt(startingTime, 0, "startingTime should be set");
     }
 
+    function test_decayingFee_LaunchFrameSwapIsExemptOnlyOnce() public {
+        bytes32 salt = bytes32(uint256(1000));
+        uint24 startFee = 10_000;
+        uint24 endFee = 2000;
+        uint32 durationSeconds = 3600;
+
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData = _prepareInitDataWithDecay(
+            tokenAddress,
+            startFee,
+            endFee,
+            durationSeconds,
+            0,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.DirectBuyback
+        );
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        bool isToken0 = tokenAddress < address(numeraire);
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(1 ether),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        numeraire.transfer(address(launchAndSwapRouter), 2 ether);
+        address asset = launchAndSwapRouter.launchAndSwap(params, swapParams, address(numeraire));
+        assertEq(asset, tokenAddress, "router should launch the predicted asset");
+
+        (,,,,, poolKey,) = initializer.getState(asset);
+        poolId = poolKey.toId();
+
+        assertEq(_totalTrackedFees(poolId), 0, "launch-frame swap should not accrue Rehype fees");
+
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        TestERC20(asset).approve(address(swapRouter), type(uint256).max);
+        deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        assertGt(_totalTrackedFees(poolId), 0, "next swap should accrue the decaying launch fee");
+
+        (,,, uint24 lastFee,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFee, startFee, "post-launch swap should still use start fee before decay elapses");
+    }
+
+    function test_decayingFee_BundlerSwapIsExemptOnlyOnce() public {
+        bytes32 salt = bytes32(uint256(1002));
+        uint24 startFee = 10_000;
+        uint24 endFee = 2000;
+        uint32 durationSeconds = 3600;
+
+        string memory name = "Test Token";
+        string memory symbol = "TEST";
+        uint256 initialSupply = 1e27;
+
+        address tokenAddress = vm.computeCreate2Address(
+            salt,
+            keccak256(
+                abi.encodePacked(
+                    type(DERC20).creationCode,
+                    abi.encode(
+                        name,
+                        symbol,
+                        initialSupply,
+                        address(airlock),
+                        address(airlock),
+                        0,
+                        0,
+                        new address[](0),
+                        new uint256[](0),
+                        "TOKEN_URI"
+                    )
+                )
+            ),
+            address(tokenFactory)
+        );
+
+        InitData memory initData = _prepareInitDataWithDecay(
+            tokenAddress,
+            startFee,
+            endFee,
+            durationSeconds,
+            0,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.DirectBuyback
+        );
+
+        CreateParams memory params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(tokenFactory),
+            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+
+        bool isToken0 = tokenAddress < address(numeraire);
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(1 ether),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        BundlerSwapRouter bundlerSwapRouter = new BundlerSwapRouter(initializer, swapRouter);
+        DummyV3Quoter dummyV3Quoter = new DummyV3Quoter();
+        Bundler bundler = new Bundler(
+            airlock,
+            UniversalRouter(payable(address(bundlerSwapRouter))),
+            IQuoterV2(address(dummyV3Quoter)),
+            IV4Quoter(address(quoter))
+        );
+
+        numeraire.transfer(address(bundlerSwapRouter), 2 ether);
+
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(tokenAddress, swapParams, address(numeraire));
+
+        bundler.bundle(params, hex"00", inputs);
+
+        (,,,,, poolKey,) = initializer.getState(tokenAddress);
+        poolId = poolKey.toId();
+
+        assertEq(_totalTrackedFees(poolId), 0, "Bundler-routed launch swap should not accrue Rehype fees");
+
+        numeraire.approve(address(swapRouter), type(uint256).max);
+        TestERC20(tokenAddress).approve(address(swapRouter), type(uint256).max);
+        deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
+        deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        assertGt(_totalTrackedFees(poolId), 0, "next swap should accrue after Bundler consumed the exemption");
+
+        (,,, uint24 lastFee,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFee, startFee, "post-Bundler swap should still use start fee before decay elapses");
+    }
+
     function test_decayingFee_HigherFeesAtStartThanAfterDecay() public {
         bytes32 salt = bytes32(uint256(101));
         (bool isToken0,) = _createTokenWithDecay(salt, 10_000, 2000, 3600, 0);
@@ -1038,17 +1235,22 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         bytes32 salt = bytes32(uint256(102));
         (bool isToken0,) = _createTokenWithDecay(salt, 10_000, 2000, 4000, 0);
 
-        (,,, uint24 lastFeeBefore,) = rehypeDopplerHook.getFeeSchedule(poolId);
-        assertEq(lastFeeBefore, 10_000, "lastFee should be startFee initially");
-
-        // Warp to midpoint and swap
-        vm.warp(block.timestamp + 2000);
-
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
             zeroForOne: !isToken0,
             amountSpecified: 1 ether,
             sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
+
+        (,,, uint24 lastFeeBefore,) = rehypeDopplerHook.getFeeSchedule(poolId);
+        assertEq(lastFeeBefore, 10_000, "lastFee should be startFee initially");
+
+        // Foundry runs each test as one transaction, so the create-time transient launch exemption
+        // is still live here; consume it before measuring a regular decaying-fee swap.
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        // Warp to midpoint and swap
+        vm.warp(block.timestamp + 2000);
+
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
 
         (,,, uint24 lastFeeAfter,) = rehypeDopplerHook.getFeeSchedule(poolId);
@@ -1131,6 +1333,12 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         });
 
         Currency feeCurrency = isToken0 ? poolKey.currency0 : poolKey.currency1;
+
+        // Foundry keeps the create-time transient exemption alive for this whole test transaction;
+        // consume it first so the drain attempt exercises the normal fee-collection path.
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+        assertEq(_totalTrackedFees(poolId), 0, "launch-frame exemption should not accrue fees");
+
         uint256 poolManagerFeeBalanceBefore = feeCurrency.balanceOf(address(manager));
         assertGt(poolManagerFeeBalanceBefore, 0, "pool manager must hold fee currency before drain");
 
