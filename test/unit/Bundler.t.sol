@@ -105,19 +105,15 @@ contract BundlerTest is Test {
 }
 
 contract DummyV4Quoter {
-    function quoteExactOutputSingle(IV4Quoter.QuoteExactSingleParams memory)
-        external
-        pure
-        returns (uint256 amountIn, uint256 gasEstimate)
-    {
+    function quoteExactOutputSingle(
+        IV4Quoter.QuoteExactSingleParams memory
+    ) external pure returns (uint256 amountIn, uint256 gasEstimate) {
         return (0, 0);
     }
 
-    function quoteExactInputSingle(IV4Quoter.QuoteExactSingleParams memory)
-        external
-        pure
-        returns (uint256 amountOut, uint256 gasEstimate)
-    {
+    function quoteExactInputSingle(
+        IV4Quoter.QuoteExactSingleParams memory
+    ) external pure returns (uint256 amountOut, uint256 gasEstimate) {
         return (0, 0);
     }
 }

@@ -743,7 +743,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
-          revert InsufficientFeeCurrency();
+            revert InsufficientFeeCurrency();
         }
 
         poolManager.take(feeCurrency, address(this), feeAmount);
