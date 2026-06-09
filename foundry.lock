@@ -1,4 +1,13 @@
 {
+  "lib/createx": {
+    "tag": {
+      "name": "v1.0.0",
+      "rev": "cbac803268835138f86a69bfe01fcf05a50e0447"
+    }
+  },
+  "lib/dn404": {
+    "rev": "3397cb11558ac853912ee87871422b6a29c9d346"
+  },
   "lib/forge-std": {
     "branch": {
       "name": "master",

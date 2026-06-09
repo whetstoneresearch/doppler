@@ -1174,15 +1174,15 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         ISwapRouter(UNISWAP_V3_ROUTER_MAINNET)
             .exactInputSingle(
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: WETH_MAINNET,
-                    tokenOut: asset,
-                    fee: 3000,
-                    recipient: address(0x666),
-                    deadline: block.timestamp,
-                    amountIn: 1000 ether,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: priceLimit
-                })
+                tokenIn: WETH_MAINNET,
+                tokenOut: asset,
+                fee: 3000,
+                recipient: address(0x666),
+                deadline: block.timestamp,
+                amountIn: 1000 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: priceLimit
+            })
             );
 
         (, int24 currentTick,,,,,) = IUniswapV3Pool(pool).slot0();

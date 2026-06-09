@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Script } from "forge-std/Script.sol";
-import { ChainIds } from "script/ChainIds.sol";
 import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
+import { ChainIds } from "script/utils/ChainIds.sol";
 import { Airlock } from "src/Airlock.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";

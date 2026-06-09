@@ -32,8 +32,7 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
-
-    }
+}
 
 contract TrackingPoolManager {
     Currency public lastTakeCurrency;
