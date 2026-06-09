@@ -13,6 +13,7 @@ import { Currency, greaterThan } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
@@ -25,6 +26,8 @@ import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
+import { DopplerERC20V1, VestingSchedule } from "src/tokens/DopplerERC20V1.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -47,6 +50,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
     DecayMulticurveInitializer public initializer;
     DecayMulticurveInitializerHook public hook;
     TokenFactory public tokenFactory;
+    DopplerERC20V1Factory public dopplerERC20V1Factory;
     GovernanceFactory public governanceFactory;
     DecayMulticurveLiquidityMigratorMock public mockLiquidityMigrator;
     TestERC20 public numeraire;
@@ -60,6 +64,7 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
 
         airlock = new Airlock(airlockOwner);
         tokenFactory = new TokenFactory(address(airlock));
+        dopplerERC20V1Factory = new DopplerERC20V1Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         hook = DecayMulticurveInitializerHook(
             address(
@@ -74,17 +79,19 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
 
         mockLiquidityMigrator = new DecayMulticurveLiquidityMigratorMock();
 
-        address[] memory modules = new address[](4);
+        address[] memory modules = new address[](5);
         modules[0] = address(tokenFactory);
-        modules[1] = address(governanceFactory);
-        modules[2] = address(initializer);
-        modules[3] = address(mockLiquidityMigrator);
+        modules[1] = address(dopplerERC20V1Factory);
+        modules[2] = address(governanceFactory);
+        modules[3] = address(initializer);
+        modules[4] = address(mockLiquidityMigrator);
 
-        ModuleState[] memory states = new ModuleState[](4);
+        ModuleState[] memory states = new ModuleState[](5);
         states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.GovernanceFactory;
-        states[2] = ModuleState.PoolInitializer;
-        states[3] = ModuleState.LiquidityMigrator;
+        states[1] = ModuleState.TokenFactory;
+        states[2] = ModuleState.GovernanceFactory;
+        states[3] = ModuleState.PoolInitializer;
+        states[4] = ModuleState.LiquidityMigrator;
 
         vm.startPrank(airlockOwner);
         airlock.setModuleState(modules, states);
@@ -195,6 +202,105 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
 
         (, PoolStatus statusAfter,,) = initializer.getState(asset);
         assertEq(uint8(statusAfter), uint8(PoolStatus.Locked), "failed migration should not change locked state");
+    }
+
+    function test_create_WithDopplerERC20V1Factory_UsesDecayedFeeOnFirstSwap() public {
+        uint24 startFee = 20_000;
+        uint24 endFee = 5000;
+        uint32 durationSeconds = 1000;
+        uint256 elapsed = 250;
+
+        (bool isToken0, address asset) = _createDopplerERC20V1Token(
+            bytes32(uint256(8)), startFee, endFee, durationSeconds, uint32(block.timestamp), new address[](0), 0, 0
+        );
+
+        DopplerERC20V1 token = DopplerERC20V1(asset);
+        assertEq(token.name(), "Test Token V1", "unexpected token name");
+        assertEq(token.symbol(), "TESTV1", "unexpected token symbol");
+        assertEq(token.totalSupply(), 1e27, "unexpected total supply");
+        assertEq(token.owner(), address(airlock), "airlock should own token before migration");
+        assertEq(token.pool(), address(0xdeadbeef), "mock migration pool should be locked");
+        assertTrue(token.isPoolLocked(), "migration pool should be locked");
+        assertFalse(token.isBalanceLimitActive(), "balance limit should be disabled");
+
+        vm.warp(block.timestamp + elapsed);
+        vm.recordLogs();
+        _buyAsset(isToken0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        uint24 expectedFee = _expectedDecayFee(startFee, endFee, durationSeconds, elapsed);
+        (,,, uint24 lpFeeAfter) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfter, expectedFee, "slot0 fee should equal decayed fee");
+
+        uint24 observedSwapFee = _extractPoolManagerSwapFee(logs);
+        assertEq(observedSwapFee, expectedFee, "swap should execute at decayed fee");
+    }
+
+    function test_create_WithDopplerERC20V1FactoryActiveBalanceLimit_UsesRequiredExclusions() public {
+        uint24 startFee = 20_000;
+        uint24 endFee = 5000;
+        uint32 durationSeconds = 1000;
+
+        address[] memory excludedFromBalanceLimit = new address[](2);
+        excludedFromBalanceLimit[0] = address(initializer);
+        excludedFromBalanceLimit[1] = address(manager);
+
+        (bool isToken0, address asset) = _createDopplerERC20V1Token(
+            bytes32(uint256(9)),
+            startFee,
+            endFee,
+            durationSeconds,
+            uint32(block.timestamp),
+            excludedFromBalanceLimit,
+            1e27 - 1,
+            uint48(block.timestamp + 30 days)
+        );
+
+        DopplerERC20V1 token = DopplerERC20V1(asset);
+        assertTrue(token.isBalanceLimitActive(), "balance limit should be active");
+        assertTrue(token.isExcludedFromBalanceLimit(address(airlock)), "airlock should be auto-excluded");
+        assertTrue(token.isExcludedFromBalanceLimit(address(initializer)), "initializer should be excluded");
+        assertTrue(token.isExcludedFromBalanceLimit(address(manager)), "PoolManager should be excluded");
+        assertTrue(token.isExcludedFromBalanceLimit(address(0xdeadbeef)), "migration pool should be auto-excluded");
+        assertFalse(token.isExcludedFromBalanceLimit(address(hook)), "hook should not need exclusion");
+
+        vm.warp(block.timestamp + 1);
+        _buyAsset(isToken0);
+
+        (,,, uint24 lpFeeAfter) = manager.getSlot0(poolId);
+        assertEq(lpFeeAfter, _expectedDecayFee(startFee, endFee, durationSeconds, 1), "unexpected decayed fee");
+    }
+
+    function test_create_WithDopplerERC20V1FactoryActiveBalanceLimit_RevertsWithoutInitializerExclusion() public {
+        address[] memory excludedFromBalanceLimit = new address[](1);
+        excludedFromBalanceLimit[0] = address(manager);
+
+        _expectDopplerERC20V1CreateRevert(
+            bytes32(uint256(10)),
+            20_000,
+            5000,
+            1000,
+            uint32(block.timestamp),
+            excludedFromBalanceLimit,
+            1e18,
+            uint48(block.timestamp + 30 days)
+        );
+    }
+
+    function test_create_WithDopplerERC20V1FactoryActiveBalanceLimit_RevertsWithoutPoolManagerExclusion() public {
+        address[] memory excludedFromBalanceLimit = new address[](1);
+        excludedFromBalanceLimit[0] = address(initializer);
+
+        _expectDopplerERC20V1CreateRevert(
+            bytes32(uint256(11)),
+            20_000,
+            5000,
+            1000,
+            uint32(block.timestamp),
+            excludedFromBalanceLimit,
+            1e18,
+            uint48(block.timestamp + 30 days)
+        );
     }
 
     function testFuzz_swap_UsesExpectedDecayedFeeOnFirstSwap(
@@ -491,5 +597,115 @@ contract DecayMulticurveInitializerIntegrationTest is Deployers {
         (,, poolKey,) = initializer.getState(asset);
         poolId = poolKey.toId();
         numeraire.approve(address(swapRouter), type(uint256).max);
+    }
+
+    function _expectDopplerERC20V1CreateRevert(
+        bytes32 salt,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime,
+        address[] memory excludedFromBalanceLimit,
+        uint256 maxBalanceLimit,
+        uint48 balanceLimitEnd
+    ) internal {
+        (CreateParams memory params,) = _dopplerERC20V1CreateParams(
+            salt,
+            startFee,
+            endFee,
+            durationSeconds,
+            startingTime,
+            excludedFromBalanceLimit,
+            maxBalanceLimit,
+            balanceLimitEnd
+        );
+
+        vm.expectRevert();
+        airlock.create(params);
+    }
+
+    function _createDopplerERC20V1Token(
+        bytes32 salt,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime,
+        address[] memory excludedFromBalanceLimit,
+        uint256 maxBalanceLimit,
+        uint48 balanceLimitEnd
+    ) internal returns (bool isToken0, address asset) {
+        (CreateParams memory params, address tokenAddress) = _dopplerERC20V1CreateParams(
+            salt,
+            startFee,
+            endFee,
+            durationSeconds,
+            startingTime,
+            excludedFromBalanceLimit,
+            maxBalanceLimit,
+            balanceLimitEnd
+        );
+
+        (asset,,,,) = airlock.create(params);
+        assertEq(asset, tokenAddress, "asset prediction mismatch");
+        isToken0 = asset < address(numeraire);
+
+        (,, poolKey,) = initializer.getState(asset);
+        poolId = poolKey.toId();
+        numeraire.approve(address(swapRouter), type(uint256).max);
+    }
+
+    function _dopplerERC20V1CreateParams(
+        bytes32 salt,
+        uint24 startFee,
+        uint24 endFee,
+        uint32 durationSeconds,
+        uint32 startingTime,
+        address[] memory excludedFromBalanceLimit,
+        uint256 maxBalanceLimit,
+        uint48 balanceLimitEnd
+    ) internal returns (CreateParams memory params, address tokenAddress) {
+        uint256 initialSupply = 1e27;
+
+        tokenAddress = LibClone.predictDeterministicAddress(
+            dopplerERC20V1Factory.IMPLEMENTATION(), salt, address(dopplerERC20V1Factory)
+        );
+
+        InitData memory initData = _prepareInitData(tokenAddress, startFee, endFee, durationSeconds, startingTime);
+
+        params = CreateParams({
+            initialSupply: initialSupply,
+            numTokensToSell: initialSupply,
+            numeraire: address(numeraire),
+            tokenFactory: ITokenFactory(dopplerERC20V1Factory),
+            tokenFactoryData: _dopplerERC20V1FactoryData(excludedFromBalanceLimit, maxBalanceLimit, balanceLimitEnd),
+            governanceFactory: IGovernanceFactory(governanceFactory),
+            governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
+            poolInitializer: IPoolInitializer(initializer),
+            poolInitializerData: abi.encode(initData),
+            liquidityMigrator: ILiquidityMigrator(mockLiquidityMigrator),
+            liquidityMigratorData: new bytes(0),
+            integrator: address(0),
+            salt: salt
+        });
+    }
+
+    function _dopplerERC20V1FactoryData(
+        address[] memory excludedFromBalanceLimit,
+        uint256 maxBalanceLimit,
+        uint48 balanceLimitEnd
+    ) internal pure returns (bytes memory) {
+        return abi.encode(
+            "Test Token V1",
+            "TESTV1",
+            new VestingSchedule[](0),
+            new address[](0),
+            new uint256[](0),
+            new uint256[](0),
+            "TOKEN_URI",
+            maxBalanceLimit,
+            balanceLimitEnd,
+            address(0),
+            excludedFromBalanceLimit
+        );
     }
 }

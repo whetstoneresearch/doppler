@@ -317,14 +317,21 @@ contract RehypeMigratorHandler is Test {
         PoolId poolId = poolKey.toId();
         Settings memory settings = settingsOf[poolId];
 
-        (uint256 amountIn,) = quoter.quoteExactOutputSingle(
+        uint256 amountIn;
+        try quoter.quoteExactOutputSingle(
             IV4Quoter.QuoteExactSingleParams({
                 poolKey: poolKey,
                 zeroForOne: !settings.isToken0,
                 exactAmount: uint128(amountOut),
                 hookData: new bytes(0)
             })
-        );
+        ) returns (
+            uint256 quotedAmountIn, uint256
+        ) {
+            amountIn = quotedAmountIn;
+        } catch {
+            return;
+        }
 
         if (settings.numeraire == address(0)) {
             deal(currentActor, amountIn);
