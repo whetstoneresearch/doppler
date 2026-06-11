@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 
 event AddSigner(address indexed newSigner);
 

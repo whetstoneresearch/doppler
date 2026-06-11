@@ -13,7 +13,6 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
     ON_AFTER_SWAP_FLAG,
@@ -27,6 +26,7 @@ import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";

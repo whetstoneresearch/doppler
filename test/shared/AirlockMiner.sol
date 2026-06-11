@@ -2,19 +2,13 @@
 pragma solidity ^0.8.24;
 
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
-import { DecayMulticurveInitializer } from "src/initializers/DecayMulticurveInitializer.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
-import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
-import {
-    UniswapV4ScheduledMulticurveInitializerHook
-} from "src/initializers/UniswapV4ScheduledMulticurveInitializerHook.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
-import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
-import { DERC20 } from "src/tokens/DERC20.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
+import { predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 /* -------------------------------------------------------------------------------- */
 /*                                DopplerHookMigrator                               */
@@ -44,33 +38,6 @@ function mineDopplerHookMigrator(MineDopplerHookMigratorParams memory params) vi
                 && migrator != 0xF848fEa3329185529B50228BCb36f3B5A60960C4
         ) {
             return (salt, migrator);
-        }
-    }
-
-    revert("AirlockMiner: could not find salt");
-}
-
-/* ---------------------------------------------------------------------------------------- */
-/*                                DecayMulticurveInitializer                                */
-/* ---------------------------------------------------------------------------------------- */
-
-function mineDecayMulticurveInitializer(address sender, address deployer) view returns (bytes32, address) {
-    bytes32 baseSalt =
-        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(DecayMulticurveInitializer).name)) >> 168;
-
-    for (uint256 seed; seed < 100_000; seed++) {
-        bytes32 salt = bytes32(uint256(baseSalt) + seed);
-        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
-
-        address hook = computeCreate3Address(guardedSalt, deployer);
-        if (
-            uint160(hook) & Hooks.ALL_HOOK_MASK
-                    == uint160(
-                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-                    ) && hook.code.length == 0
-        ) {
-            return (salt, hook);
         }
     }
 
@@ -137,133 +104,6 @@ function computeCreate3Address(bytes32 guardedSalt, address deployer) pure retur
     }
 }
 
-/* ---------------------------------------------------------------------------------- */
-/*                                UniswapV4MigratorSplitHook                               */
-/* ---------------------------------------------------------------------------------- */
-
-uint160 constant MIGRATOR_HOOK_FLAGS =
-    uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
-
-struct MineV4MigratorHookParams {
-    address poolManager;
-    address migrator;
-    address hookDeployer;
-}
-
-function mineV4MigratorHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
-    bytes32 migratorHookInitHash = keccak256(
-        abi.encodePacked(type(UniswapV4MigratorSplitHook).creationCode, abi.encode(params.poolManager, params.migrator))
-    );
-
-    for (uint256 salt; salt < 200_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), migratorHookInitHash, address(params.hookDeployer));
-        if (uint160(hook) & Hooks.ALL_HOOK_MASK == MIGRATOR_HOOK_FLAGS && hook.code.length == 0) {
-            return (bytes32(salt), hook);
-        }
-    }
-    revert("AirlockMiner: could not find salt");
-}
-
-function mineV4MigratorHookCreate3(address sender, address deployer) view returns (bytes32, address) {
-    bytes32 baseSalt =
-        bytes32(uint256(uint160(sender))) << 96 | keccak256(abi.encode(type(UniswapV4MigratorSplitHook).name)) >> 168;
-
-    for (uint256 seed; seed < 100_000; seed++) {
-        bytes32 salt = bytes32(uint256(baseSalt) + seed);
-        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
-
-        address hook = computeCreate3Address(guardedSalt, deployer);
-        if (uint160(hook) & Hooks.ALL_HOOK_MASK == MIGRATOR_HOOK_FLAGS && hook.code.length == 0) {
-            return (salt, hook);
-        }
-    }
-
-    revert("AirlockMiner: could not find salt");
-}
-
-/* ----------------------------------------------------------------------------------------------- */
-/*                                UniswapV4MulticurveInitializerHook                               */
-/* ----------------------------------------------------------------------------------------------- */
-
-function mineV4MulticurveHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
-    bytes32 multicurveHookInitHash = keccak256(
-        abi.encodePacked(
-            type(UniswapV4MulticurveInitializerHook).creationCode,
-            abi.encode(
-                params.poolManager,
-                params.migrator // In that case it's the initializer address
-            )
-        )
-    );
-
-    for (uint256 salt; salt < 200_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
-        if (
-            uint160(hook) & Hooks.ALL_HOOK_MASK
-                    == uint160(
-                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-                    ) && hook.code.length == 0
-        ) {
-            return (bytes32(salt), hook);
-        }
-    }
-    revert("AirlockMiner: could not find salt");
-}
-
-/* -------------------------------------------------------------------------------------------------------- */
-/*                                UniswapV4ScheduledMulticurveInitializerHook                               */
-/* -------------------------------------------------------------------------------------------------------- */
-
-function mineV4ScheduledMulticurveHook(MineV4MigratorHookParams memory params) view returns (bytes32, address) {
-    bytes32 multicurveHookInitHash = keccak256(
-        abi.encodePacked(
-            type(UniswapV4ScheduledMulticurveInitializerHook).creationCode,
-            abi.encode(
-                params.poolManager,
-                params.migrator // In that case it's the initializer address
-            )
-        )
-    );
-
-    for (uint256 salt; salt < 200_000; ++salt) {
-        address hook = computeCreate2Address(bytes32(salt), multicurveHookInitHash, address(params.hookDeployer));
-        if (
-            uint160(hook) & Hooks.ALL_HOOK_MASK
-                    == uint160(
-                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-                    ) && hook.code.length == 0
-        ) {
-            return (bytes32(salt), hook);
-        }
-    }
-    revert("AirlockMiner: could not find salt");
-}
-
-function mineV4ScheduledMulticurveHookCreate3(address sender, address deployer) view returns (bytes32, address) {
-    bytes32 baseSalt = bytes32(uint256(uint160(sender))) << 96
-        | keccak256(abi.encode(type(UniswapV4ScheduledMulticurveInitializerHook).name)) >> 168;
-
-    for (uint256 seed; seed < 100_000; seed++) {
-        bytes32 salt = bytes32(uint256(baseSalt) + seed);
-        bytes32 guardedSalt = efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
-
-        address hook = computeCreate3Address(guardedSalt, deployer);
-        if (
-            uint160(hook) & Hooks.ALL_HOOK_MASK
-                    == uint160(
-                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
-                    ) && hook.code.length == 0
-        ) {
-            return (salt, hook);
-        }
-    }
-
-    revert("AirlockMiner: could not find salt");
-}
-
 /* -------------------------------------------------------------------- */
 /*                                Doppler                               */
 /* -------------------------------------------------------------------- */
@@ -326,39 +166,12 @@ function mineV4(MineV4Params memory params) view returns (bytes32, address, addr
         )
     );
 
-    (
-        string memory name,
-        string memory symbol,
-        uint256 yearlyMintCap,
-        uint256 vestingDuration,
-        address[] memory recipients,
-        uint256[] memory amounts,
-        string memory tokenURI
-    ) = abi.decode(params.tokenFactoryData, (string, string, uint256, uint256, address[], uint256[], string));
-
-    bytes32 tokenInitHash = keccak256(
-        abi.encodePacked(
-            type(DERC20).creationCode,
-            abi.encode(
-                name,
-                symbol,
-                params.initialSupply,
-                params.airlock,
-                params.airlock,
-                yearlyMintCap,
-                vestingDuration,
-                recipients,
-                amounts,
-                tokenURI
-            )
-        )
-    );
-
     address deployer = address(params.poolInitializer.deployer());
+    DopplerERC20V1Factory tokenFactory = DopplerERC20V1Factory(address(params.tokenFactory));
 
     for (uint256 salt; salt < 200_000; ++salt) {
         address hook = computeCreate2Address(bytes32(salt), dopplerInitHash, deployer);
-        address asset = computeCreate2Address(bytes32(salt), tokenInitHash, address(params.tokenFactory));
+        address asset = predictDopplerERC20V1Address(tokenFactory, bytes32(salt));
 
         if (
             uint160(hook) & Hooks.ALL_HOOK_MASK == DOPPLER_HOOK_FLAGS && hook.code.length == 0

@@ -5,10 +5,6 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { WETH } from "@solady/tokens/WETH.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
-import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
-import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
@@ -20,20 +16,18 @@ import {
     IUniswapV2Factory,
     UniswapV2MigratorSplit
 } from "src/migrators/UniswapV2MigratorSplit.sol";
-import { DERC20 } from "src/tokens/DERC20.sol";
-import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
+import { dopplerERC20V1FactoryData, predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 /**
  * @dev Integration tests can inherit from this base contract and override the `setUp` function to update the `CreateParams`,
  * then the `test_create` and `test_migrate` functions will be run automatically to try out the integration of the modules
  * and measure gas usage.
  */
-abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
+abstract contract BaseIntegrationTest is Deployers {
     address internal AIRLOCK_OWNER = makeAddr("AIRLOCK_OWNER");
 
-    IAllowanceTransfer public permit2;
     Airlock public airlock;
-    IPositionManager public positionManager;
 
     /// @dev Name of the integration test, used for gas snapshots
     string internal name;
@@ -49,10 +43,6 @@ abstract contract BaseIntegrationTest is Deployers, DeployPermit2 {
 
     function setUp() public virtual {
         deployFreshManagerAndRouters();
-        permit2 = IAllowanceTransfer(deployPermit2());
-        positionManager = Deploy.positionManager(
-            address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
-        );
         airlock = new Airlock(AIRLOCK_OWNER);
     }
 
@@ -110,8 +100,8 @@ function deployNoOpGovernanceFactory(
     return governanceFactory;
 }
 
-function deployTokenFactory(Vm vm, Airlock airlock, address airlockOwner) returns (TokenFactory tokenFactory) {
-    tokenFactory = new TokenFactory(address(airlock));
+function deployTokenFactory(Vm vm, Airlock airlock, address airlockOwner) returns (DopplerERC20V1Factory tokenFactory) {
+    tokenFactory = new DopplerERC20V1Factory(address(airlock));
     address[] memory modules = new address[](1);
     modules[0] = address(tokenFactory);
     ModuleState[] memory states = new ModuleState[](1);
@@ -126,24 +116,13 @@ function prepareTokenFactoryData(
     address airlock,
     address tokenFactory,
     bytes32 salt
-) pure returns (address asset, bytes memory data) {
+) view returns (address asset, bytes memory data) {
     string memory name = "Test Token";
     string memory symbol = "TEST";
     string memory uri = "TOKEN_URI";
-    uint256 initialSupply = 1e23;
 
-    asset = vm.computeCreate2Address(
-        salt,
-        keccak256(
-            abi.encodePacked(
-                type(DERC20).creationCode,
-                abi.encode(name, symbol, initialSupply, airlock, airlock, 0, 0, new address[](0), new uint256[](0), uri)
-            )
-        ),
-        address(tokenFactory)
-    );
-
-    data = abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), uri);
+    asset = predictDopplerERC20V1Address(DopplerERC20V1Factory(tokenFactory), salt);
+    data = dopplerERC20V1FactoryData(name, symbol, uri, 0, 0, address(0), new address[](0));
 }
 
 function deployGovernanceFactory(
@@ -209,4 +188,3 @@ function deployUniswapV2(Vm vm, address weth) returns (address factory, address 
         )
     );
 }
-

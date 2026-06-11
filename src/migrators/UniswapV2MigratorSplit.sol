@@ -4,13 +4,13 @@ pragma solidity ^0.8.24;
 import { WETH } from "@solady/tokens/WETH.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
-import { UniswapV2Locker } from "src/UniswapV2Locker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IUniswapV2Factory } from "src/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Pair } from "src/interfaces/IUniswapV2Pair.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
+import { UniswapV2Locker } from "src/lockers/UniswapV2Locker.sol";
 
 /**
  * @title Uniswap V2 Migrator with Proceeds Split

@@ -4,14 +4,11 @@ pragma solidity ^0.8.13;
 import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 import { WETH } from "@solmate/tokens/WETH.sol";
 import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@v3-core/interfaces/IUniswapV3Pool.sol";
-import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { IQuoterV2 } from "@v3-periphery/interfaces/IQuoterV2.sol";
 import { ISwapRouter } from "@v3-periphery/interfaces/ISwapRouter.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Test } from "forge-std/Test.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import {
     CallbackData,
@@ -27,8 +24,11 @@ import {
     PoolStatus,
     WAD
 } from "src/initializers/LockableUniswapV3Initializer.sol";
-import { DERC20 } from "src/tokens/DERC20.sol";
+import { DopplerERC20V1 } from "src/tokens/DopplerERC20V1.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { UNISWAP_V3_ROUTER_MAINNET } from "test/shared/Addresses.sol";
+import { createDopplerERC20V1 } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 int24 constant DEFAULT_LOWER_TICK = 167_520;
 int24 constant DEFAULT_UPPER_TICK = 200_040;
@@ -39,7 +39,9 @@ uint16 constant DEFAULT_NUM_POSITIONS = 10;
 
 contract LockableUniswapV3InitializerTest is Test {
     LockableUniswapV3Initializer public initializer;
+    DopplerERC20V1Factory public tokenFactory;
     address public airlockOwner = makeAddr("airlockOwner");
+    uint256 internal tokenNonce;
 
     function setUp() public {
         // vm.createSelectFork(vm.envString("BASE_SEPOLIA_RPC_URL"), 28_099_832);
@@ -47,11 +49,16 @@ contract LockableUniswapV3InitializerTest is Test {
         initializer = new LockableUniswapV3Initializer(
             address(this), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984)
         );
+        tokenFactory = new DopplerERC20V1Factory(address(this));
     }
 
     /// @dev Used to mimic the Airlock `owner()` function
     function owner() public view returns (address) {
         return airlockOwner;
+    }
+
+    function _deployToken() internal returns (DopplerERC20V1) {
+        return createDopplerERC20V1(tokenFactory, 2e27, address(this), address(this), bytes32(++tokenNonce));
     }
 
     function test_constructor() public view {
@@ -60,8 +67,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize() public returns (address pool) {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         pool = initializer.initialize(
@@ -94,8 +100,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_InitializedStatus() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         address pool = initializer.initialize(
@@ -120,8 +125,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_LockedStatus() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         address pool = initializer.initialize(
@@ -146,8 +150,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsIfAlreadyInitialized() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         initializer.initialize(
@@ -193,8 +196,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsWhenMaxShareToBeSoldExceeded() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(MaxShareToBeSoldExceeded.selector, WAD + 1, WAD));
@@ -217,8 +219,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsWhenInvalidTickRange() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         vm.expectRevert(
@@ -243,8 +244,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsWhenInvalidTickLower() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(InvalidTickRange.selector, DEFAULT_LOWER_TICK - 1, 60));
@@ -267,8 +267,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsWhenInvalidTickUpper() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(InvalidTickRange.selector, DEFAULT_UPPER_TICK + 1, 60));
@@ -291,8 +290,7 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_RevertsWhenInvalidFee() public {
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         token.approve(address(initializer), type(uint256).max);
 
         uint24 fee = 2000;
@@ -317,10 +315,8 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_collectFees() public returns (address pool) {
-        DERC20 token0 =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
-        DERC20 token1 =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token0 = _deployToken();
+        DopplerERC20V1 token1 = _deployToken();
 
         address asset = address(token0);
         address numeraire = address(token1);
@@ -388,10 +384,9 @@ contract LockableUniswapV3InitializerTest is Test {
 
     function test_exitLiquidity() public returns (address pool) {
         bool isToken0;
-        DERC20 token =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 token = _deployToken();
         while (address(token) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
-            token = new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+            token = _deployToken();
         }
 
         isToken0 = address(token) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -491,18 +486,14 @@ contract LockableUniswapV3InitializerTest is Test {
     }
 
     function test_initialize_token0AndToken1SamePrice() public {
-        DERC20 isToken0 =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 isToken0 = _deployToken();
         while (address(isToken0) > address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
-            isToken0 =
-                new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+            isToken0 = _deployToken();
         }
         // will be isToken0
-        DERC20 notIsToken0 =
-            new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+        DopplerERC20V1 notIsToken0 = _deployToken();
         while (address(notIsToken0) < address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)) {
-            notIsToken0 =
-                new DERC20("", "", 2e27, address(this), address(this), 0, 0, new address[](0), new uint256[](0), "");
+            notIsToken0 = _deployToken();
         }
         isToken0.approve(address(initializer), type(uint256).max);
         notIsToken0.approve(address(initializer), type(uint256).max);

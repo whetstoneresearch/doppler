@@ -16,9 +16,10 @@ import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol"
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
+import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 /// @dev Simple mock migrator that accepts tokens without doing anything
 /// Used to test migration flow without actual liquidity migration
@@ -47,7 +48,7 @@ contract ImmediateMigrationTest is Deployers {
 
     Airlock public airlock;
     DopplerHookInitializer public initializer;
-    CloneERC20Factory public tokenFactory;
+    DopplerERC20V1Factory public tokenFactory;
     NoOpGovernanceFactory public governanceFactory;
     MockMigrator public migrator;
 
@@ -64,8 +65,8 @@ contract ImmediateMigrationTest is Deployers {
         // Deploy Airlock
         airlock = new Airlock(AIRLOCK_OWNER);
 
-        // Deploy and register TokenFactory
-        tokenFactory = new CloneERC20Factory(address(airlock));
+        // Deploy and register token factory
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         _registerModule(address(tokenFactory), ModuleState.TokenFactory);
 
         // Deploy and register DopplerHookInitializer
@@ -133,14 +134,8 @@ contract ImmediateMigrationTest is Deployers {
             })
         );
 
-        bytes memory tokenFactoryData = abi.encode(
-            "Immediate Migration Test Token",
-            "IMMT",
-            0, // yearlyMintRate
-            0, // vestingDuration
-            new address[](0),
-            new uint256[](0),
-            "TOKEN_URI"
+        bytes memory tokenFactoryData = dopplerERC20V1FactoryData(
+            "Immediate Migration Test Token", "IMMT", "TOKEN_URI", 0, 0, address(0), new address[](0)
         );
 
         CreateParams memory createParams = CreateParams({
@@ -239,7 +234,7 @@ contract ImmediateMigrationTest is Deployers {
         );
 
         bytes memory tokenFactoryData =
-            abi.encode("Swap Test Token", "SWPT", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
+            dopplerERC20V1FactoryData("Swap Test Token", "SWPT", "TOKEN_URI", 0, 0, address(0), new address[](0));
 
         CreateParams memory createParams = CreateParams({
             initialSupply: initialSupply,

@@ -11,7 +11,7 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 import { Airlock, CreateParams } from "src/Airlock.sol";
 import { Bundler } from "src/Bundler.sol";
-import { PoolStatus } from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
@@ -247,9 +247,20 @@ contract MockMulticurveInitializer {
     function getState(address)
         external
         view
-        returns (address numeraire, PoolStatus status, PoolKey memory poolKey, int24 farTick)
+        returns (
+            address numeraire,
+            uint256 totalTokensOnBondingCurve,
+            address dopplerHook,
+            bytes memory graduationDopplerHookCalldata,
+            PoolStatus status,
+            PoolKey memory poolKey,
+            int24 farTick
+        )
     {
         numeraire = address(0);
+        totalTokensOnBondingCurve = 0;
+        dopplerHook = address(0);
+        graduationDopplerHookCalldata = new bytes(0);
         status = PoolStatus.Initialized;
         poolKey = storedKey;
         farTick = 0;

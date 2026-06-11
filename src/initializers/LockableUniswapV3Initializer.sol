@@ -9,9 +9,9 @@ import { LiquidityAmounts } from "@v4-core-test/utils/LiquidityAmounts.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { Airlock } from "src/Airlock.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { SqrtPriceMath } from "v4-core/libraries/SqrtPriceMath.sol";
 
 /**

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { ImmutableAirlock } from "src/base/ImmutableAirlock.sol";
-import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { DopplerDN404 } from "src/tokens/DopplerDN404.sol";
 
 error InvalidDN404Unit();
 error InvalidDN404InitialSupply();

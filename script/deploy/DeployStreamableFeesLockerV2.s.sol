@@ -6,7 +6,7 @@ import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 
 contract DeployStreamableFeesLockerV2Script is Script, Config {
     function run() public {

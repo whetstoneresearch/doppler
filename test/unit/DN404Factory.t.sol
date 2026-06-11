@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
-import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
 import { DN404Factory, InvalidDN404InitialSupply, InvalidDN404Unit } from "src/tokens/DN404Factory.sol";
+import { DopplerDN404 } from "src/tokens/DopplerDN404.sol";
 
 contract DN404FactoryTest is Test {
     DN404Factory public factory;

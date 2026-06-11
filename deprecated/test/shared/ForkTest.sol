@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import { BaseForkTest } from "./BaseForkTest.sol";
 import { console } from "forge-std/console.sol";
 import { CreateParams, ModuleState } from "src/Airlock.sol";
-import { BeneficiaryData } from "src/StreamableFeesLocker.sol";
 import { InitData } from "src/initializers/UniswapV3Initializer.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WETH_BASE } from "test/shared/Addresses.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
 

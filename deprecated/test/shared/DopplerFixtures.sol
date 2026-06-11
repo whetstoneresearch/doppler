@@ -1,0 +1,297 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import { WETH } from "@solady/tokens/WETH.sol";
+import { Deployers } from "@v4-core-test/utils/Deployers.sol";
+import { IPoolManager, PoolManager } from "@v4-core/PoolManager.sol";
+import { IHooks } from "@v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
+import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
+import { TopUpDistributor } from "src/TopUpDistributor.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { Doppler } from "src/initializers/Doppler.sol";
+import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
+import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
+import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
+import { alignTick } from "src/libraries/TickLibrary.sol";
+import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
+import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
+import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
+
+uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
+uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
+uint256 constant DEFAULT_MAXIMUM_PROCEEDS = 10_000e18;
+uint256 constant DEFAULT_STARTING_TIME = 1 days;
+uint256 constant DEFAULT_ENDING_TIME = 2 days;
+int24 constant DEFAULT_GAMMA = 800;
+uint256 constant DEFAULT_EPOCH_LENGTH = 400 seconds;
+
+uint24 constant DEFAULT_FEE = 3000;
+int24 constant DEFAULT_TICK_SPACING = 8;
+uint256 constant DEFAULT_NUM_PD_SLUGS = 3;
+
+int24 constant DEFAULT_START_TICK = 1600;
+int24 constant DEFAULT_END_TICK = 171_200;
+
+address constant TOKEN_A = address(0x8888);
+address constant TOKEN_B = address(0x9999);
+
+uint160 constant SQRT_RATIO_2_1 = 112_045_541_949_572_279_837_463_876_454;
+
+struct DopplerConfig {
+    uint256 numTokensToSell;
+    uint256 minimumProceeds;
+    uint256 maximumProceeds;
+    uint256 startingTime;
+    uint256 endingTime;
+    uint256 epochLength;
+    uint256 numPDSlugs;
+}
+
+contract DopplerFixtures is Deployers {
+    using StateLibrary for IPoolManager;
+
+    WETH public weth;
+
+    // a low address so numeraire is always token0 and asset is always token1
+    MockERC20 public numeraire0 = MockERC20(address(0xc0ffee));
+
+    // a high address so numeraire is always token1 and asset is always token0
+    MockERC20 public numeraire1 = MockERC20(address(0xFffFFf00C0ffEE00000000000000000000000000));
+
+    UniswapV4Initializer public initializer;
+    DopplerDeployer public deployer;
+    Airlock public airlock;
+    TokenFactory public tokenFactory;
+    GovernanceFactory public governanceFactory;
+    UniswapV2MigratorSplit public migrator;
+    TopUpDistributor public topUpDistributor;
+
+    IUniswapV2Factory public uniswapV2Factory = IUniswapV2Factory(UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA);
+    IUniswapV2Router02 public uniswapV2Router = IUniswapV2Router02(UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA);
+
+    /// @dev Deploy and mint 10_000_000 mock tokens
+    function _deployMockNumeraire() internal {
+        MockERC20 m0 = new MockERC20("Mock Numeraire0", "Mock0", 18);
+        vm.etch(address(numeraire0), address(m0).code);
+        numeraire0.mint(address(this), 10_000_000e18);
+
+        MockERC20 m1 = new MockERC20("Mock Numeraire1", "Mock1", 18);
+        vm.etch(address(numeraire1), address(m1).code);
+        numeraire1.mint(address(this), 10_000_000e18);
+    }
+
+    /// @dev a Unichain fork should be activated with `vm.createSelectFork(vm.envString("UNICHAIN_SEPOLIA_RPC_URL"), 9_434_599);`
+    function _deployAirlockAndModules() internal {
+        manager = new PoolManager(address(this));
+
+        airlock = new Airlock(address(this));
+        deployer = new DopplerDeployer(manager);
+        initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
+        tokenFactory = new TokenFactory(address(airlock));
+        governanceFactory = new GovernanceFactory(address(airlock));
+        topUpDistributor = new TopUpDistributor(address(airlock));
+        weth = new WETH();
+        migrator = new UniswapV2MigratorSplit(address(airlock), uniswapV2Factory, topUpDistributor, address(weth));
+        topUpDistributor.setPullUp(address(migrator), true);
+
+        address[] memory modules = new address[](4);
+        modules[0] = address(tokenFactory);
+        modules[1] = address(initializer);
+        modules[2] = address(governanceFactory);
+        modules[3] = address(migrator);
+
+        ModuleState[] memory states = new ModuleState[](4);
+        states[0] = ModuleState.TokenFactory;
+        states[1] = ModuleState.PoolInitializer;
+        states[2] = ModuleState.GovernanceFactory;
+        states[3] = ModuleState.LiquidityMigrator;
+
+        airlock.setModuleState(modules, states);
+    }
+
+    function _defaultDopplerConfig() internal view returns (DopplerConfig memory) {
+        return DopplerConfig({
+            numTokensToSell: DEFAULT_NUM_TOKENS_TO_SELL,
+            minimumProceeds: DEFAULT_MINIMUM_PROCEEDS,
+            maximumProceeds: DEFAULT_MAXIMUM_PROCEEDS,
+            startingTime: block.timestamp + DEFAULT_STARTING_TIME,
+            endingTime: block.timestamp + DEFAULT_ENDING_TIME,
+            epochLength: DEFAULT_EPOCH_LENGTH,
+            numPDSlugs: DEFAULT_NUM_PD_SLUGS
+        });
+    }
+
+    /// @dev Create a default auction with native Ether as the numeraire
+    function _airlockCreateNative() internal returns (address, PoolKey memory) {
+        // because numeraire is address(0), asset is always token1
+        return _airlockCreate(Currency.unwrap(CurrencyLibrary.ADDRESS_ZERO), false);
+    }
+
+    /// @dev Create a default auction
+    function _airlockCreate(address _numeraire, bool _isAssetToken0) internal returns (address, PoolKey memory) {
+        return _airlockCreate(
+            _numeraire,
+            _isAssetToken0,
+            address(this),
+            DEFAULT_FEE,
+            DEFAULT_TICK_SPACING,
+            migrator,
+            abi.encode(address(0), 0)
+        );
+    }
+
+    function _airlockCreate(
+        address _numeraire,
+        bool _isAssetToken0,
+        uint24 fee,
+        int24 tickSpacing
+    ) internal returns (address, PoolKey memory) {
+        return _airlockCreate(
+            _numeraire, _isAssetToken0, address(this), fee, tickSpacing, migrator, abi.encode(address(0), 0)
+        );
+    }
+
+    /// @dev Create an auction with custom parameters
+    function _airlockCreate(
+        address _numeraire,
+        bool _isAssetToken0,
+        address _integrator,
+        uint24 _fee,
+        int24 _tickSpacing,
+        ILiquidityMigrator _migrator,
+        bytes memory _migratorInitializeData
+    ) internal returns (address _asset, PoolKey memory _poolKey) {
+        DopplerConfig memory config = _defaultDopplerConfig();
+
+        int24 startTick = alignTick(_isAssetToken0, DEFAULT_START_TICK, _tickSpacing);
+        int24 endTick = alignTick(_isAssetToken0, DEFAULT_END_TICK, _tickSpacing);
+        int24 gamma = (DEFAULT_GAMMA / _tickSpacing) * _tickSpacing; // align gamma with tickSpacing, rounding down
+
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+        bytes memory governanceFactoryData = _defaultGovernanceFactoryData();
+
+        bytes memory poolInitializerData = abi.encode(
+            config.minimumProceeds,
+            config.maximumProceeds,
+            config.startingTime,
+            config.endingTime,
+            startTick,
+            endTick,
+            config.epochLength,
+            gamma,
+            _isAssetToken0,
+            config.numPDSlugs,
+            _fee,
+            _tickSpacing
+        );
+
+        (bytes32 salt, address hook, address token) = mineV4(
+            MineV4Params(
+                address(airlock),
+                address(manager),
+                config.numTokensToSell,
+                config.numTokensToSell,
+                _numeraire,
+                ITokenFactory(address(tokenFactory)),
+                tokenFactoryData,
+                initializer,
+                poolInitializerData
+            )
+        );
+
+        address hookContract;
+        (_asset, hookContract,,,) = airlock.create(
+            CreateParams(
+                config.numTokensToSell,
+                config.numTokensToSell,
+                _numeraire,
+                tokenFactory,
+                tokenFactoryData,
+                governanceFactory,
+                governanceFactoryData,
+                initializer,
+                poolInitializerData,
+                _migrator,
+                _migratorInitializeData,
+                _integrator,
+                salt
+            )
+        );
+        _poolKey = PoolKey({
+            currency0: Currency.wrap(_numeraire),
+            currency1: Currency.wrap(_asset),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: _tickSpacing,
+            hooks: IHooks(hook)
+        });
+        assertEq(_asset, token, "Wrong asset");
+        assertEq(hook, hookContract, "Wrong hook");
+    }
+
+    function _defaultTokenFactoryData() internal pure returns (bytes memory) {
+        return abi.encode("Best Token", "BEST", 1e16, 365 days, new address[](0), new uint256[](0), "");
+    }
+
+    function _defaultGovernanceFactoryData() internal pure returns (bytes memory) {
+        return abi.encode("Best Token", 7200, 50_400, 0);
+    }
+
+    function _collectAllProtocolFees(
+        address numeraire,
+        address asset,
+        address recipient
+    ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
+        numeraireAmount = airlock.getProtocolFees(numeraire);
+        assetAmount = airlock.getProtocolFees(asset);
+        vm.startPrank(airlock.owner());
+        airlock.collectProtocolFees(recipient, numeraire, numeraireAmount);
+        airlock.collectProtocolFees(recipient, asset, assetAmount);
+        vm.stopPrank();
+
+        assertEq(airlock.getProtocolFees(numeraire), 0);
+        assertEq(airlock.getProtocolFees(asset), 0);
+    }
+
+    function _collectAllIntegratorFees(
+        address numeraire,
+        address asset,
+        address recipient
+    ) internal returns (uint256 numeraireAmount, uint256 assetAmount) {
+        (,,,,,,,,, address integrator) = airlock.getAssetData(asset);
+        numeraireAmount = airlock.getIntegratorFees(integrator, numeraire);
+        assetAmount = airlock.getIntegratorFees(integrator, asset);
+        vm.startPrank(integrator);
+        airlock.collectIntegratorFees(recipient, numeraire, numeraireAmount);
+        airlock.collectIntegratorFees(recipient, asset, assetAmount);
+        vm.stopPrank();
+
+        assertEq(airlock.getIntegratorFees(integrator, numeraire), 0);
+        assertEq(airlock.getIntegratorFees(integrator, asset), 0);
+    }
+
+    function _mockEarlyExit(Doppler doppler) internal {
+        // storage slot of `earlyExit` variable is slot 0
+        // (via `forge inspect Doppler storage`)
+        bytes32 EARLY_EXIT_SLOT = bytes32(uint256(0));
+
+        vm.record();
+        doppler.earlyExit();
+        (bytes32[] memory reads,) = vm.accesses(address(doppler));
+        assertEq(reads.length, 1, "wrong reads");
+        assertEq(reads[0], EARLY_EXIT_SLOT, "wrong slot");
+
+        // need to offset the boolean (0x01) by 1 byte since `insufficientProceeds`
+        // and `earlyExit` share slot0
+        vm.store(address(doppler), EARLY_EXIT_SLOT, bytes32(uint256(0x0100)));
+
+        assertTrue(doppler.earlyExit(), "early exit should be true");
+    }
+}

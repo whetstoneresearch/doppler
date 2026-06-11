@@ -14,8 +14,8 @@ import {
     OwnerIndexOutOfBounds,
     PoolLocked,
     TokenIDIndexOutOfBounds
-} from "src/dn404/DopplerDN404.sol";
-import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
+} from "src/tokens/DopplerDN404.sol";
+import { DopplerDN404Mirror } from "src/tokens/DopplerDN404Mirror.sol";
 
 uint256 constant INITIAL_SUPPLY = 1e23;
 uint256 constant UNIT = 1000e18;

@@ -12,16 +12,9 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
-import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
-import { PositionManager } from "@v4-periphery/PositionManager.sol";
-import { IPositionManager } from "@v4-periphery/interfaces/IPositionManager.sol";
-import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
-import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLocker } from "src/StreamableFeesLocker.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { Doppler } from "src/initializers/Doppler.sol";
@@ -34,10 +27,9 @@ import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol"
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
 import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
-import { UniswapV4MigratorSplit } from "src/migrators/UniswapV4MigratorSplit.sol";
-import { UniswapV4MigratorSplitHook } from "src/migrators/UniswapV4MigratorSplitHook.sol";
 import { BalanceLimitExceeded, DopplerERC20V1, VestingSchedule } from "src/tokens/DopplerERC20V1.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -62,6 +54,7 @@ import {
     UNISWAP_V3_ROUTER_MAINNET,
     WETH_MAINNET
 } from "test/shared/Addresses.sol";
+import { predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 import {
     DEFAULT_EPOCH_LENGTH,
     DEFAULT_GAMMA,
@@ -69,7 +62,7 @@ import {
     DEFAULT_MINIMUM_PROCEEDS
 } from "test/shared/DopplerFixtures.sol";
 
-contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
+contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
     uint256 internal constant INITIAL_SUPPLY = 1e23;
     uint256 internal constant NUM_TOKENS_TO_SELL = 1e23;
     uint256 internal constant MAX_BALANCE_LIMIT = 5e22;
@@ -92,11 +85,6 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
     address public splitWeth;
     address public splitV2Factory;
     UniswapV2MigratorSplit public v2Migrator;
-    IAllowanceTransfer public permit2;
-    PositionManager public positionManager;
-    StreamableFeesLocker public v4MigratorLocker;
-    UniswapV4MigratorSplitHook public v4MigratorHook;
-    UniswapV4MigratorSplit public v4Migrator;
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -133,61 +121,29 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         v2Migrator = new UniswapV2MigratorSplit(
             address(airlock), IUniswapV2Factory(splitV2Factory), splitTopUpDistributor, splitWeth
         );
-        permit2 = IAllowanceTransfer(deployPermit2());
-        positionManager = PositionManager(
-            payable(address(
-                    Deploy.positionManager(
-                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
-                    )
-                ))
-        );
-        v4MigratorLocker = new StreamableFeesLocker(IPositionManager(address(positionManager)), AIRLOCK_OWNER);
-        v4MigratorHook = UniswapV4MigratorSplitHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-                ) ^ (0x4444 << 144)
-            )
-        );
-        v4Migrator = new UniswapV4MigratorSplit(
-            address(airlock),
-            IPoolManager(address(manager)),
-            positionManager,
-            v4MigratorLocker,
-            IHooks(v4MigratorHook),
-            splitTopUpDistributor
-        );
-        deployCodeTo(
-            "UniswapV4MigratorSplitHook", abi.encode(address(manager), address(v4Migrator)), address(v4MigratorHook)
-        );
-
-        address[] memory modules = new address[](8);
+        address[] memory modules = new address[](7);
         modules[0] = address(tokenFactory);
         modules[1] = address(uniswapV4Initializer);
         modules[2] = address(dopplerHookInitializer);
         modules[3] = address(lockableV3Initializer);
         modules[4] = address(hookMigrator);
         modules[5] = address(v2Migrator);
-        modules[6] = address(v4Migrator);
-        modules[7] = address(governanceFactory);
+        modules[6] = address(governanceFactory);
 
-        ModuleState[] memory states = new ModuleState[](8);
+        ModuleState[] memory states = new ModuleState[](7);
         states[0] = ModuleState.TokenFactory;
         states[1] = ModuleState.PoolInitializer;
         states[2] = ModuleState.PoolInitializer;
         states[3] = ModuleState.PoolInitializer;
         states[4] = ModuleState.LiquidityMigrator;
         states[5] = ModuleState.LiquidityMigrator;
-        states[6] = ModuleState.LiquidityMigrator;
-        states[7] = ModuleState.GovernanceFactory;
+        states[6] = ModuleState.GovernanceFactory;
 
         vm.startPrank(AIRLOCK_OWNER);
         airlock.setModuleState(modules, states);
         hookMigratorLocker.approveMigrator(address(hookMigrator));
-        v4MigratorLocker.approveMigrator(address(v4Migrator));
         topUpDistributor.setPullUp(address(hookMigrator), true);
         splitTopUpDistributor.setPullUp(address(v2Migrator), true);
-        splitTopUpDistributor.setPullUp(address(v4Migrator), true);
         vm.stopPrank();
     }
 
@@ -384,56 +340,6 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         airlock.migrate(asset);
     }
 
-    function test_uniswapV4Initializer_V1ActiveMaxBalance_V4MigratorSplitMigratesWithRequiredExclusions() public {
-        bytes memory poolInitializerData = _uniswapV4InitializerData();
-        (bytes32 salt, address dopplerHook,) = _mineV4DopplerERC20V1(poolInitializerData);
-
-        address[] memory excludedFromBalanceLimit = new address[](3);
-        excludedFromBalanceLimit[0] = dopplerHook;
-        excludedFromBalanceLimit[1] = address(manager);
-        excludedFromBalanceLimit[2] = address(v4Migrator);
-
-        (address asset,,, address timelock,) = _create(
-            salt, excludedFromBalanceLimit, uniswapV4Initializer, poolInitializerData, v4Migrator, _v4MigratorData()
-        );
-
-        DopplerERC20V1 token = DopplerERC20V1(asset);
-        _assertActiveLimit(token);
-        _assertExcluded(token, excludedFromBalanceLimit);
-        assertTrue(
-            token.isExcludedFromBalanceLimit(address(0)), "empty migration pool should be auto-excluded by lockPool"
-        );
-        assertTrue(token.isExcludedFromBalanceLimit(address(airlock)), "Airlock should be auto-excluded");
-        assertFalse(token.isExcludedFromBalanceLimit(address(uniswapV4Initializer)), "initializer should be redundant");
-        assertFalse(token.isExcludedFromBalanceLimit(UNNECESSARY_EXCLUSION), "unnecessary address excluded");
-
-        _buyUntilDynamicV4CanMigrate(dopplerHook);
-        airlock.migrate(asset);
-
-        _assertActiveLimit(token);
-        assertEq(token.owner(), timelock, "owner should transfer to timelock");
-        assertTrue(token.isExcludedFromBalanceLimit(timelock), "timelock should be auto-excluded on ownership transfer");
-        assertGt(positionManager.balanceOf(address(v4MigratorLocker)), 0, "locker should receive migrated liquidity");
-    }
-
-    function test_uniswapV4Initializer_V1ActiveMaxBalance_RevertsWithoutV4SplitMigratorExclusion() public {
-        bytes memory poolInitializerData = _uniswapV4InitializerData();
-        (bytes32 salt, address dopplerHook,) = _mineV4DopplerERC20V1(poolInitializerData);
-
-        address[] memory excludedFromBalanceLimit = new address[](2);
-        excludedFromBalanceLimit[0] = dopplerHook;
-        excludedFromBalanceLimit[1] = address(manager);
-
-        (address asset, address pool,,,) = _create(
-            salt, excludedFromBalanceLimit, uniswapV4Initializer, poolInitializerData, v4Migrator, _v4MigratorData()
-        );
-
-        _buyUntilDynamicV4CanMigrate(pool);
-
-        vm.expectRevert(bytes("TRANSFER_FAILED"));
-        airlock.migrate(asset);
-    }
-
     function test_uniswapV4Initializer_V1ActiveMaxBalance_VestingBeneficiaryAutoExcludedAndCanReleaseAboveCap() public {
         address beneficiary = address(0xF00D);
         uint256 vestedAmount = MAX_BALANCE_LIMIT + 1;
@@ -581,41 +487,6 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         assertEq(token.owner(), timelock, "owner should transfer to timelock");
         assertTrue(token.isExcludedFromBalanceLimit(timelock), "timelock should be auto-excluded on ownership transfer");
         assertGt(DopplerERC20V1(asset).balanceOf(v2Pair), 0, "pair should receive migrated asset");
-    }
-
-    function test_dopplerHookInitializer_V1ActiveMaxBalance_V4MigratorSplitMigratesWithRequiredExclusions() public {
-        bytes32 salt = bytes32(uint256(12));
-
-        address[] memory excludedFromBalanceLimit = new address[](3);
-        excludedFromBalanceLimit[0] = address(dopplerHookInitializer);
-        excludedFromBalanceLimit[1] = address(manager);
-        excludedFromBalanceLimit[2] = address(v4Migrator);
-
-        (address asset,,, address timelock,) = _create(
-            salt,
-            excludedFromBalanceLimit,
-            dopplerHookInitializer,
-            _dopplerHookInitializerData(),
-            v4Migrator,
-            _v4MigratorData()
-        );
-
-        DopplerERC20V1 token = DopplerERC20V1(asset);
-        _assertActiveLimit(token);
-        _assertExcluded(token, excludedFromBalanceLimit);
-        assertTrue(
-            token.isExcludedFromBalanceLimit(address(0)), "empty migration pool should be auto-excluded by lockPool"
-        );
-        assertTrue(token.isExcludedFromBalanceLimit(address(airlock)), "Airlock should be auto-excluded");
-        assertFalse(token.isExcludedFromBalanceLimit(UNNECESSARY_EXCLUSION), "unnecessary address excluded");
-
-        _swapOnDopplerHookInitializerPool(asset);
-        airlock.migrate(asset);
-
-        _assertActiveLimit(token);
-        assertEq(token.owner(), timelock, "owner should transfer to timelock");
-        assertTrue(token.isExcludedFromBalanceLimit(timelock), "timelock should be auto-excluded on ownership transfer");
-        assertGt(positionManager.balanceOf(address(v4MigratorLocker)), 0, "locker should receive migrated liquidity");
     }
 
     function test_lockableUniswapV3Initializer_V1ActiveMaxBalance_V2MigratorSplitMigratesWithRequiredExclusions()
@@ -770,117 +641,6 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         );
     }
 
-    function test_lockableUniswapV3Initializer_V1ActiveMaxBalance_V4MigratorSplitMigratesWithRequiredExclusions()
-        public
-    {
-        _resetOnMainnetFork();
-
-        bytes32 salt = bytes32(uint256(22));
-        address predictedAsset = _predictAsset(salt);
-        address v3Pool = _computeV3Pool(predictedAsset, WETH_MAINNET, 3000);
-        address timelock = _predictTimelock();
-
-        address[] memory excludedFromBalanceLimit = new address[](4);
-        excludedFromBalanceLimit[0] = v3Pool;
-        excludedFromBalanceLimit[1] = address(v4Migrator);
-        excludedFromBalanceLimit[2] = address(manager);
-        excludedFromBalanceLimit[3] = timelock;
-
-        (address asset, address pool,, address actualTimelock,) = _createWithNumeraire(
-            salt,
-            WETH_MAINNET,
-            excludedFromBalanceLimit,
-            lockableV3Initializer,
-            _lockableV3InitializerData(predictedAsset),
-            v4Migrator,
-            _v4MigratorData()
-        );
-
-        DopplerERC20V1 token = DopplerERC20V1(asset);
-        assertEq(asset, predictedAsset, "asset prediction mismatch");
-        assertEq(pool, v3Pool, "v3 pool prediction mismatch");
-        assertEq(actualTimelock, timelock, "timelock prediction mismatch");
-        _assertActiveLimit(token);
-        _assertExcluded(token, excludedFromBalanceLimit);
-        assertTrue(
-            token.isExcludedFromBalanceLimit(address(0)), "empty migration pool should be auto-excluded by lockPool"
-        );
-        assertTrue(token.isExcludedFromBalanceLimit(address(airlock)), "Airlock should be auto-excluded");
-        assertFalse(token.isExcludedFromBalanceLimit(UNNECESSARY_EXCLUSION), "unnecessary address excluded");
-
-        _buyUntilLockableV3CanMigrate(pool, asset);
-        airlock.migrate(asset);
-
-        _assertActiveLimit(token);
-        assertEq(token.owner(), actualTimelock, "owner should transfer to timelock");
-        assertGt(positionManager.balanceOf(address(v4MigratorLocker)), 0, "locker should receive migrated liquidity");
-    }
-
-    function _tokenFactoryData(address[] memory excludedFromBalanceLimit) internal view returns (bytes memory) {
-        return abi.encode(
-            "Doppler V1 Max Balance Test",
-            "DOPV1MAX",
-            new VestingSchedule[](0),
-            new address[](0),
-            new uint256[](0),
-            new uint256[](0),
-            "TOKEN_URI",
-            MAX_BALANCE_LIMIT,
-            uint48(block.timestamp + 30 days),
-            address(0),
-            excludedFromBalanceLimit
-        );
-    }
-
-    function _tokenFactoryDataWithVesting(
-        address[] memory excludedFromBalanceLimit,
-        address beneficiary,
-        uint256 vestedAmount
-    ) internal view returns (bytes memory) {
-        VestingSchedule[] memory schedules = new VestingSchedule[](1);
-        schedules[0] = VestingSchedule({ cliff: 0, duration: 1 days });
-
-        address[] memory beneficiaries = new address[](1);
-        beneficiaries[0] = beneficiary;
-
-        uint256[] memory scheduleIds = new uint256[](1);
-        scheduleIds[0] = 0;
-
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = vestedAmount;
-
-        return abi.encode(
-            "Doppler V1 Max Balance Test",
-            "DOPV1MAX",
-            schedules,
-            beneficiaries,
-            scheduleIds,
-            amounts,
-            "TOKEN_URI",
-            MAX_BALANCE_LIMIT,
-            uint48(block.timestamp + 30 days),
-            address(0),
-            excludedFromBalanceLimit
-        );
-    }
-
-    function _uniswapV4InitializerData() internal view returns (bytes memory) {
-        return abi.encode(
-            DEFAULT_MINIMUM_PROCEEDS,
-            DEFAULT_MAXIMUM_PROCEEDS,
-            block.timestamp,
-            block.timestamp + 1 days,
-            DEFAULT_START_TICK,
-            DEFAULT_END_TICK,
-            DEFAULT_EPOCH_LENGTH,
-            DEFAULT_GAMMA,
-            false,
-            10,
-            DEFAULT_FEE,
-            DEFAULT_TICK_SPACING
-        );
-    }
-
     function _mineV4DopplerERC20V1(bytes memory poolInitializerData)
         internal
         returns (bytes32 salt, address hook, address asset)
@@ -930,12 +690,11 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
                 )
             )
         );
-        bytes32 tokenInitHash = LibClone.initCodeHash(tokenFactory.IMPLEMENTATION());
         address deployer = address(uniswapV4Initializer.deployer());
 
         for (uint256 seed; seed < 200_000; ++seed) {
             hook = vm.computeCreate2Address(bytes32(seed), dopplerInitHash, deployer);
-            asset = vm.computeCreate2Address(bytes32(seed), tokenInitHash, address(tokenFactory));
+            asset = predictDopplerERC20V1Address(tokenFactory, bytes32(seed));
 
             if (
                 uint160(hook) & Hooks.ALL_HOOK_MASK
@@ -1007,13 +766,69 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         return abi.encode(address(0), uint256(0));
     }
 
-    function _v4MigratorData() internal pure returns (bytes memory) {
-        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](3);
-        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xB0B), shares: 0.9e18 });
-        beneficiaries[1] = BeneficiaryData({ beneficiary: AIRLOCK_OWNER, shares: 0.05e18 });
-        beneficiaries[2] = BeneficiaryData({ beneficiary: address(0xBEEF), shares: 0.05e18 });
+    function _tokenFactoryData(address[] memory excludedFromBalanceLimit) internal view returns (bytes memory) {
+        return abi.encode(
+            "Doppler V1 Max Balance Test",
+            "DOPV1MAX",
+            new VestingSchedule[](0),
+            new address[](0),
+            new uint256[](0),
+            new uint256[](0),
+            "TOKEN_URI",
+            MAX_BALANCE_LIMIT,
+            uint48(block.timestamp + 30 days),
+            address(0),
+            excludedFromBalanceLimit
+        );
+    }
 
-        return abi.encode(uint24(2000), int24(8), uint32(30 days), beneficiaries, address(0), uint256(0));
+    function _tokenFactoryDataWithVesting(
+        address[] memory excludedFromBalanceLimit,
+        address beneficiary,
+        uint256 vestedAmount
+    ) internal view returns (bytes memory) {
+        VestingSchedule[] memory schedules = new VestingSchedule[](1);
+        schedules[0] = VestingSchedule({ cliff: 0, duration: 1 days });
+
+        address[] memory beneficiaries = new address[](1);
+        beneficiaries[0] = beneficiary;
+
+        uint256[] memory scheduleIds = new uint256[](1);
+        scheduleIds[0] = 0;
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = vestedAmount;
+
+        return abi.encode(
+            "Doppler V1 Max Balance Test",
+            "DOPV1MAX",
+            schedules,
+            beneficiaries,
+            scheduleIds,
+            amounts,
+            "TOKEN_URI",
+            MAX_BALANCE_LIMIT,
+            uint48(block.timestamp + 30 days),
+            address(0),
+            excludedFromBalanceLimit
+        );
+    }
+
+    function _uniswapV4InitializerData() internal view returns (bytes memory) {
+        return abi.encode(
+            DEFAULT_MINIMUM_PROCEEDS,
+            DEFAULT_MAXIMUM_PROCEEDS,
+            block.timestamp,
+            block.timestamp + 1 days,
+            DEFAULT_START_TICK,
+            DEFAULT_END_TICK,
+            DEFAULT_EPOCH_LENGTH,
+            DEFAULT_GAMMA,
+            false,
+            10,
+            DEFAULT_FEE,
+            DEFAULT_TICK_SPACING
+        );
     }
 
     function _resetOnMainnetFork() internal {
