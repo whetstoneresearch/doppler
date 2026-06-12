@@ -21,13 +21,13 @@ import {
     deployTokenFactory,
     prepareTokenFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
-import {
-    deployDopplerHookMulticurveInitializer,
-    prepareDopplerHookMulticurveInitializerData
-} from "test/integration/DopplerHookInitializer.t.sol";
 import { deployUniswapV4Initializer, preparePoolInitializerData } from "test/integration/UniswapV4Initializer.t.sol";
 import { UNISWAP_V3_FACTORY_MAINNET } from "test/shared/Addresses.sol";
 import { defaultDopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
+import {
+    deployDopplerHookInitializer,
+    prepareDopplerHookInitializerData
+} from "test/shared/DopplerHookInitializerHelper.sol";
 
 contract DopplerERC20V1FactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is
     BaseIntegrationTest
@@ -76,9 +76,9 @@ contract DopplerERC20V1FactoryDopplerHookInitializerNoOpGovernanceFactoryNoOpMig
         createParams.tokenFactoryData = defaultDopplerERC20V1FactoryData();
 
         DopplerHookInitializer initializer =
-            deployDopplerHookMulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
+            deployDopplerHookInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
         createParams.poolInitializer = initializer;
-        createParams.poolInitializerData = prepareDopplerHookMulticurveInitializerData(address(0), address(0));
+        createParams.poolInitializerData = prepareDopplerHookInitializerData(address(0), address(0));
         createParams.salt = bytes32(uint256(1));
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;

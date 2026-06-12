@@ -24,7 +24,6 @@ gas_limit = "18446744073709551615"
 [fuzz]
 max_test_rejects = 10000000
 runs = 32
-depth = 512
 
 [fmt]
 single_line_statement_blocks = "preserve"
@@ -47,6 +46,7 @@ lint_on_build = false
 show_metrics = true
 fail_on_revert = true
 show_solidity = true
+depth = 512
 
 [etherscan]
 base = { key = "${BASESCAN_API_KEY}" }

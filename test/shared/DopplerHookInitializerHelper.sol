@@ -13,7 +13,7 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
 
-function deployDopplerHookMulticurveInitializer(
+function deployDopplerHookInitializer(
     Vm vm,
     function(string memory, bytes memory, address) deployCodeTo,
     Airlock airlock,
@@ -39,7 +39,7 @@ function deployDopplerHookMulticurveInitializer(
     airlock.setModuleState(modules, states);
 }
 
-function prepareDopplerHookMulticurveInitializerData(
+function prepareDopplerHookInitializerData(
     address asset,
     address numeraire
 ) pure returns (bytes memory poolInitializerData) {

@@ -37,7 +37,7 @@ contract LiquidityMigratorMock is ILiquidityMigrator {
     }
 }
 
-contract V4MulticurveInitializer is Deployers {
+contract DopplerHookInitializerTest is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
     DopplerHookInitializer public initializer;
@@ -91,7 +91,7 @@ contract V4MulticurveInitializer is Deployers {
         vm.stopPrank();
     }
 
-    function test_create_MulticurveInitializerV4(bytes32 salt) public {
+    function test_create_DopplerHookInitializer(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -119,7 +119,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function test_migrate_MulticurveInitializerV4(bytes32 salt) public {
+    function test_migrate_DopplerHookInitializer(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
@@ -163,7 +163,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.migrate(asset);
     }
 
-    function test_create_DN404_MulticurveInitializerV4(bytes32 salt) public {
+    function test_create_DN404_DopplerHookInitializer(bytes32 salt) public {
         uint256 initialSupply = 1e27;
         uint256 unit = initialSupply;
         address tokenAddress = _computeDN404Address(salt, initialSupply, unit);
@@ -177,7 +177,7 @@ contract V4MulticurveInitializer is Deployers {
         assertEq(DopplerDN404Mirror(payable(DopplerDN404(payable(asset)).mirrorERC721())).baseERC20(), asset);
     }
 
-    function test_migrate_DN404_MulticurveInitializerV4(bytes32 salt) public {
+    function test_migrate_DN404_DopplerHookInitializer(bytes32 salt) public {
         uint256 initialSupply = 1e27;
         uint256 unit = initialSupply;
         address tokenAddress = _computeDN404Address(salt, initialSupply, unit);

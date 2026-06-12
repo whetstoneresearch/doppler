@@ -39,10 +39,6 @@ import {
     prepareCloneERC20VotesFactoryData
 } from "test/integration/CloneERC20VotesFactory.t.sol";
 import {
-    deployDopplerHookMulticurveInitializer,
-    prepareDopplerHookMulticurveInitializerData
-} from "test/integration/DopplerHookInitializer.t.sol";
-import {
     deployUniswapV3Initializer,
     prepareUniswapV3InitializerData
 } from "test/integration/UniswapV3Initializer.t.sol";
@@ -62,6 +58,10 @@ import {
     UNISWAP_V3_ROUTER_MAINNET,
     WETH_MAINNET
 } from "test/shared/Addresses.sol";
+import {
+    deployDopplerHookInitializer,
+    prepareDopplerHookInitializerData
+} from "test/shared/DopplerHookInitializerHelper.sol";
 
 contract TokenFactoryUniswapV4InitializerNoOpGovernanceFactoryNoOpMigratorIntegrationTest is BaseIntegrationTest {
     function setUp() public override {
@@ -170,9 +170,9 @@ contract CloneERC20FactoryDopplerHookMulticurveInitializerNoOpGovernanceFactoryN
         createParams.tokenFactoryData = prepareCloneERC20FactoryData();
 
         DopplerHookInitializer initializer =
-            deployDopplerHookMulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
+            deployDopplerHookInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
         createParams.poolInitializer = initializer;
-        (bytes memory poolInitializerData) = prepareDopplerHookMulticurveInitializerData(address(0), address(0));
+        (bytes memory poolInitializerData) = prepareDopplerHookInitializerData(address(0), address(0));
         createParams.poolInitializerData = poolInitializerData;
         createParams.numTokensToSell = 1e23;
         createParams.initialSupply = 1e23;

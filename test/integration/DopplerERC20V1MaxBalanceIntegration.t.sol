@@ -40,7 +40,6 @@ import {
     deployWeth,
     prepareGovernanceFactoryData
 } from "test/integration/BaseIntegrationTest.sol";
-import { deployDopplerHookMulticurveInitializer } from "test/integration/DopplerHookInitializer.t.sol";
 import {
     DEFAULT_END_TICK,
     DEFAULT_FEE,
@@ -61,6 +60,7 @@ import {
     DEFAULT_MAXIMUM_PROCEEDS,
     DEFAULT_MINIMUM_PROCEEDS
 } from "test/shared/DopplerFixtures.sol";
+import { deployDopplerHookInitializer } from "test/shared/DopplerHookInitializerHelper.sol";
 
 contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
     uint256 internal constant INITIAL_SUPPLY = 1e23;
@@ -95,7 +95,7 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
 
         (, uniswapV4Initializer) = deployUniswapV4Initializer(vm, airlock, AIRLOCK_OWNER, address(manager));
         dopplerHookInitializer =
-            deployDopplerHookMulticurveInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
+            deployDopplerHookInitializer(vm, _deployCodeTo, airlock, AIRLOCK_OWNER, address(manager));
         lockableV3Initializer =
             new LockableUniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
 
