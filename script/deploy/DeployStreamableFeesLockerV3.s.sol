@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { ICreateX } from "createx/ICreateX.sol";
 import { Config } from "forge-std/Config.sol";
@@ -10,10 +10,8 @@ import { ChainIds } from "script/utils/ChainIds.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
-import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
-import { MineDopplerHookMigratorParams, mineDopplerHookMigrator } from "test/shared/AirlockMiner.sol";
 
-contract DeployDopplerHookMigratorScript is Script, Config {
+contract DeployStreamableFeesLockerV3Script is Script, Config {
     function run() public {
         _loadConfigAndForks("./deployments.config.toml", true);
 
@@ -31,34 +29,34 @@ contract DeployDopplerHookMigratorScript is Script, Config {
     }
 
     function deployToChain(uint256 chainId) internal {
-        address airlock = config.get("airlock").toAddress();
         address createX = config.get("create_x").toAddress();
         address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
-        address topUpDistributor = config.get("top_up_distributor").toAddress();
-        address locker = config.get("streamable_fees_locker_v3").toAddress();
+        address positionManager = config.get("uniswap_v4_position_manager").toAddress();
+        address owner = config.get("airlock_multisig").toAddress();
 
         vm.startBroadcast();
+        bytes32 salt = generateCreate3Salt(msg.sender, type(StreamableFeesLockerV3).name);
+        address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
 
-        (bytes32 migratorSalt, address migratorDeployedTo) =
-            mineDopplerHookMigrator(MineDopplerHookMigratorParams({ sender: msg.sender, deployer: createX }));
-        address dopplerHookMigrator = ICreateX(createX)
+        address lockerV3 = ICreateX(createX)
             .deployCreate3(
-                migratorSalt,
+                salt,
                 abi.encodePacked(
-                    type(DopplerHookMigrator).creationCode, abi.encode(airlock, poolManager, locker, topUpDistributor)
+                    type(StreamableFeesLockerV3).creationCode, abi.encode(poolManager, positionManager, owner)
                 )
             );
-        require(dopplerHookMigrator == migratorDeployedTo, "Unexpected deployed address");
+
+        require(lockerV3 == deployedTo, "Unexpected deployed address");
 
         vm.stopBroadcast();
 
         if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
-            config.set("doppler_hook_migrator", dopplerHookMigrator);
+            config.set("streamable_fees_locker_v3", lockerV3);
         }
 
         console.log(
-            "DopplerHookMigrator was deployed to",
-            LibString.toHexString(uint256(uint160(dopplerHookMigrator))),
+            "StreamableFeesLockerV3 was deployed to",
+            LibString.toHexString(uint256(uint160(lockerV3))),
             "on chain ID",
             LibString.toString(chainId)
         );

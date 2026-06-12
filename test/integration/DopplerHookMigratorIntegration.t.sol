@@ -11,6 +11,10 @@ import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { BalanceDelta, BalanceDeltaLibrary, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
@@ -19,10 +23,12 @@ import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDoppler
 import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
+import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
+import { LaunchpadGovernanceFactory } from "src/governance/LaunchpadGovernanceFactory.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import {
     AssetData,
     DopplerHookMigrator,
@@ -35,7 +41,7 @@ import { FeeDistributionInfo, FeeRoutingMode, MigratorInitData as RehypeInitData
 import { WAD } from "src/types/Wad.sol";
 import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
-contract DopplerHookMigratorIntegrationTest is Deployers {
+contract DopplerHookMigratorIntegrationTest is Deployers, DeployPermit2 {
     using StateLibrary for IPoolManager;
     address internal constant AIRLOCK_OWNER = address(0xA111);
     address internal constant BENEFICIARY_1 = address(0x1111);
@@ -45,12 +51,14 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     DopplerHookInitializer public initializer;
     DopplerERC20V1Factory public tokenFactory;
     NoOpGovernanceFactory public governanceFactory;
-    StreamableFeesLockerV2 public locker;
+    StreamableFeesLockerV3 public locker;
     DopplerHookMigrator public migrator;
     TopUpDistributor public topUpDistributor;
     RehypeDopplerHookInitializer public rehypeHook;
     RehypeDopplerHookMigrator public rehypeHookMigrator;
     SwapRestrictorDopplerHook public swapRestrictorHook;
+    IAllowanceTransfer public permit2;
+    PositionManager public positionManager;
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -70,7 +78,15 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         );
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
-        locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
+        permit2 = IAllowanceTransfer(deployPermit2());
+        positionManager = PositionManager(
+            payable(address(
+                    Deploy.positionManager(
+                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
+                    )
+                ))
+        );
+        locker = new StreamableFeesLockerV3(IPoolManager(address(manager)), positionManager, AIRLOCK_OWNER);
         topUpDistributor = new TopUpDistributor(address(airlock));
 
         uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
@@ -111,7 +127,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 
-        (address asset,, address timelock,,) = airlock.create(
+        (address asset,,, address timelock,) = airlock.create(
             CreateParams({
                 initialSupply: 1e23,
                 numTokensToSell: 1e23,
@@ -146,6 +162,126 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         assertEq(lockDuration, 30 days);
         assertEq(isUnlocked, false);
         assertEq(startDate > 0, true);
+    }
+
+    function test_fullFlow_PostUnlockTransfersPositionNFTsToRecipient() public {
+        LaunchpadGovernanceFactory launchpadGovernanceFactory = new LaunchpadGovernanceFactory();
+        address[] memory modules = new address[](1);
+        modules[0] = address(launchpadGovernanceFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.GovernanceFactory;
+        vm.prank(AIRLOCK_OWNER);
+        airlock.setModuleState(modules, states);
+
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+        address timelockRecipient = makeAddr("TimelockRecipient");
+
+        (address asset,,, address timelock,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: launchpadGovernanceFactory,
+                governanceFactoryData: abi.encode(timelockRecipient),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(30))
+            })
+        );
+        assertEq(timelock, timelockRecipient);
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        (,, uint32 startDate, uint32 lockDuration, bool isUnlocked) = locker.streams(poolKey.toId());
+        assertGt(startDate, 0);
+        assertEq(lockDuration, 30 days);
+        assertEq(isUnlocked, false);
+
+        uint256[] memory tokenIds = locker.getTokenIds(poolKey.toId());
+        assertGt(tokenIds.length, 0, "locker should mint position NFTs");
+
+        uint256 balance0Before = poolKey.currency0.balanceOf(timelock);
+        uint256 balance1Before = poolKey.currency1.balanceOf(timelock);
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), address(locker), "locker should hold NFT before unlock");
+            assertGt(positionManager.getPositionLiquidity(tokenIds[i]), 0, "position should have liquidity");
+        }
+
+        vm.warp(uint256(startDate) + lockDuration);
+        locker.collectFees(poolKey.toId());
+
+        assertEq(poolKey.currency0.balanceOf(timelock), balance0Before, "timelock should not receive raw currency0");
+        assertEq(poolKey.currency1.balanceOf(timelock), balance1Before, "timelock should not receive raw currency1");
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), timelock, "timelock should receive position NFT");
+            assertGt(positionManager.getPositionLiquidity(tokenIds[i]), 0, "liquidity should remain");
+        }
+    }
+
+    function test_fullFlow_PostUnlockTransfersPositionNFTsToTimelockContract() public {
+        GovernanceFactory timelockGovernanceFactory = new GovernanceFactory(address(airlock));
+        address[] memory modules = new address[](1);
+        modules[0] = address(timelockGovernanceFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.GovernanceFactory;
+        vm.prank(AIRLOCK_OWNER);
+        airlock.setModuleState(modules, states);
+
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address asset,,, address timelock,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: timelockGovernanceFactory,
+                governanceFactoryData: abi.encode("Test Token", uint48(7200), uint32(50_400), uint256(0)),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(31))
+            })
+        );
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        (,, uint32 startDate, uint32 lockDuration, bool isUnlocked) = locker.streams(poolKey.toId());
+        assertGt(startDate, 0);
+        assertEq(isUnlocked, false);
+
+        uint256[] memory tokenIds = locker.getTokenIds(poolKey.toId());
+        assertGt(tokenIds.length, 0, "locker should mint position NFTs");
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), address(locker), "locker should hold NFT before unlock");
+        }
+
+        vm.warp(uint256(startDate) + lockDuration);
+        locker.collectFees(poolKey.toId());
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), timelock, "timelock contract should receive position NFT");
+            assertGt(positionManager.getPositionLiquidity(tokenIds[i]), 0, "liquidity should remain");
+        }
     }
 
     function test_fullFlow_CreateAndMigrate_WithRehypeHook() public {

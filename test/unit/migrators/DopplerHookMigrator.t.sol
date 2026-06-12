@@ -11,7 +11,11 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock } from "src/Airlock.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
@@ -23,7 +27,7 @@ import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { InvalidSplitRecipient, SplitShareTooHigh } from "src/base/ProceedsSplitter.sol";
 import { MAX_SPLIT_SHARE } from "src/base/ProceedsSplitter.sol";
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import {
     ArrayLengthsMismatch,
     AssetData,
@@ -66,7 +70,7 @@ struct InitData {
     uint256 proceedsShare;
 }
 
-contract DopplerHookMigratorTest is Deployers {
+contract DopplerHookMigratorTest is Deployers, DeployPermit2 {
     using StateLibrary for IPoolManager;
 
     // Small trick so we're making sure that the protocol owner will always be at the end of the beneficiaries array
@@ -79,8 +83,10 @@ contract DopplerHookMigratorTest is Deployers {
 
     Airlock public airlock;
     DopplerHookMigrator public migrator;
-    StreamableFeesLockerV2 public locker;
+    StreamableFeesLockerV3 public locker;
     TopUpDistributor public topUpDistributor;
+    IAllowanceTransfer public permit2;
+    PositionManager public positionManager;
 
     bool isToken0;
     bool isUsingETH;
@@ -95,7 +101,15 @@ contract DopplerHookMigratorTest is Deployers {
         vm.label(Currency.unwrap(currency1), "Currency1");
 
         airlock = new Airlock(PROTOCOL_OWNER);
-        locker = new StreamableFeesLockerV2(manager, PROTOCOL_OWNER);
+        permit2 = IAllowanceTransfer(deployPermit2());
+        positionManager = PositionManager(
+            payable(address(
+                    Deploy.positionManager(
+                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
+                    )
+                ))
+        );
+        locker = new StreamableFeesLockerV3(manager, positionManager, PROTOCOL_OWNER);
         topUpDistributor = new TopUpDistributor(address(airlock));
 
         uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
@@ -346,6 +360,34 @@ contract DopplerHookMigratorTest is Deployers {
 
         assertEq(currency0.balanceOf(address(migrator)), 0);
         assertEq(currency1.balanceOf(address(migrator)), 0);
+    }
+
+    function test_migrate_UnlockTransfersPositionNFTsToRecipient() public {
+        _generateInitData();
+        initData.lockDuration = 1 days;
+        _initializeAndMigrate();
+
+        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(Currency.unwrap(currency0), Currency.unwrap(currency1));
+        uint256[] memory tokenIds = locker.getTokenIds(poolKey.toId());
+        assertGt(tokenIds.length, 0, "locker should mint position NFTs");
+
+        uint256 balance0Before = poolKey.currency0.balanceOf(RECIPIENT);
+        uint256 balance1Before = poolKey.currency1.balanceOf(RECIPIENT);
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), address(locker), "locker should hold NFT before unlock");
+        }
+
+        vm.warp(block.timestamp + initData.lockDuration);
+        locker.collectFees(poolKey.toId());
+
+        assertEq(poolKey.currency0.balanceOf(RECIPIENT), balance0Before, "recipient should not receive token0");
+        assertEq(poolKey.currency1.balanceOf(RECIPIENT), balance1Before, "recipient should not receive token1");
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), RECIPIENT, "recipient should receive NFT after unlock");
+            assertGt(positionManager.getPositionLiquidity(tokenIds[i]), 0, "position liquidity should remain");
+        }
     }
 
     function test_migrate_FuzzTickTwoSidedDoesNotRevert(int24 tick, uint32 balance0, uint32 balance1) public {

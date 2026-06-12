@@ -12,6 +12,10 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
@@ -27,7 +31,7 @@ import { UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol"
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
 import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
 import { BalanceLimitExceeded, DopplerERC20V1, VestingSchedule } from "src/tokens/DopplerERC20V1.sol";
@@ -62,7 +66,7 @@ import {
 } from "test/shared/DopplerFixtures.sol";
 import { deployDopplerHookInitializer } from "test/shared/DopplerHookInitializerHelper.sol";
 
-contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
+contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
     uint256 internal constant INITIAL_SUPPLY = 1e23;
     uint256 internal constant NUM_TOKENS_TO_SELL = 1e23;
     uint256 internal constant MAX_BALANCE_LIMIT = 5e22;
@@ -79,12 +83,14 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
     UniswapV4Initializer public uniswapV4Initializer;
     DopplerHookInitializer public dopplerHookInitializer;
     LockableUniswapV3Initializer public lockableV3Initializer;
-    StreamableFeesLockerV2 public hookMigratorLocker;
+    StreamableFeesLockerV3 public hookMigratorLocker;
     DopplerHookMigrator public hookMigrator;
     TopUpDistributor public splitTopUpDistributor;
     address public splitWeth;
     address public splitV2Factory;
     UniswapV2MigratorSplit public v2Migrator;
+    IAllowanceTransfer public permit2;
+    PositionManager public positionManager;
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -100,7 +106,15 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
             new LockableUniswapV3Initializer(address(airlock), IUniswapV3Factory(UNISWAP_V3_FACTORY_MAINNET));
 
         TopUpDistributor topUpDistributor = new TopUpDistributor(address(airlock));
-        hookMigratorLocker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
+        permit2 = IAllowanceTransfer(deployPermit2());
+        positionManager = PositionManager(
+            payable(address(
+                    Deploy.positionManager(
+                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
+                    )
+                ))
+        );
+        hookMigratorLocker = new StreamableFeesLockerV3(IPoolManager(address(manager)), positionManager, AIRLOCK_OWNER);
         hookMigrator = DopplerHookMigrator(
             payable(address(
                     uint160(
@@ -189,6 +203,16 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers {
 
         _buyUntilDynamicV4CanMigrate(dopplerHook);
         airlock.migrate(asset);
+
+        (uint160 permit2Allowance, uint48 permit2Expiration,) =
+            permit2.allowance(address(hookMigratorLocker), asset, address(positionManager));
+        assertEq(
+            token.allowance(address(hookMigratorLocker), address(permit2)),
+            type(uint256).max,
+            "locker should approve Permit2"
+        );
+        assertGt(permit2Allowance, 0, "locker should approve PositionManager through Permit2");
+        assertEq(permit2Expiration, type(uint48).max, "Permit2 allowance should not expire");
 
         (,,,,,,, MigratorStatus status) = hookMigrator.getAssetData(address(0), asset);
         assertEq(uint8(status), uint8(MigratorStatus.Locked), "migration pool should be locked");

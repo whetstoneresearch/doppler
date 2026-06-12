@@ -26,7 +26,7 @@ import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";
@@ -166,8 +166,8 @@ uint24 constant MAX_LP_FEE = 150_000;
 contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, ProceedsSplitter {
     using CurrencyLibrary for Currency;
 
-    /// @notice Address of the StreamableFeesLockerV2 contract
-    StreamableFeesLockerV2 public immutable locker;
+    /// @notice Address of the StreamableFeesLockerV3 contract
+    StreamableFeesLockerV3 public immutable locker;
 
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
@@ -187,13 +187,13 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of Uniswap V4 PoolManager contract
-     * @param locker_ Address of the StreamableFeesLockerV2 contract (must be approved)
+     * @param locker_ Address of the StreamableFeesLockerV3 contract (must be approved)
      * @param topUpDistributor Address of the TopUpDistributor contract
      */
     constructor(
         address airlock_,
         IPoolManager poolManager_,
-        StreamableFeesLockerV2 locker_,
+        StreamableFeesLockerV3 locker_,
         TopUpDistributor topUpDistributor
     ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) ProceedsSplitter(topUpDistributor) {
         locker = locker_;

@@ -12,8 +12,12 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 
 import { console } from "forge-std/console.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
@@ -21,7 +25,7 @@ import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMig
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
@@ -36,7 +40,7 @@ import {
 import { WAD } from "src/types/Wad.sol";
 import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
-contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
+contract RehypeDopplerHookMigratorIntegrationTest is Deployers, DeployPermit2 {
     using StateLibrary for IPoolManager;
 
     address internal constant AIRLOCK_OWNER = address(0xA111);
@@ -47,10 +51,12 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
     DopplerHookInitializer public initializer;
     DopplerERC20V1Factory public tokenFactory;
     NoOpGovernanceFactory public governanceFactory;
-    StreamableFeesLockerV2 public locker;
+    StreamableFeesLockerV3 public locker;
     DopplerHookMigrator public migrator;
     TopUpDistributor public topUpDistributor;
     RehypeDopplerHookMigrator public rehypeHookMigrator;
+    IAllowanceTransfer public permit2;
+    PositionManager public positionManager;
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -70,7 +76,15 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         );
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
-        locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
+        permit2 = IAllowanceTransfer(deployPermit2());
+        positionManager = PositionManager(
+            payable(address(
+                    Deploy.positionManager(
+                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
+                    )
+                ))
+        );
+        locker = new StreamableFeesLockerV3(IPoolManager(address(manager)), positionManager, AIRLOCK_OWNER);
         topUpDistributor = new TopUpDistributor(address(airlock));
 
         uint256 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG

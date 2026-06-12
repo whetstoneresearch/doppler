@@ -33,6 +33,7 @@ contract WhitelistoooorScript is Script, Config {
 
         vm.startBroadcast();
         AirlockMultisigTestnet(airlockMultisig).setModuleState(payable(airlock), modules, states);
+        _approveDopplerHookMigrator(airlockMultisig);
         vm.stopBroadcast();
     }
 
@@ -66,5 +67,21 @@ contract WhitelistoooorScript is Script, Config {
         modules[index] = config.get(key).toAddress();
         states[index] = state;
         return index + 1;
+    }
+
+    function _approveDopplerHookMigrator(address airlockMultisig) internal {
+        if (!config.exists("doppler_hook_migrator")) return;
+
+        address migrator = config.get("doppler_hook_migrator").toAddress();
+
+        if (config.exists("streamable_fees_locker_v3")) {
+            address locker = config.get("streamable_fees_locker_v3").toAddress();
+            AirlockMultisigTestnet(airlockMultisig).approveMigrator(payable(locker), migrator);
+        }
+
+        if (config.exists("top_up_distributor")) {
+            address topUpDistributor = config.get("top_up_distributor").toAddress();
+            AirlockMultisigTestnet(airlockMultisig).setPullUp(topUpDistributor, migrator, true);
+        }
     }
 }

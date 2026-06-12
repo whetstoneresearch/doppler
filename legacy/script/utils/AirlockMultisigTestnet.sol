@@ -2,9 +2,8 @@
 pragma solidity ^0.8.24;
 
 import { Airlock, ModuleState } from "src/Airlock.sol";
-import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
-import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 
 event AddSigner(address indexed newSigner);
 
@@ -70,11 +69,7 @@ contract AirlockMultisigTestnet {
     }
 
     function approveMigrator(address payable locker, address migrator) external onlySigner {
-        StreamableFeesLockerV3(locker).approveMigrator(migrator);
-    }
-
-    function setPullUp(address topUpDistributor, address migrator, bool canPull) external onlySigner {
-        TopUpDistributor(topUpDistributor).setPullUp(migrator, canPull);
+        StreamableFeesLockerV2(locker).approveMigrator(migrator);
     }
 
     function transferOwnership(address payable airlock, address newOwner) external onlySigner {
@@ -94,3 +89,4 @@ contract AirlockMultisigTestnet {
         }
     }
 }
+
