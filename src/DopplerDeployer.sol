@@ -94,7 +94,7 @@ contract DopplerDeployer is OwnableRoles {
 
     /// @notice Generates a deployer-keyed, non-chain-specific CreateX salt.
     /// @dev This is a convenience helper, externally generated valid CreateX salts are also supported.
-    function generateSalt(string memory name, uint256 version) external view returns (bytes32) {
+    function generateSalt(string calldata name, uint256 version) external view returns (bytes32) {
         return bytes32(uint256(uint160(address(this)))) << 96 | keccak256(abi.encode(name, version)) >> 168;
     }
 
@@ -156,7 +156,7 @@ contract DopplerDeployer is OwnableRoles {
     /// @return deployed Address of the deployed contract.
     function deployCreate2(
         bytes32 salt,
-        bytes memory initCode
+        bytes calldata initCode
     ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
         address deployed = CreateX.deployCreate2(salt, initCode);
         emit Deployed(msg.sender, deployed);
@@ -167,7 +167,7 @@ contract DopplerDeployer is OwnableRoles {
     /// @return deployed Address of the deployed contract.
     function deployCreate2(
         bytes32 salt,
-        bytes memory initCode,
+        bytes calldata initCode,
         address expected
     ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
         address deployed = CreateX.deployCreate2(salt, initCode);
@@ -180,7 +180,7 @@ contract DopplerDeployer is OwnableRoles {
     /// @return deployed Address of the deployed contract.
     function deployCreate3(
         bytes32 salt,
-        bytes memory initCode
+        bytes calldata initCode
     ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
         address deployed = CreateX.deployCreate3(salt, initCode);
         emit Deployed(msg.sender, deployed);
@@ -191,7 +191,7 @@ contract DopplerDeployer is OwnableRoles {
     /// @return deployed Address of the deployed contract.
     function deployCreate3(
         bytes32 salt,
-        bytes memory initCode,
+        bytes calldata initCode,
         address expected
     ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
         address deployed = CreateX.deployCreate3(salt, initCode);
