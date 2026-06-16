@@ -4,12 +4,13 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@solady/auth/Ownable.sol";
 import { ICreateX } from "createx/ICreateX.sol";
 import { Test } from "forge-std/Test.sol";
-import { DopplerDeployer } from "src/DopplerDeployer.sol";
+import { DopplerCreateXDeployer } from "src/DopplerCreateXDeployer.sol";
 
-contract DopplerDeployerTest is Test {
+contract DopplerCreateXDeployerTest is Test {
     event RolesUpdated(address indexed user, uint256 indexed roles);
     event AdminAdded(address admin);
     event AdminRemoved(address admin);
+    event RolesRevoked(address indexed addr);
     event DeployerAdded(address indexed admin, address deployer);
     event DeployerRemoved(address indexed admin, address deployer);
     event Deployed(address indexed deployer, address deployed);
@@ -25,7 +26,7 @@ contract DopplerDeployerTest is Test {
     address internal secondAuthorizedDeployer = makeAddr("secondAuthorizedDeployer");
     address internal stranger = makeAddr("stranger");
 
-    DopplerDeployer internal deployer;
+    DopplerCreateXDeployer internal deployer;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           SETUP                            */
@@ -33,7 +34,7 @@ contract DopplerDeployerTest is Test {
 
     function setUp() public {
         _etchCreateX();
-        deployer = new DopplerDeployer(owner);
+        deployer = new DopplerCreateXDeployer(owner);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -77,6 +78,45 @@ contract DopplerDeployerTest is Test {
         deployer.addAdmins(_addresses(admin));
     }
 
+    /// @notice Admins cannot grant admin roles.
+    function test_addAdmins_revertAdminCaller() public {
+        _addAdmin();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(admin);
+        deployer.addAdmins(_addresses(secondAdmin));
+    }
+
+    /// @notice Admin grants overwrite any existing deployer role instead of accumulating roles.
+    function test_addAdmins_replacesExistingDeployerRole() public {
+        vm.prank(owner);
+        deployer.addDeployers(_addresses(authorizedDeployer));
+
+        vm.prank(owner);
+        deployer.addAdmins(_addresses(authorizedDeployer));
+
+        assertEq(deployer.rolesOf(authorizedDeployer), ROLE_ADMIN);
+        assertTrue(deployer.hasAnyRole(authorizedDeployer, ROLE_ADMIN));
+        assertFalse(deployer.hasAnyRole(authorizedDeployer, ROLE_DEPLOYER));
+    }
+
+    /// @notice Zero address cannot receive admin roles.
+    function test_addAdmins_revertZeroAddress() public {
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAdmin.selector);
+
+        vm.prank(owner);
+        deployer.addAdmins(_addresses(address(0)));
+    }
+
+    /// @notice Owner cannot grant admin roles to itself.
+    function test_addAdmins_revertCallerAddress() public {
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAdmin.selector);
+
+        vm.prank(owner);
+        deployer.addAdmins(_addresses(owner));
+    }
+
     /// @notice Owner can remove admin roles and emit the expected events.
     function test_removeAdmins_ownerOnly_clearsRolesAndEmits() public {
         _addAdmins();
@@ -95,6 +135,224 @@ contract DopplerDeployerTest is Test {
 
         assertEq(deployer.rolesOf(admin), 0);
         assertEq(deployer.rolesOf(secondAdmin), 0);
+    }
+
+    /// @notice Non-owners cannot remove admin roles.
+    function test_removeAdmins_revertUnauthorized() public {
+        _addAdmin();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.removeAdmins(_addresses(admin));
+    }
+
+    /// @notice Admins cannot remove admin roles.
+    function test_removeAdmins_revertAdminCaller() public {
+        _addAdmins();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(admin);
+        deployer.removeAdmins(_addresses(secondAdmin));
+    }
+
+    /// @notice Zero address cannot be removed as an admin.
+    function test_removeAdmins_revertZeroAddress() public {
+        vm.prank(owner);
+        deployer.grantRoles(address(0), ROLE_ADMIN);
+
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAdmin.selector);
+
+        vm.prank(owner);
+        deployer.removeAdmins(_addresses(address(0)));
+    }
+
+    /// @notice Owner cannot remove itself as an admin through the admin wrapper.
+    function test_removeAdmins_revertCallerAddress() public {
+        vm.prank(owner);
+        deployer.grantRoles(owner, ROLE_ADMIN);
+
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAdmin.selector);
+
+        vm.prank(owner);
+        deployer.removeAdmins(_addresses(owner));
+    }
+
+    /// @notice Admin removal rejects targets without only admin role.
+    function test_removeAdmins_revertIfTargetIsNotAdmin() public {
+        _addAuthorizedDeployer();
+
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAdmin.selector);
+
+        vm.prank(owner);
+        deployer.removeAdmins(_addresses(authorizedDeployer));
+    }
+
+    /// @notice Owner can revoke all roles from admins and deployers.
+    function test_revokeRoles_ownerClearsAnyRoleAndEmits() public {
+        _addAuthorizedDeployer();
+
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(admin, 0);
+        vm.expectEmit(true, false, false, false, address(deployer));
+        emit RolesRevoked(admin);
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(authorizedDeployer, 0);
+        vm.expectEmit(true, false, false, false, address(deployer));
+        emit RolesRevoked(authorizedDeployer);
+
+        vm.prank(owner);
+        deployer.revokeRoles(_addresses(admin, authorizedDeployer));
+
+        assertEq(deployer.rolesOf(admin), 0);
+        assertEq(deployer.rolesOf(authorizedDeployer), 0);
+    }
+
+    /// @notice Batch role revocation rejects addresses without existing roles.
+    function test_revokeRoles_revertAddressWithoutRoles() public {
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAddress.selector);
+
+        vm.prank(owner);
+        deployer.revokeRoles(_addresses(stranger));
+    }
+
+    /// @notice Non-owners cannot revoke arbitrary roles.
+    function test_revokeRoles_revertUnauthorized() public {
+        _addAdmin();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.revokeRoles(_addresses(admin));
+    }
+
+    /// @notice Admins cannot revoke arbitrary roles through the owner-only wrapper.
+    function test_revokeRoles_revertAdminCaller() public {
+        _addAuthorizedDeployer();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(admin);
+        deployer.revokeRoles(_addresses(authorizedDeployer));
+    }
+
+    /// @notice Zero address cannot be revoked through the batch wrapper.
+    function test_revokeRoles_revertZeroAddress() public {
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAddress.selector);
+
+        vm.prank(owner);
+        deployer.revokeRoles(_addresses(address(0)));
+    }
+
+    /// @notice Owner cannot revoke its own roles through the batch wrapper.
+    function test_revokeRoles_revertCallerAddress() public {
+        vm.expectRevert(DopplerCreateXDeployer.InvalidAddress.selector);
+
+        vm.prank(owner);
+        deployer.revokeRoles(_addresses(owner));
+    }
+
+    /// @notice Inherited role grants accumulate roles and emit inherited events.
+    function test_grantRoles_ownerAccumulatesRolesAndEmits() public {
+        uint256 roles = ROLE_ADMIN | ROLE_DEPLOYER;
+
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(admin, roles);
+
+        vm.prank(owner);
+        deployer.grantRoles(admin, roles);
+
+        assertEq(deployer.rolesOf(admin), roles);
+        assertTrue(deployer.hasAnyRole(admin, ROLE_ADMIN));
+        assertTrue(deployer.hasAllRoles(admin, roles));
+    }
+
+    /// @notice Non-owner cannot call the inherited role grant.
+    function test_grantRoles_revertUnauthorized() public {
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.grantRoles(admin, ROLE_ADMIN);
+    }
+
+    /// @notice Admins cannot call the inherited owner-only role grant.
+    function test_grantRoles_revertAdminCaller() public {
+        _addAdmin();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(admin);
+        deployer.grantRoles(secondAdmin, ROLE_ADMIN);
+    }
+
+    /// @notice Inherited role revocation removes only the selected role bits.
+    function test_revokeRoles_inheritedOwnerRemovesSelectedRoles() public {
+        uint256 roles = ROLE_ADMIN | ROLE_DEPLOYER;
+
+        vm.prank(owner);
+        deployer.grantRoles(admin, roles);
+
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(admin, ROLE_ADMIN);
+
+        vm.prank(owner);
+        deployer.revokeRoles(admin, ROLE_DEPLOYER);
+
+        assertEq(deployer.rolesOf(admin), ROLE_ADMIN);
+        assertTrue(deployer.hasAnyRole(admin, ROLE_ADMIN));
+        assertFalse(deployer.hasAnyRole(admin, ROLE_DEPLOYER));
+        assertFalse(deployer.hasAllRoles(admin, roles));
+    }
+
+    /// @notice Non-owner cannot call the inherited role revocation.
+    function test_revokeRoles_inheritedRevertUnauthorized() public {
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.revokeRoles(admin, ROLE_ADMIN);
+    }
+
+    /// @notice Admins cannot call the inherited owner-only role revocation.
+    function test_revokeRoles_inheritedRevertAdminCaller() public {
+        _addAdmin();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(admin);
+        deployer.revokeRoles(admin, ROLE_ADMIN);
+    }
+
+    /// @notice Callers can renounce their own inherited roles.
+    function test_renounceRoles_callerRemovesOwnRoles() public {
+        uint256 roles = ROLE_ADMIN | ROLE_DEPLOYER;
+
+        vm.prank(owner);
+        deployer.grantRoles(admin, roles);
+
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(admin, ROLE_DEPLOYER);
+
+        vm.prank(admin);
+        deployer.renounceRoles(ROLE_ADMIN);
+
+        assertEq(deployer.rolesOf(admin), ROLE_DEPLOYER);
+    }
+
+    /// @notice Admin removal clears all roles when the target has mixed roles.
+    function test_removeAdmins_clearsInheritedMixedRoleTarget() public {
+        vm.prank(owner);
+        deployer.grantRoles(admin, ROLE_ADMIN | ROLE_DEPLOYER);
+
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(admin, 0);
+        vm.expectEmit(false, false, false, true, address(deployer));
+        emit AdminRemoved(admin);
+
+        vm.prank(owner);
+        deployer.removeAdmins(_addresses(admin));
+
+        assertEq(deployer.rolesOf(admin), 0);
     }
 
     /// @notice Admin can grant deployer roles and emit the expected events.
@@ -128,6 +386,18 @@ contract DopplerDeployerTest is Test {
         assertEq(deployer.rolesOf(secondAuthorizedDeployer), ROLE_DEPLOYER);
     }
 
+    /// @notice Deployer grants overwrite any existing admin role instead of accumulating roles.
+    function test_addDeployers_replacesExistingAdminRole() public {
+        _addAdmins();
+
+        vm.prank(owner);
+        deployer.addDeployers(_addresses(secondAdmin));
+
+        assertEq(deployer.rolesOf(secondAdmin), ROLE_DEPLOYER);
+        assertFalse(deployer.hasAnyRole(secondAdmin, ROLE_ADMIN));
+        assertTrue(deployer.hasAnyRole(secondAdmin, ROLE_DEPLOYER));
+    }
+
     /// @notice Unauthorized callers cannot grant deployer roles.
     function test_addDeployers_revertUnauthorized() public {
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -136,9 +406,19 @@ contract DopplerDeployerTest is Test {
         deployer.addDeployers(_addresses(authorizedDeployer));
     }
 
+    /// @notice Deployer-role callers cannot grant deployer roles.
+    function test_addDeployers_revertDeployerCaller() public {
+        _addAuthorizedDeployer();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(authorizedDeployer);
+        deployer.addDeployers(_addresses(secondAuthorizedDeployer));
+    }
+
     /// @notice Zero address cannot receive deployer roles.
     function test_addDeployers_revertZeroAddress() public {
-        vm.expectRevert(DopplerDeployer.InvalidDeployer.selector);
+        vm.expectRevert(DopplerCreateXDeployer.InvalidDeployer.selector);
 
         vm.prank(owner);
         deployer.addDeployers(_addresses(address(0)));
@@ -146,20 +426,10 @@ contract DopplerDeployerTest is Test {
 
     /// @notice Caller cannot grant deployer roles to itself.
     function test_addDeployers_revertCallerAddress() public {
-        vm.expectRevert(DopplerDeployer.InvalidDeployer.selector);
+        vm.expectRevert(DopplerCreateXDeployer.InvalidDeployer.selector);
 
         vm.prank(owner);
         deployer.addDeployers(_addresses(owner));
-    }
-
-    /// @notice Addresses with any existing role cannot receive deployer roles.
-    function test_addDeployers_revertRoleAlreadyAssigned() public {
-        _addAdmin();
-
-        vm.expectRevert(DopplerDeployer.RoleAlreadyAssigned.selector);
-
-        vm.prank(owner);
-        deployer.addDeployers(_addresses(admin));
     }
 
     /// @notice Admin can revoke deployer roles and emit the expected events.
@@ -203,14 +473,62 @@ contract DopplerDeployerTest is Test {
         deployer.removeDeployers(_addresses(authorizedDeployer));
     }
 
+    /// @notice Deployer-role callers cannot revoke deployer roles.
+    function test_removeDeployers_revertDeployerCaller() public {
+        _addAuthorizedDeployers();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(authorizedDeployer);
+        deployer.removeDeployers(_addresses(secondAuthorizedDeployer));
+    }
+
     /// @notice Deployer removal rejects targets without only deployer role.
     function test_removeDeployers_revertIfTargetIsNotDeployer() public {
         _addAdmin();
 
-        vm.expectRevert(DopplerDeployer.InvalidDeployer.selector);
+        vm.expectRevert(DopplerCreateXDeployer.InvalidDeployer.selector);
 
         vm.prank(owner);
         deployer.removeDeployers(_addresses(admin));
+    }
+
+    /// @notice Deployer removal clears all roles when the target has mixed roles.
+    function test_removeDeployers_clearsInheritedMixedRoleTarget() public {
+        vm.prank(owner);
+        deployer.grantRoles(authorizedDeployer, ROLE_ADMIN | ROLE_DEPLOYER);
+
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(authorizedDeployer, 0);
+        vm.expectEmit(true, false, false, true, address(deployer));
+        emit DeployerRemoved(owner, authorizedDeployer);
+
+        vm.prank(owner);
+        deployer.removeDeployers(_addresses(authorizedDeployer));
+
+        assertEq(deployer.rolesOf(authorizedDeployer), 0);
+    }
+
+    /// @notice Zero address cannot be removed as a deployer.
+    function test_removeDeployers_revertZeroAddress() public {
+        vm.prank(owner);
+        deployer.grantRoles(address(0), ROLE_DEPLOYER);
+
+        vm.expectRevert(DopplerCreateXDeployer.InvalidDeployer.selector);
+
+        vm.prank(owner);
+        deployer.removeDeployers(_addresses(address(0)));
+    }
+
+    /// @notice Owner caller cannot remove itself through the deployer removal wrapper.
+    function test_removeDeployers_revertCallerAddress() public {
+        vm.prank(owner);
+        deployer.grantRoles(owner, ROLE_DEPLOYER);
+
+        vm.expectRevert(DopplerCreateXDeployer.InvalidDeployer.selector);
+
+        vm.prank(owner);
+        deployer.removeDeployers(_addresses(owner));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -219,9 +537,9 @@ contract DopplerDeployerTest is Test {
 
     /// @notice Generated salts are deployer-keyed with name and version entropy.
     function test_generateSalt_usesDeployerAddressAndNameVersionEntropy() public view {
-        bytes32 salt = deployer.generateSalt("DopplerDeployer", 2);
+        bytes32 salt = deployer.generateSalt("DopplerCreateXDeployer", 2);
         bytes32 expected = bytes32(uint256(uint160(address(deployer))) << 96)
-            | bytes32(uint256(keccak256(abi.encode("DopplerDeployer", uint256(2)))) >> 168);
+            | bytes32(uint256(keccak256(abi.encode("DopplerCreateXDeployer", uint256(2)))) >> 168);
 
         assertEq(salt, expected);
         assertEq(address(bytes20(salt)), address(deployer));
@@ -296,16 +614,19 @@ contract DopplerDeployerTest is Test {
         bytes memory initCode = _deployableInitCode(42);
         bytes32 salt = deployer.generateSalt("Create2Owner", 1);
         address expected = deployer.computeCreate2Address(salt, keccak256(initCode));
+        vm.deal(owner, 1 ether);
 
         vm.expectEmit(true, false, false, true, address(deployer));
         emit Deployed(owner, expected);
 
         vm.prank(owner);
-        address deployed = deployer.deployCreate2(salt, initCode);
+        address deployed = deployer.deployCreate2{ value: 0.1 ether }(salt, initCode);
 
         assertEq(deployed, expected);
         assertEq(DeployableContract(deployed).value(), 42);
+        assertEq(DeployableContract(deployed).constructorValue(), 0.1 ether);
         assertEq(DeployableContract(deployed).constructorSender(), CREATEX);
+        assertEq(deployed.balance, 0.1 ether);
     }
 
     /// @notice Deployer role can deploy with default salt and expected-address check.
@@ -315,12 +636,33 @@ contract DopplerDeployerTest is Test {
         bytes memory initCode = _deployableInitCode(43);
         bytes32 salt = deployer.generateSalt("Create2Expected", 1);
         address expected = deployer.computeCreate2Address(salt, keccak256(initCode));
+        vm.deal(authorizedDeployer, 1 ether);
+
+        vm.expectEmit(true, false, false, true, address(deployer));
+        emit Deployed(authorizedDeployer, expected);
 
         vm.prank(authorizedDeployer);
-        address deployed = deployer.deployCreate2(salt, initCode, expected);
+        address deployed = deployer.deployCreate2{ value: 0.2 ether }(salt, initCode, expected);
 
         assertEq(deployed, expected);
         assertEq(DeployableContract(deployed).value(), 43);
+        assertEq(DeployableContract(deployed).constructorValue(), 0.2 ether);
+        assertEq(deployed.balance, 0.2 ether);
+    }
+
+    /// @notice Admin role can deploy with Create2 through the authorized deployment surface.
+    function test_deployCreate2_adminRoleDeploysToComputedAddress() public {
+        _addAdmin();
+
+        bytes memory initCode = _deployableInitCode(54);
+        bytes32 salt = deployer.generateSalt("Create2Admin", 1);
+        address expected = deployer.computeCreate2Address(salt, keccak256(initCode));
+
+        vm.prank(admin);
+        address deployed = deployer.deployCreate2(salt, initCode);
+
+        assertEq(deployed, expected);
+        assertEq(DeployableContract(deployed).value(), 54);
     }
 
     /// @notice Create2 deployment for deployer-keyed salts with redeploy protection.
@@ -369,7 +711,7 @@ contract DopplerDeployerTest is Test {
         address actual = deployer.computeCreate2Address(salt, keccak256(initCode));
         address wrongExpected = makeAddr("wrongExpected");
 
-        vm.expectRevert(abi.encodeWithSelector(DopplerDeployer.AddressMismatch.selector, actual, wrongExpected));
+        vm.expectRevert(abi.encodeWithSelector(DopplerCreateXDeployer.AddressMismatch.selector, actual, wrongExpected));
 
         vm.prank(owner);
         deployer.deployCreate2(salt, initCode, wrongExpected);
@@ -388,6 +730,18 @@ contract DopplerDeployerTest is Test {
         deployer.deployCreate2(salt, initCode);
     }
 
+    /// @notice Unauthorized callers cannot deploy with Create2 expected-address checks.
+    function test_deployCreate2Expected_revertUnauthorized() public {
+        bytes memory initCode = _deployableInitCode(1);
+        bytes32 salt = deployer.generateSalt("ExpectedUnauthorized", 1);
+        address expected = deployer.computeCreate2Address(salt, keccak256(initCode));
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.deployCreate2(salt, initCode, expected);
+    }
+
     /// @notice Invalid Create2 salts revert from CreateX.
     function test_deployCreate2_revertInvalidSaltFromCreateX() public {
         bytes32 salt = _salt(address(deployer), 2, 0x1234);
@@ -396,6 +750,21 @@ contract DopplerDeployerTest is Test {
 
         vm.prank(owner);
         deployer.deployCreate2(salt, _deployableInitCode(1));
+    }
+
+    /// @notice Create2 forwards constructor value and CreateX rejects non-payable init code.
+    function test_deployCreate2_revertNonPayableConstructorWithValue() public {
+        bytes memory initCode = type(NonPayableDeployableContract).creationCode;
+        bytes32 salt = deployer.generateSalt("Create2NonPayable", 1);
+        address expected = deployer.computeCreate2Address(salt, keccak256(initCode));
+        vm.deal(owner, 1 wei);
+
+        vm.expectRevert(abi.encodeWithSelector(ICreateX.FailedContractCreation.selector, CREATEX));
+
+        vm.prank(owner);
+        deployer.deployCreate2{ value: 1 wei }(salt, initCode);
+
+        assertEq(expected.code.length, 0);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -407,15 +776,18 @@ contract DopplerDeployerTest is Test {
         bytes memory initCode = _deployableInitCode(45);
         bytes32 salt = deployer.generateSalt("Create3Owner", 1);
         address expected = deployer.computeCreate3Address(salt);
+        vm.deal(owner, 1 ether);
 
         vm.expectEmit(true, false, false, true, address(deployer));
         emit Deployed(owner, expected);
 
         vm.prank(owner);
-        address deployed = deployer.deployCreate3(salt, initCode);
+        address deployed = deployer.deployCreate3{ value: 0.3 ether }(salt, initCode);
 
         assertEq(deployed, expected);
         assertEq(DeployableContract(deployed).value(), 45);
+        assertEq(DeployableContract(deployed).constructorValue(), 0.3 ether);
+        assertEq(deployed.balance, 0.3 ether);
     }
 
     /// @notice Deployer role can deploy with Create3 and expected-address check.
@@ -425,12 +797,33 @@ contract DopplerDeployerTest is Test {
         bytes memory initCode = _deployableInitCode(46);
         bytes32 salt = deployer.generateSalt("Create3Expected", 1);
         address expected = deployer.computeCreate3Address(salt);
+        vm.deal(authorizedDeployer, 1 ether);
+
+        vm.expectEmit(true, false, false, true, address(deployer));
+        emit Deployed(authorizedDeployer, expected);
 
         vm.prank(authorizedDeployer);
-        address deployed = deployer.deployCreate3(salt, initCode, expected);
+        address deployed = deployer.deployCreate3{ value: 0.4 ether }(salt, initCode, expected);
 
         assertEq(deployed, expected);
         assertEq(DeployableContract(deployed).value(), 46);
+        assertEq(DeployableContract(deployed).constructorValue(), 0.4 ether);
+        assertEq(deployed.balance, 0.4 ether);
+    }
+
+    /// @notice Admin role can deploy with Create3 through the authorized deployment surface.
+    function test_deployCreate3_adminRoleDeploysToComputedAddress() public {
+        _addAdmin();
+
+        bytes memory initCode = _deployableInitCode(55);
+        bytes32 salt = deployer.generateSalt("Create3Admin", 1);
+        address expected = deployer.computeCreate3Address(salt);
+
+        vm.prank(admin);
+        address deployed = deployer.deployCreate3(salt, initCode);
+
+        assertEq(deployed, expected);
+        assertEq(DeployableContract(deployed).value(), 55);
     }
 
     /// @notice Create3 deployment for deployer-keyed salts with redeploy protection.
@@ -479,12 +872,34 @@ contract DopplerDeployerTest is Test {
         address actual = deployer.computeCreate3Address(salt);
         address wrongExpected = makeAddr("wrongExpected");
 
-        vm.expectRevert(abi.encodeWithSelector(DopplerDeployer.AddressMismatch.selector, actual, wrongExpected));
+        vm.expectRevert(abi.encodeWithSelector(DopplerCreateXDeployer.AddressMismatch.selector, actual, wrongExpected));
 
         vm.prank(owner);
         deployer.deployCreate3(salt, initCode, wrongExpected);
 
         assertEq(actual.code.length, 0);
+    }
+
+    /// @notice Unauthorized callers cannot deploy with Create3.
+    function test_deployCreate3_revertUnauthorized() public {
+        bytes32 salt = deployer.generateSalt("Create3Unauthorized", 1);
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.deployCreate3(salt, _deployableInitCode(1));
+    }
+
+    /// @notice Unauthorized callers cannot deploy with Create3 expected-address checks.
+    function test_deployCreate3Expected_revertUnauthorized() public {
+        bytes memory initCode = _deployableInitCode(1);
+        bytes32 salt = deployer.generateSalt("Create3ExpectedUnauthorized", 1);
+        address expected = deployer.computeCreate3Address(salt);
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.deployCreate3(salt, initCode, expected);
     }
 
     /// @notice Invalid Create3 salts revert from CreateX.
@@ -493,6 +908,20 @@ contract DopplerDeployerTest is Test {
 
         vm.prank(owner);
         deployer.deployCreate3(_salt(address(deployer), 2, 0x1234), _deployableInitCode(1));
+    }
+
+    /// @notice Create3 forwards constructor value and CreateX rejects non-payable init code.
+    function test_deployCreate3_revertNonPayableConstructorWithValue() public {
+        bytes32 salt = deployer.generateSalt("Create3NonPayable", 1);
+        address expected = deployer.computeCreate3Address(salt);
+        vm.deal(owner, 1 wei);
+
+        vm.expectRevert(abi.encodeWithSelector(ICreateX.FailedContractCreation.selector, CREATEX));
+
+        vm.prank(owner);
+        deployer.deployCreate3{ value: 1 wei }(salt, type(NonPayableDeployableContract).creationCode);
+
+        assertEq(expected.code.length, 0);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -514,6 +943,18 @@ contract DopplerDeployerTest is Test {
         assertEq(target.received(), 0.25 ether);
     }
 
+    /// @notice Admin role can execute through the authorized execution surface.
+    function test_execute_singleCallAdminCanExecute() public {
+        CallTarget target = new CallTarget();
+        _addAdmin();
+
+        vm.prank(admin);
+        bytes memory result = deployer.execute(address(target), abi.encodeCall(CallTarget.store, (12)));
+
+        assertEq(abi.decode(result, (uint256)), 13);
+        assertEq(target.value(), 12);
+    }
+
     /// @notice Unauthorized callers cannot execute a single call.
     function test_execute_singleCallRevertUnauthorized() public {
         CallTarget target = new CallTarget();
@@ -528,7 +969,7 @@ contract DopplerDeployerTest is Test {
     function test_execute_singleCallRevertExecutionFailed() public {
         CallTarget target = new CallTarget();
 
-        vm.expectRevert(DopplerDeployer.ExecutionFailed.selector);
+        vm.expectRevert(DopplerCreateXDeployer.ExecutionFailed.selector);
 
         vm.prank(owner);
         deployer.execute(address(target), abi.encodeCall(CallTarget.fail, ()));
@@ -563,13 +1004,77 @@ contract DopplerDeployerTest is Test {
         assertEq(second.received(), 2 wei);
     }
 
+    /// @notice Admin and deployer roles can execute batches through the authorized execution surface.
+    function test_execute_batchAdminAndDeployerCanExecute() public {
+        CallTarget adminTarget = new CallTarget();
+        CallTarget deployerTarget = new CallTarget();
+        _addAuthorizedDeployer();
+
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory data = new bytes[](1);
+
+        targets[0] = address(adminTarget);
+        data[0] = abi.encodeCall(CallTarget.store, (40));
+
+        vm.prank(admin);
+        bytes[] memory adminResults = deployer.execute(targets, values, data);
+
+        targets[0] = address(deployerTarget);
+        data[0] = abi.encodeCall(CallTarget.store, (50));
+
+        vm.prank(authorizedDeployer);
+        bytes[] memory deployerResults = deployer.execute(targets, values, data);
+
+        assertEq(abi.decode(adminResults[0], (uint256)), 41);
+        assertEq(adminTarget.value(), 40);
+        assertEq(abi.decode(deployerResults[0], (uint256)), 51);
+        assertEq(deployerTarget.value(), 50);
+    }
+
+    /// @notice Authorized batch execution supports empty batches.
+    function test_execute_batchAllowsEmptyCalls() public {
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory data = new bytes[](0);
+
+        vm.prank(owner);
+        bytes[] memory results = deployer.execute(targets, values, data);
+
+        assertEq(results.length, 0);
+    }
+
+    /// @notice Unauthorized callers cannot execute batch calls.
+    function test_execute_batchRevertUnauthorized() public {
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory data = new bytes[](0);
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.execute(targets, values, data);
+    }
+
     /// @notice Batch execution rejects mismatched input array lengths.
-    function test_execute_batchRevertArrayLengthMismatch() public {
+    function test_execute_batchRevertValueArrayLengthMismatch() public {
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](2);
         bytes[] memory data = new bytes[](1);
 
-        vm.expectRevert(DopplerDeployer.ArrayLengthsMismatch.selector);
+        vm.expectRevert(DopplerCreateXDeployer.ArrayLengthsMismatch.selector);
+
+        vm.prank(owner);
+        deployer.execute(targets, values, data);
+    }
+
+    /// @notice Batch execution rejects mismatched calldata array length.
+    function test_execute_batchRevertDataArrayLengthMismatch() public {
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory data = new bytes[](2);
+
+        vm.expectRevert(DopplerCreateXDeployer.ArrayLengthsMismatch.selector);
 
         vm.prank(owner);
         deployer.execute(targets, values, data);
@@ -593,7 +1098,7 @@ contract DopplerDeployerTest is Test {
         data[0] = abi.encodeCall(CallTarget.store, (20));
         data[1] = abi.encodeCall(CallTarget.store, (30));
 
-        vm.expectRevert(abi.encodeWithSelector(DopplerDeployer.PaymentMismatch.selector, 3, 2));
+        vm.expectRevert(abi.encodeWithSelector(DopplerCreateXDeployer.PaymentMismatch.selector, 3, 2));
 
         vm.prank(owner);
         deployer.execute{ value: 3 wei }(targets, values, data);
@@ -614,7 +1119,7 @@ contract DopplerDeployerTest is Test {
         bytes[] memory data = new bytes[](1);
         data[0] = abi.encodeCall(CallTarget.fail, ());
 
-        vm.expectRevert(DopplerDeployer.ExecutionFailed.selector);
+        vm.expectRevert(DopplerCreateXDeployer.ExecutionFailed.selector);
 
         vm.prank(owner);
         deployer.execute(targets, values, data);
@@ -694,13 +1199,17 @@ contract DopplerDeployerTest is Test {
 
 contract DeployableContract {
     uint256 public immutable value;
+    uint256 public immutable constructorValue;
     address public immutable constructorSender;
 
     constructor(uint256 value_) payable {
         value = value_;
+        constructorValue = msg.value;
         constructorSender = msg.sender;
     }
 }
+
+contract NonPayableDeployableContract { }
 
 contract CallTarget {
     error TargetFailed();

@@ -1,2 +1,3 @@
 # One repository-relative path per line. Lines starting with # are ignored.
-src/DopplerDeployer.sol
+src/DopplerCreateXDeployer.sol
+script/DeployDopplerCreateXDeployer.s.sol
