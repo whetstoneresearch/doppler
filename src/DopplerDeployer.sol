@@ -47,33 +47,45 @@ contract DopplerDeployer is OwnableRoles {
     /*                      ROLE MANAGEMENT                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Grants admin privileges to an address.
+    /// @notice Grants admin privileges to each address.
     /// @dev Admins can add and remove deployers, and perform calls and deployments.
-    function addAdmin(address admin) external onlyOwner {
-        _setRoles(admin, _ROLE_ADMIN);
-        emit AdminAdded(admin);
+    function addAdmins(address[] calldata admins) external onlyOwner {
+        for (uint256 i; i < admins.length; ++i) {
+            address admin = admins[i];
+            _setRoles(admin, _ROLE_ADMIN);
+            emit AdminAdded(admin);
+        }
     }
 
-    /// @notice Removes all roles from an admin address.
-    function removeAdmin(address admin) external onlyOwner {
-        _setRoles(admin, 0);
-        emit AdminRemoved(admin);
+    /// @notice Removes all roles from each admin address.
+    function removeAdmins(address[] calldata admins) external onlyOwner {
+        for (uint256 i; i < admins.length; ++i) {
+            address admin = admins[i];
+            _setRoles(admin, 0);
+            emit AdminRemoved(admin);
+        }
     }
 
-    /// @notice Grants deployer privileges to an address.
-    /// @dev The target must not already have a role and cannot be the caller.
-    function addDeployer(address deployer) external onlyRolesOrOwner(_ROLE_ADMIN) {
-        require(rolesOf(deployer) == 0, RoleAlreadyAssigned());
-        require(deployer != address(0) && deployer != msg.sender, InvalidDeployer());
-        _grantRoles(deployer, _ROLE_DEPLOYER);
-        emit DeployerAdded(msg.sender, deployer);
+    /// @notice Grants deployer privileges to each address.
+    /// @dev Each target must not already have a role and cannot be the caller.
+    function addDeployers(address[] calldata deployers) external onlyRolesOrOwner(_ROLE_ADMIN) {
+        for (uint256 i; i < deployers.length; ++i) {
+            address deployer = deployers[i];
+            require(rolesOf(deployer) == 0, RoleAlreadyAssigned());
+            require(deployer != address(0) && deployer != msg.sender, InvalidDeployer());
+            _grantRoles(deployer, _ROLE_DEPLOYER);
+            emit DeployerAdded(msg.sender, deployer);
+        }
     }
 
-    /// @notice Removes deployer privileges from an address.
-    function removeDeployer(address deployer) external onlyRolesOrOwner(_ROLE_ADMIN) {
-        require(rolesOf(deployer) == _ROLE_DEPLOYER, InvalidDeployer());
-        _removeRoles(deployer, _ROLE_DEPLOYER);
-        emit DeployerRemoved(msg.sender, deployer);
+    /// @notice Removes deployer privileges from each address.
+    function removeDeployers(address[] calldata deployers) external onlyRolesOrOwner(_ROLE_ADMIN) {
+        for (uint256 i; i < deployers.length; ++i) {
+            address deployer = deployers[i];
+            require(rolesOf(deployer) == _ROLE_DEPLOYER, InvalidDeployer());
+            _removeRoles(deployer, _ROLE_DEPLOYER);
+            emit DeployerRemoved(msg.sender, deployer);
+        }
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

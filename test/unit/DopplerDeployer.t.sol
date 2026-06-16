@@ -20,7 +20,9 @@ contract DopplerDeployerTest is Test {
 
     address internal owner = makeAddr("owner");
     address internal admin = makeAddr("admin");
+    address internal secondAdmin = makeAddr("secondAdmin");
     address internal authorizedDeployer = makeAddr("authorizedDeployer");
+    address internal secondAuthorizedDeployer = makeAddr("secondAuthorizedDeployer");
     address internal stranger = makeAddr("stranger");
 
     DopplerDeployer internal deployer;
@@ -47,124 +49,168 @@ contract DopplerDeployerTest is Test {
     /*                      ROLE MANAGEMENT                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Only the owner can grant admin role and emit the expected events.
-    function test_addAdmin_ownerOnly_setsRoleAndEmits() public {
+    /// @notice Only the owner can grant admin roles and emit the expected events.
+    function test_addAdmins_ownerOnly_setsRolesAndEmits() public {
         vm.expectEmit(true, true, false, false, address(deployer));
         emit RolesUpdated(admin, ROLE_ADMIN);
         vm.expectEmit(false, false, false, true, address(deployer));
         emit AdminAdded(admin);
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(secondAdmin, ROLE_ADMIN);
+        vm.expectEmit(false, false, false, true, address(deployer));
+        emit AdminAdded(secondAdmin);
 
         vm.prank(owner);
-        deployer.addAdmin(admin);
+        deployer.addAdmins(_addresses(admin, secondAdmin));
 
         assertEq(deployer.rolesOf(admin), ROLE_ADMIN);
         assertTrue(deployer.hasAnyRole(admin, ROLE_ADMIN));
+        assertEq(deployer.rolesOf(secondAdmin), ROLE_ADMIN);
+        assertTrue(deployer.hasAnyRole(secondAdmin, ROLE_ADMIN));
     }
 
-    /// @notice Non-owners cannot grant admin role.
-    function test_addAdmin_revertUnauthorized() public {
+    /// @notice Non-owners cannot grant admin roles.
+    function test_addAdmins_revertUnauthorized() public {
         vm.expectRevert(Ownable.Unauthorized.selector);
 
         vm.prank(stranger);
-        deployer.addAdmin(admin);
+        deployer.addAdmins(_addresses(admin));
     }
 
-    /// @notice Owner can remove admin role and emit the expected events.
-    function test_removeAdmin_ownerOnly_clearsRoleAndEmits() public {
-        _addAdmin();
+    /// @notice Owner can remove admin roles and emit the expected events.
+    function test_removeAdmins_ownerOnly_clearsRolesAndEmits() public {
+        _addAdmins();
 
         vm.expectEmit(true, true, false, false, address(deployer));
         emit RolesUpdated(admin, 0);
         vm.expectEmit(false, false, false, true, address(deployer));
         emit AdminRemoved(admin);
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(secondAdmin, 0);
+        vm.expectEmit(false, false, false, true, address(deployer));
+        emit AdminRemoved(secondAdmin);
 
         vm.prank(owner);
-        deployer.removeAdmin(admin);
+        deployer.removeAdmins(_addresses(admin, secondAdmin));
 
         assertEq(deployer.rolesOf(admin), 0);
+        assertEq(deployer.rolesOf(secondAdmin), 0);
     }
 
-    /// @notice Admin can grant deployer role and emit the expected events.
-    function test_addDeployer_adminCanGrantDeployerRole() public {
+    /// @notice Admin can grant deployer roles and emit the expected events.
+    function test_addDeployers_adminCanGrantDeployerRoles() public {
         _addAdmin();
 
         vm.expectEmit(true, true, false, false, address(deployer));
         emit RolesUpdated(authorizedDeployer, ROLE_DEPLOYER);
         vm.expectEmit(true, false, false, true, address(deployer));
         emit DeployerAdded(admin, authorizedDeployer);
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(secondAuthorizedDeployer, ROLE_DEPLOYER);
+        vm.expectEmit(true, false, false, true, address(deployer));
+        emit DeployerAdded(admin, secondAuthorizedDeployer);
 
         vm.prank(admin);
-        deployer.addDeployer(authorizedDeployer);
+        deployer.addDeployers(_addresses(authorizedDeployer, secondAuthorizedDeployer));
 
         assertEq(deployer.rolesOf(authorizedDeployer), ROLE_DEPLOYER);
         assertTrue(deployer.hasAnyRole(authorizedDeployer, ROLE_DEPLOYER));
+        assertEq(deployer.rolesOf(secondAuthorizedDeployer), ROLE_DEPLOYER);
+        assertTrue(deployer.hasAnyRole(secondAuthorizedDeployer, ROLE_DEPLOYER));
     }
 
-    /// @notice Owner can grant deployer role.
-    function test_addDeployer_ownerCanGrantDeployerRole() public {
+    /// @notice Owner can grant deployer roles.
+    function test_addDeployers_ownerCanGrantDeployerRoles() public {
         vm.prank(owner);
-        deployer.addDeployer(authorizedDeployer);
+        deployer.addDeployers(_addresses(authorizedDeployer, secondAuthorizedDeployer));
 
         assertEq(deployer.rolesOf(authorizedDeployer), ROLE_DEPLOYER);
+        assertEq(deployer.rolesOf(secondAuthorizedDeployer), ROLE_DEPLOYER);
     }
 
-    /// @notice Unauthorized callers cannot grant deployer role.
-    function test_addDeployer_revertUnauthorized() public {
+    /// @notice Unauthorized callers cannot grant deployer roles.
+    function test_addDeployers_revertUnauthorized() public {
         vm.expectRevert(Ownable.Unauthorized.selector);
 
         vm.prank(stranger);
-        deployer.addDeployer(authorizedDeployer);
+        deployer.addDeployers(_addresses(authorizedDeployer));
     }
 
-    /// @notice Zero address cannot receive deployer role.
-    function test_addDeployer_revertZeroAddress() public {
+    /// @notice Zero address cannot receive deployer roles.
+    function test_addDeployers_revertZeroAddress() public {
         vm.expectRevert(DopplerDeployer.InvalidDeployer.selector);
 
         vm.prank(owner);
-        deployer.addDeployer(address(0));
+        deployer.addDeployers(_addresses(address(0)));
     }
 
-    /// @notice Caller cannot grant deployer role to itself.
-    function test_addDeployer_revertCallerAddress() public {
+    /// @notice Caller cannot grant deployer roles to itself.
+    function test_addDeployers_revertCallerAddress() public {
         vm.expectRevert(DopplerDeployer.InvalidDeployer.selector);
 
         vm.prank(owner);
-        deployer.addDeployer(owner);
+        deployer.addDeployers(_addresses(owner));
     }
 
-    /// @notice Addresses with any existing role cannot receive deployer role.
-    function test_addDeployer_revertRoleAlreadyAssigned() public {
+    /// @notice Addresses with any existing role cannot receive deployer roles.
+    function test_addDeployers_revertRoleAlreadyAssigned() public {
         _addAdmin();
 
         vm.expectRevert(DopplerDeployer.RoleAlreadyAssigned.selector);
 
         vm.prank(owner);
-        deployer.addDeployer(admin);
+        deployer.addDeployers(_addresses(admin));
     }
 
-    /// @notice Admin can revoke deployer role and emit the expected events.
-    function test_removeDeployer_adminCanRevokeDeployerRole() public {
-        _addAuthorizedDeployer();
+    /// @notice Admin can revoke deployer roles and emit the expected events.
+    function test_removeDeployers_adminCanRevokeDeployerRoles() public {
+        _addAuthorizedDeployers();
 
         vm.expectEmit(true, true, false, false, address(deployer));
         emit RolesUpdated(authorizedDeployer, 0);
         vm.expectEmit(true, false, false, true, address(deployer));
         emit DeployerRemoved(admin, authorizedDeployer);
+        vm.expectEmit(true, true, false, false, address(deployer));
+        emit RolesUpdated(secondAuthorizedDeployer, 0);
+        vm.expectEmit(true, false, false, true, address(deployer));
+        emit DeployerRemoved(admin, secondAuthorizedDeployer);
 
         vm.prank(admin);
-        deployer.removeDeployer(authorizedDeployer);
+        deployer.removeDeployers(_addresses(authorizedDeployer, secondAuthorizedDeployer));
 
         assertEq(deployer.rolesOf(authorizedDeployer), 0);
+        assertEq(deployer.rolesOf(secondAuthorizedDeployer), 0);
+    }
+
+    /// @notice Owner can revoke deployer roles.
+    function test_removeDeployers_ownerCanRevokeDeployerRoles() public {
+        _addAuthorizedDeployers();
+
+        vm.prank(owner);
+        deployer.removeDeployers(_addresses(authorizedDeployer, secondAuthorizedDeployer));
+
+        assertEq(deployer.rolesOf(authorizedDeployer), 0);
+        assertEq(deployer.rolesOf(secondAuthorizedDeployer), 0);
+    }
+
+    /// @notice Unauthorized callers cannot revoke deployer roles.
+    function test_removeDeployers_revertUnauthorized() public {
+        _addAuthorizedDeployer();
+
+        vm.expectRevert(Ownable.Unauthorized.selector);
+
+        vm.prank(stranger);
+        deployer.removeDeployers(_addresses(authorizedDeployer));
     }
 
     /// @notice Deployer removal rejects targets without only deployer role.
-    function test_removeDeployer_revertIfTargetIsNotDeployer() public {
+    function test_removeDeployers_revertIfTargetIsNotDeployer() public {
         _addAdmin();
 
         vm.expectRevert(DopplerDeployer.InvalidDeployer.selector);
 
         vm.prank(owner);
-        deployer.removeDeployer(admin);
+        deployer.removeDeployers(_addresses(admin));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -580,14 +626,37 @@ contract DopplerDeployerTest is Test {
 
     function _addAdmin() internal {
         vm.prank(owner);
-        deployer.addAdmin(admin);
+        deployer.addAdmins(_addresses(admin));
+    }
+
+    function _addAdmins() internal {
+        vm.prank(owner);
+        deployer.addAdmins(_addresses(admin, secondAdmin));
     }
 
     function _addAuthorizedDeployer() internal {
         _addAdmin();
 
         vm.prank(admin);
-        deployer.addDeployer(authorizedDeployer);
+        deployer.addDeployers(_addresses(authorizedDeployer));
+    }
+
+    function _addAuthorizedDeployers() internal {
+        _addAdmin();
+
+        vm.prank(admin);
+        deployer.addDeployers(_addresses(authorizedDeployer, secondAuthorizedDeployer));
+    }
+
+    function _addresses(address first) internal pure returns (address[] memory addresses) {
+        addresses = new address[](1);
+        addresses[0] = first;
+    }
+
+    function _addresses(address first, address second) internal pure returns (address[] memory addresses) {
+        addresses = new address[](2);
+        addresses[0] = first;
+        addresses[1] = second;
     }
 
     function _deployableInitCode(uint256 value) internal pure returns (bytes memory) {
