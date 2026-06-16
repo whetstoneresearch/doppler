@@ -8,7 +8,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { IV4Quoter } from "@v4-periphery/interfaces/IV4Quoter.sol";
 import { Airlock, CreateParams } from "src/Airlock.sol";
-import { UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 
 /// @dev Thrown when an invalid address is passed as a contructor parameter
 error InvalidAddresses();
@@ -142,7 +142,7 @@ contract Bundler {
         returns (address asset, PoolKey memory poolKey, bool zeroForOne)
     {
         (asset,,,,) = airlock.create(createData);
-        (,, poolKey,) = UniswapV4MulticurveInitializer(payable(address(createData.poolInitializer))).getState(asset);
+        (,,,,, poolKey,) = DopplerHookInitializer(payable(address(createData.poolInitializer))).getState(asset);
 
         address currency0 = Currency.unwrap(poolKey.currency0);
         address currency1 = Currency.unwrap(poolKey.currency1);

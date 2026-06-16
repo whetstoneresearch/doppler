@@ -13,7 +13,6 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { Airlock } from "src/Airlock.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
     ON_AFTER_SWAP_FLAG,
@@ -24,6 +23,7 @@ import { SenderNotAirlock } from "src/base/ImmutableAirlock.sol";
 import { InvalidSplitRecipient, SplitShareTooHigh } from "src/base/ProceedsSplitter.sol";
 import { MAX_SPLIT_SHARE } from "src/base/ProceedsSplitter.sol";
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 import {
     ArrayLengthsMismatch,
     AssetData,

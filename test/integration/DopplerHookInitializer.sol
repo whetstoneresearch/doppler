@@ -12,22 +12,20 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
-import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
-import { InitData, UniswapV4MulticurveInitializer } from "src/initializers/UniswapV4MulticurveInitializer.sol";
-import { UniswapV4MulticurveInitializerHook } from "src/initializers/UniswapV4MulticurveInitializerHook.sol";
+import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookInitializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { DERC20 } from "src/tokens/DERC20.sol";
 import { DN404Factory } from "src/tokens/DN404Factory.sol";
-import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { DopplerDN404 } from "src/tokens/DopplerDN404.sol";
+import { DopplerDN404Mirror } from "src/tokens/DopplerDN404Mirror.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";
+import { dopplerERC20V1FactoryData, predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
     function initialize(address, address, bytes memory) external pure override returns (address) {
@@ -39,15 +37,13 @@ contract LiquidityMigratorMock is ILiquidityMigrator {
     }
 }
 
-contract V4MulticurveInitializer is Deployers {
+contract DopplerHookInitializerTest is Deployers {
     address public airlockOwner = makeAddr("AirlockOwner");
     Airlock public airlock;
-    UniswapV4MulticurveInitializer public initializer;
-    UniswapV4MulticurveInitializerHook public multicurveHook;
-    TokenFactory public tokenFactory;
+    DopplerHookInitializer public initializer;
+    DopplerERC20V1Factory public tokenFactory;
     DN404Factory public dn404Factory;
     GovernanceFactory public governanceFactory;
-    StreamableFeesLockerV2 public locker;
     LiquidityMigratorMock public mockLiquidityMigrator;
     TestERC20 public numeraire;
 
@@ -60,20 +56,19 @@ contract V4MulticurveInitializer is Deployers {
         vm.label(address(numeraire), "Numeraire");
 
         airlock = new Airlock(airlockOwner);
-        tokenFactory = new TokenFactory(address(airlock));
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         dn404Factory = new DN404Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
-        multicurveHook = UniswapV4MulticurveInitializerHook(
-            address(
-                uint160(
-                    Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-                        | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-                ) ^ (0x4444 << 144)
-            )
+        initializer = DopplerHookInitializer(
+            payable(address(
+                    uint160(
+                        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+                            | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+                            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+                    ) ^ (0x4444 << 144)
+                ))
         );
-        initializer = new UniswapV4MulticurveInitializer(address(airlock), manager, multicurveHook);
-        locker = new StreamableFeesLockerV2(manager, airlockOwner);
-        deployCodeTo("UniswapV4MulticurveInitializerHook", abi.encode(manager, initializer), address(multicurveHook));
+        deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
         mockLiquidityMigrator = new LiquidityMigratorMock();
 
@@ -96,32 +91,12 @@ contract V4MulticurveInitializer is Deployers {
         vm.stopPrank();
     }
 
-    function test_create_MulticurveInitializerV4(bytes32 salt) public {
+    function test_create_DopplerHookInitializer(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
 
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        ""
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
+        address tokenAddress = predictDopplerERC20V1Address(tokenFactory, salt);
 
         InitData memory initData = _prepareInitData(tokenAddress);
 
@@ -130,7 +105,7 @@ contract V4MulticurveInitializer is Deployers {
             numTokensToSell: initialSupply,
             numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode("Test Token", "TEST", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            tokenFactoryData: dopplerERC20V1FactoryData(name, symbol, "TOKEN_URI", 0, 0, address(0), new address[](0)),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
@@ -144,32 +119,12 @@ contract V4MulticurveInitializer is Deployers {
         airlock.create(params);
     }
 
-    function test_migrate_MulticurveInitializerV4(bytes32 salt) public {
+    function test_migrate_DopplerHookInitializer(bytes32 salt) public {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
 
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
+        address tokenAddress = predictDopplerERC20V1Address(tokenFactory, salt);
 
         InitData memory initData = _prepareInitData(tokenAddress);
 
@@ -178,7 +133,7 @@ contract V4MulticurveInitializer is Deployers {
             numTokensToSell: initialSupply,
             numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            tokenFactoryData: dopplerERC20V1FactoryData(name, symbol, "TOKEN_URI", 0, 0, address(0), new address[](0)),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
@@ -191,6 +146,7 @@ contract V4MulticurveInitializer is Deployers {
 
         (address asset,,,,) = airlock.create(params);
         require(asset == tokenAddress, "Asset address mismatch");
+        (,,,,, poolKey,) = initializer.getState(asset);
 
         vm.label(asset, "Asset");
         bool isToken0 = asset < address(numeraire);
@@ -207,7 +163,7 @@ contract V4MulticurveInitializer is Deployers {
         airlock.migrate(asset);
     }
 
-    function test_create_DN404_MulticurveInitializerV4(bytes32 salt) public {
+    function test_create_DN404_DopplerHookInitializer(bytes32 salt) public {
         uint256 initialSupply = 1e27;
         uint256 unit = initialSupply;
         address tokenAddress = _computeDN404Address(salt, initialSupply, unit);
@@ -221,7 +177,7 @@ contract V4MulticurveInitializer is Deployers {
         assertEq(DopplerDN404Mirror(payable(DopplerDN404(payable(asset)).mirrorERC721())).baseERC20(), asset);
     }
 
-    function test_migrate_DN404_MulticurveInitializerV4(bytes32 salt) public {
+    function test_migrate_DN404_DopplerHookInitializer(bytes32 salt) public {
         uint256 initialSupply = 1e27;
         uint256 unit = initialSupply;
         address tokenAddress = _computeDN404Address(salt, initialSupply, unit);
@@ -230,6 +186,7 @@ contract V4MulticurveInitializer is Deployers {
 
         (address asset,,,,) = airlock.create(params);
         require(asset == tokenAddress, "Asset address mismatch");
+        (,,,,, poolKey,) = initializer.getState(asset);
 
         vm.label(asset, "DN404Asset");
         bool isToken0 = asset < address(numeraire);
@@ -265,11 +222,20 @@ contract V4MulticurveInitializer is Deployers {
         (currency0, currency1) = greaterThan(currency0, currency1) ? (currency1, currency0) : (currency0, currency1);
 
         poolKey = PoolKey({
-            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: multicurveHook
+            currency0: currency0, currency1: currency1, tickSpacing: tickSpacing, fee: 0, hooks: initializer
         });
         poolId = poolKey.toId();
 
-        return InitData({ fee: 0, tickSpacing: tickSpacing, curves: curves, beneficiaries: new BeneficiaryData[](0) });
+        return InitData({
+            fee: 0,
+            tickSpacing: tickSpacing,
+            curves: curves,
+            beneficiaries: new BeneficiaryData[](0),
+            dopplerHook: address(0),
+            onInitializationDopplerHookCalldata: new bytes(0),
+            graduationDopplerHookCalldata: new bytes(0),
+            farTick: 200_000
+        });
     }
 
     function _computeDN404Address(bytes32 salt, uint256 initialSupply, uint256 unit) internal view returns (address) {

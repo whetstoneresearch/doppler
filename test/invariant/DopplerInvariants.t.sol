@@ -114,7 +114,9 @@ contract DopplerInvariantsTest is BaseTest {
         uint256 slugs = hook.getNumPDSlugs();
         for (uint256 i = 1; i < 4 + slugs; i++) {
             (int24 tickLower, int24 tickUpper, uint128 liquidity,) = hook.positions(bytes32(uint256(i)));
-            if (liquidity > 0) assertTrue(tickLower != tickUpper);
+            // Zero-liquidity positions can be stored as empty sentinels with equal ticks.
+            // Active liquidity must still span a non-empty range.
+            if (liquidity > 0) assertTrue(tickLower != tickUpper, "Active position has an empty range");
         }
     }
 
@@ -126,8 +128,10 @@ contract DopplerInvariantsTest is BaseTest {
                 (int24 tickLower1, int24 tickUpper1, uint128 liquidity1,) = hook.positions(bytes32(uint256(j)));
 
                 if (liquidity0 > 0 && liquidity1 > 0) {
+                    // Adjacent slug ranges intentionally share one boundary tick. Only a fully identical
+                    // [tickLower, tickUpper] pair is a duplicate range.
                     assertTrue(
-                        tickLower0 != tickLower1 && tickUpper0 != tickUpper1, "Two positions have the same range"
+                        tickLower0 != tickLower1 || tickUpper0 != tickUpper1, "Two positions have the same range"
                     );
                 }
             }

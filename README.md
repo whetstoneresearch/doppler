@@ -60,26 +60,4 @@ FEE=30
 
 ### Deploying
 
-Deployment scripts are provided to either deploy the whole protocol or only some specific modules, if you find them in the [script](/script) folder. Note that you will also need to install [Bun](https://bun.sh/), as some internal scripts are written in TypeScript to update the deploment logs and the documentation.
-
-Then make sure to set the required environment variables in the `.env` file before running the deployment scripts, once you're done, you can run the following command to deploy the contracts:
-
-```shell
-# Deploy the protocol on Base
-make deploy-base
-
-# Deploy the protocol on Unichain
-make deploy-unichain
-
-# Deploy the protocol on Ink
-make deploy-ink
-
-# Deploy V4 support on Base
-make deploy-v4-base
-
-# Deploy V4 support on Unichain
-make deploy-v4-unichain
-
-# Deploy V4 support on Ink
-make deploy-v4-ink
-```
+Deployment scripts for individual modules and operational tasks live in the [script](/script) folder. Configure the required environment variables in `.env`, then run the relevant script directly with `forge script`.

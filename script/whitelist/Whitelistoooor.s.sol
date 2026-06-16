@@ -4,8 +4,7 @@ pragma solidity ^0.8.24;
 import { Config } from "forge-std/Config.sol";
 import { Script } from "forge-std/Script.sol";
 import { AirlockMultisigTestnet } from "script/utils/AirlockMultisigTestnet.sol";
-import { ChainIds } from "script/utils/ChainIds.sol";
-import { Airlock, ModuleState } from "src/Airlock.sol";
+import { ModuleState } from "src/Airlock.sol";
 
 contract WhitelistoooorScript is Script, Config {
     function run() public {
@@ -14,41 +13,58 @@ contract WhitelistoooorScript is Script, Config {
         address airlock = config.get("airlock").toAddress();
         address airlockMultisig = config.get("airlock_multisig").toAddress();
 
-        address cloneERC20Factory = config.get("clone_erc20_factory").toAddress();
-        address cloneERC20VotesFactory = config.get("clone_erc20_votes_factory").toAddress();
-        address noOpGovernanceFactory = config.get("no_op_governance_factory").toAddress();
-        address uniswapV4ScheduledMulticurveInitializer =
-            config.get("uniswap_v4_scheduled_multicurve_initializer").toAddress();
-        address uniswapV4Initializer = config.get("uniswap_v4_initializer").toAddress();
-        address dopplerHookInitializer = config.get("doppler_hook_initializer").toAddress();
-        address noOpMigrator = config.get("no_op_migrator").toAddress();
-        address uniswapV2Migrator = config.get("uniswap_v2_migrator").toAddress();
-        address uniswapV4Migrator = config.get("uniswap_v4_migrator").toAddress();
+        uint256 moduleCount = _moduleCount();
+        address[] memory modules = new address[](moduleCount);
+        ModuleState[] memory states = new ModuleState[](moduleCount);
 
-        address[] memory modules = new address[](9);
-        modules[0] = cloneERC20Factory;
-        modules[1] = cloneERC20VotesFactory;
-        modules[2] = noOpGovernanceFactory;
-        modules[3] = uniswapV4ScheduledMulticurveInitializer;
-        modules[4] = uniswapV4Initializer;
-        modules[5] = dopplerHookInitializer;
-        modules[6] = noOpMigrator;
-        modules[7] = uniswapV2Migrator;
-        modules[8] = uniswapV4Migrator;
-
-        ModuleState[] memory states = new ModuleState[](9);
-        states[0] = ModuleState.TokenFactory;
-        states[1] = ModuleState.TokenFactory;
-        states[2] = ModuleState.GovernanceFactory;
-        states[3] = ModuleState.PoolInitializer;
-        states[4] = ModuleState.PoolInitializer;
-        states[5] = ModuleState.PoolInitializer;
-        states[6] = ModuleState.LiquidityMigrator;
-        states[7] = ModuleState.LiquidityMigrator;
-        states[8] = ModuleState.LiquidityMigrator;
+        uint256 index;
+        index = _appendModule(modules, states, index, "doppler_erc20_v1_factory", ModuleState.TokenFactory);
+        index = _appendModule(modules, states, index, "dn404_factory", ModuleState.TokenFactory);
+        index = _appendModule(modules, states, index, "no_op_governance_factory", ModuleState.GovernanceFactory);
+        index = _appendModule(modules, states, index, "governance_factory", ModuleState.GovernanceFactory);
+        index = _appendModule(modules, states, index, "launchpad_governance_factory", ModuleState.GovernanceFactory);
+        index = _appendModule(modules, states, index, "doppler_hook_initializer", ModuleState.PoolInitializer);
+        index = _appendModule(modules, states, index, "uniswap_v4_initializer", ModuleState.PoolInitializer);
+        index = _appendModule(modules, states, index, "lockable_uniswap_v3_initializer", ModuleState.PoolInitializer);
+        index = _appendModule(modules, states, index, "no_op_migrator", ModuleState.LiquidityMigrator);
+        index = _appendModule(modules, states, index, "uniswap_v2_migrator_split", ModuleState.LiquidityMigrator);
+        index = _appendModule(modules, states, index, "doppler_hook_migrator", ModuleState.LiquidityMigrator);
+        require(index == moduleCount, "Module count mismatch");
 
         vm.startBroadcast();
         AirlockMultisigTestnet(airlockMultisig).setModuleState(payable(airlock), modules, states);
         vm.stopBroadcast();
+    }
+
+    function _moduleCount() internal view returns (uint256 count) {
+        count += _moduleExists("doppler_erc20_v1_factory");
+        count += _moduleExists("dn404_factory");
+        count += _moduleExists("no_op_governance_factory");
+        count += _moduleExists("governance_factory");
+        count += _moduleExists("launchpad_governance_factory");
+        count += _moduleExists("doppler_hook_initializer");
+        count += _moduleExists("uniswap_v4_initializer");
+        count += _moduleExists("lockable_uniswap_v3_initializer");
+        count += _moduleExists("no_op_migrator");
+        count += _moduleExists("uniswap_v2_migrator_split");
+        count += _moduleExists("doppler_hook_migrator");
+    }
+
+    function _moduleExists(string memory key) internal view returns (uint256) {
+        return config.exists(key) ? 1 : 0;
+    }
+
+    function _appendModule(
+        address[] memory modules,
+        ModuleState[] memory states,
+        uint256 index,
+        string memory key,
+        ModuleState state
+    ) internal view returns (uint256) {
+        if (!config.exists(key)) return index;
+
+        modules[index] = config.get(key).toAddress();
+        states[index] = state;
+        return index + 1;
     }
 }

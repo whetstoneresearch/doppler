@@ -12,9 +12,6 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
-import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
-import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import {
     InitData,
@@ -28,8 +25,11 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 import { DERC20 } from "src/tokens/DERC20.sol";
 import { DN404Factory } from "src/tokens/DN404Factory.sol";
+import { DopplerDN404 } from "src/tokens/DopplerDN404.sol";
+import { DopplerDN404Mirror } from "src/tokens/DopplerDN404Mirror.sol";
 import { TokenFactory } from "src/tokens/TokenFactory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { WAD } from "src/types/Wad.sol";

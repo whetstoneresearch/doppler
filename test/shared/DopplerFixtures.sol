@@ -21,9 +21,10 @@ import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
-import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { UNISWAP_V2_FACTORY_UNICHAIN_SEPOLIA, UNISWAP_V2_ROUTER_UNICHAIN_SEPOLIA } from "test/shared/Addresses.sol";
 import { MineV4Params, mineV4 } from "test/shared/AirlockMiner.sol";
+import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 uint256 constant DEFAULT_NUM_TOKENS_TO_SELL = 100_000e18;
 uint256 constant DEFAULT_MINIMUM_PROCEEDS = 100e18;
@@ -69,7 +70,7 @@ contract DopplerFixtures is Deployers {
     UniswapV4Initializer public initializer;
     DopplerDeployer public deployer;
     Airlock public airlock;
-    TokenFactory public tokenFactory;
+    DopplerERC20V1Factory public tokenFactory;
     GovernanceFactory public governanceFactory;
     UniswapV2MigratorSplit public migrator;
     TopUpDistributor public topUpDistributor;
@@ -95,7 +96,7 @@ contract DopplerFixtures is Deployers {
         airlock = new Airlock(address(this));
         deployer = new DopplerDeployer(manager);
         initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
-        tokenFactory = new TokenFactory(address(airlock));
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
         topUpDistributor = new TopUpDistributor(address(airlock));
         weth = new WETH();
@@ -237,7 +238,7 @@ contract DopplerFixtures is Deployers {
     }
 
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
-        return abi.encode("Best Token", "BEST", 1e16, 365 days, new address[](0), new uint256[](0), "");
+        return dopplerERC20V1FactoryData("Best Token", "BEST", "", 0, 0, address(0), new address[](0));
     }
 
     function _defaultGovernanceFactoryData() internal pure returns (bytes memory) {

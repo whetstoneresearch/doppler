@@ -6,9 +6,9 @@ import { Math } from "@openzeppelin/utils/math/Math.sol";
 import { ERC20, SafeTransferLib } from "@solmate/utils/SafeTransferLib.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { ILockablePoolToken } from "src/interfaces/ILockablePoolToken.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
-import { DERC20 } from "src/tokens/DERC20.sol";
 
 enum ModuleState {
     NotWhitelisted,
@@ -161,7 +161,7 @@ contract Airlock is Ownable {
 
         migrationPool =
             createData.liquidityMigrator.initialize(asset, createData.numeraire, createData.liquidityMigratorData);
-        DERC20(asset).lockPool(migrationPool);
+        ILockablePoolToken(asset).lockPool(migrationPool);
 
         uint256 excessAsset = ERC20(asset).balanceOf(address(this));
 
@@ -194,7 +194,7 @@ contract Airlock is Ownable {
     function migrate(address asset) external {
         AssetData memory assetData = getAssetData[asset];
 
-        DERC20(asset).unlockPool();
+        ILockablePoolToken(asset).unlockPool();
         Ownable(asset).transferOwnership(assetData.timelock);
 
         (

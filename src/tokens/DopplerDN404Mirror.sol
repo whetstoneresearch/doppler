@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { DN404Mirror } from "lib/dn404/src/DN404Mirror.sol";
-import { DopplerDN404 } from "src/dn404/DopplerDN404.sol";
+import { DopplerDN404 } from "src/tokens/DopplerDN404.sol";
 
 /// @title DopplerDN404Mirror
 /// @notice Thin wrapper around DN404Mirror for Doppler DN404 deployments.

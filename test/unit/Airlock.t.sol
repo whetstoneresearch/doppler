@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
 import { Deployers } from "@v4-core-test/utils/Deployers.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
 import { Test, stdError } from "forge-std/Test.sol";
@@ -18,17 +19,19 @@ import {
 } from "src/Airlock.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
-import { IUniswapV3Factory, InitData, UniswapV3Initializer } from "src/initializers/UniswapV3Initializer.sol";
+import { InitData, LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 import { IGovernanceFactory } from "src/interfaces/IGovernanceFactory.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
+import { ILockablePoolToken } from "src/interfaces/ILockablePoolToken.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
-import { DERC20, ERC20 } from "src/tokens/DERC20.sol";
-import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { UNISWAP_V2_FACTORY_MAINNET, UNISWAP_V2_ROUTER_MAINNET, WETH_MAINNET } from "test/shared/Addresses.sol";
+import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 // TODO: Reuse these constants from the BaseTest
 string constant DEFAULT_TOKEN_NAME = "Test";
@@ -83,10 +86,10 @@ contract MockLiquidityMigrator is ILiquidityMigrator {
 
 contract AirlockTest is Test, Deployers {
     AirlockCheat airlock;
-    TokenFactory tokenFactory;
+    DopplerERC20V1Factory tokenFactory;
     UniswapV4Initializer uniswapV4Initializer;
     DopplerDeployer deployer;
-    UniswapV3Initializer uniswapV3Initializer;
+    LockableUniswapV3Initializer uniswapV3Initializer;
     GovernanceFactory governanceFactory;
     UniswapV2MigratorSplit uniswapV2LiquidityMigrator;
     TopUpDistributor topUpDistributor;
@@ -98,11 +101,12 @@ contract AirlockTest is Test, Deployers {
         deployFreshManager();
 
         airlock = new AirlockCheat(address(this));
-        tokenFactory = new TokenFactory(address(airlock));
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         deployer = new DopplerDeployer(manager);
         uniswapV4Initializer = new UniswapV4Initializer(address(airlock), manager, deployer);
-        uniswapV3Initializer =
-            new UniswapV3Initializer(address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984));
+        uniswapV3Initializer = new LockableUniswapV3Initializer(
+            address(airlock), IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984)
+        );
         governanceFactory = new GovernanceFactory(address(airlock));
         topUpDistributor = new TopUpDistributor(address(airlock));
         uniswapV2LiquidityMigrator = new UniswapV2MigratorSplit(
@@ -273,14 +277,14 @@ contract AirlockTest is Test, Deployers {
 
         airlock.setAssetData(asset, assetData);
 
-        vm.expectCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector));
+        vm.expectCall(asset, abi.encodeWithSelector(ILockablePoolToken.unlockPool.selector));
         vm.expectCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock));
         vm.expectCall(
             liquidityMigrator,
             abi.encodeWithSelector(ILiquidityMigrator.migrate.selector, sqrtPriceX96, token0, token1, timelock)
         );
 
-        vm.mockCall(asset, abi.encodeWithSelector(DERC20.unlockPool.selector), new bytes(0));
+        vm.mockCall(asset, abi.encodeWithSelector(ILockablePoolToken.unlockPool.selector), new bytes(0));
         vm.mockCall(asset, abi.encodeWithSelector(Ownable.transferOwnership.selector, timelock), new bytes(0));
         vm.mockCall(
             poolInitializer,
@@ -288,10 +292,14 @@ contract AirlockTest is Test, Deployers {
             abi.encode(sqrtPriceX96, token0, fees0, balance0, token1, fees1, balance1)
         );
         vm.mockCall(
-            token0, abi.encodeWithSelector(ERC20.transfer.selector, liquidityMigrator, balance0 - fees0), new bytes(0)
+            token0,
+            abi.encodeWithSelector(TestERC20.transfer.selector, liquidityMigrator, balance0 - fees0),
+            new bytes(0)
         );
         vm.mockCall(
-            token1, abi.encodeWithSelector(ERC20.transfer.selector, liquidityMigrator, balance1 - fees1), new bytes(0)
+            token1,
+            abi.encodeWithSelector(TestERC20.transfer.selector, liquidityMigrator, balance1 - fees1),
+            new bytes(0)
         );
 
         // TODO: I wanted to use mockCall here but for some reason it doesn't work
@@ -407,7 +415,7 @@ contract AirlockTest is Test, Deployers {
     // TODO: It would be better to move this into an integration test
     function test_create_DeploysOnUniswapV3() public {
         bytes memory tokenFactoryData =
-            abi.encode(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, 0, 0, new address[](0), new uint256[](0), "");
+            dopplerERC20V1FactoryData(DEFAULT_TOKEN_NAME, DEFAULT_TOKEN_SYMBOL, "", 0, 0, address(0), new address[](0));
         bytes memory governanceFactoryData = abi.encode(DEFAULT_TOKEN_NAME, 7200, 50_400, 0);
         bytes memory poolInitializerData = abi.encode(
             InitData({
@@ -415,7 +423,8 @@ contract AirlockTest is Test, Deployers {
                 tickLower: DEFAULT_START_TICK,
                 tickUpper: DEFAULT_END_TICK,
                 numPositions: 1,
-                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD
+                maxShareToBeSold: DEFAULT_MAX_SHARE_TO_BE_SOLD,
+                beneficiaries: new BeneficiaryData[](0)
             })
         );
 

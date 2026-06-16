@@ -15,9 +15,9 @@ else
 
     case "$staged_file" in
       src/Airlock.sol|\
-      src/StreamableFeesLockerV2.sol|\
+      src/lockers/StreamableFeesLockerV2.sol|\
       src/TopUpDistributor.sol|\
-      src/UniswapV2Locker.sol|\
+      src/lockers/UniswapV2Locker.sol|\
       src/base/BaseDopplerHookInitializer.sol|\
       src/base/BaseDopplerHookMigrator.sol|\
       src/base/BaseHook.sol|\

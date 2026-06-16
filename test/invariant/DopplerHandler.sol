@@ -18,6 +18,7 @@ import { Test } from "forge-std/Test.sol";
 import { MAX_SWAP_FEE } from "src/initializers/Doppler.sol";
 import {
     InvalidSwapAfterMaturityInsufficientProceeds,
+    InvalidSwapAfterMaturitySufficientProceeds,
     MaximumProceedsReached,
     SwapBelowRange
 } from "src/initializers/Doppler.sol";
@@ -127,6 +128,33 @@ contract DopplerHandler is Test {
         ghost_currentEpoch = hook.getCurrentEpoch();
     }
 
+    /// @dev Expected buy reverts are rejected fuzz actions, not invariant failures.
+    ///      The swap reverted atomically, so ghost accounting must not be updated.
+    ///      Mitigated cases:
+    ///      - the sale matured with sufficient proceeds and no more swaps are allowed;
+    ///      - insufficient-proceeds refund mode rejects numeraire-to-asset buys;
+    ///      - maximum proceeds already triggered early exit;
+    ///      - Uniswap v4 price-limit/tick-math guards reject a boundary swap.
+    function _isExpectedBuyRevert(bytes4 selector) internal pure returns (bool) {
+        return selector == InvalidSwapAfterMaturitySufficientProceeds.selector
+            || selector == InvalidSwapAfterMaturityInsufficientProceeds.selector
+            || selector == MaximumProceedsReached.selector || selector == Pool.PriceLimitAlreadyExceeded.selector
+            || selector == TickMath.InvalidSqrtPrice.selector;
+    }
+
+    /// @dev Expected sell reverts are rejected fuzz actions, not invariant failures.
+    ///      The swap reverted atomically, so ghost accounting must not be updated.
+    ///      Mitigated cases:
+    ///      - the sale matured with sufficient proceeds and no more swaps are allowed;
+    ///      - maximum proceeds already triggered early exit;
+    ///      - the lower-range guard rejects sells beneath the active curve;
+    ///      - Uniswap v4 price-limit/tick-math guards reject a boundary swap.
+    function _isExpectedSellRevert(bytes4 selector) internal pure returns (bool) {
+        return selector == InvalidSwapAfterMaturitySufficientProceeds.selector
+            || selector == MaximumProceedsReached.selector || selector == SwapBelowRange.selector
+            || selector == Pool.PriceLimitAlreadyExceeded.selector || selector == TickMath.InvalidSqrtPrice.selector;
+    }
+
     /// @notice Buys an amount of asset tokens using an exact amount of numeraire tokens
     function buyExactAmountIn(uint256 amount) public createActor {
         amount = amount % 10 ether + 0.001 ether;
@@ -180,23 +208,17 @@ contract DopplerHandler is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
 
-                if (revertReasonSelector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
-                    revert("invalid swap after maturity");
+                if (_isExpectedBuyRevert(revertReasonSelector)) {
+                    return;
                 } else if (revertReasonSelector == Pool.TicksMisordered.selector) {
                     revert("ticks misordered");
-                } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
-                    revert("invalid sqrt price");
-                } else if (revertReasonSelector == MaximumProceedsReached.selector) {
-                    return;
                 } else {
-                    revert("Unimplemented error");
+                    revert("Unimplemented wrapped buy error");
                 }
-            } else if (selector == InvalidSwapAfterMaturityInsufficientProceeds.selector) {
-                revert("invalid swap after maturity");
-            } else if (selector == Pool.PriceLimitAlreadyExceeded.selector) {
-                revert("price limit already exceeded");
+            } else if (_isExpectedBuyRevert(selector)) {
+                return;
             } else {
-                revert("Unknown error");
+                revert("Unimplemented buy error");
             }
         }
     }
@@ -282,19 +304,17 @@ contract DopplerHandler is Test {
             if (selector == CustomRevert.WrappedError.selector) {
                 (,,, bytes4 revertReasonSelector,,) = CustomRevertDecoder.decode(err);
 
-                if (revertReasonSelector == SwapBelowRange.selector) {
-                    revert("swap below range");
-                } else if (revertReasonSelector == TickMath.InvalidSqrtPrice.selector) {
-                    revert("invalid sqrt price");
-                } else if (revertReasonSelector == MaximumProceedsReached.selector) {
+                if (_isExpectedSellRevert(revertReasonSelector)) {
                     return;
                 } else if (revertReasonSelector == bytes4(0)) {
                     revert("Wrapped error without revert reason");
                 } else {
                     revert("Unimplemented wrapped error");
                 }
+            } else if (_isExpectedSellRevert(selector)) {
+                return;
             } else {
-                revert("Unimplemented error");
+                revert("Unimplemented sell error");
             }
         }
 

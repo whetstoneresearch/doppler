@@ -15,15 +15,15 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { console } from "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 import { DopplerHookMigrator, PoolStatus as MigratorStatus } from "src/migrators/DopplerHookMigrator.sol";
-import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
     FeeDistributionInfo,
@@ -34,6 +34,7 @@ import {
     SenderNotAuthorized
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
+import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -44,7 +45,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
 
     Airlock public airlock;
     DopplerHookInitializer public initializer;
-    CloneERC20Factory public tokenFactory;
+    DopplerERC20V1Factory public tokenFactory;
     NoOpGovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
     DopplerHookMigrator public migrator;
@@ -55,7 +56,7 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
         deployFreshManagerAndRouters();
 
         airlock = new Airlock(AIRLOCK_OWNER);
-        tokenFactory = new CloneERC20Factory(address(airlock));
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         governanceFactory = new NoOpGovernanceFactory();
 
         initializer = DopplerHookInitializer(
@@ -728,8 +729,9 @@ contract RehypeDopplerHookMigratorIntegrationTest is Deployers {
             })
         );
         bytes memory migratorData = _defaultMigratorData(address(rehypeHookMigrator), rehypeData);
-        bytes memory tokenFactoryData =
-            abi.encode("Rehype Integration Test Token", "RINT", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI");
+        bytes memory tokenFactoryData = dopplerERC20V1FactoryData(
+            "Rehype Integration Test Token", "RINT", "TOKEN_URI", 0, 0, address(0), new address[](0)
+        );
 
         (asset,,,,) = airlock.create(
             CreateParams({

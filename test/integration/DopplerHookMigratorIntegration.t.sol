@@ -14,26 +14,26 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
 import { LPFeeLibrary } from "@v4-core/libraries/LPFeeLibrary.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
-import { StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
-import { SaleHasNotStartedYet, ScheduledLaunchDopplerHook } from "src/dopplerHooks/ScheduledLaunchDopplerHook.sol";
 import { InsufficientAmountLeft, SwapRestrictorDopplerHook } from "src/dopplerHooks/SwapRestrictorDopplerHook.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
+import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
 import {
     AssetData,
     DopplerHookMigrator,
     DopplerHookNotEnabled,
     PoolStatus as MigratorStatus
 } from "src/migrators/DopplerHookMigrator.sol";
-import { CloneERC20Factory } from "src/tokens/CloneERC20Factory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { FeeDistributionInfo, FeeRoutingMode, MigratorInitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
+import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 contract DopplerHookMigratorIntegrationTest is Deployers {
     using StateLibrary for IPoolManager;
@@ -43,21 +43,20 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
     Airlock public airlock;
     DopplerHookInitializer public initializer;
-    CloneERC20Factory public tokenFactory;
+    DopplerERC20V1Factory public tokenFactory;
     NoOpGovernanceFactory public governanceFactory;
     StreamableFeesLockerV2 public locker;
     DopplerHookMigrator public migrator;
     TopUpDistributor public topUpDistributor;
     RehypeDopplerHookInitializer public rehypeHook;
     RehypeDopplerHookMigrator public rehypeHookMigrator;
-    ScheduledLaunchDopplerHook public scheduledLaunchHook;
     SwapRestrictorDopplerHook public swapRestrictorHook;
 
     function setUp() public {
         deployFreshManagerAndRouters();
 
         airlock = new Airlock(AIRLOCK_OWNER);
-        tokenFactory = new CloneERC20Factory(address(airlock));
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         governanceFactory = new NoOpGovernanceFactory();
 
         initializer = DopplerHookInitializer(
@@ -86,7 +85,6 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
 
         rehypeHook = new RehypeDopplerHookInitializer(address(migrator), manager);
         rehypeHookMigrator = new RehypeDopplerHookMigrator(migrator, manager);
-        scheduledLaunchHook = new ScheduledLaunchDopplerHook(address(migrator));
         swapRestrictorHook = new SwapRestrictorDopplerHook(address(migrator));
 
         address[] memory modules = new address[](4);
@@ -150,49 +148,6 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
         assertEq(startDate > 0, true);
     }
 
-    function test_fullFlow_CreateAndMigrate_WithHookInitialization() public {
-        address[] memory dopplerHooks = new address[](1);
-        uint256[] memory flags = new uint256[](1);
-        dopplerHooks[0] = address(scheduledLaunchHook);
-        flags[0] = ON_INITIALIZATION_FLAG;
-        vm.prank(AIRLOCK_OWNER);
-        migrator.setDopplerHookState(dopplerHooks, flags);
-
-        bytes memory initData = _defaultPoolInitializerData();
-        uint256 startTime = block.timestamp + 1 days;
-        bytes memory hookData = abi.encode(startTime);
-        bytes memory migratorData = _defaultMigratorData(false, address(scheduledLaunchHook), hookData);
-        bytes memory tokenFactoryData = _defaultTokenFactoryData();
-
-        (address asset,,,,) = airlock.create(
-            CreateParams({
-                initialSupply: 1e23,
-                numTokensToSell: 1e23,
-                numeraire: address(0),
-                tokenFactory: tokenFactory,
-                tokenFactoryData: tokenFactoryData,
-                governanceFactory: governanceFactory,
-                governanceFactoryData: new bytes(0),
-                poolInitializer: initializer,
-                poolInitializerData: initData,
-                liquidityMigrator: migrator,
-                liquidityMigratorData: migratorData,
-                integrator: address(0),
-                salt: bytes32(uint256(2))
-            })
-        );
-
-        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
-        assertEq(scheduledLaunchHook.getStartingTimeOf(poolKey.toId()), 0, "Hook not initialized before migrate");
-
-        _swapOnInitializerPool(asset);
-        airlock.migrate(asset);
-
-        assertEq(
-            scheduledLaunchHook.getStartingTimeOf(poolKey.toId()), startTime, "Hook should be initialized after migrate"
-        );
-    }
-
     function test_fullFlow_CreateAndMigrate_WithRehypeHook() public {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
@@ -253,54 +208,6 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             beneficiaryFees0 + beneficiaryFees1 + airlockOwnerFees0 + airlockOwnerFees1 > 0,
             "Rehype hook should accrue fees"
         );
-    }
-
-    function test_fullFlow_CreateAndMigrate_WithScheduledLaunchHook() public {
-        address[] memory dopplerHooks = new address[](1);
-        uint256[] memory flags = new uint256[](1);
-        dopplerHooks[0] = address(scheduledLaunchHook);
-        flags[0] = ON_INITIALIZATION_FLAG;
-        vm.prank(AIRLOCK_OWNER);
-        migrator.setDopplerHookState(dopplerHooks, flags);
-
-        bytes memory initData = _defaultPoolInitializerData();
-        uint256 startTime = block.timestamp + 1 days;
-        bytes memory hookData = abi.encode(startTime);
-        bytes memory migratorData = _defaultMigratorData(false, address(scheduledLaunchHook), hookData);
-        bytes memory tokenFactoryData = _defaultTokenFactoryData();
-
-        (address asset,,,,) = airlock.create(
-            CreateParams({
-                initialSupply: 1e23,
-                numTokensToSell: 1e23,
-                numeraire: address(0),
-                tokenFactory: tokenFactory,
-                tokenFactoryData: tokenFactoryData,
-                governanceFactory: governanceFactory,
-                governanceFactoryData: new bytes(0),
-                poolInitializer: initializer,
-                poolInitializerData: initData,
-                liquidityMigrator: migrator,
-                liquidityMigratorData: migratorData,
-                integrator: address(0),
-                salt: bytes32(uint256(11))
-            })
-        );
-
-        _swapOnInitializerPool(asset);
-        airlock.migrate(asset);
-
-        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
-        assertEq(scheduledLaunchHook.getStartingTimeOf(poolKey.toId()), startTime);
-
-        vm.expectRevert(abi.encodeWithSelector(SaleHasNotStartedYet.selector, startTime, block.timestamp));
-        vm.prank(address(migrator));
-        scheduledLaunchHook.onSwap(
-            address(0), poolKey, IPoolManager.SwapParams(false, 0, 0), BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
-        );
-
-        vm.warp(block.timestamp + 2 days);
-        _swapOnMigrationPool(asset);
     }
 
     function test_fullFlow_CreateAndMigrate_WithSwapRestrictorHook() public {
@@ -503,15 +410,13 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     function test_fullFlow_Migrate_RevertIfHookDisabledAfterInitialize() public {
         address[] memory dopplerHooks = new address[](1);
         uint256[] memory flags = new uint256[](1);
-        dopplerHooks[0] = address(scheduledLaunchHook);
-        flags[0] = ON_INITIALIZATION_FLAG;
+        dopplerHooks[0] = address(rehypeHookMigrator);
+        flags[0] = ON_INITIALIZATION_FLAG | ON_AFTER_SWAP_FLAG;
         vm.prank(AIRLOCK_OWNER);
         migrator.setDopplerHookState(dopplerHooks, flags);
 
         bytes memory initData = _defaultPoolInitializerData();
-        uint256 startTime = block.timestamp + 1 days;
-        bytes memory hookData = abi.encode(startTime);
-        bytes memory migratorData = _defaultMigratorData(false, address(scheduledLaunchHook), hookData);
+        bytes memory migratorData = _defaultMigratorData(false, address(rehypeHookMigrator), _defaultRehypeData());
         bytes memory tokenFactoryData = _defaultTokenFactoryData();
 
         (address asset,,,,) = airlock.create(
@@ -807,10 +712,9 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
     }
 
     function _defaultTokenFactoryData() internal pure returns (bytes memory) {
-        return
-            abi.encode(
-                "Doppler Hook Migrator Test Token", "DHMT", 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"
-            );
+        return dopplerERC20V1FactoryData(
+            "Doppler Hook Migrator Test Token", "DHMT", "TOKEN_URI", 0, 0, address(0), new address[](0)
+        );
     }
 
     function _defaultPoolInitializerData() internal pure returns (bytes memory) {
@@ -827,6 +731,27 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
                 onInitializationDopplerHookCalldata: new bytes(0),
                 graduationDopplerHookCalldata: new bytes(0),
                 farTick: 160_000
+            })
+        );
+    }
+
+    function _defaultRehypeData() internal pure returns (bytes memory) {
+        return abi.encode(
+            RehypeInitData({
+                numeraire: address(0),
+                buybackDst: address(0xBEEF),
+                customFee: 3000,
+                feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeDistributionInfo: FeeDistributionInfo({
+                    assetFeesToAssetBuybackWad: 0.2e18,
+                    assetFeesToNumeraireBuybackWad: 0.2e18,
+                    assetFeesToBeneficiaryWad: 0.3e18,
+                    assetFeesToLpWad: 0.3e18,
+                    numeraireFeesToAssetBuybackWad: 0.2e18,
+                    numeraireFeesToNumeraireBuybackWad: 0.2e18,
+                    numeraireFeesToBeneficiaryWad: 0.3e18,
+                    numeraireFeesToLpWad: 0.3e18
+                })
             })
         );
     }

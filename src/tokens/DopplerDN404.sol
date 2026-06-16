@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
 import { DN404 } from "lib/dn404/src/DN404.sol";
 import { LibString } from "solady/utils/LibString.sol";
-import { DopplerDN404Mirror } from "src/dn404/DopplerDN404Mirror.sol";
+import { DopplerDN404Mirror } from "src/tokens/DopplerDN404Mirror.sol";
 
 /// @dev Thrown when trying to transfer tokens into the pool while it is locked
 error PoolLocked();

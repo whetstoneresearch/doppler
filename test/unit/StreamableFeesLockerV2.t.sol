@@ -7,7 +7,12 @@ import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
-import { Lock, MigratorApproval, NotApprovedMigrator, StreamableFeesLockerV2 } from "src/StreamableFeesLockerV2.sol";
+import {
+    Lock,
+    MigratorApproval,
+    NotApprovedMigrator,
+    StreamableFeesLockerV2
+} from "src/lockers/StreamableFeesLockerV2.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 

@@ -29,8 +29,7 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { ITokenFactory } from "src/interfaces/ITokenFactory.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { DERC20 } from "src/tokens/DERC20.sol";
-import { TokenFactory } from "src/tokens/TokenFactory.sol";
+import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
     EPSILON,
@@ -41,6 +40,7 @@ import {
     InsufficientFeeCurrency
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
+import { dopplerERC20V1FactoryData, predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
 
 contract LiquidityMigratorMock is ILiquidityMigrator {
     function initialize(address, address, bytes memory) external pure override returns (address) {
@@ -111,7 +111,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
     Airlock public airlock;
     DopplerHookInitializer public initializer;
-    TokenFactory public tokenFactory;
+    DopplerERC20V1Factory public tokenFactory;
     GovernanceFactory public governanceFactory;
     LiquidityMigratorMock public mockLiquidityMigrator;
     RehypeDopplerHookInitializer public rehypeDopplerHook;
@@ -128,7 +128,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         vm.label(address(numeraire), "Numeraire");
 
         airlock = new Airlock(airlockOwner);
-        tokenFactory = new TokenFactory(address(airlock));
+        tokenFactory = new DopplerERC20V1Factory(address(airlock));
         governanceFactory = new GovernanceFactory(address(airlock));
 
         initializer = DopplerHookInitializer(
@@ -1388,27 +1388,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
 
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
+        address tokenAddress = predictDopplerERC20V1Address(tokenFactory, salt);
 
         InitData memory initData = _prepareInitDataWithDecay(
             tokenAddress, startFee, endFee, durationSeconds, startingTime, feeDistribution, feeRoutingMode
@@ -1419,7 +1399,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             numTokensToSell: initialSupply,
             numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            tokenFactoryData: dopplerERC20V1FactoryData(name, symbol, "TOKEN_URI", 0, 0, address(0), new address[](0)),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
@@ -1489,27 +1469,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
 
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
+        address tokenAddress = predictDopplerERC20V1Address(tokenFactory, salt);
 
         InitData memory initData = _prepareInitData(tokenAddress, customFee, feeDistribution, feeRoutingMode);
 
@@ -1518,7 +1478,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             numTokensToSell: initialSupply,
             numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            tokenFactoryData: dopplerERC20V1FactoryData(name, symbol, "TOKEN_URI", 0, 0, address(0), new address[](0)),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
@@ -1572,31 +1532,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     }
 
     function _predictTokenAddress(bytes32 salt) internal view returns (address) {
-        string memory name = "Test Token";
-        string memory symbol = "TEST";
-        uint256 initialSupply = 1e27;
-
-        return vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
+        return predictDopplerERC20V1Address(tokenFactory, salt);
     }
 
     function _executeBidirectionalSwapPermutation(
@@ -1738,27 +1674,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
 
-        address tokenAddress = vm.computeCreate2Address(
-            salt,
-            keccak256(
-                abi.encodePacked(
-                    type(DERC20).creationCode,
-                    abi.encode(
-                        name,
-                        symbol,
-                        initialSupply,
-                        address(airlock),
-                        address(airlock),
-                        0,
-                        0,
-                        new address[](0),
-                        new uint256[](0),
-                        "TOKEN_URI"
-                    )
-                )
-            ),
-            address(tokenFactory)
-        );
+        address tokenAddress = predictDopplerERC20V1Address(tokenFactory, salt);
 
         InitData memory initData = _prepareInitDataWithZeroFee(tokenAddress);
 
@@ -1767,7 +1683,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
             numTokensToSell: initialSupply,
             numeraire: address(numeraire),
             tokenFactory: ITokenFactory(tokenFactory),
-            tokenFactoryData: abi.encode(name, symbol, 0, 0, new address[](0), new uint256[](0), "TOKEN_URI"),
+            tokenFactoryData: dopplerERC20V1FactoryData(name, symbol, "TOKEN_URI", 0, 0, address(0), new address[](0)),
             governanceFactory: IGovernanceFactory(governanceFactory),
             governanceFactoryData: abi.encode("Test Token", 7200, 50_400, 0),
             poolInitializer: IPoolInitializer(initializer),
