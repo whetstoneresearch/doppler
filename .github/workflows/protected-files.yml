@@ -1,0 +1,96 @@
+name: Protected files
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: protected-files-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Block protected file changes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Check protected files
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+
+            const blocklistPath = '.github/protected-files.txt';
+            const parseBlocklist = (contents) => contents
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter((line) => line && !line.startsWith('#'));
+
+            const blocklist = parseBlocklist(fs.readFileSync(blocklistPath, 'utf8'));
+            const protectedFiles = new Set(blocklist);
+            const changedFiles = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+
+            const blocked = [...new Set(changedFiles
+              .flatMap((file) => [file.filename, file.previous_filename].filter(Boolean))
+              .filter((filename) => protectedFiles.has(filename)))]
+              .sort();
+
+            const pullRequest = context.payload.pull_request;
+            let headBlocklistResponse;
+            try {
+              headBlocklistResponse = await github.rest.repos.getContent({
+                owner: pullRequest.head.repo.owner.login,
+                repo: pullRequest.head.repo.name,
+                path: blocklistPath,
+                ref: pullRequest.head.sha,
+              });
+            } catch (error) {
+              core.setFailed(`Unable to read ${blocklistPath} from the pull request head: ${error.message}`);
+              return;
+            }
+
+            if (!headBlocklistResponse.data.content) {
+              core.setFailed(`Expected ${blocklistPath} to be a file in the pull request head.`);
+              return;
+            }
+
+            const headBlocklistContent = Buffer.from(headBlocklistResponse.data.content, 'base64').toString();
+            const headBlocklist = new Set(parseBlocklist(headBlocklistContent));
+            const removedEntries = blocklist
+              .filter((filename) => !headBlocklist.has(filename))
+              .sort();
+
+            for (const filename of removedEntries) {
+              core.error(`Protected file entry ${filename} cannot be removed from ${blocklistPath}.`);
+            }
+
+            if (blocked.length === 0) {
+              core.info('No protected files changed.');
+            } else {
+              for (const filename of blocked) {
+                core.error(`Changes to ${filename} are blocked by ${blocklistPath}.`);
+              }
+            }
+
+            if (blocked.length > 0 || removedEntries.length > 0) {
+              core.setFailed('Protected file policy failed.');
+            }
