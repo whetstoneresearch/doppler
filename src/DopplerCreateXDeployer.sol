@@ -4,9 +4,13 @@ pragma solidity ^0.8.24;
 import { ICreateX } from "createx/ICreateX.sol";
 import { OwnableRoles } from "solady/auth/OwnableRoles.sol";
 
-/// @title DopplerDeployer
+/// @title DopplerCreateXDeployer
 /// @notice Permissioned wrapper around CreateX for deterministic Doppler protocol deployments.
-contract DopplerDeployer is OwnableRoles {
+contract DopplerCreateXDeployer is OwnableRoles {
+    /// @notice Admin address is invalid for the requested role update.
+    error InvalidAdmin();
+    /// @notice Address is invalid for the requested role update.
+    error InvalidAddress();
     /// @notice Batch call ETH value did not equal the supplied per-call values.
     error PaymentMismatch(uint256 actual, uint256 expected);
     /// @notice Deployed address differed from the caller-supplied expected address.
@@ -15,8 +19,6 @@ contract DopplerDeployer is OwnableRoles {
     error ExecutionFailed();
     /// @notice Deployer role target is invalid for the requested role update.
     error InvalidDeployer();
-    /// @notice A role assignment was attempted for an address that already has a role.
-    error RoleAlreadyAssigned();
     /// @notice Batch execution arrays must have identical lengths.
     error ArrayLengthsMismatch();
 
@@ -24,6 +26,8 @@ contract DopplerDeployer is OwnableRoles {
     event AdminAdded(address admin);
     /// @notice Emitted when the owner removes admin privileges.
     event AdminRemoved(address admin);
+    /// @notice Emitted when the owner revokes roles from an address.
+    event RolesRevoked(address indexed addr);
     /// @notice Emitted when an admin or owner grants deployer privileges.
     event DeployerAdded(address indexed admin, address deployer);
     /// @notice Emitted when an admin or owner removes deployer privileges.
@@ -52,6 +56,7 @@ contract DopplerDeployer is OwnableRoles {
     function addAdmins(address[] calldata admins) external onlyOwner {
         for (uint256 i; i < admins.length; ++i) {
             address admin = admins[i];
+            require(admin != address(0) && admin != msg.sender, InvalidAdmin());
             _setRoles(admin, _ROLE_ADMIN);
             emit AdminAdded(admin);
         }
@@ -61,29 +66,41 @@ contract DopplerDeployer is OwnableRoles {
     function removeAdmins(address[] calldata admins) external onlyOwner {
         for (uint256 i; i < admins.length; ++i) {
             address admin = admins[i];
+            require(admin != address(0) && admin != msg.sender, InvalidAdmin());
+            require(hasAnyRole(admin, _ROLE_ADMIN), InvalidAdmin());
             _setRoles(admin, 0);
             emit AdminRemoved(admin);
         }
     }
 
+    /// @notice Revokes all roles from each address, regardless of prior role.
+    function revokeRoles(address[] calldata addrs) external onlyOwner {
+        for (uint256 i; i < addrs.length; ++i) {
+            address addr = addrs[i];
+            require(addr != address(0) && addr != msg.sender, InvalidAddress());
+            require(rolesOf(addr) != 0, InvalidAddress());
+            _setRoles(addr, 0);
+            emit RolesRevoked(addr);
+        }
+    }
+
     /// @notice Grants deployer privileges to each address.
-    /// @dev Each target must not already have a role and cannot be the caller.
     function addDeployers(address[] calldata deployers) external onlyRolesOrOwner(_ROLE_ADMIN) {
         for (uint256 i; i < deployers.length; ++i) {
             address deployer = deployers[i];
-            require(rolesOf(deployer) == 0, RoleAlreadyAssigned());
             require(deployer != address(0) && deployer != msg.sender, InvalidDeployer());
-            _grantRoles(deployer, _ROLE_DEPLOYER);
+            _setRoles(deployer, _ROLE_DEPLOYER);
             emit DeployerAdded(msg.sender, deployer);
         }
     }
 
-    /// @notice Removes deployer privileges from each address.
+    /// @notice Removes all roles from each deployer address.
     function removeDeployers(address[] calldata deployers) external onlyRolesOrOwner(_ROLE_ADMIN) {
         for (uint256 i; i < deployers.length; ++i) {
             address deployer = deployers[i];
-            require(rolesOf(deployer) == _ROLE_DEPLOYER, InvalidDeployer());
-            _removeRoles(deployer, _ROLE_DEPLOYER);
+            require(deployer != address(0) && deployer != msg.sender, InvalidDeployer());
+            require(hasAnyRole(deployer, _ROLE_DEPLOYER), InvalidDeployer());
+            _setRoles(deployer, 0);
             emit DeployerRemoved(msg.sender, deployer);
         }
     }
@@ -99,18 +116,32 @@ contract DopplerDeployer is OwnableRoles {
     }
 
     /// @notice Computes the guarded salt CreateX will use for an explicit salt deployment.
-    function computeGuardedSalt(bytes32 salt) external view returns (bytes32) {
-        return _guardSalt(salt);
+    function computeGuardedSalt(bytes32 salt) public view returns (bytes32) {
+        address senderBytes = address(bytes20(salt));
+        bytes1 redeployProtectionFlag = salt[20];
+
+        if (senderBytes == address(this)) {
+            if (redeployProtectionFlag == hex"00") {
+                return _efficientHash({ a: bytes32(uint256(uint160(address(this)))), b: salt });
+            }
+            if (redeployProtectionFlag == hex"01") {
+                return keccak256(abi.encode(address(this), block.chainid, salt));
+            }
+        } else if (senderBytes == address(0) && redeployProtectionFlag == hex"01") {
+            return _efficientHash({ a: bytes32(block.chainid), b: salt });
+        }
+
+        return keccak256(abi.encode(salt));
     }
 
     /// @notice Computes the Create2 address for a salt and init code hash using CreateX guard rules.
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) external view returns (address) {
-        return CreateX.computeCreate2Address(_guardSalt(salt), initCodeHash);
+        return CreateX.computeCreate2Address(computeGuardedSalt(salt), initCodeHash);
     }
 
     /// @notice Computes the Create3 address for a salt using CreateX guard rules.
     function computeCreate3Address(bytes32 salt) external view returns (address) {
-        return CreateX.computeCreate3Address(_guardSalt(salt));
+        return CreateX.computeCreate3Address(computeGuardedSalt(salt));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -157,8 +188,8 @@ contract DopplerDeployer is OwnableRoles {
     function deployCreate2(
         bytes32 salt,
         bytes calldata initCode
-    ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
-        address deployed = CreateX.deployCreate2(salt, initCode);
+    ) external payable onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
+        address deployed = CreateX.deployCreate2{ value: msg.value }(salt, initCode);
         emit Deployed(msg.sender, deployed);
         return deployed;
     }
@@ -169,8 +200,8 @@ contract DopplerDeployer is OwnableRoles {
         bytes32 salt,
         bytes calldata initCode,
         address expected
-    ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
-        address deployed = CreateX.deployCreate2(salt, initCode);
+    ) external payable onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
+        address deployed = CreateX.deployCreate2{ value: msg.value }(salt, initCode);
         require(deployed == expected, AddressMismatch(deployed, expected));
         emit Deployed(msg.sender, deployed);
         return deployed;
@@ -181,8 +212,8 @@ contract DopplerDeployer is OwnableRoles {
     function deployCreate3(
         bytes32 salt,
         bytes calldata initCode
-    ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
-        address deployed = CreateX.deployCreate3(salt, initCode);
+    ) external payable onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
+        address deployed = CreateX.deployCreate3{ value: msg.value }(salt, initCode);
         emit Deployed(msg.sender, deployed);
         return deployed;
     }
@@ -193,8 +224,8 @@ contract DopplerDeployer is OwnableRoles {
         bytes32 salt,
         bytes calldata initCode,
         address expected
-    ) external onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
-        address deployed = CreateX.deployCreate3(salt, initCode);
+    ) external payable onlyRolesOrOwner(_ROLE_AUTHORIZED) returns (address) {
+        address deployed = CreateX.deployCreate3{ value: msg.value }(salt, initCode);
         require(deployed == expected, AddressMismatch(deployed, expected));
         emit Deployed(msg.sender, deployed);
         return deployed;
@@ -211,24 +242,5 @@ contract DopplerDeployer is OwnableRoles {
             mstore(0x20, b)
             hash := keccak256(0x00, 0x40)
         }
-    }
-
-    /// @dev Mirrors CreateX guarded salts for explicit salt calls, salt validation happens in CreateX.
-    function _guardSalt(bytes32 salt) internal view returns (bytes32) {
-        address senderBytes = address(bytes20(salt));
-        bytes1 redeployProtectionFlag = salt[20];
-
-        if (senderBytes == address(this)) {
-            if (redeployProtectionFlag == hex"00") {
-                return _efficientHash({ a: bytes32(uint256(uint160(address(this)))), b: salt });
-            }
-            if (redeployProtectionFlag == hex"01") {
-                return keccak256(abi.encode(address(this), block.chainid, salt));
-            }
-        } else if (senderBytes == address(0) && redeployProtectionFlag == hex"01") {
-            return _efficientHash({ a: bytes32(block.chainid), b: salt });
-        }
-
-        return keccak256(abi.encode(salt));
     }
 }

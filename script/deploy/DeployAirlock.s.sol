@@ -1,42 +1,64 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
-import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt } from "script/utils/CreateX.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { Airlock } from "src/Airlock.sol";
 
-contract DeployAirlockScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployAirlock is DeployBase {
+    bytes32 public salt; // Only set if you want to use a specific salt
+    address public expectedAddress; // Only set if you've configured a custom salt
 
-        uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+    function _deployAirlock(DeployContext memory context) internal returns (address airlock) {
+        if (salt != bytes32(0) || expectedAddress != address(0)) {
+            require(salt != bytes32(0) && expectedAddress != address(0), "Deployment configuration is incomplete");
+        }
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            deployToChain(chainId);
+        address multisig = context.config.get(context.chainId, "airlock_multisig").toAddress();
+
+        bytes32 deploymentSalt =
+            salt != bytes32(0) ? salt : context.protocolDeployer.generateSalt(type(Airlock).name, AIRLOCK_VERSION);
+        address computedExpected = _computeProtocolCreate3Address(context.protocolDeployer, deploymentSalt);
+        address deploymentExpected = expectedAddress != address(0) ? expectedAddress : computedExpected;
+        bytes memory initCode = abi.encodePacked(type(Airlock).creationCode, abi.encode(multisig));
+
+        bool alreadyDeployed;
+        (airlock, alreadyDeployed) = _deployOrUseExistingCreate3(context, deploymentSalt, deploymentExpected, initCode);
+
+        _verifyExistingDeployment(airlock, multisig);
+        _setConfigAddress(context, "airlock", airlock);
+
+        if (alreadyDeployed) {
+            console.log("Airlock already deployed to:", airlock);
+        } else {
+            console.log("Airlock deployed to:", airlock);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
+    function _verifyExistingDeployment(address addr, address owner) internal view {
+        Airlock airlock = Airlock(payable(addr));
 
-        address createX = config.get("create_x").toAddress();
-        address multisig = config.get("airlock_multisig").toAddress();
+        // Verify owner
+        if (owner != address(0)) require(airlock.owner() == owner, "Airlock owner mismatch");
 
-        vm.startBroadcast();
-        bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xb16b055));
-        address predictedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+        // Verify interface
+        airlock.getModuleState(address(0));
+        airlock.getAssetData(address(0));
+        airlock.getProtocolFees(address(0));
+        airlock.getIntegratorFees(address(0), address(0));
+    }
+}
 
-        address airlock =
-            ICreateX(createX).deployCreate3(salt, abi.encodePacked(type(Airlock).creationCode, abi.encode(multisig)));
-        require(airlock == predictedAddress, "Unexpected deployed address");
-        vm.stopBroadcast();
+contract DeployAirlockScript is DeployAirlock {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
 
-        config.set("airlock", airlock);
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address airlock) {
+        return _deployAirlock(_deployContext());
     }
 }
