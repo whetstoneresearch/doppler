@@ -294,7 +294,7 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
 
         _buyUntilDynamicV4CanMigrate(pool);
 
-        vm.expectPartialRevert(WRAPPED_ERROR_SELECTOR);
+        vm.expectRevert(TRANSFER_FROM_FAILED_SELECTOR);
         airlock.migrate(asset);
     }
 
@@ -599,6 +599,7 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         assertFalse(token.isExcludedFromBalanceLimit(UNNECESSARY_EXCLUSION), "unnecessary address excluded");
 
         _buyUntilLockableV3CanMigrate(pool, asset);
+        uint256 timelockAssetBefore = token.balanceOf(actualTimelock);
         airlock.migrate(asset);
 
         (,,,,,,, MigratorStatus status) = hookMigrator.getAssetData(
@@ -608,7 +609,8 @@ contract DopplerERC20V1MaxBalanceIntegrationTest is Deployers, DeployPermit2 {
         _swapOnMigrationPoolFor(asset, WETH_MAINNET);
         _assertActiveLimit(token);
         assertEq(token.owner(), actualTimelock, "owner should transfer to timelock");
-        assertGt(token.balanceOf(address(hookMigratorLocker)), 0, "locker should receive migrated asset");
+        assertEq(token.balanceOf(address(hookMigratorLocker)), 0, "locker should not retain migrated asset dust");
+        assertGt(token.balanceOf(actualTimelock), timelockAssetBefore, "timelock should receive migrated asset dust");
     }
 
     function test_lockableUniswapV3Initializer_V1ActiveMaxBalance_RevertsWithoutPoolExclusion() public {

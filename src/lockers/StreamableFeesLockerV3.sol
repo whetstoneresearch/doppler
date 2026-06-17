@@ -10,11 +10,13 @@ import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { Actions } from "@v4-periphery/libraries/Actions.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { FeesManager } from "src/base/FeesManager.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES } from "src/types/BeneficiaryData.sol";
 import { DEAD_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";
+import { Values } from "src/types/Values.sol";
 
 /**
  * @notice Data structure for stream information
@@ -44,6 +46,18 @@ error StreamNotFound();
 
 /// @notice Thrown when a stream already started
 error StreamAlreadyStarted();
+
+/// @notice Thrown when the native value sent does not match the lock values
+error InvalidNativeValue();
+
+/// @notice Thrown when an ERC20 transfer did not deliver the requested amount
+error InvalidTransferAmount();
+
+/// @notice Thrown when a lock consumes assets that were already held by the locker
+error PreExistingBalanceSpent();
+
+/// @notice Thrown when a value cannot fit the PositionManager amount max type
+error ValueTooLarge();
 
 /**
  * @notice Emitted when a position is locked
@@ -76,6 +90,7 @@ event MigratorApproval(address indexed migrator, bool approval);
  */
 contract StreamableFeesLockerV3 is Ownable, FeesManager {
     using CurrencyLibrary for Currency;
+    using SafeTransferLib for address;
 
     /// @notice Uniswap V4 PoolManager used by the PositionManager
     IPoolManager public immutable poolManager;
@@ -124,21 +139,35 @@ contract StreamableFeesLockerV3 is Ownable, FeesManager {
      * @param recipient Recipient address receiving liquidity control on unlock
      * @param beneficiaries Array of beneficiaries and their shares
      * @param positions Array of positions to lock
+     * @param values Amounts of each currency to lock
      */
     function lock(
         PoolKey memory poolKey,
         uint32 lockDuration,
         address recipient,
         BeneficiaryData[] calldata beneficiaries,
-        Position[] calldata positions
-    ) external onlyApprovedMigrator {
+        Position[] calldata positions,
+        Values calldata values
+    ) external payable onlyApprovedMigrator nonReentrant {
         PoolId poolId = poolKey.toId();
 
         require(streams[poolId].startDate == 0, StreamAlreadyStarted());
 
+        uint256 nativeValue = _nativeValue(poolKey, values);
+        if (msg.value != nativeValue) revert InvalidNativeValue();
+
+        uint256 balance0Before = _balanceBeforeLock(poolKey.currency0);
+        uint256 balance1Before = _balanceBeforeLock(poolKey.currency1);
+
+        _pullCurrency(poolKey.currency0, values.value0, balance0Before);
+        _pullCurrency(poolKey.currency1, values.value1, balance1Before);
+
         _storeBeneficiaries(poolKey, beneficiaries, owner(), MIN_PROTOCOL_OWNER_SHARES);
 
-        uint256[] memory tokenIds = _mintPositions(poolKey, positions);
+        uint256[] memory tokenIds = _mintPositions(poolKey, positions, values, nativeValue);
+
+        _refundDust(poolKey.currency0, balance0Before, recipient);
+        _refundDust(poolKey.currency1, balance1Before, recipient);
 
         // Note: If recipient is DEAD_ADDRESS (0xdead), the positions will be permanently locked
         // and beneficiaries can collect fees in perpetuity
@@ -198,7 +227,9 @@ contract StreamableFeesLockerV3 is Ownable, FeesManager {
 
     function _mintPositions(
         PoolKey memory poolKey,
-        Position[] calldata positions
+        Position[] calldata positions,
+        Values calldata values,
+        uint256 nativeValue
     ) internal returns (uint256[] memory tokenIds) {
         uint256 length = positions.length;
         tokenIds = new uint256[](length);
@@ -208,8 +239,8 @@ contract StreamableFeesLockerV3 is Ownable, FeesManager {
         bytes[] memory params = new bytes[](actionsLength);
         bytes memory actions = new bytes(actionsLength);
 
-        uint128 amount0Max = _balanceOfSelf(poolKey.currency0);
-        uint128 amount1Max = _balanceOfSelf(poolKey.currency1);
+        uint128 amount0Max = _toUint128(values.value0);
+        uint128 amount1Max = _toUint128(values.value1);
 
         for (uint256 i; i < length; ++i) {
             Position calldata position = positions[i];
@@ -239,7 +270,7 @@ contract StreamableFeesLockerV3 is Ownable, FeesManager {
         _approvePositionManager(poolKey.currency0, amount0Max);
         _approvePositionManager(poolKey.currency1, amount1Max);
 
-        positionManager.modifyLiquidities{ value: _nativeValue(poolKey) }(
+        positionManager.modifyLiquidities{ value: nativeValue }(
             abi.encode(abi.encodePacked(actions), params), block.timestamp
         );
 
@@ -283,6 +314,30 @@ contract StreamableFeesLockerV3 is Ownable, FeesManager {
         }
     }
 
+    function _pullCurrency(Currency currency, uint256 amount, uint256 balanceBefore) internal {
+        if (amount == 0 || Currency.unwrap(currency) == address(0)) return;
+
+        Currency.unwrap(currency).safeTransferFrom(msg.sender, address(this), amount);
+
+        if (currency.balanceOfSelf() != balanceBefore + amount) {
+            revert InvalidTransferAmount();
+        }
+    }
+
+    function _refundDust(Currency currency, uint256 balanceBefore, address recipient) internal {
+        uint256 balanceAfter = _balanceOfSelf(currency);
+        if (balanceAfter < balanceBefore) revert PreExistingBalanceSpent();
+
+        uint256 dust = balanceAfter - balanceBefore;
+        if (dust == 0) return;
+
+        if (Currency.unwrap(currency) == address(0)) {
+            SafeTransferLib.forceSafeTransferETH(recipient, dust);
+        } else {
+            currency.transfer(recipient, dust);
+        }
+    }
+
     function _approvePositionManager(Currency currency, uint256 amount) internal {
         if (amount == 0 || Currency.unwrap(currency) == address(0)) return;
 
@@ -296,20 +351,37 @@ contract StreamableFeesLockerV3 is Ownable, FeesManager {
         positionManager.permit2().approve(token, address(positionManager), uint160(amount), type(uint48).max);
     }
 
-    function _balanceOfSelf(Currency currency) internal view returns (uint128 balance) {
+    function _balanceBeforeLock(Currency currency) internal view returns (uint256) {
         if (Currency.unwrap(currency) == address(0)) {
-            balance = uint128(address(this).balance);
+            return address(this).balance - msg.value;
+        }
+
+        return currency.balanceOfSelf();
+    }
+
+    function _balanceOfSelf(Currency currency) internal view returns (uint256 balance) {
+        if (Currency.unwrap(currency) == address(0)) {
+            balance = address(this).balance;
         } else {
-            balance = uint128(currency.balanceOfSelf());
+            balance = currency.balanceOfSelf();
         }
     }
 
-    function _nativeValue(PoolKey memory poolKey) internal view returns (uint256) {
-        if (_hasNativeCurrency(poolKey)) {
-            return address(this).balance;
+    function _nativeValue(PoolKey memory poolKey, Values calldata values) internal pure returns (uint256) {
+        if (Currency.unwrap(poolKey.currency0) == address(0)) {
+            return values.value0;
+        }
+
+        if (Currency.unwrap(poolKey.currency1) == address(0)) {
+            return values.value1;
         }
 
         return 0;
+    }
+
+    function _toUint128(uint256 value) internal pure returns (uint128) {
+        if (value > type(uint128).max) revert ValueTooLarge();
+        return uint128(value);
     }
 
     function _hasNativeCurrency(PoolKey memory poolKey) internal pure returns (bool) {

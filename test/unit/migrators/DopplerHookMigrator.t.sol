@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -358,8 +359,8 @@ contract DopplerHookMigratorTest is Deployers, DeployPermit2 {
         (,, uint32 startDate,,) = locker.streams(poolKey.toId());
         assertGt(startDate, 0);
 
-        assertEq(currency0.balanceOf(address(migrator)), 0);
-        assertEq(currency1.balanceOf(address(migrator)), 0);
+        _assertNoMigratorOrLockerDust(poolKey);
+        _assertLockerApprovalsConsumed(poolKey);
     }
 
     function test_migrate_UnlockTransfersPositionNFTsToRecipient() public {
@@ -961,6 +962,31 @@ contract DopplerHookMigratorTest is Deployers, DeployPermit2 {
                 address(0) // integrator
             )
         );
+    }
+
+    function _assertNoMigratorOrLockerDust(PoolKey memory poolKey) internal view {
+        assertEq(poolKey.currency0.balanceOf(address(migrator)), 0, "migrator should not retain currency0");
+        assertEq(poolKey.currency1.balanceOf(address(migrator)), 0, "migrator should not retain currency1");
+        assertEq(poolKey.currency0.balanceOf(address(locker)), 0, "locker should not retain currency0 dust");
+        assertEq(poolKey.currency1.balanceOf(address(locker)), 0, "locker should not retain currency1 dust");
+    }
+
+    function _assertLockerApprovalsConsumed(PoolKey memory poolKey) internal view {
+        if (Currency.unwrap(poolKey.currency0) != address(0)) {
+            assertEq(
+                ERC20(Currency.unwrap(poolKey.currency0)).allowance(address(migrator), address(locker)),
+                0,
+                "currency0 locker allowance should be consumed"
+            );
+        }
+
+        if (Currency.unwrap(poolKey.currency1) != address(0)) {
+            assertEq(
+                ERC20(Currency.unwrap(poolKey.currency1)).allowance(address(migrator), address(locker)),
+                0,
+                "currency1 locker allowance should be consumed"
+            );
+        }
     }
 
     function _generateInitData() internal {

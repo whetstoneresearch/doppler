@@ -37,6 +37,7 @@ import {
 } from "src/migrators/DopplerHookMigrator.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
+import { DEAD_ADDRESS } from "src/types/Constants.sol";
 import { FeeDistributionInfo, FeeRoutingMode, MigratorInitData as RehypeInitData } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { dopplerERC20V1FactoryData } from "test/shared/DopplerERC20V1FactoryHelper.sol";
@@ -162,6 +163,283 @@ contract DopplerHookMigratorIntegrationTest is Deployers, DeployPermit2 {
         assertEq(lockDuration, 30 days);
         assertEq(isUnlocked, false);
         assertEq(startDate > 0, true);
+    }
+
+    function test_fullFlow_MigratingAnotherPoolDoesNotConsumeCollectedNativeFees() public {
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address assetA,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(32))
+            })
+        );
+
+        _swapOnInitializerPool(assetA);
+        airlock.migrate(assetA);
+        _swapOnMigrationPool(assetA);
+
+        (, PoolKey memory poolKeyA,,,,,,) = migrator.getAssetData(address(0), assetA);
+        assertEq(Currency.unwrap(poolKeyA.currency0), address(0), "native numeraire should be currency0");
+
+        uint256 lockerNativeBeforeCollect = address(locker).balance;
+        vm.prank(makeAddr("Harvester"));
+        (uint128 feesA0, uint128 feesA1) = locker.collectFees(poolKeyA.toId());
+        uint256 collectedNativeFees = address(locker).balance - lockerNativeBeforeCollect;
+
+        assertGt(collectedNativeFees, 0, "test must collect native fees for pool A");
+        assertEq(collectedNativeFees, feesA0, "pool A native fee delta mismatch");
+        assertEq(feesA1, 0, "test only expects native-side fees");
+
+        uint256 beneficiaryNativeBefore = BENEFICIARY_1.balance;
+        uint256 expectedBeneficiaryClaim = collectedNativeFees * 95 / 100;
+        uint256 lockerNativeBeforePoolBMigration = address(locker).balance;
+
+        (address assetB,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(33))
+            })
+        );
+
+        _swapOnInitializerPool(assetB);
+        airlock.migrate(assetB);
+
+        assertGe(
+            address(locker).balance,
+            lockerNativeBeforePoolBMigration,
+            "pool B migration should not reduce pool A's held native fees"
+        );
+
+        vm.prank(BENEFICIARY_1);
+        locker.collectFees(poolKeyA.toId());
+
+        assertEq(BENEFICIARY_1.balance, beneficiaryNativeBefore + expectedBeneficiaryClaim);
+    }
+
+    function test_fullFlow_MigratingAnotherPoolDoesNotConsumeCollectedERC20NumeraireFees() public {
+        Currency numeraireCurrency = deployMintAndApproveCurrency();
+        address numeraire = Currency.unwrap(numeraireCurrency);
+        bytes memory poolInitializerData = _defaultPoolInitializerData();
+        bytes memory migratorData = _defaultMigratorData(false, address(0), new bytes(0));
+        bytes memory tokenFactoryData = _defaultTokenFactoryData();
+
+        (address assetA,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: numeraire,
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(34))
+            })
+        );
+
+        _swapOnInitializerPoolWithERC20Numeraire(assetA, numeraire);
+        airlock.migrate(assetA);
+        _swapOnMigrationPool(assetA);
+
+        PoolKey memory poolKeyA = _migrationPoolKey(assetA);
+        bool numeraireIsCurrency0 = Currency.unwrap(poolKeyA.currency0) == numeraire;
+        assertTrue(numeraireIsCurrency0 || Currency.unwrap(poolKeyA.currency1) == numeraire, "numeraire missing");
+
+        uint256 lockerNumeraireBeforeCollect = ERC20(numeraire).balanceOf(address(locker));
+        vm.prank(makeAddr("Harvester"));
+        (uint128 feesA0, uint128 feesA1) = locker.collectFees(poolKeyA.toId());
+        uint256 collectedNumeraireFees = ERC20(numeraire).balanceOf(address(locker)) - lockerNumeraireBeforeCollect;
+        uint128 collectedNumeraireFeesFromReturn = numeraireIsCurrency0 ? feesA0 : feesA1;
+
+        assertGt(collectedNumeraireFees, 0, "test must collect numeraire fees for pool A");
+        assertEq(collectedNumeraireFees, uint256(collectedNumeraireFeesFromReturn), "pool A fee delta mismatch");
+
+        uint256 beneficiaryNumeraireBefore = ERC20(numeraire).balanceOf(BENEFICIARY_1);
+        uint256 expectedBeneficiaryClaim = collectedNumeraireFees * 95 / 100;
+        uint256 lockerNumeraireBeforePoolBMigration = ERC20(numeraire).balanceOf(address(locker));
+
+        (address assetB,,,,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: numeraire,
+                tokenFactory: tokenFactory,
+                tokenFactoryData: tokenFactoryData,
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: poolInitializerData,
+                liquidityMigrator: migrator,
+                liquidityMigratorData: migratorData,
+                integrator: address(0),
+                salt: bytes32(uint256(35))
+            })
+        );
+
+        _swapOnInitializerPoolWithERC20Numeraire(assetB, numeraire);
+        airlock.migrate(assetB);
+
+        assertGe(
+            ERC20(numeraire).balanceOf(address(locker)),
+            lockerNumeraireBeforePoolBMigration,
+            "pool B migration should not reduce pool A's held numeraire fees"
+        );
+
+        vm.prank(BENEFICIARY_1);
+        locker.collectFees(poolKeyA.toId());
+
+        assertEq(ERC20(numeraire).balanceOf(BENEFICIARY_1), beneficiaryNumeraireBefore + expectedBeneficiaryClaim);
+    }
+
+    function test_fullFlow_DustIsForwardedToLaunchpadGovernanceRecipient() public {
+        LaunchpadGovernanceFactory launchpadGovernanceFactory = new LaunchpadGovernanceFactory();
+        address[] memory modules = new address[](1);
+        modules[0] = address(launchpadGovernanceFactory);
+        ModuleState[] memory states = new ModuleState[](1);
+        states[0] = ModuleState.GovernanceFactory;
+        vm.prank(AIRLOCK_OWNER);
+        airlock.setModuleState(modules, states);
+
+        address timelockRecipient = makeAddr("DustRecipient");
+
+        (address asset,,, address timelock,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: _defaultTokenFactoryData(),
+                governanceFactory: launchpadGovernanceFactory,
+                governanceFactoryData: abi.encode(timelockRecipient),
+                poolInitializer: initializer,
+                poolInitializerData: _defaultPoolInitializerData(),
+                liquidityMigrator: migrator,
+                liquidityMigratorData: _defaultMigratorData(false, address(0), new bytes(0)),
+                integrator: address(0),
+                salt: bytes32(uint256(36))
+            })
+        );
+        assertEq(timelock, timelockRecipient);
+
+        uint256 recipientNativeBefore = timelockRecipient.balance;
+        uint256 recipientAssetBefore = ERC20(asset).balanceOf(timelockRecipient);
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        PoolKey memory poolKey = _migrationPoolKey(asset);
+        assertEq(Currency.unwrap(poolKey.currency0), address(0), "native numeraire should be currency0");
+        assertEq(Currency.unwrap(poolKey.currency1), asset, "asset should be currency1");
+        _assertNoFreeMigrationBalances(poolKey);
+
+        assertGt(timelockRecipient.balance, recipientNativeBefore, "native dust should go to governance recipient");
+        assertGt(
+            ERC20(asset).balanceOf(timelockRecipient),
+            recipientAssetBefore,
+            "asset dust should go to governance recipient"
+        );
+    }
+
+    function test_fullFlow_NoOpGovernance_DustAndFeeCollectionDoNotRevert() public {
+        (address asset,,, address timelock,) = airlock.create(
+            CreateParams({
+                initialSupply: 1e23,
+                numTokensToSell: 1e23,
+                numeraire: address(0),
+                tokenFactory: tokenFactory,
+                tokenFactoryData: _defaultTokenFactoryData(),
+                governanceFactory: governanceFactory,
+                governanceFactoryData: new bytes(0),
+                poolInitializer: initializer,
+                poolInitializerData: _defaultPoolInitializerData(),
+                liquidityMigrator: migrator,
+                liquidityMigratorData: _defaultMigratorData(false, address(0), new bytes(0)),
+                integrator: address(0),
+                salt: bytes32(uint256(37))
+            })
+        );
+        assertEq(timelock, DEAD_ADDRESS);
+
+        uint256 deadNativeBefore = DEAD_ADDRESS.balance;
+        uint256 deadAssetBefore = ERC20(asset).balanceOf(DEAD_ADDRESS);
+
+        _swapOnInitializerPool(asset);
+        airlock.migrate(asset);
+
+        PoolKey memory poolKey = _migrationPoolKey(asset);
+        (, address recipient, uint32 startDate, uint32 lockDuration, bool isUnlocked) = locker.streams(poolKey.toId());
+        assertEq(recipient, DEAD_ADDRESS);
+        assertGt(startDate, 0);
+        assertEq(lockDuration, 30 days);
+        assertEq(isUnlocked, false);
+        _assertNoFreeMigrationBalances(poolKey);
+        assertGt(DEAD_ADDRESS.balance, deadNativeBefore, "native dust should go to dead recipient");
+        assertGt(ERC20(asset).balanceOf(DEAD_ADDRESS), deadAssetBefore, "asset dust should go to dead recipient");
+
+        _swapOnMigrationPool(asset);
+
+        uint256 beneficiaryBalance0Before = poolKey.currency0.balanceOf(BENEFICIARY_1);
+        uint256 beneficiaryBalance1Before = poolKey.currency1.balanceOf(BENEFICIARY_1);
+
+        vm.prank(makeAddr("Harvester"));
+        (uint128 fees0, uint128 fees1) = locker.collectFees(poolKey.toId());
+        assertGt(uint256(fees0) + uint256(fees1), 0, "test should collect fees");
+
+        vm.prank(BENEFICIARY_1);
+        locker.collectFees(poolKey.toId());
+
+        assertEq(
+            poolKey.currency0.balanceOf(BENEFICIARY_1),
+            beneficiaryBalance0Before + uint256(fees0) * 95 / 100,
+            "beneficiary should receive currency0 fees"
+        );
+        assertEq(
+            poolKey.currency1.balanceOf(BENEFICIARY_1),
+            beneficiaryBalance1Before + uint256(fees1) * 95 / 100,
+            "beneficiary should receive currency1 fees"
+        );
+
+        uint256[] memory tokenIds = locker.getTokenIds(poolKey.toId());
+        assertGt(tokenIds.length, 0, "locker should mint position NFTs");
+
+        vm.warp(uint256(startDate) + lockDuration);
+        vm.prank(makeAddr("LateHarvester"));
+        locker.collectFees(poolKey.toId());
+
+        (,,,, bool isUnlockedAfterDuration) = locker.streams(poolKey.toId());
+        assertEq(isUnlockedAfterDuration, false, "NoOp governance stream should remain permanently locked");
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(positionManager.ownerOf(tokenIds[i]), address(locker), "locker should retain NFT for NoOp");
+        }
     }
 
     function test_fullFlow_PostUnlockTransfersPositionNFTsToRecipient() public {
@@ -1016,6 +1294,27 @@ contract DopplerHookMigratorIntegrationTest is Deployers, DeployPermit2 {
         swapRouter.swap{ value: swapAmount }(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
     }
 
+    function _swapOnInitializerPoolWithERC20Numeraire(address asset, address numeraire) internal {
+        (,,,, PoolStatus status, PoolKey memory poolKey,) = initializer.getState(asset);
+        assertEq(uint8(status), uint8(PoolStatus.Initialized));
+
+        uint256 swapAmount = 0.1 ether;
+        bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
+        address inputToken = isToken0 ? Currency.unwrap(poolKey.currency1) : Currency.unwrap(poolKey.currency0);
+        assertEq(inputToken, numeraire, "initializer input should be numeraire");
+
+        deal(inputToken, address(this), swapAmount);
+        ERC20(inputToken).approve(address(swapRouter), swapAmount);
+
+        IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: -int256(swapAmount),
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+
+        swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
+    }
+
     function _swapOnInitializerPoolBidirectional(address asset, bool reverse) internal {
         (,,,, PoolStatus status, PoolKey memory poolKey,) = initializer.getState(asset);
         assertEq(uint8(status), uint8(PoolStatus.Initialized));
@@ -1054,7 +1353,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers, DeployPermit2 {
     }
 
     function _swapOnMigrationPoolFor(address asset, address payer, uint256 swapAmount) internal {
-        (, PoolKey memory poolKey,,,,,,) = migrator.getAssetData(address(0), asset);
+        PoolKey memory poolKey = _migrationPoolKey(asset);
 
         bool isToken0 = asset == Currency.unwrap(poolKey.currency0);
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
@@ -1076,6 +1375,20 @@ contract DopplerHookMigratorIntegrationTest is Deployers, DeployPermit2 {
         ERC20(inputToken).approve(address(swapRouter), swapAmount);
         vm.prank(payer);
         swapRouter.swap(poolKey, swapParams, PoolSwapTest.TestSettings(false, false), "");
+    }
+
+    function _migrationPoolKey(address asset) internal view returns (PoolKey memory poolKey) {
+        (address token0, address token1) = migrator.getPair(asset);
+        MigratorStatus status;
+        (, poolKey,,,,,, status) = migrator.getAssetData(token0, token1);
+        assertEq(uint8(status), uint8(MigratorStatus.Locked), "migration pool should be locked");
+    }
+
+    function _assertNoFreeMigrationBalances(PoolKey memory poolKey) internal view {
+        assertEq(poolKey.currency0.balanceOf(address(migrator)), 0, "migrator should not retain currency0");
+        assertEq(poolKey.currency1.balanceOf(address(migrator)), 0, "migrator should not retain currency1");
+        assertEq(poolKey.currency0.balanceOf(address(locker)), 0, "locker should not retain currency0 dust");
+        assertEq(poolKey.currency1.balanceOf(address(locker)), 0, "locker should not retain currency1 dust");
     }
 
     function _pickFeeTier(uint256 feeSeed) internal pure returns (uint24) {

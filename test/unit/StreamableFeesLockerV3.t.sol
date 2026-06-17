@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { Ownable } from "@openzeppelin/access/Ownable.sol";
+import { ERC20 } from "@solmate/tokens/ERC20.sol";
 import { Constants } from "@uniswap/v4-core/test/utils/Constants.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
@@ -25,6 +26,7 @@ import {
 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
+import { Values } from "src/types/Values.sol";
 
 contract StreamableFeesLockerV3Test is Deployers, DeployPermit2 {
     using CurrencyLibrary for Currency;
@@ -90,13 +92,10 @@ contract StreamableFeesLockerV3Test is Deployers, DeployPermit2 {
         ) = _prepareLockData();
 
         vm.expectRevert(NotApprovedMigrator.selector);
-        locker.lock(key, lockDuration, recipient, beneficiaries, positions);
+        locker.lock(key, lockDuration, recipient, beneficiaries, positions, _defaultValues());
     }
 
     function test_lock() public {
-        currency0.transfer(address(locker), 100e18);
-        currency1.transfer(address(locker), 100e18);
-
         (
             PoolKey memory key,
             uint32 lockDuration,
@@ -104,15 +103,99 @@ contract StreamableFeesLockerV3Test is Deployers, DeployPermit2 {
             BeneficiaryData[] memory beneficiaries,
             Position[] memory positions
         ) = _prepareLockData();
+        Values memory values = _defaultValues();
 
         manager.initialize(key, Constants.SQRT_PRICE_1_1);
+        _approveLocker(key, values);
 
         vm.prank(owner);
         locker.approveMigrator(address(this));
 
         vm.expectEmit();
         emit Lock(key.toId(), beneficiaries, block.timestamp + lockDuration);
-        locker.lock(key, lockDuration, recipient, beneficiaries, positions);
+        locker.lock(key, lockDuration, recipient, beneficiaries, positions, values);
+
+        assertEq(key.currency0.balanceOf(address(locker)), 0, "locker should not retain token0 dust");
+        assertEq(key.currency1.balanceOf(address(locker)), 0, "locker should not retain token1 dust");
+        assertGt(key.currency0.balanceOf(recipient), 0, "recipient should receive token0 dust");
+        assertGt(key.currency1.balanceOf(recipient), 0, "recipient should receive token1 dust");
+    }
+
+    function test_lock_RefundsNativeDustToRecipient() public {
+        (
+            PoolKey memory key,
+            uint32 lockDuration,
+            address recipient,
+            BeneficiaryData[] memory beneficiaries,
+            Position[] memory positions
+        ) = _prepareNativeLockData();
+        Values memory values = Values({ value0: 100 ether, value1: 100e18 });
+
+        manager.initialize(key, Constants.SQRT_PRICE_1_1);
+        deal(address(this), values.value0);
+        _approveLocker(key, values);
+
+        vm.prank(owner);
+        locker.approveMigrator(address(this));
+
+        uint256 recipientNativeBefore = recipient.balance;
+        uint256 recipientTokenBefore = key.currency1.balanceOf(recipient);
+
+        locker.lock{ value: values.value0 }(key, lockDuration, recipient, beneficiaries, positions, values);
+
+        assertEq(address(locker).balance, 0, "locker should not retain native dust");
+        assertEq(key.currency1.balanceOf(address(locker)), 0, "locker should not retain token dust");
+        assertGt(recipient.balance, recipientNativeBefore, "recipient should receive native dust");
+        assertGt(key.currency1.balanceOf(recipient), recipientTokenBefore, "recipient should receive token dust");
+    }
+
+    function test_lock_CannotUsePendingFeesForAnotherLock() public {
+        (PoolKey memory keyA,,, BeneficiaryData[] memory beneficiaries, Position[] memory positions) = _lock();
+        address beneficiary = beneficiaries[0].beneficiary;
+        _swap(keyA, -0.1e18, true);
+        _swap(keyA, -0.1e18, false);
+
+        vm.prank(makeAddr("Harvester"));
+        (uint128 pendingFees0, uint128 pendingFees1) = locker.collectFees(keyA.toId());
+        assertGt(pendingFees0, 0, "token0 fees should be pending");
+        assertGt(pendingFees1, 0, "token1 fees should be pending");
+
+        uint256 lockerBalance0Before = keyA.currency0.balanceOf(address(locker));
+        uint256 lockerBalance1Before = keyA.currency1.balanceOf(address(locker));
+
+        PoolKey memory keyB = PoolKey({
+            currency0: keyA.currency0,
+            currency1: keyA.currency1,
+            fee: 500,
+            tickSpacing: keyA.tickSpacing,
+            hooks: keyA.hooks
+        });
+        manager.initialize(keyB, Constants.SQRT_PRICE_1_1);
+
+        vm.expectRevert();
+        locker.lock(
+            keyB, 1 days, makeAddr("MaliciousRecipient"), beneficiaries, positions, Values({ value0: 0, value1: 0 })
+        );
+
+        assertEq(keyA.currency0.balanceOf(address(locker)), lockerBalance0Before, "pending token0 fees changed");
+        assertEq(keyA.currency1.balanceOf(address(locker)), lockerBalance1Before, "pending token1 fees changed");
+
+        uint256 beneficiaryBalance0Before = keyA.currency0.balanceOf(beneficiary);
+        uint256 beneficiaryBalance1Before = keyA.currency1.balanceOf(beneficiary);
+
+        vm.prank(beneficiary);
+        locker.collectFees(keyA.toId());
+
+        assertEq(
+            keyA.currency0.balanceOf(beneficiary),
+            beneficiaryBalance0Before + uint256(pendingFees0) * 95 / 100,
+            "wrong token0 fee claim"
+        );
+        assertEq(
+            keyA.currency1.balanceOf(beneficiary),
+            beneficiaryBalance1Before + uint256(pendingFees1) * 95 / 100,
+            "wrong token1 fee claim"
+        );
     }
 
     function test_collectFees_UnlocksAndTransfersPositionsWithoutWithdrawingLiquidity() public {
@@ -194,16 +277,15 @@ contract StreamableFeesLockerV3Test is Deployers, DeployPermit2 {
             Position[] memory positions
         )
     {
-        currency0.transfer(address(locker), 100e18);
-        currency1.transfer(address(locker), 100e18);
-
         (key, lockDuration, recipient, beneficiaries, positions) = _prepareLockData();
+        Values memory values = _defaultValues();
         manager.initialize(key, Constants.SQRT_PRICE_1_1);
+        _approveLocker(key, values);
 
         vm.prank(owner);
         locker.approveMigrator(address(this));
 
-        locker.lock(key, lockDuration, recipient, beneficiaries, positions);
+        locker.lock(key, lockDuration, recipient, beneficiaries, positions, values);
     }
 
     function _prepareLockData()
@@ -236,5 +318,34 @@ contract StreamableFeesLockerV3Test is Deployers, DeployPermit2 {
         positions[1].tickLower = -50_000;
         positions[1].tickUpper = 50_000;
         positions[1].liquidity = 1e18;
+    }
+
+    function _prepareNativeLockData()
+        internal
+        returns (
+            PoolKey memory key,
+            uint32 lockDuration,
+            address recipient,
+            BeneficiaryData[] memory beneficiaries,
+            Position[] memory positions
+        )
+    {
+        (key, lockDuration, recipient, beneficiaries, positions) = _prepareLockData();
+        key.currency0 = Currency.wrap(address(0));
+        key.currency1 = currency1;
+    }
+
+    function _defaultValues() internal pure returns (Values memory) {
+        return Values({ value0: 100e18, value1: 100e18 });
+    }
+
+    function _approveLocker(PoolKey memory key, Values memory values) internal {
+        if (Currency.unwrap(key.currency0) != address(0)) {
+            ERC20(Currency.unwrap(key.currency0)).approve(address(locker), values.value0);
+        }
+
+        if (Currency.unwrap(key.currency1) != address(0)) {
+            ERC20(Currency.unwrap(key.currency1)).approve(address(locker), values.value1);
+        }
     }
 }
