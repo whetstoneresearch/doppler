@@ -13,6 +13,7 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { ImmutableState } from "@v4-periphery/base/ImmutableState.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import {
     ON_AFTER_SWAP_FLAG,
@@ -26,10 +27,11 @@ import { ProceedsSplitter, SplitConfiguration } from "src/base/ProceedsSplitter.
 import { IDopplerHookMigrator } from "src/interfaces/IDopplerHookMigrator.sol";
 import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { isTickSpacingValid } from "src/libraries/TickLibrary.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { BeneficiaryData, MIN_PROTOCOL_OWNER_SHARES, storeBeneficiaries } from "src/types/BeneficiaryData.sol";
 import { EMPTY_ADDRESS } from "src/types/Constants.sol";
 import { Position } from "src/types/Position.sol";
+import { Values } from "src/types/Values.sol";
 
 /// @notice Thrown when computed liquidity is zero
 error ZeroLiquidity();
@@ -165,9 +167,10 @@ uint24 constant MAX_LP_FEE = 150_000;
  */
 contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, ProceedsSplitter {
     using CurrencyLibrary for Currency;
+    using SafeTransferLib for address;
 
-    /// @notice Address of the StreamableFeesLockerV2 contract
-    StreamableFeesLockerV2 public immutable locker;
+    /// @notice Address of the StreamableFeesLockerV3 contract
+    StreamableFeesLockerV3 public immutable locker;
 
     /// @notice Mapping of asset pairs to their respective asset data
     mapping(address token0 => mapping(address token1 => AssetData data)) public getAssetData;
@@ -187,13 +190,13 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
     /**
      * @param airlock_ Address of the Airlock contract
      * @param poolManager_ Address of Uniswap V4 PoolManager contract
-     * @param locker_ Address of the StreamableFeesLockerV2 contract (must be approved)
+     * @param locker_ Address of the StreamableFeesLockerV3 contract (must be approved)
      * @param topUpDistributor Address of the TopUpDistributor contract
      */
     constructor(
         address airlock_,
         IPoolManager poolManager_,
-        StreamableFeesLockerV2 locker_,
+        StreamableFeesLockerV3 locker_,
         TopUpDistributor topUpDistributor
     ) ImmutableAirlock(airlock_) ImmutableState(poolManager_) ProceedsSplitter(topUpDistributor) {
         locker = locker_;
@@ -298,11 +301,11 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             IDopplerHookMigrator(data.dopplerHook).onInitialization(asset, data.poolKey, data.onInitializationCalldata);
         }
 
-        uint256 balance0 = data.poolKey.currency0.balanceOfSelf();
-        uint256 balance1 = data.poolKey.currency1.balanceOfSelf();
+        Values memory values =
+            Values({ value0: data.poolKey.currency0.balanceOfSelf(), value1: data.poolKey.currency1.balanceOfSelf() });
 
         if (splitConfigurationOf[token0][token1].recipient != address(0)) {
-            (balance0, balance1) = _distributeSplit(token0, token1, balance0, balance1);
+            (values.value0, values.value1) = _distributeSplit(token0, token1, values.value0, values.value1);
         }
 
         int24 lowerTick = TickMath.minUsableTick(tickSpacing);
@@ -321,14 +324,14 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             TickMath.getSqrtPriceAtTick(lowerTick),
             TickMath.getSqrtPriceAtTick(currentTick - tickSpacing),
             0,
-            balance1 == 0 ? 0 : uint128(balance1) - 1
+            values.value1 == 0 ? 0 : uint128(values.value1) - 1
         );
 
         uint128 abovePriceLiquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(currentTick + tickSpacing),
             TickMath.getSqrtPriceAtTick(upperTick),
-            balance0 == 0 ? 0 : uint128(balance0) - 1,
+            values.value0 == 0 ? 0 : uint128(values.value0) - 1,
             0
         );
 
@@ -361,10 +364,15 @@ contract DopplerHookMigrator is ILiquidityMigrator, ImmutableAirlock, BaseHook, 
             mstore(positions, positionCount)
         }
 
-        data.poolKey.currency0.transfer(address(locker), balance0);
-        data.poolKey.currency1.transfer(address(locker), balance1);
+        uint256 nativeValue;
+        if (token0 != address(0)) token0.safeApproveWithRetry(address(locker), values.value0);
+        else nativeValue = values.value0;
+        if (token1 != address(0)) token1.safeApproveWithRetry(address(locker), values.value1);
+        else nativeValue = values.value1;
 
-        locker.lock(data.poolKey, data.lockDuration, recipient, data.beneficiaries, positions);
+        locker.lock{ value: nativeValue }(
+            data.poolKey, data.lockDuration, recipient, data.beneficiaries, positions, values
+        );
 
         emit Migrate(isToken0 ? token0 : token1, data.poolKey);
 

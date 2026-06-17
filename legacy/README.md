@@ -10,6 +10,7 @@ Historical deployment logs remain in `Deployments.md`, `Deployments.json` and
 
 | Document                                                                           | Notes                                                       |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| [`docs/StreamableFeesLockerV2.md`](docs/StreamableFeesLockerV2.md)                 | Legacy streamable fees locker documentation                 |
 | [`docs/UniswapV4MulticurveInitializer.md`](docs/UniswapV4MulticurveInitializer.md) | Legacy Uniswap V4 multicurve pool initializer documentation |
 
 ## Legacy Module Families
@@ -21,7 +22,7 @@ Historical deployment logs remain in `Deployments.md`, `Deployments.json` and
 | `UniswapV4MigratorSplit`, `UniswapV4MigratorSplitHook`, `UniswapV4MulticurveMigrator`                                                                                                                                            | Use `DopplerHookMigrator`, `UniswapV2MigratorSplit`, or `NoOpMigrator`               |
 | `CloneERC20`, `CloneERC20Factory`, `CloneERC20Votes`, `CloneERC20VotesFactory`, `CloneDERC20VotesV2`, `CloneDERC20VotesV2Factory`, `DERC20`, `DERC2080`, `TokenFactory`, `TokenFactory80`                                        | Use `DopplerERC20V1Factory` or `DN404Factory`                                        |
 | `ScheduledLaunchDopplerHook`                                                                                                                                                                                                     | Use the current Doppler Hook interfaces and approved hook implementations            |
-| `StreamableFeesLocker`                                                                                                                                                                                                           | Use `StreamableFeesLockerV2`                                                         |
+| `StreamableFeesLocker`, `StreamableFeesLockerV2`                                                                                                                                                                                | Use `StreamableFeesLockerV3`                                                         |
 
 The shared `Multicurve` library remains in active `src/` code where current
 modules still depend on it; the legacy status applies to the legacy

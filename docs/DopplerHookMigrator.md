@@ -4,7 +4,7 @@
 
 The `DopplerHookMigrator` is a `LiquidityMigrator` module that migrates liquidity from an auction pool into a fresh Uniswap V4 pool. It also acts as a Uniswap V4 hook itself (`beforeInitialize`, `beforeSwap`, and `afterSwap`), allowing it to gate pool creation and forward swap events to optional external Doppler hooks.
 
-It integrates with the [`StreamableFeesLockerV2`](./StreamableFeesLockerV2.md) to lock the migrated liquidity for a configurable duration, and with the [`ProceedsSplitter`](./ProceedsSplitter.md) to optionally distribute a share of the proceeds to a designated recipient during migration.
+It integrates with the [`StreamableFeesLockerV3`](./StreamableFeesLockerV3.md) to lock the migrated liquidity for a configurable duration, and with the [`ProceedsSplitter`](./ProceedsSplitter.md) to optionally distribute a share of the proceeds to a designated recipient during migration.
 
 ## Lifecycle
 
@@ -35,7 +35,7 @@ flowchart LR
 3. Calls `onInitialization` on the Doppler Hook, if one is set
 4. Distributes the proceeds split, if configured
 5. Adds liquidity as two single-sided positions (below and above the current price) to maximize token usage
-6. Transfers the tokens to the `StreamableFeesLockerV2` and locks the positions
+6. Transfers the tokens to the `StreamableFeesLockerV3` and locks the positions as Uniswap V4 `PositionManager` NFTs
 
 See the contract source for details on how liquidity is computed and positions are constructed.
 
@@ -73,4 +73,4 @@ The migrator inherits from `ProceedsSplitter`, enabling a share of the numeraire
 
 ### Liquidity Locking
 
-All migrated liquidity is locked in the `StreamableFeesLockerV2` for a duration specified at initialization time. Fees accrued during the lock period can be streamed to the configured beneficiaries. See the [StreamableFeesLockerV2 documentation](./StreamableFeesLockerV2.md) for details.
+All migrated liquidity is locked in the `StreamableFeesLockerV3` for a duration specified at initialization time. Fees accrued during the lock period can be streamed to the configured beneficiaries. When the lock expires, the locker transfers the still-liquid `PositionManager` NFTs to the configured recipient. See the [StreamableFeesLockerV3 documentation](./StreamableFeesLockerV3.md) for details.

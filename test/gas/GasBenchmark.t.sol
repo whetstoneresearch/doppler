@@ -14,6 +14,10 @@ import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 import { WETH } from "solmate/src/tokens/WETH.sol";
@@ -34,7 +38,7 @@ import { ILiquidityMigrator } from "src/interfaces/ILiquidityMigrator.sol";
 import { IPoolInitializer } from "src/interfaces/IPoolInitializer.sol";
 import { IUniswapV2Router02 } from "src/interfaces/IUniswapV2Router02.sol";
 import { Curve } from "src/libraries/Multicurve.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import { IUniswapV2Factory, UniswapV2MigratorSplit } from "src/migrators/UniswapV2MigratorSplit.sol";
@@ -100,7 +104,7 @@ struct V4SwapParams {
     uint256 value;
 }
 
-contract GasBenchmark is Deployers {
+contract GasBenchmark is Deployers, DeployPermit2 {
     string internal constant GAS_BENCHMARK_SNAPSHOT = type(GasBenchmark).name;
     uint256 internal constant INITIAL_SUPPLY = 1e23;
     uint256 internal constant NUM_TOKENS_TO_SELL = 1e23;
@@ -124,9 +128,11 @@ contract GasBenchmark is Deployers {
     LockableUniswapV3Initializer public lockableV3Initializer;
     NoOpMigrator public noOpMigrator;
     UniswapV2MigratorSplit public v2Migrator;
-    StreamableFeesLockerV2 public locker;
+    StreamableFeesLockerV3 public locker;
     TopUpDistributor public topUpDistributor;
     DopplerHookMigrator public hookMigrator;
+    IAllowanceTransfer public permit2;
+    PositionManager public positionManager;
     uint256 internal saltNonce;
     uint256 internal v4SaltCursor;
     LaunchKind internal currentLaunchKind;
@@ -156,7 +162,15 @@ contract GasBenchmark is Deployers {
             address(airlock), IUniswapV2Factory(UNISWAP_V2_FACTORY_MAINNET), topUpDistributor, WETH_MAINNET
         );
 
-        locker = new StreamableFeesLockerV2(IPoolManager(address(manager)), AIRLOCK_OWNER);
+        permit2 = IAllowanceTransfer(deployPermit2());
+        positionManager = PositionManager(
+            payable(address(
+                    Deploy.positionManager(
+                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
+                    )
+                ))
+        );
+        locker = new StreamableFeesLockerV3(IPoolManager(address(manager)), positionManager, AIRLOCK_OWNER);
         hookMigrator = DopplerHookMigrator(
             payable(address(
                     uint160(

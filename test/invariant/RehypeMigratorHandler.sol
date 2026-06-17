@@ -13,12 +13,16 @@ import { BalanceDelta } from "@v4-core/types/BalanceDelta.sol";
 import { Currency, equals } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { Deploy } from "@v4-periphery-test/shared/Deploy.sol";
+import { PositionManager } from "@v4-periphery/PositionManager.sol";
 import { IV4Quoter, V4Quoter } from "@v4-periphery/lens/V4Quoter.sol";
 import { Test } from "forge-std/Test.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { DeployPermit2 } from "permit2/test/utils/DeployPermit2.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 import { ON_AFTER_SWAP_FLAG, ON_INITIALIZATION_FLAG } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
-import { StreamableFeesLockerV2 } from "src/lockers/StreamableFeesLockerV2.sol";
+import { StreamableFeesLockerV3 } from "src/lockers/StreamableFeesLockerV3.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
@@ -34,12 +38,14 @@ uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
 
-contract RehypeMigratorInvariantTests is Deployers {
+contract RehypeMigratorInvariantTests is Deployers, DeployPermit2 {
     DopplerHookMigrator public migrator;
     RehypeDopplerHookMigrator public rehypeHook;
-    StreamableFeesLockerV2 public locker;
+    StreamableFeesLockerV3 public locker;
     RehypeMigratorHandler public handler;
     V4Quoter public quoter;
+    IAllowanceTransfer public permit2;
+    PositionManager public positionManager;
 
     function setUp() public {
         deployFreshManager();
@@ -50,7 +56,15 @@ contract RehypeMigratorInvariantTests is Deployers {
 
         uint160 hookFlags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
             | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
-        locker = new StreamableFeesLockerV2(manager, AIRLOCK_OWNER);
+        permit2 = IAllowanceTransfer(deployPermit2());
+        positionManager = PositionManager(
+            payable(address(
+                    Deploy.positionManager(
+                        address(manager), address(permit2), type(uint256).max, address(0), address(0), hex"beef"
+                    )
+                ))
+        );
+        locker = new StreamableFeesLockerV3(manager, positionManager, AIRLOCK_OWNER);
         address migratorAddress = address(uint160(hookFlags) ^ (0x4444 << 144));
         migrator = DopplerHookMigrator(payable(migratorAddress));
         deployCodeTo(
@@ -143,7 +157,7 @@ contract RehypeMigratorHandler is Test {
     IPoolManager public manager;
     DopplerHookMigrator public migrator;
     RehypeDopplerHookMigrator public rehypeHook;
-    StreamableFeesLockerV2 public locker;
+    StreamableFeesLockerV3 public locker;
     PoolSwapTest public swapRouter;
     V4Quoter public quoter;
 
@@ -190,7 +204,7 @@ contract RehypeMigratorHandler is Test {
     function setMigrator(
         DopplerHookMigrator migrator_,
         RehypeDopplerHookMigrator rehypeHook_,
-        StreamableFeesLockerV2 locker_
+        StreamableFeesLockerV3 locker_
     ) external {
         migrator = migrator_;
         rehypeHook = rehypeHook_;
