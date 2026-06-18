@@ -1,0 +1,219 @@
+name: Deploy Contracts
+
+on:
+  workflow_dispatch:
+    inputs:
+      script_name:
+        description: "Foundry script name, for example DeployDopplerScriptBase"
+        required: true
+        type: string
+      broadcast:
+        description: "Broadcast (simulate if unchecked)"
+        required: true
+        default: false
+        type: boolean
+      rpc_url:
+        description: "Optional RPC URL for scripts that do not select a fork internally"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-contracts-${{ github.ref }}-${{ inputs.script_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.broadcast && 'Broadcast' || 'Simulate' }} ${{ inputs.script_name }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Resolve deployer address
+        id: deployer
+        shell: bash
+        env:
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DEPLOYER_PRIVATE_KEY:-}" ]]; then
+            echo "::error::DEPLOYER_PRIVATE_KEY secret is required."
+            exit 1
+          fi
+
+          echo "::add-mask::$DEPLOYER_PRIVATE_KEY"
+          deployer_address="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+          echo "address=$deployer_address" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve script file
+        id: script
+        shell: bash
+        env:
+          SCRIPT_NAME: ${{ inputs.script_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$SCRIPT_NAME" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            echo "::error::script_name must be a Solidity contract identifier."
+            exit 1
+          fi
+
+          matches=()
+          while IFS= read -r -d '' file; do
+            if grep -Eq "contract[[:space:]]+$SCRIPT_NAME([^A-Za-z0-9_]|$)" "$file"; then
+              matches+=("$file")
+            fi
+          done < <(find script -name '*.s.sol' -print0)
+
+          if [[ "${#matches[@]}" -eq 0 ]]; then
+            echo "::error::No script contract named $SCRIPT_NAME was found under script/."
+            exit 1
+          fi
+
+          if [[ "${#matches[@]}" -gt 1 ]]; then
+            printf '::error::Script contract name %s is ambiguous. Matches:\n' "$SCRIPT_NAME"
+            printf '%s\n' "${matches[@]}"
+            exit 1
+          fi
+
+          echo "file=${matches[0]}" >> "$GITHUB_OUTPUT"
+          echo "Resolved $SCRIPT_NAME to ${matches[0]}"
+
+      - name: Build scripts
+        run: forge build ./script --via-ir
+
+      - name: Run deployment script
+        shell: bash
+        env:
+          BROADCAST: ${{ inputs.broadcast }}
+          DEPLOYER_ADDRESS: ${{ steps.deployer.outputs.address }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
+          ETH_SEPOLIA_RPC_URL: ${{ secrets.ETH_SEPOLIA_RPC_URL }}
+          MONAD_MAINNET_RPC_URL: ${{ secrets.MONAD_MAINNET_RPC_URL }}
+          MONAD_TESTNET_RPC_URL: ${{ secrets.MONAD_TESTNET_RPC_URL }}
+          BASE_MAINNET_RPC_URL: ${{ secrets.BASE_MAINNET_RPC_URL }}
+          BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+          UNICHAIN_MAINNET_RPC_URL: ${{ secrets.UNICHAIN_MAINNET_RPC_URL }}
+          UNICHAIN_SEPOLIA_RPC_URL: ${{ secrets.UNICHAIN_SEPOLIA_RPC_URL }}
+          MEGAETH_MAINNET_RPC_URL: ${{ secrets.MEGAETH_MAINNET_RPC_URL }}
+          MEGAETH_TESTNET_RPC_URL: ${{ secrets.MEGAETH_TESTNET_RPC_URL }}
+          RPC_URL: ${{ inputs.rpc_url }}
+          SCRIPT_NAME: ${{ inputs.script_name }}
+          SCRIPT_FILE: ${{ steps.script.outputs.file }}
+        run: |
+          set -euo pipefail
+
+          forge_args=(
+            --target-contract "$SCRIPT_NAME"
+            --private-key "$DEPLOYER_PRIVATE_KEY"
+            --sender "$DEPLOYER_ADDRESS"
+            --non-interactive
+            -vvv
+          )
+
+          if [[ -n "$RPC_URL" ]]; then
+            forge_args+=(--rpc-url "$RPC_URL")
+          fi
+
+          if [[ "$BROADCAST" == "true" ]]; then
+            forge_args+=(--broadcast --slow)
+          fi
+
+          forge script "${forge_args[@]}" "$SCRIPT_FILE"
+
+      - name: Generate deployment history
+        if: ${{ inputs.broadcast }}
+        run: |
+          touch .env
+          make generate-history
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployment-artifacts
+          if-no-files-found: ignore
+          path: |
+            broadcast/
+            deployments.config.toml
+            Deployments.md
+            Deployments.json
+            deployments/*.md
+
+  create-pr:
+    name: Open deployment records PR
+    if: ${{ inputs.broadcast }}
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Download deployment artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: .
+
+      - name: Create deployment record pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCRIPT_NAME: ${{ inputs.script_name }}
+          BRANCH_NAME: deploy-contracts/${{ inputs.script_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          BASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+
+          git add broadcast/ deployments.config.toml Deployments.md Deployments.json deployments/*.md
+
+          if git diff --cached --quiet; then
+            echo "No deployment record changes to commit."
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH_NAME"
+          git commit -m "Record deployments for $SCRIPT_NAME"
+          git push --set-upstream origin "$BRANCH_NAME"
+
+          cat > /tmp/pr-body.md <<EOF
+          Records the deployment output from \`$SCRIPT_NAME\`.
+
+          This PR was generated by the Deploy Contracts workflow after a broadcast run.
+          EOF
+
+          gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$BRANCH_NAME" \
+            --title "Record deployments for $SCRIPT_NAME" \
+            --body-file /tmp/pr-body.md

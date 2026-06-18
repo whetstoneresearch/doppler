@@ -8,9 +8,7 @@ import { ChainIds, checkChainId } from "script/utils/ChainIds.sol";
 import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { DN404Factory } from "src/tokens/DN404Factory.sol";
 
-contract DeployDN404FactoryV2BaseSepoliaScript is Script, Config {
-    string internal constant SALT_NAME = "DN404Factory-2";
-
+contract DeployDN404FactoryBaseSepoliaScript is Script, Config {
     function run() public {
         checkChainId(ChainIds.BASE_SEPOLIA);
         _loadConfig("./deployments.config.toml", true);
@@ -20,7 +18,7 @@ contract DeployDN404FactoryV2BaseSepoliaScript is Script, Config {
 
         vm.startBroadcast();
         address deployer = tx.origin;
-        bytes32 salt = generateCreate3Salt(deployer, SALT_NAME);
+        bytes32 salt = generateCreate3Salt(deployer, type(DN404Factory).name);
         address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, deployer), createX);
 
         address factory = ICreateX(createX)

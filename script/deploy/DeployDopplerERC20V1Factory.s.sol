@@ -1,65 +1,96 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
-import { VmSafe } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { LibString } from "solady/utils/LibString.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 
-error UnexpectedAddress();
-
-contract DeployDopplerERC20V1FactoryScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
-
-        uint256[] memory targets = new uint256[](4);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.MONAD_MAINNET;
-        targets[2] = ChainIds.BASE_MAINNET;
-        targets[3] = ChainIds.BASE_SEPOLIA;
-
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            vm.selectFork(forkOf[chainId]);
-            deployToChain(chainId);
-        }
+abstract contract DeployDopplerERC20V1Factory is DeployBase {
+    function _deployDopplerERC20V1Factory(DeployContext memory context)
+        internal
+        returns (address dopplerERC20V1Factory)
+    {
+        address airlock = context.config.get(context.chainId, "airlock").toAddress();
+        return _deployDopplerERC20V1Factory(context, airlock);
     }
 
-    function deployToChain(uint256 chainId) internal {
-        address airlock = config.get("airlock").toAddress();
-        address createX = config.get("create_x").toAddress();
+    function _deployDopplerERC20V1Factory(
+        DeployContext memory context,
+        address airlock
+    ) internal returns (address dopplerERC20V1Factory) {
+        bytes memory initCode = abi.encodePacked(type(DopplerERC20V1Factory).creationCode, abi.encode(airlock));
 
-        vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(DopplerERC20V1Factory).name);
-        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+        bool alreadyDeployed;
+        (dopplerERC20V1Factory, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context,
+            bytes32(0),
+            address(0),
+            type(DopplerERC20V1Factory).name,
+            DOPPLER_ERC20_V1_FACTORY_VERSION,
+            initCode
+        );
 
-        address dopplerERC20V1Factory = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(DopplerERC20V1Factory).creationCode, abi.encode(airlock)));
-        require(dopplerERC20V1Factory == expectedAddress, UnexpectedAddress());
-        vm.stopBroadcast();
+        address implementation = _verifyDopplerERC20V1FactoryDeployment(dopplerERC20V1Factory, airlock);
+        _setConfigAddress(context, "doppler_erc20_v1_factory", dopplerERC20V1Factory);
+        _setConfigAddress(context, "doppler_erc20_v1_implementation", implementation);
 
-        address implementation = DopplerERC20V1Factory(dopplerERC20V1Factory).IMPLEMENTATION();
-
-        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
-            config.set("doppler_erc20_v1_factory", dopplerERC20V1Factory);
-            config.set("doppler_erc20_v1_implementation", implementation);
+        if (alreadyDeployed) {
+            console.log("DopplerERC20V1Factory already deployed to:", dopplerERC20V1Factory);
+        } else {
+            console.log("DopplerERC20V1Factory deployed to:", dopplerERC20V1Factory);
         }
-        console.log(
-            "DopplerERC20V1Factory was deployed to",
-            LibString.toHexString(uint256(uint160(dopplerERC20V1Factory))),
-            "on chain ID",
-            LibString.toString(chainId)
+        console.log("DopplerERC20V1 implementation deployed to:", implementation);
+    }
+
+    function _verifyDopplerERC20V1FactoryDeployment(
+        address addr,
+        address airlock
+    ) internal view returns (address implementation) {
+        DopplerERC20V1Factory factory = DopplerERC20V1Factory(addr);
+        require(address(factory.airlock()) == airlock, "DopplerERC20V1Factory airlock mismatch");
+
+        implementation = factory.IMPLEMENTATION();
+        require(
+            implementation != address(0) && implementation.code.length != 0, "Invalid DopplerERC20V1 implementation"
         );
-        console.log(
-            "DopplerERC20V1 implementation was deployed to",
-            LibString.toHexString(uint256(uint160(implementation))),
-            "on chain ID",
-            LibString.toString(chainId)
-        );
+    }
+}
+
+contract DeployDopplerERC20V1FactoryScript is DeployDopplerERC20V1Factory {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
+
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address dopplerERC20V1Factory) {
+        return _deployDopplerERC20V1Factory(_deployContext());
+    }
+}
+
+contract DeployDopplerERC20V1FactoryScriptEthereum is DeployDopplerERC20V1FactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployDopplerERC20V1FactoryScriptMonad is DeployDopplerERC20V1FactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployDopplerERC20V1FactoryScriptBase is DeployDopplerERC20V1FactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployDopplerERC20V1FactoryScriptBaseSepolia is DeployDopplerERC20V1FactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }

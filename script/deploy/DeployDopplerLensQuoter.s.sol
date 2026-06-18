@@ -1,57 +1,74 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { TypeKind, Variable } from "forge-std/LibVariable.sol";
-import { Script } from "forge-std/Script.sol";
-import { VmSafe } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { LibString } from "solady/utils/LibString.sol";
 import { DopplerLensQuoter } from "src/lens/DopplerLens.sol";
 
-contract DeployDopplerLensQuoterScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployDopplerLensQuoter is DeployBase {
+    function _deployDopplerLensQuoter(DeployContext memory context) internal returns (address dopplerLensQuoter) {
+        address poolManager = context.config.get(context.chainId, "uniswap_v4_pool_manager").toAddress();
+        address stateView = context.config.get(context.chainId, "uniswap_v4_state_view").toAddress();
+        bytes memory initCode =
+            abi.encodePacked(type(DopplerLensQuoter).creationCode, abi.encode(poolManager, stateView));
 
-        uint256[] memory targets = new uint256[](4);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.MONAD_MAINNET;
-        targets[2] = ChainIds.BASE_MAINNET;
-        targets[3] = ChainIds.BASE_SEPOLIA;
+        bool alreadyDeployed;
+        (dopplerLensQuoter, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, bytes32(0), address(0), type(DopplerLensQuoter).name, DOPPLER_LENS_QUOTER_VERSION, initCode
+        );
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            vm.selectFork(forkOf[chainId]);
-            deployToChain(chainId);
+        _verifyDopplerLensQuoterDeployment(dopplerLensQuoter, poolManager, stateView);
+        _setConfigAddress(context, "doppler_lens_quoter", dopplerLensQuoter);
+
+        if (alreadyDeployed) {
+            console.log("DopplerLensQuoter already deployed to:", dopplerLensQuoter);
+        } else {
+            console.log("DopplerLensQuoter deployed to:", dopplerLensQuoter);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        address createX = config.get("create_x").toAddress();
-        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
-        address stateView = config.get("uniswap_v4_state_view").toAddress();
+    function _verifyDopplerLensQuoterDeployment(address addr, address poolManager, address stateView) internal view {
+        DopplerLensQuoter quoter = DopplerLensQuoter(addr);
+        require(address(quoter.poolManager()) == poolManager, "DopplerLensQuoter pool manager mismatch");
+        require(address(quoter.stateView()) == stateView, "DopplerLensQuoter state view mismatch");
+    }
+}
 
-        vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(DopplerLensQuoter).name);
-        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+contract DeployDopplerLensQuoterScript is DeployDopplerLensQuoter {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
 
-        address dopplerLensQuoter = ICreateX(createX)
-            .deployCreate3(
-                salt, abi.encodePacked(type(DopplerLensQuoter).creationCode, abi.encode(poolManager, stateView))
-            );
-        require(dopplerLensQuoter == expectedAddress, "Unexpected deployed address");
-        vm.stopBroadcast();
+    function run() public virtual {
+        deploy();
+    }
 
-        // Only set the config if a broadcast has occurred
-        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) config.set("doppler_lens_quoter", dopplerLensQuoter);
-        console.log(
-            "DopplerLensQuoter was deployed to",
-            LibString.toHexString(uint256(uint160(dopplerLensQuoter))),
-            "on chain ID",
-            LibString.toString(chainId)
-        );
+    function deploy() public returns (address dopplerLensQuoter) {
+        return _deployDopplerLensQuoter(_deployContext());
+    }
+}
+
+contract DeployDopplerLensQuoterScriptEthereum is DeployDopplerLensQuoterScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployDopplerLensQuoterScriptMonad is DeployDopplerLensQuoterScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployDopplerLensQuoterScriptBase is DeployDopplerLensQuoterScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployDopplerLensQuoterScriptBaseSepolia is DeployDopplerLensQuoterScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }

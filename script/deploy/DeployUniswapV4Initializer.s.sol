@@ -1,61 +1,115 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
-import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { DopplerDeployer, UniswapV4Initializer } from "src/initializers/UniswapV4Initializer.sol";
 
-contract DeployUniswapV4InitializerScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployUniswapV4Initializer is DeployBase {
+    function _deployUniswapV4Initializer(DeployContext memory context) internal returns (address uniswapV4Initializer) {
+        address airlock = context.config.get(context.chainId, "airlock").toAddress();
+        return _deployUniswapV4Initializer(context, airlock);
+    }
 
-        uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+    function _deployUniswapV4Initializer(
+        DeployContext memory context,
+        address airlock
+    ) internal returns (address uniswapV4Initializer) {
+        address poolManager = context.config.get(context.chainId, "uniswap_v4_pool_manager").toAddress();
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            deployToChain(chainId);
+        address dopplerDeployer = _deployDopplerDeployer(context, poolManager);
+        bytes memory initCode = abi.encodePacked(
+            type(UniswapV4Initializer).creationCode, abi.encode(airlock, poolManager, dopplerDeployer)
+        );
+
+        bool alreadyDeployed;
+        (uniswapV4Initializer, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, bytes32(0), address(0), type(UniswapV4Initializer).name, DYNAMIC_INITIALIZER_VERSION, initCode
+        );
+
+        _verifyUniswapV4InitializerDeployment(uniswapV4Initializer, airlock, poolManager, dopplerDeployer);
+        _setConfigAddress(context, "uniswap_v4_initializer", uniswapV4Initializer);
+
+        if (alreadyDeployed) {
+            console.log("UniswapV4Initializer already deployed to:", uniswapV4Initializer);
+        } else {
+            console.log("UniswapV4Initializer deployed to:", uniswapV4Initializer);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
+    function _deployDopplerDeployer(
+        DeployContext memory context,
+        address poolManager
+    ) internal returns (address dopplerDeployer) {
+        bytes memory initCode = abi.encodePacked(type(DopplerDeployer).creationCode, abi.encode(poolManager));
 
-        address airlock = config.get("airlock").toAddress();
-        address createX = config.get("create_x").toAddress();
-        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
+        bool alreadyDeployed;
+        (dopplerDeployer, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, bytes32(0), address(0), type(DopplerDeployer).name, DYNAMIC_INITIALIZER_VERSION, initCode
+        );
 
-        vm.startBroadcast();
-        bytes32 dopplerDeployerSalt = generateCreate3Salt(msg.sender, type(DopplerDeployer).name);
-        address expectedDoppledDeployer =
-            computeCreate3Address(computeCreate3GuardedSalt(dopplerDeployerSalt, msg.sender), createX);
+        _verifyDopplerDeployerDeployment(dopplerDeployer, poolManager);
+        _setConfigAddress(context, "doppler_deployer", dopplerDeployer);
 
-        address dopplerDeployer = ICreateX(createX)
-            .deployCreate3(
-                dopplerDeployerSalt, abi.encodePacked(type(DopplerDeployer).creationCode, abi.encode(poolManager))
-            );
-        require(dopplerDeployer == expectedDoppledDeployer, "Unexpected DopplerDeployer address");
+        if (alreadyDeployed) {
+            console.log("DopplerDeployer already deployed to:", dopplerDeployer);
+        } else {
+            console.log("DopplerDeployer deployed to:", dopplerDeployer);
+        }
+    }
 
-        bytes32 uniswapV4InitializerSalt = generateCreate3Salt(msg.sender, type(UniswapV4Initializer).name);
-        address expectedUniswapV4Initializer =
-            computeCreate3Address(computeCreate3GuardedSalt(uniswapV4InitializerSalt, msg.sender), createX);
+    function _verifyDopplerDeployerDeployment(address addr, address poolManager) internal view {
+        require(address(DopplerDeployer(addr).poolManager()) == poolManager, "DopplerDeployer pool manager mismatch");
+    }
 
-        address uniswapV4Initializer = ICreateX(createX)
-            .deployCreate3(
-                uniswapV4InitializerSalt,
-                abi.encodePacked(
-                    type(UniswapV4Initializer).creationCode, abi.encode(airlock, poolManager, dopplerDeployer)
-                )
-            );
-        require(uniswapV4Initializer == expectedUniswapV4Initializer, "Unexpected UniswapV4Initializer address");
+    function _verifyUniswapV4InitializerDeployment(
+        address addr,
+        address airlock,
+        address poolManager,
+        address dopplerDeployer
+    ) internal view {
+        UniswapV4Initializer initializer = UniswapV4Initializer(addr);
+        require(address(initializer.airlock()) == airlock, "UniswapV4Initializer airlock mismatch");
+        require(address(initializer.poolManager()) == poolManager, "UniswapV4Initializer pool manager mismatch");
+        require(address(initializer.deployer()) == dopplerDeployer, "UniswapV4Initializer deployer mismatch");
+    }
+}
 
-        vm.stopBroadcast();
-        config.set("uniswap_v4_initializer", uniswapV4Initializer);
-        config.set("doppler_deployer", dopplerDeployer);
+contract DeployUniswapV4InitializerScript is DeployUniswapV4Initializer {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
+
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address uniswapV4Initializer) {
+        return _deployUniswapV4Initializer(_deployContext());
+    }
+}
+
+contract DeployUniswapV4InitializerScriptEthereum is DeployUniswapV4InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployUniswapV4InitializerScriptMonad is DeployUniswapV4InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployUniswapV4InitializerScriptBase is DeployUniswapV4InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployUniswapV4InitializerScriptBaseSepolia is DeployUniswapV4InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }

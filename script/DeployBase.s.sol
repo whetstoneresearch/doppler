@@ -12,8 +12,10 @@ import { DopplerCreateXDeployer } from "src/DopplerCreateXDeployer.sol";
 abstract contract DeployBase is Script, Config, Versions {
     ICreateX internal constant CREATE_X = ICreateX(0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed);
     string internal constant DEPLOYMENTS_CONFIG_PATH = "./deployments.config.toml";
+    string internal constant IS_TESTNET_KEY = "is_testnet";
     string internal constant PROTOCOL_DEPLOYER_KEY = "protocol_deployer";
 
+    error Create2AddressMismatch(bytes32 salt, address expected, address computed);
     error Create3AddressMismatch(bytes32 salt, address expected, address computed);
     error InvalidCreateXGuardedSalt(bytes32 salt);
     error BroadcastSenderMismatch(address expected, address actual);
@@ -40,9 +42,16 @@ abstract contract DeployBase is Script, Config, Versions {
         require(block.chainid == chainId, "Selected fork has unexpected chainId");
     }
 
+    /// @notice Loads shared config, selects `chainId`, and checks its configured testnet flag.
+    /// @dev Chain-specific script wrappers use this to keep baked-in chain targets honest.
+    function _loadConfigAndSelectFork(uint256 chainId, bool expectedIsTestnet) internal {
+        _loadConfigAndSelectFork(chainId);
+        require(_isConfiguredTestnet(chainId) == expectedIsTestnet, "DeployBase testnet flag mismatch");
+    }
+
     /// @notice Builds the common deployment context for scripts that deploy through the protocol deployer.
     /// @dev Resolves chain config, the protocol deployer address, broadcaster, and whether config writes are enabled.
-    function _deployContext() internal view returns (DeployContext memory context) {
+    function _deployContext() internal returns (DeployContext memory context) {
         uint256 chainId = block.chainid;
         require(config.exists(chainId, PROTOCOL_DEPLOYER_KEY), "protocol_deployer is not configured");
 
@@ -50,7 +59,7 @@ abstract contract DeployBase is Script, Config, Versions {
             chainId: chainId,
             config: config,
             protocolDeployer: DopplerCreateXDeployer(config.get(chainId, PROTOCOL_DEPLOYER_KEY).toAddress()),
-            broadcaster: msg.sender,
+            broadcaster: _resolveBroadcastSender(),
             writeConfig: _shouldWriteConfig()
         });
     }
@@ -59,6 +68,12 @@ abstract contract DeployBase is Script, Config, Versions {
     /// @dev Config writes are limited to broadcast runs so simulations and dry runs do not mutate local config.
     function _shouldWriteConfig() internal view returns (bool) {
         return vm.isContext(VmSafe.ForgeContext.ScriptBroadcast);
+    }
+
+    /// @notice Returns the configured testnet flag for `chainId`.
+    function _isConfiguredTestnet(uint256 chainId) internal view returns (bool) {
+        require(config.exists(chainId, IS_TESTNET_KEY), "is_testnet is not configured");
+        return config.get(chainId, IS_TESTNET_KEY).toBool();
     }
 
     /// @notice Writes a chain-scoped address into the shared deployments config when writes are enabled.
@@ -101,17 +116,38 @@ abstract contract DeployBase is Script, Config, Versions {
         return (deployed, false);
     }
 
-    /// @notice Deploys a bootstrap contract directly through CreateX or returns existing code at `expected`.
+    /// @notice Deploys a versioned contract through the protocol deployer.
+    /// @dev `customSalt` and `customExpected` are optional, but must be provided together when either is set.
+    function _deployOrUseExistingVersionedCreate3(
+        DeployContext memory context,
+        bytes32 customSalt,
+        address customExpected,
+        string memory contractName,
+        uint8 version,
+        bytes memory initCode
+    ) internal returns (address deployed, bool alreadyDeployed) {
+        _requireCompleteDeploymentConfig(customSalt, customExpected);
+
+        bytes32 deploymentSalt =
+            customSalt != bytes32(0) ? customSalt : context.protocolDeployer.generateSalt(contractName, version);
+        address expected = customExpected != address(0)
+            ? customExpected
+            : _computeProtocolCreate3Address(context.protocolDeployer, deploymentSalt);
+
+        return _deployOrUseExistingCreate3(context, deploymentSalt, expected, initCode);
+    }
+
+    /// @notice Deploys a bootstrap contract directly through CreateX CREATE2 or returns existing code at `expected`.
     /// @dev Used for contracts needed before the protocol deployer exists and mirrors CreateX guarded salt handling.
     ///      Callers are responsible for validating and recording the deployment.
-    function _deployOrUseExistingCreateXCreate3(
+    function _deployOrUseExistingCreateXCreate2(
         bytes32 deploymentSalt,
         address expected,
         bytes memory initCode
     ) internal returns (address deployed, bool alreadyDeployed) {
         address broadcaster = _resolveBroadcastSender();
-        address computed = _computeCreateXCreate3Address(deploymentSalt, broadcaster);
-        _verifyCreate3Address(deploymentSalt, expected, computed);
+        address computed = _computeCreateXCreate2Address(deploymentSalt, broadcaster, keccak256(initCode));
+        _verifyCreate2Address(deploymentSalt, expected, computed);
 
         if (expected.code.length != 0) {
             return (expected, true);
@@ -119,11 +155,18 @@ abstract contract DeployBase is Script, Config, Versions {
 
         vm.startBroadcast();
         _verifyBroadcastSender(broadcaster);
-        deployed = CREATE_X.deployCreate3(deploymentSalt, initCode);
+        deployed = CREATE_X.deployCreate2(deploymentSalt, initCode);
         vm.stopBroadcast();
 
-        _verifyCreate3Address(deploymentSalt, expected, deployed);
+        _verifyCreate2Address(deploymentSalt, expected, deployed);
         return (deployed, false);
+    }
+
+    /// @notice Reverts unless a computed or deployed CREATE2 address matches the expected address.
+    function _verifyCreate2Address(bytes32 deploymentSalt, address expected, address computed) internal pure {
+        if (computed != expected) {
+            revert Create2AddressMismatch(deploymentSalt, expected, computed);
+        }
     }
 
     /// @notice Reverts unless a computed or deployed CREATE3 address matches the expected address.
@@ -132,6 +175,11 @@ abstract contract DeployBase is Script, Config, Versions {
         if (computed != expected) {
             revert Create3AddressMismatch(deploymentSalt, expected, computed);
         }
+    }
+
+    /// @notice Reverts unless optional custom salt and expected-address overrides are complete.
+    function _requireCompleteDeploymentConfig(bytes32 deploymentSalt, address expected) internal pure {
+        require((deploymentSalt == bytes32(0)) == (expected == address(0)), "Deployment configuration is incomplete");
     }
 
     /// @notice Computes the CREATE3 address for a deployment sent through the protocol deployer.
@@ -144,10 +192,14 @@ abstract contract DeployBase is Script, Config, Versions {
         return CREATE_X.computeCreate3Address(guardedSalt);
     }
 
-    /// @notice Computes the direct CreateX CREATE3 address for `deploymentSalt` and `caller`.
+    /// @notice Computes the direct CreateX CREATE2 address for `deploymentSalt`, `caller`, and `initCodeHash`.
     /// @dev Used by bootstrap scripts that call CreateX directly instead of routing through the protocol deployer.
-    function _computeCreateXCreate3Address(bytes32 deploymentSalt, address caller) internal view returns (address) {
-        return CREATE_X.computeCreate3Address(_computeCreateXGuardedSalt(deploymentSalt, caller));
+    function _computeCreateXCreate2Address(
+        bytes32 deploymentSalt,
+        address caller,
+        bytes32 initCodeHash
+    ) internal view returns (address) {
+        return CREATE_X.computeCreate2Address(_computeCreateXGuardedSalt(deploymentSalt, caller), initCodeHash);
     }
 
     /// @notice Resolves the sender Foundry will use for default `vm.startBroadcast()` calls.

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { console } from "forge-std/console.sol";
 import { DeployBase } from "script/DeployBase.s.sol";
+import { ChainIds } from "script/utils/ChainIds.sol";
 import { Airlock } from "src/Airlock.sol";
 
 abstract contract DeployAirlock is DeployBase {
@@ -10,20 +11,17 @@ abstract contract DeployAirlock is DeployBase {
     address public expectedAddress; // Only set if you've configured a custom salt
 
     function _deployAirlock(DeployContext memory context) internal returns (address airlock) {
-        if (salt != bytes32(0) || expectedAddress != address(0)) {
-            require(salt != bytes32(0) && expectedAddress != address(0), "Deployment configuration is incomplete");
-        }
-
         address multisig = context.config.get(context.chainId, "airlock_multisig").toAddress();
+        return _deployAirlock(context, multisig);
+    }
 
-        bytes32 deploymentSalt =
-            salt != bytes32(0) ? salt : context.protocolDeployer.generateSalt(type(Airlock).name, AIRLOCK_VERSION);
-        address computedExpected = _computeProtocolCreate3Address(context.protocolDeployer, deploymentSalt);
-        address deploymentExpected = expectedAddress != address(0) ? expectedAddress : computedExpected;
+    function _deployAirlock(DeployContext memory context, address multisig) internal returns (address airlock) {
         bytes memory initCode = abi.encodePacked(type(Airlock).creationCode, abi.encode(multisig));
 
         bool alreadyDeployed;
-        (airlock, alreadyDeployed) = _deployOrUseExistingCreate3(context, deploymentSalt, deploymentExpected, initCode);
+        (airlock, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, salt, expectedAddress, type(Airlock).name, AIRLOCK_VERSION, initCode
+        );
 
         _verifyExistingDeployment(airlock, multisig);
         _setConfigAddress(context, "airlock", airlock);
@@ -60,5 +58,29 @@ contract DeployAirlockScript is DeployAirlock {
 
     function deploy() public returns (address airlock) {
         return _deployAirlock(_deployContext());
+    }
+}
+
+contract DeployAirlockScriptEthereum is DeployAirlockScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployAirlockScriptMonad is DeployAirlockScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployAirlockScriptBase is DeployAirlockScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployAirlockScriptBaseSepolia is DeployAirlockScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }
