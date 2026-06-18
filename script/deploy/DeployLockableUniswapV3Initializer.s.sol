@@ -1,120 +1,93 @@
-/// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { IUniswapV3Factory } from "@v3-core/interfaces/IUniswapV3Factory.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
-import { VmSafe } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { LibString } from "solady/utils/LibString.sol";
 import { LockableUniswapV3Initializer } from "src/initializers/LockableUniswapV3Initializer.sol";
 
-struct ScriptData {
-    address airlock;
-    address uniswapV3Factory;
-    uint256 chainId;
-}
-
-abstract contract DeployLockableUniswapV3InitializerScript is Script, Config {
-    ScriptData internal _scriptData;
-
-    function setUp() public virtual {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployLockableUniswapV3Initializer is DeployBase {
+    function _deployLockableUniswapV3Initializer(DeployContext memory context)
+        internal
+        returns (address lockableUniswapV3Initializer)
+    {
+        address airlock = context.config.get(context.chainId, "airlock").toAddress();
+        return _deployLockableUniswapV3Initializer(context, airlock);
     }
 
-    function run() public {
-        vm.startBroadcast();
-        LockableUniswapV3Initializer initializer =
-            new LockableUniswapV3Initializer(_scriptData.airlock, IUniswapV3Factory(_scriptData.uniswapV3Factory));
-        vm.stopBroadcast();
+    function _deployLockableUniswapV3Initializer(
+        DeployContext memory context,
+        address airlock
+    ) internal returns (address lockableUniswapV3Initializer) {
+        address uniswapV3Factory = context.config.get(context.chainId, "uniswap_v3_factory").toAddress();
+        bytes memory initCode =
+            abi.encodePacked(type(LockableUniswapV3Initializer).creationCode, abi.encode(airlock, uniswapV3Factory));
 
-        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
-            config.set("lockable_uniswap_v3_initializer", address(initializer));
-        }
-        console.log(
-            "LockableUniswapV3Initializer was deployed to",
-            LibString.toHexString(uint256(uint160(address(initializer)))),
-            "on chain ID",
-            LibString.toString(_scriptData.chainId)
+        bool alreadyDeployed;
+        (lockableUniswapV3Initializer, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context,
+            bytes32(0),
+            address(0),
+            type(LockableUniswapV3Initializer).name,
+            STATIC_INITIALIZER_VERSION,
+            initCode
         );
+
+        _verifyLockableUniswapV3InitializerDeployment(lockableUniswapV3Initializer, airlock, uniswapV3Factory);
+        _setConfigAddress(context, "lockable_uniswap_v3_initializer", lockableUniswapV3Initializer);
+
+        if (alreadyDeployed) {
+            console.log("LockableUniswapV3Initializer already deployed to:", lockableUniswapV3Initializer);
+        } else {
+            console.log("LockableUniswapV3Initializer deployed to:", lockableUniswapV3Initializer);
+        }
+    }
+
+    function _verifyLockableUniswapV3InitializerDeployment(
+        address addr,
+        address airlock,
+        address uniswapV3Factory
+    ) internal view {
+        LockableUniswapV3Initializer initializer = LockableUniswapV3Initializer(payable(addr));
+        require(address(initializer.airlock()) == airlock, "LockableUniswapV3Initializer airlock mismatch");
+        require(address(initializer.factory()) == uniswapV3Factory, "LockableUniswapV3Initializer factory mismatch");
     }
 }
 
-/// @dev forge script DeployLockableUniswapV3InitializerEthereumMainnet --private-key $PRIVATE_KEY --verify --slow --broadcast
-contract DeployLockableUniswapV3InitializerEthereumMainnet is DeployLockableUniswapV3InitializerScript {
-    function setUp() public override {
-        super.setUp();
-        vm.selectFork(forkOf[ChainIds.ETH_MAINNET]);
-        _scriptData = ScriptData({
-            airlock: config.get("airlock").toAddress(),
-            uniswapV3Factory: config.get("uniswap_v3_factory").toAddress(),
-            chainId: ChainIds.ETH_MAINNET
-        });
+contract DeployLockableUniswapV3InitializerScript is DeployLockableUniswapV3Initializer {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
+
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address lockableUniswapV3Initializer) {
+        return _deployLockableUniswapV3Initializer(_deployContext());
     }
 }
 
-/// @dev forge script DeployLockableUniswapV3InitializerBaseSepolia --private-key $PRIVATE_KEY --verify --slow --broadcast
-contract DeployLockableUniswapV3InitializerBaseSepolia is DeployLockableUniswapV3InitializerScript {
+contract DeployLockableUniswapV3InitializerScriptEthereum is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
-        super.setUp();
-        vm.selectFork(forkOf[ChainIds.BASE_SEPOLIA]);
-        _scriptData = ScriptData({
-            airlock: config.get("airlock").toAddress(),
-            uniswapV3Factory: config.get("uniswap_v3_factory").toAddress(),
-            chainId: ChainIds.BASE_SEPOLIA
-        });
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
     }
 }
 
-/// @dev forge script DeployLockableUniswapV3InitializerBase --private-key $PRIVATE_KEY --verify --slow --broadcast
-contract DeployLockableUniswapV3InitializerBase is DeployLockableUniswapV3InitializerScript {
+contract DeployLockableUniswapV3InitializerScriptMonad is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
-        super.setUp();
-        vm.selectFork(forkOf[ChainIds.BASE_MAINNET]);
-        _scriptData = ScriptData({
-            airlock: config.get("airlock").toAddress(),
-            uniswapV3Factory: config.get("uniswap_v3_factory").toAddress(),
-            chainId: ChainIds.BASE_MAINNET
-        });
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
     }
 }
 
-/// @dev forge script DeployLockableUniswapV3InitializerUnichainSepolia --private-key $PRIVATE_KEY --verify --slow --broadcast
-contract DeployLockableUniswapV3InitializerUnichainSepolia is DeployLockableUniswapV3InitializerScript {
+contract DeployLockableUniswapV3InitializerScriptBase is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
-        super.setUp();
-        vm.selectFork(forkOf[ChainIds.UNICHAIN_SEPOLIA]);
-        _scriptData = ScriptData({
-            airlock: config.get("airlock").toAddress(),
-            uniswapV3Factory: config.get("uniswap_v3_factory").toAddress(),
-            chainId: ChainIds.UNICHAIN_SEPOLIA
-        });
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-/// @dev forge script DeployLockableUniswapV3InitializerUnichain --private-key $PRIVATE_KEY --verify --slow --broadcast
-contract DeployLockableUniswapV3InitializerUnichain is DeployLockableUniswapV3InitializerScript {
+contract DeployLockableUniswapV3InitializerScriptBaseSepolia is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
-        super.setUp();
-        vm.selectFork(forkOf[ChainIds.UNICHAIN_MAINNET]);
-        _scriptData = ScriptData({
-            airlock: config.get("airlock").toAddress(),
-            uniswapV3Factory: config.get("uniswap_v3_factory").toAddress(),
-            chainId: ChainIds.UNICHAIN_MAINNET
-        });
-    }
-}
-
-/// @dev forge script DeployLockableUniswapV3InitializerMonad --private-key $PRIVATE_KEY --verify --slow --broadcast
-contract DeployLockableUniswapV3InitializerMonad is DeployLockableUniswapV3InitializerScript {
-    function setUp() public override {
-        super.setUp();
-        vm.selectFork(forkOf[ChainIds.MONAD_MAINNET]);
-        _scriptData = ScriptData({
-            airlock: config.get("airlock").toAddress(),
-            uniswapV3Factory: config.get("uniswap_v3_factory").toAddress(),
-            chainId: ChainIds.MONAD_MAINNET
-        });
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }

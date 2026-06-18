@@ -60,4 +60,4 @@ FEE=30
 
 ### Deploying
 
-Deployment scripts for individual modules and operational tasks live in the [script](/script) folder. Configure the required environment variables in `.env`, then run the relevant script directly with `forge script`.
+See the deployment documentation in [docs/Deployment.md](/docs/Deployment.md). Configure the required environment variables in `.env` or GitHub, and then run the relevant deployment script directly with `forge script`.

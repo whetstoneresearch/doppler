@@ -1,42 +1,75 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt } from "script/utils/CreateX.sol";
 import { NoOpGovernanceFactory } from "src/governance/NoOpGovernanceFactory.sol";
 
-contract DeployNoOpGovernanceFactoryScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployNoOpGovernanceFactory is DeployBase {
+    function _deployNoOpGovernanceFactory(DeployContext memory context)
+        internal
+        returns (address noOpGovernanceFactory)
+    {
+        bool alreadyDeployed;
+        (noOpGovernanceFactory, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context,
+            bytes32(0),
+            address(0),
+            type(NoOpGovernanceFactory).name,
+            NO_OP_GOVERNANCE_FACTORY_VERSION,
+            abi.encodePacked(type(NoOpGovernanceFactory).creationCode)
+        );
 
-        uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+        _verifyNoOpGovernanceFactoryDeployment(noOpGovernanceFactory);
+        _setConfigAddress(context, "no_op_governance_factory", noOpGovernanceFactory);
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            deployToChain(chainId);
+        if (alreadyDeployed) {
+            console.log("NoOpGovernanceFactory already deployed to:", noOpGovernanceFactory);
+        } else {
+            console.log("NoOpGovernanceFactory deployed to:", noOpGovernanceFactory);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
-
-        address createX = config.get("create_x").toAddress();
-
-        vm.startBroadcast();
-        bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xdeadb055deadb055));
-        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
-
-        address noOpGovernanceFactory =
-            ICreateX(createX).deployCreate3(salt, abi.encodePacked(type(NoOpGovernanceFactory).creationCode));
-        require(noOpGovernanceFactory == expectedAddress, "Unexpected deployed address");
-
-        vm.stopBroadcast();
-        config.set("no_op_governance_factory", noOpGovernanceFactory);
+    function _verifyNoOpGovernanceFactoryDeployment(address addr) internal view {
+        require(NoOpGovernanceFactory(addr).DEAD_ADDRESS() == address(0xdead), "NoOpGovernanceFactory mismatch");
     }
 }
 
+contract DeployNoOpGovernanceFactoryScript is DeployNoOpGovernanceFactory {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
+
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address noOpGovernanceFactory) {
+        return _deployNoOpGovernanceFactory(_deployContext());
+    }
+}
+
+contract DeployNoOpGovernanceFactoryScriptEthereum is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployNoOpGovernanceFactoryScriptMonad is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployNoOpGovernanceFactoryScriptBase is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployNoOpGovernanceFactoryScriptBaseSepolia is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
+    }
+}

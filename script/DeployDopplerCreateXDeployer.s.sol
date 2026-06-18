@@ -20,7 +20,7 @@ contract DeployDopplerCreateXDeployerScript is DeployBase {
         address deployerOwner = config.get("deployer_owner").toAddress();
         bytes memory initCode = abi.encodePacked(type(DopplerCreateXDeployer).creationCode, abi.encode(deployerOwner));
 
-        (address deployer, bool alreadyDeployed) = _deployOrUseExistingCreateXCreate3(salt, expectedAddress, initCode);
+        (address deployer, bool alreadyDeployed) = _deployOrUseExistingCreateXCreate2(salt, expectedAddress, initCode);
 
         _verifyExistingDeployment(deployer, deployerOwner);
         _setConfigAddress(PROTOCOL_DEPLOYER_KEY, deployer);

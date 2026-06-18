@@ -18,9 +18,9 @@ contract Versions {
     uint8 public constant LAUNCHPAD_GOVERNANCE_FACTORY_VERSION = 0;
     uint8 public constant NO_OP_GOVERNANCE_FACTORY_VERSION = 0;
     // --- Initializers ---
-    uint8 public constant STATIC_INITIALIZER_VERSION = 0;
-    uint8 public constant DYNAMIC_INITIALIZER_VERSION = 0;
-    uint8 public constant MULTICURVE_INITIALIZER_VERSION = 0;
+    uint8 public constant STATIC_INITIALIZER_VERSION = 0; // LockableUniswapV3Initializer
+    uint8 public constant DYNAMIC_INITIALIZER_VERSION = 0; // UniswapV4Initializer
+    uint8 public constant MULTICURVE_INITIALIZER_VERSION = 0; // DopplerHookInitializer
     // --- Migrators ---
     uint8 public constant DOPPLER_HOOK_MIGRATOR_VERSION = 0;
     uint8 public constant UNISWAP_V2_MIGRATOR_SPLIT_VERSION = 0;

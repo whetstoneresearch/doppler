@@ -1,52 +1,82 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
 import { LaunchpadGovernanceFactory } from "src/governance/LaunchpadGovernanceFactory.sol";
 
-struct ScriptData {
-    uint256 chainId;
-}
+abstract contract DeployLaunchpadGovernanceFactory is DeployBase {
+    function _deployLaunchpadGovernanceFactory(DeployContext memory context)
+        internal
+        returns (address launchpadGovernanceFactory)
+    {
+        bool alreadyDeployed;
+        (launchpadGovernanceFactory, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context,
+            bytes32(0),
+            address(0),
+            type(LaunchpadGovernanceFactory).name,
+            LAUNCHPAD_GOVERNANCE_FACTORY_VERSION,
+            abi.encodePacked(type(LaunchpadGovernanceFactory).creationCode)
+        );
 
-abstract contract DeployLaunchpadGovernanceFactoryScript is Script {
-    ScriptData internal _scriptData;
+        _verifyLaunchpadGovernanceFactoryDeployment(launchpadGovernanceFactory);
+        _setConfigAddress(context, "launchpad_governance_factory", launchpadGovernanceFactory);
 
-    function setUp() public virtual;
+        if (alreadyDeployed) {
+            console.log("LaunchpadGovernanceFactory already deployed to:", launchpadGovernanceFactory);
+        } else {
+            console.log("LaunchpadGovernanceFactory deployed to:", launchpadGovernanceFactory);
+        }
+    }
 
-    function run() public {
-        vm.startBroadcast();
-        require(block.chainid == _scriptData.chainId, "Invalid chainId");
-        new LaunchpadGovernanceFactory();
-        vm.stopBroadcast();
+    function _verifyLaunchpadGovernanceFactoryDeployment(address addr) internal view {
+        address multisig = address(0xbeef);
+        (bool success, bytes memory result) =
+            addr.staticcall(abi.encodeCall(LaunchpadGovernanceFactory.create, (address(0), abi.encode(multisig))));
+        require(success, "LaunchpadGovernanceFactory interface check failed");
+
+        (address governance, address timelockController) = abi.decode(result, (address, address));
+        require(governance == address(0xdead), "LaunchpadGovernanceFactory governance mismatch");
+        require(timelockController == multisig, "LaunchpadGovernanceFactory timelock mismatch");
     }
 }
 
-/// @dev forge script DeployLaunchpadGovernanceFactoryEthereumMainnetScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $ETH_MAINNET_RPC_URL
-contract DeployLaunchpadGovernanceFactoryEthereumMainnetScript is DeployLaunchpadGovernanceFactoryScript {
+contract DeployLaunchpadGovernanceFactoryScript is DeployLaunchpadGovernanceFactory {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
+
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address launchpadGovernanceFactory) {
+        return _deployLaunchpadGovernanceFactory(_deployContext());
+    }
+}
+
+contract DeployLaunchpadGovernanceFactoryScriptEthereum is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
-        _scriptData = ScriptData({ chainId: ChainIds.ETH_MAINNET });
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
     }
 }
 
-/// @dev forge script DeployLaunchpadGovernanceFactoryBaseScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $BASE_MAINNET_RPC_URL
-contract DeployLaunchpadGovernanceFactoryBaseScript is DeployLaunchpadGovernanceFactoryScript {
+contract DeployLaunchpadGovernanceFactoryScriptMonad is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
-        _scriptData = ScriptData({ chainId: ChainIds.BASE_MAINNET });
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
     }
 }
 
-/// @dev forge script DeployLaunchpadGovernanceFactoryBaseSepoliaScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $BASE_SEPOLIA_RPC_URL
-contract DeployLaunchpadGovernanceFactoryBaseSepoliaScript is DeployLaunchpadGovernanceFactoryScript {
+contract DeployLaunchpadGovernanceFactoryScriptBase is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
-        _scriptData = ScriptData({ chainId: ChainIds.BASE_SEPOLIA });
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-/// @dev forge script DeployLaunchpadGovernanceFactoryMonadTestnetScript --private-key $PRIVATE_KEY --broadcast --slow --verify --rpc-url $MONAD_TESTNET_RPC_URL
-contract DeployLaunchpadGovernanceFactoryMonadTestnetScript is DeployLaunchpadGovernanceFactoryScript {
+contract DeployLaunchpadGovernanceFactoryScriptBaseSepolia is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
-        _scriptData = ScriptData({ chainId: ChainIds.MONAD_TESTNET });
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }
-

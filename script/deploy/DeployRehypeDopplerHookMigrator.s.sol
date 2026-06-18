@@ -1,59 +1,98 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
-import { VmSafe } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
-import { LibString } from "solady/utils/LibString.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 
-contract DeployRehypeHookMigratorScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
-
-        uint256[] memory targets = new uint256[](1);
-        //targets[0] = ChainIds.ETH_MAINNET;
-        targets[0] = ChainIds.MONAD_MAINNET;
-        //targets[2] = ChainIds.BASE_MAINNET;
-        //targets[3] = ChainIds.BASE_SEPOLIA;
-
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            vm.selectFork(forkOf[chainId]);
-            deployToChain(chainId);
-        }
+abstract contract DeployRehypeDopplerHookMigrator is DeployBase {
+    function _deployRehypeDopplerHookMigrator(DeployContext memory context)
+        internal
+        returns (address rehypeDopplerHookMigrator)
+    {
+        address migrator = context.config.get(context.chainId, "doppler_hook_migrator").toAddress();
+        return _deployRehypeDopplerHookMigrator(context, migrator);
     }
 
-    function deployToChain(uint256 chainId) internal {
-        address createX = config.get("create_x").toAddress();
-        address migrator = config.get("doppler_hook_migrator").toAddress();
-        address poolManager = config.get("uniswap_v4_pool_manager").toAddress();
+    function _deployRehypeDopplerHookMigrator(
+        DeployContext memory context,
+        address migrator
+    ) internal returns (address rehypeDopplerHookMigrator) {
+        address poolManager = context.config.get(context.chainId, "uniswap_v4_pool_manager").toAddress();
+        bytes memory initCode =
+            abi.encodePacked(type(RehypeDopplerHookMigrator).creationCode, abi.encode(migrator, poolManager));
 
-        vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, "RehypeDopplerHookMigrator-5");
-        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), address(createX));
-
-        address rehypeDopplerHookMigrator = ICreateX(createX)
-            .deployCreate3(
-                salt, abi.encodePacked(type(RehypeDopplerHookMigrator).creationCode, abi.encode(migrator, poolManager))
-            );
-        require(rehypeDopplerHookMigrator == expectedAddress, "Unexpected deployed address");
-        vm.stopBroadcast();
-
-        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
-            config.set("rehype_doppler_hook_migrator", rehypeDopplerHookMigrator);
-            config.set("quoter", address(RehypeDopplerHookMigrator(payable(rehypeDopplerHookMigrator)).quoter()));
-        }
-        console.log(
-            "RehypeDopplerHookMigrator was deployed to",
-            LibString.toHexString(uint256(uint160(rehypeDopplerHookMigrator))),
-            "on chain ID",
-            LibString.toString(chainId)
+        bool alreadyDeployed;
+        (rehypeDopplerHookMigrator, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context,
+            bytes32(0),
+            address(0),
+            type(RehypeDopplerHookMigrator).name,
+            REHYPE_DOPPLER_HOOK_MIGRATOR_VERSION,
+            initCode
         );
+
+        address quoter = _verifyRehypeDopplerHookMigratorDeployment(rehypeDopplerHookMigrator, migrator, poolManager);
+        _setConfigAddress(context, "rehype_doppler_hook_migrator", rehypeDopplerHookMigrator);
+        _setConfigAddress(context, "quoter", quoter);
+
+        if (alreadyDeployed) {
+            console.log("RehypeDopplerHookMigrator already deployed to:", rehypeDopplerHookMigrator);
+        } else {
+            console.log("RehypeDopplerHookMigrator deployed to:", rehypeDopplerHookMigrator);
+        }
+        console.log("RehypeDopplerHookMigrator quoter deployed to:", quoter);
+    }
+
+    function _verifyRehypeDopplerHookMigratorDeployment(
+        address addr,
+        address migrator,
+        address poolManager
+    ) internal view returns (address quoter) {
+        RehypeDopplerHookMigrator hook = RehypeDopplerHookMigrator(payable(addr));
+        require(address(hook.MIGRATOR()) == migrator, "RehypeDopplerHookMigrator migrator mismatch");
+        require(address(hook.poolManager()) == poolManager, "RehypeDopplerHookMigrator pool manager mismatch");
+
+        quoter = address(hook.quoter());
+        require(quoter != address(0) && quoter.code.length != 0, "RehypeDopplerHookMigrator quoter missing");
     }
 }
 
+contract DeployRehypeDopplerHookMigratorScript is DeployRehypeDopplerHookMigrator {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
+
+    function run() public virtual {
+        deploy();
+    }
+
+    function deploy() public returns (address rehypeDopplerHookMigrator) {
+        return _deployRehypeDopplerHookMigrator(_deployContext());
+    }
+}
+
+contract DeployRehypeDopplerHookMigratorScriptEthereum is DeployRehypeDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployRehypeDopplerHookMigratorScriptMonad is DeployRehypeDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployRehypeDopplerHookMigratorScriptBase is DeployRehypeDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployRehypeDopplerHookMigratorScriptBaseSepolia is DeployRehypeDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
+    }
+}

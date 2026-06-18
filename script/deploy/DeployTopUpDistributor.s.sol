@@ -1,46 +1,77 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { TopUpDistributor } from "src/TopUpDistributor.sol";
 
-contract DeployTopUpDistributorScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployTopUpDistributor is DeployBase {
+    function _deployTopUpDistributor(DeployContext memory context) internal returns (address topUpDistributor) {
+        address airlock = context.config.get(context.chainId, "airlock").toAddress();
+        return _deployTopUpDistributor(context, airlock);
+    }
 
-        uint256[] memory targets = new uint256[](5);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
-        targets[2] = ChainIds.BASE_MAINNET;
-        targets[3] = ChainIds.BASE_SEPOLIA;
-        targets[4] = ChainIds.MONAD_MAINNET;
+    function _deployTopUpDistributor(
+        DeployContext memory context,
+        address airlock
+    ) internal returns (address topUpDistributor) {
+        bytes memory initCode = abi.encodePacked(type(TopUpDistributor).creationCode, abi.encode(airlock));
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            deployToChain(chainId);
+        bool alreadyDeployed;
+        (topUpDistributor, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, bytes32(0), address(0), type(TopUpDistributor).name, TOP_UP_DISTRIBUTOR_VERSION, initCode
+        );
+
+        _verifyTopUpDistributorDeployment(topUpDistributor, airlock);
+        _setConfigAddress(context, "top_up_distributor", topUpDistributor);
+
+        if (alreadyDeployed) {
+            console.log("TopUpDistributor already deployed to:", topUpDistributor);
+        } else {
+            console.log("TopUpDistributor deployed to:", topUpDistributor);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
+    function _verifyTopUpDistributorDeployment(address addr, address airlock) internal view {
+        require(address(TopUpDistributor(payable(addr)).AIRLOCK()) == airlock, "TopUpDistributor airlock mismatch");
+    }
+}
 
-        address airlock = config.get("airlock").toAddress();
-        address createX = config.get("create_x").toAddress();
+contract DeployTopUpDistributorScript is DeployTopUpDistributor {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
 
-        vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, "TopUpDistributor-2");
-        address deployedTo = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+    function run() public virtual {
+        deploy();
+    }
 
-        address topUpDistributor = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(TopUpDistributor).creationCode, abi.encode(airlock)));
+    function deploy() public returns (address topUpDistributor) {
+        return _deployTopUpDistributor(_deployContext());
+    }
+}
 
-        require(topUpDistributor == deployedTo, "Unexpected deployed address");
+contract DeployTopUpDistributorScriptEthereum is DeployTopUpDistributorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
 
-        vm.stopBroadcast();
-        config.set("top_up_distributor", topUpDistributor);
+contract DeployTopUpDistributorScriptMonad is DeployTopUpDistributorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployTopUpDistributorScriptBase is DeployTopUpDistributorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployTopUpDistributorScriptBaseSepolia is DeployTopUpDistributorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }

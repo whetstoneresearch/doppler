@@ -1,42 +1,77 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt } from "script/utils/CreateX.sol";
 import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 
-contract DeployNoOpMigratorScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployNoOpMigrator is DeployBase {
+    function _deployNoOpMigrator(DeployContext memory context) internal returns (address noOpMigrator) {
+        address airlock = context.config.get(context.chainId, "airlock").toAddress();
+        return _deployNoOpMigrator(context, airlock);
+    }
 
-        uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+    function _deployNoOpMigrator(
+        DeployContext memory context,
+        address airlock
+    ) internal returns (address noOpMigrator) {
+        bytes memory initCode = abi.encodePacked(type(NoOpMigrator).creationCode, abi.encode(airlock));
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            deployToChain(chainId);
+        bool alreadyDeployed;
+        (noOpMigrator, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, bytes32(0), address(0), type(NoOpMigrator).name, NO_OP_MIGRATOR_VERSION, initCode
+        );
+
+        _verifyNoOpMigratorDeployment(noOpMigrator, airlock);
+        _setConfigAddress(context, "no_op_migrator", noOpMigrator);
+
+        if (alreadyDeployed) {
+            console.log("NoOpMigrator already deployed to:", noOpMigrator);
+        } else {
+            console.log("NoOpMigrator deployed to:", noOpMigrator);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
+    function _verifyNoOpMigratorDeployment(address addr, address airlock) internal view {
+        require(address(NoOpMigrator(addr).airlock()) == airlock, "NoOpMigrator airlock mismatch");
+    }
+}
 
-        address createX = config.get("create_x").toAddress();
-        address airlock = config.get("airlock").toAddress();
+contract DeployNoOpMigratorScript is DeployNoOpMigrator {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
 
-        vm.startBroadcast();
-        bytes32 salt = bytes32((uint256(uint160(msg.sender)) << 96) + uint256(0xdeaddeaddeaddead));
-        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+    function run() public virtual {
+        deploy();
+    }
 
-        address noOpMigrator = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(NoOpMigrator).creationCode, abi.encode(airlock)));
-        require(noOpMigrator == expectedAddress, "Unexpected deployed address");
+    function deploy() public returns (address noOpMigrator) {
+        return _deployNoOpMigrator(_deployContext());
+    }
+}
 
-        vm.stopBroadcast();
-        config.set("no_op_migrator", noOpMigrator);
+contract DeployNoOpMigratorScriptEthereum is DeployNoOpMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployNoOpMigratorScriptMonad is DeployNoOpMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployNoOpMigratorScriptBase is DeployNoOpMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployNoOpMigratorScriptBaseSepolia is DeployNoOpMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }

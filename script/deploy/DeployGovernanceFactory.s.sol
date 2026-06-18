@@ -1,42 +1,79 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import { ICreateX } from "createx/ICreateX.sol";
-import { Config } from "forge-std/Config.sol";
-import { Script } from "forge-std/Script.sol";
+import { console } from "forge-std/console.sol";
+import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
-import { computeCreate3Address, computeCreate3GuardedSalt, generateCreate3Salt } from "script/utils/CreateX.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 
-contract DeployGovernanceFactoryScript is Script, Config {
-    function run() public {
-        _loadConfigAndForks("./deployments.config.toml", true);
+abstract contract DeployGovernanceFactory is DeployBase {
+    function _deployGovernanceFactory(DeployContext memory context) internal returns (address governanceFactory) {
+        address airlock = context.config.get(context.chainId, "airlock").toAddress();
+        return _deployGovernanceFactory(context, airlock);
+    }
 
-        uint256[] memory targets = new uint256[](2);
-        targets[0] = ChainIds.ETH_MAINNET;
-        targets[1] = ChainIds.ETH_SEPOLIA;
+    function _deployGovernanceFactory(
+        DeployContext memory context,
+        address airlock
+    ) internal returns (address governanceFactory) {
+        bytes memory initCode = abi.encodePacked(type(GovernanceFactory).creationCode, abi.encode(airlock));
 
-        for (uint256 i; i < targets.length; i++) {
-            uint256 chainId = targets[i];
-            deployToChain(chainId);
+        bool alreadyDeployed;
+        (governanceFactory, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
+            context, bytes32(0), address(0), type(GovernanceFactory).name, GOVERNANCE_FACTORY_VERSION, initCode
+        );
+
+        _verifyGovernanceFactoryDeployment(governanceFactory, airlock);
+        _setConfigAddress(context, "governance_factory", governanceFactory);
+
+        if (alreadyDeployed) {
+            console.log("GovernanceFactory already deployed to:", governanceFactory);
+        } else {
+            console.log("GovernanceFactory deployed to:", governanceFactory);
         }
     }
 
-    function deployToChain(uint256 chainId) internal {
-        vm.selectFork(forkOf[chainId]);
+    function _verifyGovernanceFactoryDeployment(address addr, address airlock) internal view {
+        GovernanceFactory factory = GovernanceFactory(addr);
+        require(address(factory.airlock()) == airlock, "GovernanceFactory airlock mismatch");
+        require(address(factory.timelockFactory()) != address(0), "GovernanceFactory timelock factory missing");
+    }
+}
 
-        address createX = config.get("create_x").toAddress();
-        address airlock = config.get("airlock").toAddress();
+contract DeployGovernanceFactoryScript is DeployGovernanceFactory {
+    function setUp() public virtual {
+        _loadConfigForCurrentChain();
+    }
 
-        vm.startBroadcast();
-        bytes32 salt = generateCreate3Salt(msg.sender, type(GovernanceFactory).name);
-        address expectedAddress = computeCreate3Address(computeCreate3GuardedSalt(salt, msg.sender), createX);
+    function run() public virtual {
+        deploy();
+    }
 
-        address governanceFactory = ICreateX(createX)
-            .deployCreate3(salt, abi.encodePacked(type(GovernanceFactory).creationCode, abi.encode(airlock)));
-        require(governanceFactory == expectedAddress, "Unexpected deployed address");
+    function deploy() public returns (address governanceFactory) {
+        return _deployGovernanceFactory(_deployContext());
+    }
+}
 
-        vm.stopBroadcast();
-        config.set("governance_factory", governanceFactory);
+contract DeployGovernanceFactoryScriptEthereum is DeployGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
+    }
+}
+
+contract DeployGovernanceFactoryScriptMonad is DeployGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+    }
+}
+
+contract DeployGovernanceFactoryScriptBase is DeployGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+    }
+}
+
+contract DeployGovernanceFactoryScriptBaseSepolia is DeployGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
     }
 }
