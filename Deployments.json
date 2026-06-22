@@ -222,6 +222,7 @@
     "DecayMulticurveInitializer": "0xd59ce43e53d69f190e15d9822fb4540dccc91178",
     "DecayMulticurveInitializerHook": "0xbb7784a4d481184283ed89619a3e3ed143e1adc0",
     "DN404Factory": "0x98b0aa2e0f134dbb3eb157b5646d387e6d55243a",
+    "DopplerCreateXDeployer": "0x0000000000f13ab5b685f03a412a26719ab6be60",
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
     "DopplerERC20V1": "0xdb7b520bb5c3a2c5d4871198081911359f93be87",
     "DopplerERC20V1Factory": "0x89c261c05b5f9b6bcba07c199b8dee7cfad45292",
