@@ -1,65 +1,222 @@
 ### Deployment
 
-The supported top-level deployment entry point is [`script/DeployDoppler.s.sol`](../script/DeployDoppler.s.sol). It deploys or reuses the versioned contracts controlled by [`script/utils/Versions.sol`](../script/utils/Versions.sol), writes deployment outputs back to [`deployments.config.toml`](../deployments.config.toml) during broadcast runs, and can be rerun after bumping only the versions that need new deployments. Individual scripts in [`script/deploy`](../script/deploy) can still be run directly when deploying one contract at a time.
+The supported top-level protocol deployment entry point is
+[`script/DeployDoppler.s.sol`](../script/DeployDoppler.s.sol). It deploys or reuses the versioned contracts
+controlled by [`script/utils/Versions.sol`](../script/utils/Versions.sol), writes deployment outputs back to
+[`deployments.config.toml`](../deployments.config.toml) during broadcast runs, and can be rerun after bumping only
+the versions that need new deployments.
 
-The current target chains are:
+The intended deployment path is the **Deploy Contracts** GitHub Action. Local commands are supported for
+simulation, debugging, and emergency manual execution.
 
-| Chain        | Chain ID | Top-level script                 | Testnet |
-| ------------ | -------: | -------------------------------- | ------- |
-| Ethereum     |      `1` | `DeployDopplerScriptEthereum`    | `false` |
-| Monad        |    `143` | `DeployDopplerScriptMonad`       | `false` |
-| Base         |   `8453` | `DeployDopplerScriptBase`        | `false` |
-| Base Sepolia |  `84532` | `DeployDopplerScriptBaseSepolia` | `true`  |
+> [!IMPORTANT]
+> TODO: contract verification is not wired into the deployment workflow yet. Before mainnet deployments, add
+> `ETHERSCAN_API_KEY` or the chain-specific verifier secret to the `doppler` repository secrets, pass the relevant
+> `--verify` flags to `forge script`, and update the workflow so the Etherscan or verifier endpoint for the target
+> chain can be selected. Do not treat a deployment as complete until verification is added or performed manually.
 
-To add another target chain, add the chain ID to [`script/utils/ChainIds.sol`](../script/utils/ChainIds.sol), add an explicit wrapper contract in `DeployDoppler.s.sol` that calls `_setUpChain(chainId, isTestnet)`, add a complete chain section to `deployments.config.toml`, and configure the target RPC in both [`foundry.toml`](../foundry.toml) and `deployments.config.toml`.
+#### Current Wrappers
 
-Deployment configuration:
+| Chain        | Chain ID | Protocol script                  | CreateX deployer script                         | Testnet |
+| ------------ | -------: | -------------------------------- | ----------------------------------------------- | ------- |
+| Ethereum     |      `1` | `DeployDopplerScriptEthereum`    | Create a wrapper before deploying               | `false` |
+| Monad        |    `143` | `DeployDopplerScriptMonad`       | Create a wrapper before deploying               | `false` |
+| Base         |   `8453` | `DeployDopplerScriptBase`        | Create a wrapper before deploying               | `false` |
+| Base Sepolia |  `84532` | `DeployDopplerScriptBaseSepolia` | `DeployDopplerCreateXDeployerScriptBaseSepolia` | `true`  |
 
-RPC configuration has one environment value and two repository references:
+Chain-specific wrappers are recommended for both the CreateX deployer script and the protocol deployment script.
+They keep the target chain, testnet flag, salts, and expected addresses explicit, and they work cleanly from both
+local commands and the GitHub Action.
 
-- `.env`: set the actual RPC URL environment variable, for example `BASE_MAINNET_RPC_URL=...`.
-- `[rpc_endpoints]` in `foundry.toml`: map a Foundry RPC alias to that environment variable, for example `base = "${BASE_MAINNET_RPC_URL}"`. Use this alias for CLI commands that pass `--rpc-url <foundry-rpc-alias>`.
-- `[chain] endpoint_url` in `deployments.config.toml`: reference the same environment variable for that chain, for example `[8453] endpoint_url = "${BASE_MAINNET_RPC_URL}"`. Chain-specific top-level wrappers use this value when selecting their fork.
+#### Prepare Config
 
-Keep the `foundry.toml` alias and the `deployments.config.toml` `endpoint_url` reference aligned for each chain so bootstrap, standalone, and aggregate deployment commands all run against the same RPC.
+Before deploying, make sure the target chain is fully represented in the repo:
 
-Required chain config in `deployments.config.toml`:
+1. If this is a new supported chain, add its chain ID to
+   [`script/utils/ChainIds.sol`](../script/utils/ChainIds.sol).
+2. Add or confirm the chain-specific wrapper in `script/DeployDoppler.s.sol`.
+3. Add or confirm the chain-specific wrapper in `script/DeployDopplerCreateXDeployer.s.sol`. This wrapper should set
+   the mined `salt` and `expectedAddress` for the bootstrap `DopplerCreateXDeployer`.
+4. Update [`script/utils/Versions.sol`](../script/utils/Versions.sol) if any deployed protocol contract needs a new
+   version.
+5. Add the RPC alias to `[rpc_endpoints]` in [`foundry.toml`](../foundry.toml).
+6. Add the chain section to [`deployments.config.toml`](../deployments.config.toml).
 
-- `[chain] endpoint_url`: RPC endpoint environment reference used by the chain-specific top-level deployment wrappers.
-- `[chain.bool] is_testnet`: `true` only for chains that should deploy `AirlockMultisigTestnet` before `Airlock`.
-- `[chain.address] deployer_owner`: owner for the `DopplerCreateXDeployer` bootstrap deployment.
-- `[chain.address] protocol_deployer`: populated after `DeployDopplerCreateXDeployerScript` is broadcast.
-- `[chain.address] airlock_multisig`: required for non-testnets. Testnets deploy and write this through `DeployAirlockMultisigTestnet`.
-- `[chain.address] uniswap_v4_pool_manager`
-- `[chain.address] uniswap_v3_factory`
-- `[chain.address] uniswap_v2_factory`
-- `[chain.address] weth`
-- `[chain.address] quoter_v2`
-- `[chain.address] quoter_v4`
-- `[chain.address] universal_router`
-- `[chain.address] uniswap_v4_state_view`
+Each chain section in `deployments.config.toml` needs:
 
-Deployment flow:
+- `[chain] endpoint_url`: the same RPC environment variable used by `foundry.toml`, for example
+  `"${BASE_SEPOLIA_RPC_URL}"`.
+- `[chain.bool] is_testnet`: `true` only for chains where the script should deploy `AirlockMultisigTestnet`.
+- `[chain.address] deployer_owner`: owner for the `DopplerCreateXDeployer`.
+- `[chain.address] protocol_deployer`: written after the CreateX deployer broadcast succeeds.
+- `[chain.address] airlock_multisig`: required for non-testnets. Testnet deployments write this after deploying
+  `AirlockMultisigTestnet`.
+- External protocol addresses used by the aggregate deployment: `uniswap_v4_pool_manager`,
+  `uniswap_v4_state_view`, `uniswap_v3_factory`, `uniswap_v2_factory`, `weth`, `quoter_v2`, `quoter_v4`, and
+  `universal_router`.
 
-1. Configure the target chain RPC in all three places: set the environment variable in `.env`, map it under `[rpc_endpoints]` in `foundry.toml`, and reference it as `[chain] endpoint_url` in `deployments.config.toml`. Add a `DeployDopplerScript` wrapper if this is a new supported chain. If deploying new protocol versions on an existing chain, update the relevant constants in `Versions.sol`.
-2. Configure `salt` and `expectedAddress` in `DeployDopplerCreateXDeployerScript`, set `deployer_owner`, then broadcast the bootstrap deployer script. A successful broadcast writes `protocol_deployer` to the active chain config.
+Keep the RPC references aligned:
 
-   ```shell
-   forge script script/DeployDopplerCreateXDeployer.s.sol:DeployDopplerCreateXDeployerScript --rpc-url <foundry-rpc-alias> --broadcast
-   ```
+- Local `.env`: `BASE_SEPOLIA_RPC_URL=...`
+- `foundry.toml`: `base_sepolia = "${BASE_SEPOLIA_RPC_URL}"`
+- `deployments.config.toml`: `[84532] endpoint_url = "${BASE_SEPOLIA_RPC_URL}"`
+- GitHub repository secret: `BASE_SEPOLIA_RPC_URL`
 
-3. Authorize the account that will broadcast `DeployDopplerScript`. The `protocol_deployer` owner is already authorized; otherwise the owner or an admin should call `addDeployers(address[])` on `DopplerCreateXDeployer`.
+#### Deploy DopplerCreateXDeployer
 
-   ```shell
-   cast send <protocol_deployer> "addDeployers(address[])" "[<broadcaster>]" --rpc-url <rpc-url> --private-key <owner-or-admin-private-key>
-   ```
+`DopplerCreateXDeployer` must be deployed before the full protocol deployment. The aggregate deployment script
+requires `protocol_deployer` in the target chain config and routes deterministic deployments through that contract.
 
-4. Broadcast the top-level deployment script for the target chain. The chain-specific wrapper selects the configured fork for its chain ID.
+1. Mine a CreateX salt and compute the expected address for `DopplerCreateXDeployer`.
 
-   ```shell
-   forge script script/DeployDoppler.s.sol:DeployDopplerScriptBase --broadcast
-   ```
+   [`createXcrunch`](https://github.com/HrikB/createXcrunch) is recommended for mining CreateX vanity or
+   pattern-matching salts.
 
-For standalone contract deployments, run the specific script from `script/deploy` with the target chain RPC context after `protocol_deployer` is configured and the broadcaster is authorized. Individual deploy scripts also expose chain-specific wrappers named like `<DeployScriptName>Ethereum`, `<DeployScriptName>Monad`, `<DeployScriptName>Base`, and `<DeployScriptName>BaseSepolia`, which select the configured RPC endpoint internally. `DeployAirlockMultisigTestnetScript` is testnet-only and exposes only `DeployAirlockMultisigTestnetScriptBaseSepolia`.
+2. Set the mined `salt` and `expectedAddress` in the target wrapper in
+   `script/DeployDopplerCreateXDeployer.s.sol`.
 
-The same scripts can be run from the **Deploy Contracts** GitHub Action. Enter the Solidity script contract name, such as `DeployDopplerScriptBase`, and leave **Broadcast (simulate if unchecked)** disabled for a dry-run simulation. The action resolves the matching foundry script, derives the deployer address from the `DEPLOYER_PRIVATE_KEY` repository secret, and passes both `--private-key` and `--sender` so default `vm.startBroadcast()` calls use the deployer account in simulations and broadcasts. Chain-specific wrappers use the RPC environment variable configured in `deployments.config.toml`, so the matching RPC URL secret must exist in GitHub; standalone scripts that call `_loadConfigForCurrentChain()` should use the optional RPC alias/URL input. After broadcast runs, the action runs `make generate-history` and opens a pull request for any changed broadcast logs, `deployments.config.toml`, and generated deployment docs using GitHub's built-in `GITHUB_TOKEN`.
+3. Set `deployer_owner` in the target chain's `deployments.config.toml` section.
+
+4. Simulate the deployment through the GitHub Action or locally.
+
+5. Broadcast the deployment. A successful broadcast writes `protocol_deployer` to `deployments.config.toml`.
+
+Primary GitHub Action simulation input:
+
+```text
+script_name: DeployDopplerCreateXDeployerScriptBaseSepolia
+broadcast: false
+rpc_url: leave blank for chain-specific wrappers, or override if necessary
+```
+
+If the simulation passes, broadcast with:
+
+```text
+script_name: DeployDopplerCreateXDeployerScriptBaseSepolia
+broadcast: true
+rpc_url: leave blank for chain-specific wrappers, or override if necessary
+```
+
+Local equivalent:
+
+```shell
+DEPLOYER_ADDRESS=$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")
+
+forge script script/DeployDopplerCreateXDeployer.s.sol \
+  --target-contract DeployDopplerCreateXDeployerScriptBaseSepolia \
+  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  --sender "$DEPLOYER_ADDRESS" \
+  --broadcast \
+  --slow \
+  --non-interactive \
+  -vvv
+```
+
+After a GitHub broadcast, review and merge the generated deployment-record PR before running the full protocol
+deployment. That PR is what brings the new `protocol_deployer` value back into the branch.
+
+#### Authorize The GitHub Deployer
+
+Before running any other deploy script, the `deployer_owner` must authorize the GitHub workflow deployer address:
+
+```text
+0xcCe8c8461F91dCD4c1f99520b685648DF3462D4C
+```
+
+Grant only the Deployer role. This address does not need the Admin role and should not receive it.
+
+```shell
+cast send <protocol_deployer> \
+  "addDeployers(address[])" \
+  "[0xcCe8c8461F91dCD4c1f99520b685648DF3462D4C]" \
+  --rpc-url <target-rpc-url-or-alias> \
+  --private-key <deployer-owner-or-admin-private-key>
+```
+
+#### Deploy The Protocol With GitHub Actions
+
+The GitHub Action is the primary process for protocol deployments.
+
+Required `doppler` repository or environment secrets:
+
+- `DEPLOYER_PRIVATE_KEY`: private key for the workflow deployer. The current expected deployer address is
+  `0xcCe8c8461F91dCD4c1f99520b685648DF3462D4C`, and it must be authorized as a Deployer on
+  `DopplerCreateXDeployer` before the protocol deployment runs.
+- Target chain RPC secret, for example `BASE_SEPOLIA_RPC_URL`.
+- Any other RPC secrets referenced by `deployments.config.toml` should also exist in the repository environment so
+  config loading is consistent across chains.
+
+Run a simulation first:
+
+```text
+script_name: DeployDopplerScriptBaseSepolia
+broadcast: false
+rpc_url: leave blank for chain-specific wrappers
+```
+
+If the simulation passes, run the broadcast:
+
+```text
+script_name: DeployDopplerScriptBaseSepolia
+broadcast: true
+rpc_url: leave blank for chain-specific wrappers
+```
+
+During workflow execution:
+
+1. The workflow derives the sender from `DEPLOYER_PRIVATE_KEY`.
+2. It builds all scripts with `forge build ./script --via-ir`.
+3. It runs `forge script` with `--target-contract`, `--private-key`, `--sender`, `--non-interactive`, and `-vvv`.
+4. For broadcasts, it also adds `--broadcast --slow`.
+5. After a successful broadcast, it runs `make generate-history`.
+6. It uploads deployment artifacts and opens a pull request containing broadcast logs, `deployments.config.toml`,
+   `Deployments.md`, `Deployments.json`, and per-chain deployment docs.
+
+Review the generated deployment-record PR, confirm the addresses and transaction hashes, then merge it.
+
+#### Local Protocol Deployment
+
+Local execution is mainly for simulation and debugging. Use the same sender that GitHub will use whenever possible.
+
+Simulation:
+
+```shell
+DEPLOYER_ADDRESS=$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")
+
+forge script script/DeployDoppler.s.sol \
+  --target-contract DeployDopplerScriptBaseSepolia \
+  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  --sender "$DEPLOYER_ADDRESS" \
+  --non-interactive \
+  -vvv
+```
+
+Broadcast:
+
+```shell
+DEPLOYER_ADDRESS=$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")
+
+forge script script/DeployDoppler.s.sol \
+  --target-contract DeployDopplerScriptBaseSepolia \
+  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  --sender "$DEPLOYER_ADDRESS" \
+  --broadcast \
+  --slow \
+  --non-interactive \
+  -vvv
+
+make generate-history
+```
+
+Commit the broadcast logs, `deployments.config.toml`, generated deployment docs, and `Deployments.json` after local
+broadcasts.
+
+#### Standalone Scripts
+
+Individual scripts in [`script/deploy`](../script/deploy) can still be run directly when deploying one contract at a
+time. Use them only after `protocol_deployer` is configured and the broadcasting address is authorized on
+`DopplerCreateXDeployer`.
+
+Standalone deploy scripts expose chain-specific wrappers named like `<DeployScriptName>Ethereum`,
+`<DeployScriptName>Monad`, `<DeployScriptName>Base`, and `<DeployScriptName>BaseSepolia` when supported. Scripts that
+call `_loadConfigForCurrentChain()` instead of selecting a fork internally should be run with a target `--rpc-url`.
