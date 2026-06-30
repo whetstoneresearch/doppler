@@ -83,6 +83,11 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://sepolia.etherscan.io',
     isTestnet: true,
   },
+  4663: {
+    name: 'Robinhood Mainnet',
+    explorerUrl: '',
+    isTestnet: false,
+  }
 };
 
 type Transaction = {

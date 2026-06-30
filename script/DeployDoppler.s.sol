@@ -124,6 +124,12 @@ contract DeployDopplerScriptBase is DeployDopplerScript {
     }
 }
 
+contract DeployDopplerScriptRobinhood is DeployDopplerScript {
+    function setUp() public override {
+        _setUpChain(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerScriptBaseSepolia is DeployDopplerScript {
     function setUp() public override {
         _setUpChain(ChainIds.BASE_SEPOLIA, true);
