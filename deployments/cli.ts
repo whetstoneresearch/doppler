@@ -7,7 +7,7 @@ type ChainDetails = {
   isTestnet: boolean;
 }
 
-const chains: {[chainId: number]: ChainDetails } = {
+const chains: { [chainId: number]: ChainDetails } = {
   8453: {
     name: 'Base',
     explorerUrl: 'https://basescan.org',
@@ -83,6 +83,11 @@ const chains: {[chainId: number]: ChainDetails } = {
     explorerUrl: 'https://sepolia.etherscan.io',
     isTestnet: true,
   },
+  4663: {
+    name: 'Robinhood Mainnet',
+    explorerUrl: 'https://robinhoodchain.blockscout.com',
+    isTestnet: false,
+  }
 };
 
 type Transaction = {
@@ -193,7 +198,7 @@ function getDeploymentIdentity(deployment: Deployment): string {
 }
 
 function dedupeDeployments(deployments: Deployment[]): Deployment[] {
-  const dedupedDeployments: {[key: string]: Deployment} = {};
+  const dedupedDeployments: { [key: string]: Deployment } = {};
 
   deployments.forEach((deployment) => {
     const key = getDeploymentIdentity(deployment);
@@ -211,7 +216,7 @@ function sortDeploymentsByContractName(deployments: Deployment[]): Deployment[] 
 }
 
 function getLatestDeployments(deployments: Deployment[]): Deployment[] {
-  const latestDeployments: {[key: string]: Deployment} = {};
+  const latestDeployments: { [key: string]: Deployment } = {};
 
   deployments.forEach((deployment) => {
     if (!latestDeployments[deployment.contractName]) {
@@ -225,7 +230,7 @@ function getLatestDeployments(deployments: Deployment[]): Deployment[] {
 }
 
 function addDeployment(
-  deployments: {[chainId: string]: Deployment[]},
+  deployments: { [chainId: string]: Deployment[] },
   chainId: number | string,
   deployment: Deployment,
 ): void {
@@ -279,7 +284,7 @@ async function generateHistoryLogs(): Promise<void> {
     });
 
   // Then we're going to iterate over each file to fetch the deployments
-  const deployments: {[chainId: string]: Deployment[] } = {};
+  const deployments: { [chainId: string]: Deployment[] } = {};
 
   for (const file of jsonFiles) {
     const filePath = `./broadcast/${file}`;
@@ -365,7 +370,7 @@ async function generateHistoryLogs(): Promise<void> {
         )
       );
 
-     for (const transaction of broadcast.transactions) {
+      for (const transaction of broadcast.transactions) {
         if ((
           transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
           && transaction.hash !== null && transaction.contractName !== null
@@ -453,7 +458,7 @@ async function generateHistoryLogs(): Promise<void> {
     deployments[chainId] = deployments[chainId].filter(d => d.contractName);
 
     let content = `# Deployments on ${chains[chainId].name} (${chainId})\n`;
-    let timestamps: {[key: number]: Deployment[]} = {};
+    let timestamps: { [key: number]: Deployment[] } = {};
 
     deployments[chainId].forEach((d) => {
       const normalizedTimestamp = normalizeTimestamp(d.timestamp);
@@ -511,23 +516,23 @@ async function generateHistoryLogs(): Promise<void> {
   }
 
   await Bun.write(`./Deployments.md`, generateDeploymentsFile(mainnetLabels, mainnetDeployments, testnetLabels, testnetDeployments));
-  
+
   // Generate JSON file for SDK consumption
-  const addressesJson: {[chainId: string]: {[contractName: string]: string}} = {};
-  
+  const addressesJson: { [chainId: string]: { [contractName: string]: string } } = {};
+
   for (const chainId in deployments) {
     if (deployments[chainId].length === 0) {
       continue;
     }
-    
+
     const latestDeployments = sortDeploymentsByContractName(getLatestDeployments(deployments[chainId]));
     addressesJson[chainId] = {};
-    
+
     latestDeployments.forEach((deployment) => {
       addressesJson[chainId][deployment.contractName] = deployment.contractAddress;
     });
   }
-  
+
   await Bun.write(`./Deployments.json`, JSON.stringify(addressesJson, null, 2));
 }
 

@@ -10,6 +10,10 @@ The intended deployment path is the **Deploy Contracts** GitHub Action. Local co
 simulation, debugging, and emergency manual execution.
 
 > [!IMPORTANT]
+> If deploying locally, please run `forge install`, followed by `forge clean` prior to simulating or broadcasting
+> any deployment scripts. This will help ensure installed dependencies are consistent, and aid in contract verification.
+
+> [!IMPORTANT]
 > TODO: contract verification is not wired into the deployment workflow yet. Before mainnet deployments, add
 > `ETHERSCAN_API_KEY` or the chain-specific verifier secret to the `doppler` repository secrets, pass the relevant
 > `--verify` flags to `forge script`, and update the workflow so the Etherscan or verifier endpoint for the target

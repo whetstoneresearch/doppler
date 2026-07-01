@@ -204,6 +204,50 @@ no_op_migrator = "0x233A71A7bB928b1357A1Ebf454298320989Ca5B5"
 no_op_governance_factory = "0xddAE8B3eD08184682f7Bc32B74d943cEEfEab638"
 uniswap_v4_pool_manager = "0xacb7e78fa05d562e0a5d3089ec896d57d057d38e"
 
+[4663]
+endpoint_url = "${ROBINHOOD_MAINNET_RPC_URL}"
+
+[4663.bool]
+is_testnet = false
+
+[4663.address]
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+deployer_owner = "0xEDeAa06E2eB42A5c19ce27c6cfFb36fd4fE1eDa8"
+airlock_multisig = "0xEDeAa06E2eB42A5c19ce27c6cfFb36fd4fE1eDa8"
+uniswap_v4_pool_manager = "0x8366a39cc670b4001a1121b8f6a443a643e40951"
+uniswap_v4_state_view = "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b"
+uniswap_v3_factory = "0x1f7d7550b1b028f7571e69a784071f0205fd2efa"
+uniswap_v2_factory = "0x8bceaa40b9acdfaedf85adf4ff01f5ad6517937f"
+weth = "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+quoter_v2 = "0x33e885ed0ec9bf04ecfb19341582aadcb4c8a9e7"
+quoter_v4 = "0x8dc178efb8111bb0973dd9d722ebeff267c98f94"
+universal_router = "0x8876789976decbfcbbbe364623c63652db8c0904"
+protocol_deployer = "0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83"
+airlock = "0xeb7C034704eF8Dcd2D32324c1545f62fB4aD0862"
+top_up_distributor = "0x46adee7595d48b1Ec53090e9bc78e1E69Fa0eF06"
+streamable_fees_locker_v2 = "0x7B6147AC3F615bdb764e7EbD5f517dac1AD163B8"
+doppler_erc20_v1_factory = "0x1B37D3a72082029c44B35B604Ea473617580b69a"
+doppler_erc20_v1_implementation = "0x3Be8B97Fd0e713B5aBE0649Fa830223B6B4BC599"
+dn404_factory = "0x37A9Fa204a4d3A429FDED7e3469ab076C854Bc9d"
+no_op_governance_factory = "0x85f37f74Ef2478A770318bc810177a9835911aD7"
+governance_factory = "0xDeb0447DAE3EB177c4dbA8bBCCCa25c8F273B7ef"
+launchpad_governance_factory = "0xdb036746D65DD52126b1915f1AdF555e6C5237Cf"
+lockable_uniswap_v3_initializer = "0xde8886A0019Ea060B8378Ee37b8A23b8117F29A3"
+doppler_deployer = "0x4389AD34938B14F25cff7ED983c53f5a42A2573f"
+uniswap_v4_initializer = "0x6cce158B6D1747617fc218592B4D60B239B957ea"
+doppler_hook_initializer = "0x4e3468951D49f2EEa976eD0D6e75fFCb44a9a544"
+rehype_doppler_hook_initializer = "0x6f02324d20CC679d0E585290CAa6b16baCbC0F77"
+quoter = "0x7232686FC954f12079cadFC5e9F755a9fEAeb3Ca"
+swap_restrictor_doppler_hook = "0xC16c826F75338A5Ea626f94f8992191B4ce5abA2"
+no_op_migrator = "0xba2F330EDb16cD8056f5988d8CE19BbC63475A0e"
+uniswap_v2_migrator_split = "0xB05046cEa797c993FB5b583098B1c4682e9Da333"
+uniswap_v2_locker = "0x63f6Efe03F25A8C6650b38d05C5a454051d642a5"
+doppler_hook_migrator = "0x7BF319d8e969f7596B1Bc171Da9ce322f67Ae0c4"
+rehype_doppler_hook_migrator = "0x1a0f286bB7f5967AE89c13D3425D5ce04C34cd27"
+doppler_lens_quoter = "0xf4c22465532f64777FfcD7770831AEca38F35c04"
+bundler = "0xEdE0B5fae363232c396724Fa962250Fa197cc5a1"
+
 [84532]
 endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
 

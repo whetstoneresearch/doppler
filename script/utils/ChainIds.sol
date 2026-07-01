@@ -13,6 +13,7 @@ library ChainIds {
     uint256 constant BASE_SEPOLIA = 84_532;
     uint256 constant MONAD_MAINNET = 143;
     uint256 constant MONAD_TESTNET = 10_143;
+    uint256 constant ROBINHOOD_MAINNET = 4_663;
 }
 
 using LibString for uint256;

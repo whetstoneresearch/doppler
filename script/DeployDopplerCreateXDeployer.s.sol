@@ -70,3 +70,11 @@ contract DeployDopplerCreateXDeployerScriptBaseSepolia is DeployDopplerCreateXDe
         expectedAddress = 0x0000000000f13Ab5b685F03A412A26719aB6bE60;
     }
 }
+
+contract DeployDopplerCreateXDeployerScriptRobinhood is DeployDopplerCreateXDeployerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
+        expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
+    }
+}
