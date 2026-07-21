@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { Quoter } from "@quoter/Quoter.sol";
-import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -13,14 +12,19 @@ import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
 import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { Collect, FeesManager } from "src/base/FeesManager.sol";
 import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
 import { MigrationMath } from "src/libraries/MigrationMath.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import {
     AIRLOCK_OWNER_FEE_BPS,
     AirlockOwnerFeesClaimed,
     BPS_DENOMINATOR,
     EPSILON,
+    FeeBeneficiariesNotConfigured,
+    FeeBeneficiariesNotSupportedInDirectBuyback,
+    FeeBeneficiariesSet,
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
@@ -35,9 +39,9 @@ import {
     InvalidFeeRange,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
+    PoolAlreadyInitialized,
     PoolInfo,
     SenderNotAirlockOwner,
-    SenderNotAuthorized,
     SwapSimulation
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -48,7 +52,7 @@ import { WAD } from "src/types/Wad.sol";
  * @custom:security-contact security@whetstone.cc
  * @notice Doppler Hook that implements fee collection, distribution, buybacks, LP fee reinvestment and decaying LP fee
  */
-contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyGuard {
+contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager {
     using StateLibrary for IPoolManager;
     using CurrencyLibrary for Currency;
 
@@ -93,11 +97,24 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
 
         PoolId poolId = key.toId();
 
+        // We prevent reinitializing rehype hook due to beneficiaries not being enumerable, and thus clearable.
+        // Naive reinitialization would lead to overallocation of beneficiary fees and overlapping claims.
+        require(getPoolInfo[poolId].asset == address(0), PoolAlreadyInitialized());
+
         getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
 
         _validateFeeDistribution(initData.feeDistributionInfo);
         getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
+
+        if (initData.feeBeneficiaries.length > 0) {
+            require(
+                initData.feeRoutingMode == FeeRoutingMode.RouteToBeneficiaryFees,
+                FeeBeneficiariesNotSupportedInDirectBuyback()
+            );
+            _storeBeneficiaries(key, initData.feeBeneficiaries);
+            emit FeeBeneficiariesSet(poolId, initData.feeBeneficiaries);
+        }
 
         // Validate and store fee schedule
         require(initData.startFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(initData.startFee));
@@ -632,13 +649,20 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
     }
 
     /**
-     * @notice Collects accumulated beneficiary fees for a pool and transfers them to the associated beneficiary
+     * @notice Collects accumulated beneficiary fees for a pool
+     * @dev Legacy pools initialized with an empty fee-beneficiary array transfer fees to `buybackDst`. Configured
+     * pools harvest fees into FeesManager cumulative accounting and release only the caller's ordinary share.
      * @param asset Asset to collect fees from
      * @return fees Collected fees as a BalanceDelta
      */
     function collectFees(address asset) external nonReentrant returns (BalanceDelta fees) {
         (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
         PoolId poolId = poolKey.toId();
+
+        if (address(getPoolKey[poolId].hooks) != address(0)) {
+            return _collectAndReleaseRehypeFees(poolId);
+        }
+
         HookFees memory hookFees = getHookFees[poolId];
         address beneficiary = getPoolInfo[poolId].buybackDst;
 
@@ -655,6 +679,28 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, ReentrancyG
         }
 
         return fees;
+    }
+
+    /// @inheritdoc FeesManager
+    function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
+        require(address(getPoolKey[poolId].hooks) != address(0), FeeBeneficiariesNotConfigured());
+
+        HookFees storage hookFees = getHookFees[poolId];
+        fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
+        hookFees.beneficiaryFees0 = 0;
+        hookFees.beneficiaryFees1 = 0;
+    }
+
+    function _collectAndReleaseRehypeFees(PoolId poolId) internal returns (BalanceDelta fees) {
+        fees = _collectFees(poolId);
+        uint128 fees0 = uint128(fees.amount0());
+        uint128 fees1 = uint128(fees.amount1());
+
+        getCumulatedFees0[poolId] += fees0;
+        getCumulatedFees1[poolId] += fees1;
+        _releaseFees(poolId, msg.sender);
+
+        emit Collect(poolId, fees0, fees1);
     }
 
     /**

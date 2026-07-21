@@ -10,7 +10,7 @@ on:
 
 permissions:
   contents: read
-  issues: write
+  pull-requests: write
 
 concurrency:
   group: gas-benchmark-comment-${{ github.event.pull_request.number }}

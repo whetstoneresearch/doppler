@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { PoolId } from "@v4-core/types/PoolId.sol";
+import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 
 /// @notice Thrown when the fee distribution does not add up to WAD (1e18)
 error FeeDistributionMustAddUpToWAD();
@@ -15,6 +16,15 @@ error SenderNotAirlockOwner();
 /// @notice Thrown when the pool manager fee currency is insufficient
 error InsufficientFeeCurrency();
 
+/// @notice Thrown when fee beneficiaries are configured for DirectBuyback routing
+error FeeBeneficiariesNotSupportedInDirectBuyback();
+
+/// @notice Thrown when fee collection by PoolId is attempted for a pool without configured fee beneficiaries
+error FeeBeneficiariesNotConfigured();
+
+/// @notice Thrown when the pool is already initialized
+error PoolAlreadyInitialized();
+
 /**
  * @notice Emitted when Airlock owner claims fees
  * @param poolId Pool from which fees were claimed
@@ -23,6 +33,13 @@ error InsufficientFeeCurrency();
  * @param fees1 Amount of currency1 claimed
  */
 event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwner, uint128 fees0, uint128 fees1);
+
+/**
+ * @notice Emitted when Rehype fee beneficiaries are configured for a pool
+ * @param poolId Pool whose Rehype fees are distributed
+ * @param beneficiaries Beneficiaries and their respective WAD shares
+ */
+event FeeBeneficiariesSet(PoolId indexed poolId, BeneficiaryData[] beneficiaries);
 
 // Constants
 /// @dev Maximum swap fee denominator (1e6 = 100%)
@@ -97,14 +114,18 @@ enum FeeRoutingMode {
 
 /**
  * @notice Initialization data for a Rehype-managed pool
+ * @dev Every gross Rehype fee first reserves 5% for the current Airlock owner's separate claim path. Beneficiary
+ * shares apply only to post-owner amounts that ultimately reach beneficiary fee accounting.
  * @param numeraire Address of the numeraire token
- * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
+ * @param buybackDst Address receiving direct buyback proceeds and legacy empty-array beneficiary claims
  * @param startFee Fee at schedule start (in millionths, e.g. 5000 = 0.5%)
  * @param endFee Terminal fee after decay completes (in millionths)
  * @param durationSeconds Duration of linear fee decay (0 = no decay, fee stays at startFee)
  * @param startingTime Timestamp when decay begins (0 = use block.timestamp at initialization)
  * @param feeRoutingMode Routing mode for buyback-designated fees
  * @param feeDistributionInfo Fee routing matrix percentages for the pool
+ * @param feeBeneficiaries Optional ordinary Rehype fee beneficiaries. Requires RouteToBeneficiaryFees and positive
+ * shares totaling WAD. The Airlock owner does not need to appear, but if included, it has an ordinary share.
  */
 struct InitData {
     address numeraire;
@@ -115,6 +136,7 @@ struct InitData {
     uint32 startingTime;
     FeeRoutingMode feeRoutingMode;
     FeeDistributionInfo feeDistributionInfo;
+    BeneficiaryData[] feeBeneficiaries;
 }
 
 /**
@@ -137,7 +159,8 @@ struct MigratorInitData {
  * @notice Core pool information for a Rehype-managed pool
  * @param asset Address of the asset token
  * @param numeraire Address of the numeraire token
- * @param buybackDst Address receiving direct buyback proceeds and beneficiary fees
+ * @param buybackDst Address receiving direct buyback proceeds and, for legacy pools initialized with an empty
+ * fee-beneficiary array, beneficiary fees. Configured beneficiary fees are distributed through FeesManager.
  */
 struct PoolInfo {
     address asset;

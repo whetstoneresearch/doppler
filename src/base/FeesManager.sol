@@ -13,6 +13,9 @@ import { WAD } from "src/types/Wad.sol";
 /// @notice Thrown when the new beneficiary is the same as the caller
 error InvalidNewBeneficiary();
 
+/// @notice Thrown when the caller is not a beneficiary
+error CallerNotBeneficiary();
+
 /**
  * @notice Emitted when fees are released to a beneficiary
  * @param poolId Id of the Uniswap V4 pool
@@ -98,6 +101,7 @@ abstract contract FeesManager is ReentrancyGuard {
      */
     function updateBeneficiary(PoolId poolId, address newBeneficiary) external nonReentrant {
         require(newBeneficiary != msg.sender, InvalidNewBeneficiary());
+        require(getShares[poolId][msg.sender] > 0, CallerNotBeneficiary());
 
         _releaseFees(poolId, msg.sender);
         _releaseFees(poolId, newBeneficiary);
@@ -131,6 +135,17 @@ abstract contract FeesManager is ReentrancyGuard {
         PoolId poolId = poolKey.toId();
         getPoolKey[poolId] = poolKey;
         storeBeneficiaries(poolId, beneficiaries, protocolOwner, protocolOwnerShares, _storeBeneficiary);
+    }
+
+    /**
+     * @dev Validates and stores beneficiaries without requiring a protocol owner beneficiary
+     * @param poolKey Key of the Uniswap V4 pool to which the beneficiaries are associated
+     * @param beneficiaries Array of beneficiaries (see `storeBeneficiaries` in `BeneficiaryData` for requirements)
+     */
+    function _storeBeneficiaries(PoolKey memory poolKey, BeneficiaryData[] memory beneficiaries) internal {
+        PoolId poolId = poolKey.toId();
+        getPoolKey[poolId] = poolKey;
+        storeBeneficiaries(poolId, beneficiaries, _storeBeneficiary);
     }
 
     /**

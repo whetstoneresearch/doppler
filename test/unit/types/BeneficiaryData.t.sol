@@ -42,6 +42,94 @@ contract BeneficiaryDataTest is Test {
         }
     }
 
+    function test_storeBeneficiariesWithoutProtocolOwner_StoresWhenProtocolOwnerOmitted() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.4e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x2), shares: 0.6e18 });
+        PoolId poolId = PoolId.wrap(bytes32(uint256(1)));
+
+        storeBeneficiaries(poolId, beneficiaries, _storeBeneficiary);
+
+        assertEq(shares[poolId][address(0x1)], 0.4e18);
+        assertEq(shares[poolId][address(0x2)], 0.6e18);
+        assertEq(shares[poolId][PROTOCOL_OWNER], 0);
+    }
+
+    function test_storeBeneficiariesWithoutProtocolOwner_AllowsProtocolOwnerBelowMinimum() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.97e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.03e18 });
+
+        storeBeneficiaries(PoolId.wrap(bytes32(uint256(1))), beneficiaries, _doNotStoreBeneficiary);
+    }
+
+    function test_storeBeneficiariesWithoutProtocolOwner_AllowsSoleBeneficiary() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 1e18 });
+        PoolId poolId = PoolId.wrap(bytes32(uint256(1)));
+
+        storeBeneficiaries(poolId, beneficiaries, _storeBeneficiary);
+
+        assertEq(shares[poolId][address(0x1)], 1e18);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_storeBeneficiariesWithoutProtocolOwner_RevertsIfZeroAddress() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0), shares: 1e18 });
+
+        vm.expectRevert(UnorderedBeneficiaries.selector);
+        storeBeneficiaries(PoolId.wrap(bytes32(0)), beneficiaries, _doNotStoreBeneficiary);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_storeBeneficiariesWithoutProtocolOwner_RevertsIfDuplicateBeneficiary() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.5e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.5e18 });
+
+        vm.expectRevert(UnorderedBeneficiaries.selector);
+        storeBeneficiaries(PoolId.wrap(bytes32(0)), beneficiaries, _doNotStoreBeneficiary);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_storeBeneficiariesWithoutProtocolOwner_RevertsIfDescendingBeneficiary() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x2), shares: 0.5e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.5e18 });
+
+        vm.expectRevert(UnorderedBeneficiaries.selector);
+        storeBeneficiaries(PoolId.wrap(bytes32(0)), beneficiaries, _doNotStoreBeneficiary);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_storeBeneficiariesWithoutProtocolOwner_RevertsIfZeroShares() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0x2), shares: 1e18 });
+
+        vm.expectRevert(InvalidShares.selector);
+        storeBeneficiaries(PoolId.wrap(bytes32(0)), beneficiaries, _doNotStoreBeneficiary);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_storeBeneficiariesWithoutProtocolOwner_RevertsIfTotalSharesBelowWad() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 0.99e18 });
+
+        vm.expectRevert(InvalidTotalShares.selector);
+        storeBeneficiaries(PoolId.wrap(bytes32(0)), beneficiaries, _doNotStoreBeneficiary);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_storeBeneficiariesWithoutProtocolOwner_RevertsIfTotalSharesAboveWad() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0x1), shares: 1.01e18 });
+
+        vm.expectRevert(InvalidTotalShares.selector);
+        storeBeneficiaries(PoolId.wrap(bytes32(0)), beneficiaries, _doNotStoreBeneficiary);
+    }
+
     /// forge-config: default.allow_internal_expect_revert = true
     function test_storeBeneficiaries_RevertsIfUnorderedBeneficiaries() public {
         BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
