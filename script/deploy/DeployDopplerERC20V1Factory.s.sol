@@ -89,6 +89,12 @@ contract DeployDopplerERC20V1FactoryScriptBase is DeployDopplerERC20V1FactoryScr
     }
 }
 
+contract DeployDopplerERC20V1FactoryScriptRobinhood is DeployDopplerERC20V1FactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerERC20V1FactoryScriptBaseSepolia is DeployDopplerERC20V1FactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

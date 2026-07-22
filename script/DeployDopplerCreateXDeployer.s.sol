@@ -63,11 +63,27 @@ contract DeployDopplerCreateXDeployerScript is DeployBase {
     }
 }
 
-contract DeployDopplerCreateXDeployerScriptBaseSepolia is DeployDopplerCreateXDeployerScript {
+contract DeployDopplerCreateXDeployerScriptEthereum is DeployDopplerCreateXDeployerScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
+        _loadConfigAndSelectFork(ChainIds.ETH_MAINNET, false);
         salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
-        expectedAddress = 0x0000000000f13Ab5b685F03A412A26719aB6bE60;
+        expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
+    }
+}
+
+contract DeployDopplerCreateXDeployerScriptMonad is DeployDopplerCreateXDeployerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.MONAD_MAINNET, false);
+        salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
+        expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
+    }
+}
+
+contract DeployDopplerCreateXDeployerScriptBase is DeployDopplerCreateXDeployerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
+        salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
+        expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
     }
 }
 
@@ -76,5 +92,13 @@ contract DeployDopplerCreateXDeployerScriptRobinhood is DeployDopplerCreateXDepl
         _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
         salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
         expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
+    }
+}
+
+contract DeployDopplerCreateXDeployerScriptBaseSepolia is DeployDopplerCreateXDeployerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
+        salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
+        expectedAddress = 0x0000000000f13Ab5b685F03A412A26719aB6bE60;
     }
 }

@@ -70,6 +70,12 @@ contract DeployNoOpMigratorScriptBase is DeployNoOpMigratorScript {
     }
 }
 
+contract DeployNoOpMigratorScriptRobinhood is DeployNoOpMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployNoOpMigratorScriptBaseSepolia is DeployNoOpMigratorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

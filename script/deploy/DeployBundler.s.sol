@@ -81,6 +81,12 @@ contract DeployBundlerScriptBase is DeployBundlerScript {
     }
 }
 
+contract DeployBundlerScriptRobinhood is DeployBundlerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployBundlerScriptBaseSepolia is DeployBundlerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

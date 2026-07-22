@@ -86,6 +86,12 @@ contract DeployLockableUniswapV3InitializerScriptBase is DeployLockableUniswapV3
     }
 }
 
+contract DeployLockableUniswapV3InitializerScriptRobinhood is DeployLockableUniswapV3InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployLockableUniswapV3InitializerScriptBaseSepolia is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

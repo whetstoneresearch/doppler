@@ -67,6 +67,12 @@ contract DeployDN404FactoryScriptBase is DeployDN404FactoryScript {
     }
 }
 
+contract DeployDN404FactoryScriptRobinhood is DeployDN404FactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDN404FactoryScriptBaseSepolia is DeployDN404FactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

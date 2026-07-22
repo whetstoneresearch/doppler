@@ -79,6 +79,12 @@ contract DeployAirlockScriptBase is DeployAirlockScript {
     }
 }
 
+contract DeployAirlockScriptRobinhood is DeployAirlockScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployAirlockScriptBaseSepolia is DeployAirlockScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

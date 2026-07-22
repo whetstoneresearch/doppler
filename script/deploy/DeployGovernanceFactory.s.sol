@@ -72,6 +72,12 @@ contract DeployGovernanceFactoryScriptBase is DeployGovernanceFactoryScript {
     }
 }
 
+contract DeployGovernanceFactoryScriptRobinhood is DeployGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployGovernanceFactoryScriptBaseSepolia is DeployGovernanceFactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

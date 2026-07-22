@@ -144,6 +144,12 @@ contract DeployDopplerHookMigratorScriptBase is DeployDopplerHookMigratorScript 
     }
 }
 
+contract DeployDopplerHookMigratorScriptRobinhood is DeployDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerHookMigratorScriptBaseSepolia is DeployDopplerHookMigratorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

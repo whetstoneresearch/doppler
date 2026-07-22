@@ -80,6 +80,12 @@ contract DeploySwapRestrictorDopplerHookScriptBase is DeploySwapRestrictorDopple
     }
 }
 
+contract DeploySwapRestrictorDopplerHookScriptRobinhood is DeploySwapRestrictorDopplerHookScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeploySwapRestrictorDopplerHookScriptBaseSepolia is DeploySwapRestrictorDopplerHookScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
