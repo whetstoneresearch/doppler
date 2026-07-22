@@ -10,7 +10,7 @@ import { Currency } from "@v4-core/types/Currency.sol";
 import { PoolId } from "@v4-core/types/PoolId.sol";
 import { PoolKey } from "@v4-core/types/PoolKey.sol";
 
-import { Collect, FeesManager, Release, UpdateBeneficiary } from "src/base/FeesManager.sol";
+import { CallerNotBeneficiary, Collect, FeesManager, Release, UpdateBeneficiary } from "src/base/FeesManager.sol";
 import {
     BeneficiaryData,
     InvalidProtocolOwnerBeneficiary,
@@ -33,6 +33,14 @@ contract FeesManagerImplementation is FeesManager {
 
     function storeBeneficiaries(PoolKey memory poolKey, BeneficiaryData[] memory beneficiaries) external {
         _storeBeneficiaries(poolKey, beneficiaries, PROTOCOL_OWNER, MIN_PROTOCOL_OWNER_SHARES);
+    }
+
+    function storeBeneficiariesOwnerAgnostic(PoolKey memory poolKey, BeneficiaryData[] memory beneficiaries) external {
+        _storeBeneficiaries(poolKey, beneficiaries);
+    }
+
+    function poolKeyFor(PoolId poolId) external view returns (PoolKey memory) {
+        return getPoolKey[poolId];
     }
 
     function _collectFees(PoolId poolId) internal override returns (BalanceDelta fees) {
@@ -99,6 +107,45 @@ contract FeesManagerTest is Test {
 
         assertEq(feesManager.getShares(poolId, address(0xaaa)), 0.95e18);
         assertEq(feesManager.getShares(poolId, PROTOCOL_OWNER), 0.05e18);
+    }
+
+    function test_storeBeneficiariesOwnerAgnostic_StoresBeneficiariesAndPoolKeyWhenOwnerOmitted() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.4e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: address(0xbbb), shares: 0.6e18 });
+
+        feesManager.storeBeneficiariesOwnerAgnostic(poolKey, beneficiaries);
+
+        assertEq(feesManager.getShares(poolId, address(0xaaa)), 0.4e18);
+        assertEq(feesManager.getShares(poolId, address(0xbbb)), 0.6e18);
+        assertEq(feesManager.getShares(poolId, PROTOCOL_OWNER), 0);
+
+        PoolKey memory storedPoolKey = feesManager.poolKeyFor(poolId);
+        assertEq(Currency.unwrap(storedPoolKey.currency0), Currency.unwrap(poolKey.currency0));
+        assertEq(Currency.unwrap(storedPoolKey.currency1), Currency.unwrap(poolKey.currency1));
+        assertEq(storedPoolKey.fee, poolKey.fee);
+        assertEq(storedPoolKey.tickSpacing, poolKey.tickSpacing);
+        assertEq(address(storedPoolKey.hooks), address(poolKey.hooks));
+    }
+
+    function test_storeBeneficiariesOwnerAgnostic_AllowsProtocolOwnerBelowMinimum() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 0.97e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.03e18 });
+
+        feesManager.storeBeneficiariesOwnerAgnostic(poolKey, beneficiaries);
+
+        assertEq(feesManager.getShares(poolId, address(0xaaa)), 0.97e18);
+        assertEq(feesManager.getShares(poolId, PROTOCOL_OWNER), 0.03e18);
+    }
+
+    function test_storeBeneficiariesOwnerAgnostic_AllowsSoleBeneficiary() public {
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](1);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: address(0xaaa), shares: 1e18 });
+
+        feesManager.storeBeneficiariesOwnerAgnostic(poolKey, beneficiaries);
+
+        assertEq(feesManager.getShares(poolId, address(0xaaa)), 1e18);
     }
 
     function test_storeBeneficiaries_RevertsWhenInvalidShares() public {
@@ -231,5 +278,35 @@ contract FeesManagerTest is Test {
         assertEq(feesManager.getLastCumulatedFees1(poolId, address(0xbbb)), getCumulatedFees1);
         assertEq(feesManager.getLastCumulatedFees0(poolId, address(0xaaa)), getCumulatedFees0);
         assertEq(feesManager.getLastCumulatedFees1(poolId, address(0xaaa)), getCumulatedFees1);
+    }
+
+    function test_updateBeneficiary_RevertsWhenCallerHasNoSharesWithoutForcingBeneficiaryRelease() public {
+        address beneficiary = address(0xaaa);
+        address caller = address(0xbbb);
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary, shares: 0.95e18 });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: PROTOCOL_OWNER, shares: 0.05e18 });
+        feesManager.storeBeneficiaries(poolKey, beneficiaries);
+
+        uint256 fees0 = 1 ether;
+        uint256 fees1 = 2 ether;
+        poolManager.setFees(poolKey, fees0, fees1);
+        feesManager.collectFees(poolId);
+
+        uint256 beneficiaryBalance0 = token0.balanceOf(beneficiary);
+        uint256 beneficiaryBalance1 = token1.balanceOf(beneficiary);
+        uint256 lastCumulatedFees0 = feesManager.getLastCumulatedFees0(poolId, beneficiary);
+        uint256 lastCumulatedFees1 = feesManager.getLastCumulatedFees1(poolId, beneficiary);
+
+        vm.expectRevert(CallerNotBeneficiary.selector);
+        vm.prank(caller);
+        feesManager.updateBeneficiary(poolId, beneficiary);
+
+        assertEq(token0.balanceOf(beneficiary), beneficiaryBalance0, "caller forced beneficiary token0 release");
+        assertEq(token1.balanceOf(beneficiary), beneficiaryBalance1, "caller forced beneficiary token1 release");
+        assertEq(feesManager.getLastCumulatedFees0(poolId, beneficiary), lastCumulatedFees0);
+        assertEq(feesManager.getLastCumulatedFees1(poolId, beneficiary), lastCumulatedFees1);
+        assertEq(feesManager.getShares(poolId, beneficiary), 0.95e18);
+        assertEq(feesManager.getShares(poolId, caller), 0);
     }
 }

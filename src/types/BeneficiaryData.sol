@@ -33,6 +33,28 @@ struct BeneficiaryData {
     uint96 shares;
 }
 
+struct ProtocolOwnerRequirement {
+    bool requireProtocolOwner;
+    address protocolOwner;
+    uint96 protocolOwnerShares;
+}
+
+/**
+ * @dev Validates and optionally stores beneficiaries without requiring a protocol owner beneficiary.
+ * Beneficiaries must have strictly ascending nonzero addresses, positive shares, and total shares equal to WAD.
+ * @param poolId Pool id of the associated Uniswap V4 pool, pass `PoolId.wrap(bytes32(0))` to skip storing
+ * @param beneficiaries Array with sorted addresses and shares specified in WAD (with a total sum of 1 WAD)
+ * @param storeBeneficiary Function to call to store each beneficiary (if `poolId` is not zero)
+ */
+function storeBeneficiaries(
+    PoolId poolId,
+    BeneficiaryData[] memory beneficiaries,
+    function(PoolId, BeneficiaryData memory) storeBeneficiary
+) {
+    ProtocolOwnerRequirement memory protocolOwnerRequirement;
+    _storeBeneficiaries(poolId, beneficiaries, protocolOwnerRequirement, storeBeneficiary);
+}
+
 /**
  * @dev Validates an array of beneficiaries and stores them if requested. The requirements are as follows:
  * - Beneficiaries must be unique and addresses should be sorted in ascending order
@@ -52,6 +74,18 @@ function storeBeneficiaries(
     uint96 protocolOwnerShares,
     function(PoolId, BeneficiaryData memory) storeBeneficiary
 ) {
+    ProtocolOwnerRequirement memory protocolOwnerRequirement = ProtocolOwnerRequirement({
+        requireProtocolOwner: true, protocolOwner: protocolOwner, protocolOwnerShares: protocolOwnerShares
+    });
+    _storeBeneficiaries(poolId, beneficiaries, protocolOwnerRequirement, storeBeneficiary);
+}
+
+function _storeBeneficiaries(
+    PoolId poolId,
+    BeneficiaryData[] memory beneficiaries,
+    ProtocolOwnerRequirement memory protocolOwnerRequirement,
+    function(PoolId, BeneficiaryData memory) storeBeneficiary
+) {
     address prevBeneficiary;
     uint256 totalShares;
     bool foundProtocolOwner;
@@ -64,10 +98,13 @@ function storeBeneficiaries(
         require(beneficiary.shares > 0, InvalidShares());
 
         // Check for protocol owner and validate minimum share requirement
-        if (beneficiary.beneficiary == protocolOwner) {
+        if (
+            protocolOwnerRequirement.requireProtocolOwner
+                && beneficiary.beneficiary == protocolOwnerRequirement.protocolOwner
+        ) {
             require(
-                beneficiary.shares >= protocolOwnerShares,
-                InvalidProtocolOwnerShares(protocolOwnerShares, beneficiary.shares)
+                beneficiary.shares >= protocolOwnerRequirement.protocolOwnerShares,
+                InvalidProtocolOwnerShares(protocolOwnerRequirement.protocolOwnerShares, beneficiary.shares)
             );
             foundProtocolOwner = true;
         }
@@ -80,5 +117,7 @@ function storeBeneficiaries(
     }
 
     require(totalShares == WAD, InvalidTotalShares());
-    require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
+    if (protocolOwnerRequirement.requireProtocolOwner) {
+        require(foundProtocolOwner, InvalidProtocolOwnerBeneficiary());
+    }
 }

@@ -7,6 +7,7 @@ import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { IUnlockCallback } from "@v4-core/interfaces/callback/IUnlockCallback.sol";
 import { CustomRevert } from "@v4-core/libraries/CustomRevert.sol";
 import { Hooks } from "@v4-core/libraries/Hooks.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "@v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "@v4-core/test/PoolSwapTest.sol";
 import { TestERC20 } from "@v4-core/test/TestERC20.sol";
@@ -21,6 +22,7 @@ import { CurrencySettler } from "lib/v4-core/test/utils/CurrencySettler.sol";
 import "forge-std/console.sol";
 import { Airlock, CreateParams, ModuleState } from "src/Airlock.sol";
 import { ON_GRADUATION_FLAG, ON_INITIALIZATION_FLAG, ON_SWAP_FLAG } from "src/base/BaseDopplerHookInitializer.sol";
+import { Collect, Release, UpdateBeneficiary } from "src/base/FeesManager.sol";
 import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 import { GovernanceFactory } from "src/governance/GovernanceFactory.sol";
 import { DopplerHookInitializer, InitData, PoolStatus } from "src/initializers/DopplerHookInitializer.sol";
@@ -32,12 +34,17 @@ import { Curve } from "src/libraries/Multicurve.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import {
+    AIRLOCK_OWNER_FEE_BPS,
+    AirlockOwnerFeesClaimed,
+    BPS_DENOMINATOR,
     EPSILON,
     FeeDistributionInfo,
     FeeRoutingMode,
     FeeSchedule,
     InitData as RehypeInitData,
-    InsufficientFeeCurrency
+    InsufficientFeeCurrency,
+    MAX_SWAP_FEE,
+    SenderNotAirlockOwner
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { dopplerERC20V1FactoryData, predictDopplerERC20V1Address } from "test/shared/DopplerERC20V1FactoryHelper.sol";
@@ -106,6 +113,17 @@ contract FeeBypassAttemptRouter is IUnlockCallback {
 }
 
 contract RehypeDopplerHookIntegrationTest is Deployers {
+    using StateLibrary for IPoolManager;
+
+    struct FeeCycle {
+        uint256 grossFees0;
+        uint256 grossFees1;
+        uint256 ownerFees0;
+        uint256 ownerFees1;
+        uint256 postOwnerFees0;
+        uint256 postOwnerFees1;
+    }
+
     address public airlockOwner = makeAddr("AirlockOwner");
     address public buybackDst = makeAddr("BuybackDst");
 
@@ -691,6 +709,476 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         assertEq(beneficiaryFees1AfterCollect, 0, "Beneficiary fees1 should be reset");
     }
 
+    function test_multipleFeeBeneficiaries_ClaimRehypeFeesWithZeroLpFee() public {
+        address feeBeneficiary = address(0x06);
+        BeneficiaryData[] memory feeBeneficiaries = new BeneficiaryData[](2);
+        feeBeneficiaries[0] = BeneficiaryData({ beneficiary: feeBeneficiary, shares: uint96(0.95e18) });
+        feeBeneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: uint96(0.05e18) });
+
+        uint24 rehypeFeeRate = 12_000; // 12_000 / MAX_SWAP_FEE = 1.5%
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            bytes32(uint256(73)),
+            rehypeFeeRate,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees,
+            feeBeneficiaries
+        );
+
+        (,,, uint24 lpFee) = manager.getSlot0(poolId);
+        assertEq(lpFee, 0, "Uniswap LP fee must be zero");
+        (,,,, IHooks storedHooks) = rehypeDopplerHook.getPoolKey(poolId);
+        assertEq(address(storedHooks), address(initializer));
+        assertEq(rehypeDopplerHook.getShares(poolId, feeBeneficiary), 0.95e18);
+        assertEq(rehypeDopplerHook.getShares(poolId, airlockOwner), 0.05e18);
+
+        uint256 assetBalanceBefore = TestERC20(asset).balanceOf(address(this));
+        uint256 buybackBalance0Before = poolKey.currency0.balanceOf(buybackDst);
+        uint256 buybackBalance1Before = poolKey.currency1.balanceOf(buybackDst);
+
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: !isToken0,
+                amountSpecified: -1 ether,
+                sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings(false, false),
+            new bytes(0)
+        );
+
+        uint256 netAssetOutput = TestERC20(asset).balanceOf(address(this)) - assetBalanceBefore;
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 ownerFees0, uint128 ownerFees1,) =
+            rehypeDopplerHook.getHookFees(poolId);
+        uint256 rehypeAssetFees = isToken0 ? beneficiaryFees0 : beneficiaryFees1;
+        uint256 ownerAssetFees = isToken0 ? ownerFees0 : ownerFees1;
+        uint256 grossAssetFees = _grossFeeFromNetOutput(netAssetOutput, rehypeFeeRate);
+
+        assertGt(rehypeAssetFees, 0, "Rehype must collect fees");
+        assertEq(rehypeAssetFees + ownerAssetFees, grossAssetFees, "Gross charged fee must reconcile");
+        assertEq(ownerAssetFees, grossAssetFees * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR);
+        assertEq(rehypeAssetFees, grossAssetFees - ownerAssetFees, "Beneficiary fees must be post-owner fees");
+        assertEq(isToken0 ? beneficiaryFees1 : beneficiaryFees0, 0, "Only the asset output should be charged");
+        assertEq(isToken0 ? ownerFees1 : ownerFees0, 0, "Only the asset output should fund the role bucket");
+        assertEq(poolKey.currency0.balanceOf(buybackDst), buybackBalance0Before, "buybackDst must be ignored");
+        assertEq(poolKey.currency1.balanceOf(buybackDst), buybackBalance1Before, "buybackDst must be ignored");
+
+        _assertLpBeneficiariesReceiveNothing();
+
+        address notFeeBeneficiary = makeAddr("notFeeBeneficiary");
+        vm.prank(notFeeBeneficiary);
+        rehypeDopplerHook.collectFees(poolId);
+
+        vm.prank(notFeeBeneficiary);
+        rehypeDopplerHook.collectFees(asset);
+
+        vm.prank(airlockOwner);
+        (uint128 roleFees0, uint128 roleFees1) = rehypeDopplerHook.claimAirlockOwnerFees(asset);
+        assertEq(isToken0 ? roleFees0 : roleFees1, ownerAssetFees);
+        assertEq(isToken0 ? roleFees1 : roleFees0, 0);
+
+        uint256 beneficiaryBalanceBefore = TestERC20(asset).balanceOf(feeBeneficiary);
+        vm.prank(feeBeneficiary);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(
+            TestERC20(asset).balanceOf(feeBeneficiary) - beneficiaryBalanceBefore,
+            rehypeAssetFees * 95 / 100,
+            "Fee beneficiary must receive only its configured share"
+        );
+
+        uint256 ownerBalanceBefore = TestERC20(asset).balanceOf(airlockOwner);
+        vm.prank(airlockOwner);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(
+            TestERC20(asset).balanceOf(airlockOwner) - ownerBalanceBefore,
+            rehypeAssetFees * 5 / 100,
+            "Airlock owner must pull its configured beneficiary share"
+        );
+        assertEq(poolKey.currency0.balanceOf(buybackDst), buybackBalance0Before, "buybackDst must remain unpaid");
+        assertEq(poolKey.currency1.balanceOf(buybackDst), buybackBalance1Before, "buybackDst must remain unpaid");
+    }
+
+    function test_multipleFeeBeneficiaries_ClaimRehypeFeesWithOnePercentLpFee() public {
+        address beneficiaryA = address(0x06);
+        address beneficiaryB = address(0x08);
+        uint96 beneficiaryAShares = 0.4e18;
+        uint96 beneficiaryBShares = 0.6e18;
+        BeneficiaryData[] memory feeBeneficiaries = new BeneficiaryData[](2);
+        feeBeneficiaries[0] = BeneficiaryData({ beneficiary: beneficiaryA, shares: beneficiaryAShares });
+        feeBeneficiaries[1] = BeneficiaryData({ beneficiary: beneficiaryB, shares: beneficiaryBShares });
+
+        uint24 poolLpFee = 10_000;
+        uint24 rehypeFeeRate = 12_000;
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            bytes32(uint256(77)),
+            poolLpFee,
+            rehypeFeeRate,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees,
+            feeBeneficiaries
+        );
+
+        (,,, uint24 configuredLpFee) = manager.getSlot0(poolId);
+        assertEq(configuredLpFee, poolLpFee, "Uniswap LP fee must remain configured at one percent");
+
+        FeeCycle memory cycle = _executeBeneficiaryFeeCycle(isToken0, asset, rehypeFeeRate);
+        _assertHookFeeBuckets(cycle.ownerFees0, cycle.ownerFees1, cycle.postOwnerFees0, cycle.postOwnerFees1);
+
+        address harvester = makeAddr("onePercentLpFeeHarvester");
+        vm.prank(harvester);
+        rehypeDopplerHook.collectFees(poolId);
+
+        uint256 beneficiaryABalance0 = poolKey.currency0.balanceOf(beneficiaryA);
+        uint256 beneficiaryABalance1 = poolKey.currency1.balanceOf(beneficiaryA);
+        vm.prank(beneficiaryA);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(
+            poolKey.currency0.balanceOf(beneficiaryA) - beneficiaryABalance0,
+            cycle.postOwnerFees0 * beneficiaryAShares / WAD
+        );
+        assertEq(
+            poolKey.currency1.balanceOf(beneficiaryA) - beneficiaryABalance1,
+            cycle.postOwnerFees1 * beneficiaryAShares / WAD
+        );
+
+        uint256 beneficiaryBBalance0 = poolKey.currency0.balanceOf(beneficiaryB);
+        uint256 beneficiaryBBalance1 = poolKey.currency1.balanceOf(beneficiaryB);
+        vm.prank(beneficiaryB);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(
+            poolKey.currency0.balanceOf(beneficiaryB) - beneficiaryBBalance0,
+            cycle.postOwnerFees0 * beneficiaryBShares / WAD
+        );
+        assertEq(
+            poolKey.currency1.balanceOf(beneficiaryB) - beneficiaryBBalance1,
+            cycle.postOwnerFees1 * beneficiaryBShares / WAD
+        );
+
+        vm.prank(airlockOwner);
+        (uint128 ownerFees0, uint128 ownerFees1) = rehypeDopplerHook.claimAirlockOwnerFees(asset);
+        assertEq(ownerFees0, cycle.ownerFees0);
+        assertEq(ownerFees1, cycle.ownerFees1);
+    }
+
+    function test_multipleFeeBeneficiaries_MixedBuybacksAndLpRouteWithoutPayingBuybackDst() public {
+        address beneficiaryA = address(0x06);
+        address beneficiaryB = address(0x08);
+        uint96 beneficiaryAShares = 0.4e18;
+        uint96 beneficiaryBShares = 0.6e18;
+        BeneficiaryData[] memory feeBeneficiaries = new BeneficiaryData[](2);
+        feeBeneficiaries[0] = BeneficiaryData({ beneficiary: beneficiaryA, shares: beneficiaryAShares });
+        feeBeneficiaries[1] = BeneficiaryData({ beneficiary: beneficiaryB, shares: beneficiaryBShares });
+
+        uint24 rehypeFeeRate = 12_000;
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            bytes32(uint256(78)),
+            rehypeFeeRate,
+            _quarterFeeDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees,
+            feeBeneficiaries
+        );
+
+        (,,, uint24 configuredLpFee) = manager.getSlot0(poolId);
+        assertEq(configuredLpFee, 0, "Uniswap LP fee must be zero");
+        uint256 buybackBalance0 = poolKey.currency0.balanceOf(buybackDst);
+        uint256 buybackBalance1 = poolKey.currency1.balanceOf(buybackDst);
+        (,, uint128 liquidityBefore,) = rehypeDopplerHook.getPosition(poolId);
+
+        FeeCycle memory cycle = _executeBeneficiaryFeeCycle(isToken0, asset, rehypeFeeRate);
+
+        (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1, uint128 ownerFees0, uint128 ownerFees1,) =
+            rehypeDopplerHook.getHookFees(poolId);
+        (,, uint128 liquidityAfter,) = rehypeDopplerHook.getPosition(poolId);
+        uint256 minimumRouted0 = cycle.postOwnerFees0 * 0.25e18 / WAD * 2;
+        uint256 minimumRouted1 = cycle.postOwnerFees1 * 0.25e18 / WAD * 2;
+
+        assertEq(ownerFees0, cycle.ownerFees0, "currency0 owner role fee mismatch");
+        assertEq(ownerFees1, cycle.ownerFees1, "currency1 owner role fee mismatch");
+        assertGt(liquidityAfter, liquidityBefore, "LP allocation must increase the Rehype position");
+        assertGt(beneficiaryFees0, minimumRouted0 + EPSILON, "currency0 buyback output did not reach beneficiaries");
+        assertGt(beneficiaryFees1, minimumRouted1 + EPSILON, "currency1 buyback output did not reach beneficiaries");
+        assertEq(poolKey.currency0.balanceOf(buybackDst), buybackBalance0, "buybackDst received routed currency0");
+        assertEq(poolKey.currency1.balanceOf(buybackDst), buybackBalance1, "buybackDst received routed currency1");
+
+        address harvester = makeAddr("mixedRoutingHarvester");
+        vm.prank(harvester);
+        rehypeDopplerHook.collectFees(poolId);
+        assertEq(rehypeDopplerHook.getCumulatedFees0(poolId), beneficiaryFees0);
+        assertEq(rehypeDopplerHook.getCumulatedFees1(poolId), beneficiaryFees1);
+
+        uint256 beneficiaryABalance0 = poolKey.currency0.balanceOf(beneficiaryA);
+        uint256 beneficiaryABalance1 = poolKey.currency1.balanceOf(beneficiaryA);
+        vm.prank(beneficiaryA);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(poolKey.currency0.balanceOf(beneficiaryA) - beneficiaryABalance0, beneficiaryFees0 * 40 / 100);
+        assertEq(poolKey.currency1.balanceOf(beneficiaryA) - beneficiaryABalance1, beneficiaryFees1 * 40 / 100);
+
+        uint256 beneficiaryBBalance0 = poolKey.currency0.balanceOf(beneficiaryB);
+        uint256 beneficiaryBBalance1 = poolKey.currency1.balanceOf(beneficiaryB);
+        vm.prank(beneficiaryB);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(poolKey.currency0.balanceOf(beneficiaryB) - beneficiaryBBalance0, beneficiaryFees0 * 60 / 100);
+        assertEq(poolKey.currency1.balanceOf(beneficiaryB) - beneficiaryBBalance1, beneficiaryFees1 * 60 / 100);
+    }
+
+    function test_feeBeneficiaries_ArbitraryHarvesterBothOverloadsPreservesClaimsAndRounding() public {
+        address beneficiaryA = makeAddr("rehypeBeneficiaryA");
+        address beneficiaryB = makeAddr("rehypeBeneficiaryB");
+        address harvester = makeAddr("zeroShareHarvester");
+        uint96 beneficiaryAShares = 333_333_333_333_333_333;
+        uint96 beneficiaryBShares = uint96(WAD - beneficiaryAShares);
+        uint24 feeRate = 12_000;
+
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiaryA, shares: beneficiaryAShares });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: beneficiaryB, shares: beneficiaryBShares });
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            bytes32(uint256(74)),
+            feeRate,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees,
+            beneficiaries
+        );
+
+        FeeCycle memory firstCycle = _executeBeneficiaryFeeCycle(isToken0, asset, feeRate);
+        _assertHookFeeBuckets(
+            firstCycle.ownerFees0, firstCycle.ownerFees1, firstCycle.postOwnerFees0, firstCycle.postOwnerFees1
+        );
+
+        uint256 harvesterBalance0 = poolKey.currency0.balanceOf(harvester);
+        uint256 harvesterBalance1 = poolKey.currency1.balanceOf(harvester);
+        vm.expectEmit(true, false, false, true, address(rehypeDopplerHook));
+        emit Collect(poolId, firstCycle.postOwnerFees0, firstCycle.postOwnerFees1);
+        vm.prank(harvester);
+        BalanceDelta addressHarvest = rehypeDopplerHook.collectFees(asset);
+        assertEq(uint128(addressHarvest.amount0()), firstCycle.postOwnerFees0);
+        assertEq(uint128(addressHarvest.amount1()), firstCycle.postOwnerFees1);
+        assertEq(rehypeDopplerHook.getCumulatedFees0(poolId), firstCycle.postOwnerFees0);
+        assertEq(rehypeDopplerHook.getCumulatedFees1(poolId), firstCycle.postOwnerFees1);
+
+        FeeCycle memory secondCycle = _executeBeneficiaryFeeCycle(isToken0, asset, feeRate);
+        FeeCycle memory total = _sumFeeCycles(firstCycle, secondCycle);
+        _assertHookFeeBuckets(
+            total.ownerFees0, total.ownerFees1, secondCycle.postOwnerFees0, secondCycle.postOwnerFees1
+        );
+
+        vm.expectEmit(true, false, false, true, address(rehypeDopplerHook));
+        emit Collect(poolId, secondCycle.postOwnerFees0, secondCycle.postOwnerFees1);
+        vm.prank(harvester);
+        (uint128 poolIdHarvest0, uint128 poolIdHarvest1) = rehypeDopplerHook.collectFees(poolId);
+        assertEq(poolIdHarvest0, secondCycle.postOwnerFees0);
+        assertEq(poolIdHarvest1, secondCycle.postOwnerFees1);
+        assertEq(poolKey.currency0.balanceOf(harvester), harvesterBalance0, "zero-share harvester received token0");
+        assertEq(poolKey.currency1.balanceOf(harvester), harvesterBalance1, "zero-share harvester received token1");
+
+        assertEq(rehypeDopplerHook.getCumulatedFees0(poolId), total.postOwnerFees0);
+        assertEq(rehypeDopplerHook.getCumulatedFees1(poolId), total.postOwnerFees1);
+        assertEq(total.grossFees0, total.ownerFees0 + rehypeDopplerHook.getCumulatedFees0(poolId));
+        assertEq(total.grossFees1, total.ownerFees1 + rehypeDopplerHook.getCumulatedFees1(poolId));
+
+        uint256 expectedA0 = total.postOwnerFees0 * beneficiaryAShares / WAD;
+        uint256 expectedA1 = total.postOwnerFees1 * beneficiaryAShares / WAD;
+        uint256 expectedB0 = total.postOwnerFees0 * beneficiaryBShares / WAD;
+        uint256 expectedB1 = total.postOwnerFees1 * beneficiaryBShares / WAD;
+
+        uint256 beneficiaryABalance0 = poolKey.currency0.balanceOf(beneficiaryA);
+        uint256 beneficiaryABalance1 = poolKey.currency1.balanceOf(beneficiaryA);
+        vm.expectEmit(true, true, false, true, address(rehypeDopplerHook));
+        emit Release(poolId, beneficiaryA, expectedA0, expectedA1);
+        vm.prank(beneficiaryA);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(poolKey.currency0.balanceOf(beneficiaryA) - beneficiaryABalance0, expectedA0);
+        assertEq(poolKey.currency1.balanceOf(beneficiaryA) - beneficiaryABalance1, expectedA1);
+
+        uint256 beneficiaryBBalance0 = poolKey.currency0.balanceOf(beneficiaryB);
+        uint256 beneficiaryBBalance1 = poolKey.currency1.balanceOf(beneficiaryB);
+        vm.prank(beneficiaryB);
+        rehypeDopplerHook.collectFees(poolId);
+        assertEq(poolKey.currency0.balanceOf(beneficiaryB) - beneficiaryBBalance0, expectedB0);
+        assertEq(poolKey.currency1.balanceOf(beneficiaryB) - beneficiaryBBalance1, expectedB1);
+
+        uint256 roundingDust0 = total.postOwnerFees0 - expectedA0 - expectedB0;
+        uint256 roundingDust1 = total.postOwnerFees1 - expectedA1 - expectedB1;
+        assertLe(roundingDust0, 1, "two-beneficiary token0 rounding exceeds one wei");
+        assertLe(roundingDust1, 1, "two-beneficiary token1 rounding exceeds one wei");
+        assertEq(poolKey.currency0.balanceOf(address(rehypeDopplerHook)), total.ownerFees0 + roundingDust0);
+        assertEq(poolKey.currency1.balanceOf(address(rehypeDopplerHook)), total.ownerFees1 + roundingDust1);
+
+        console.log("beneficiary lifecycle gross charged token0", total.grossFees0);
+        console.log("beneficiary lifecycle gross charged token1", total.grossFees1);
+        console.log("beneficiary lifecycle cumulative post-owner token0", total.postOwnerFees0);
+        console.log("beneficiary lifecycle cumulative post-owner token1", total.postOwnerFees1);
+        console.log("beneficiary lifecycle beneficiary A token0", expectedA0);
+        console.log("beneficiary lifecycle beneficiary A token1", expectedA1);
+        console.log("beneficiary lifecycle beneficiary B token0", expectedB0);
+        console.log("beneficiary lifecycle beneficiary B token1", expectedB1);
+        console.log("beneficiary lifecycle rounding dust token0", roundingDust0);
+        console.log("beneficiary lifecycle rounding dust token1", roundingDust1);
+    }
+
+    function test_airlockOwner_OrdinaryBeneficiaryCanClaimAndUpdate() public {
+        address beneficiary = makeAddr("ordinaryPeerBeneficiary");
+        address movedBeneficiary = makeAddr("movedOwnerBeneficiary");
+        address harvester = makeAddr("ownerUpdateHarvester");
+        uint96 ownerShares = 0.2e18;
+        uint24 feeRate = 12_000;
+
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: beneficiary, shares: uint96(WAD - ownerShares) });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: ownerShares });
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            bytes32(uint256(75)),
+            feeRate,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees,
+            beneficiaries
+        );
+
+        FeeCycle memory firstCycle = _executeBeneficiaryFeeCycle(isToken0, asset, feeRate);
+        uint256 expectedOrdinary0 = firstCycle.postOwnerFees0 * ownerShares / WAD;
+        uint256 expectedOrdinary1 = firstCycle.postOwnerFees1 * ownerShares / WAD;
+        uint256 ownerBalance0 = poolKey.currency0.balanceOf(airlockOwner);
+        uint256 ownerBalance1 = poolKey.currency1.balanceOf(airlockOwner);
+
+        vm.expectEmit(true, true, false, true, address(rehypeDopplerHook));
+        emit Release(poolId, airlockOwner, expectedOrdinary0, expectedOrdinary1);
+        vm.prank(airlockOwner);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(poolKey.currency0.balanceOf(airlockOwner) - ownerBalance0, expectedOrdinary0);
+        assertEq(poolKey.currency1.balanceOf(airlockOwner) - ownerBalance1, expectedOrdinary1);
+        _assertHookFeeBuckets(firstCycle.ownerFees0, firstCycle.ownerFees1, 0, 0);
+
+        vm.expectEmit(false, false, false, true, address(rehypeDopplerHook));
+        emit UpdateBeneficiary(poolId, airlockOwner, movedBeneficiary);
+        vm.prank(airlockOwner);
+        rehypeDopplerHook.updateBeneficiary(poolId, movedBeneficiary);
+        assertEq(rehypeDopplerHook.getShares(poolId, airlockOwner), 0);
+        assertEq(rehypeDopplerHook.getShares(poolId, movedBeneficiary), ownerShares);
+
+        FeeCycle memory secondCycle = _executeBeneficiaryFeeCycle(isToken0, asset, feeRate);
+        FeeCycle memory total = _sumFeeCycles(firstCycle, secondCycle);
+        vm.prank(harvester);
+        rehypeDopplerHook.collectFees(poolId);
+
+        ownerBalance0 = poolKey.currency0.balanceOf(airlockOwner);
+        ownerBalance1 = poolKey.currency1.balanceOf(airlockOwner);
+        vm.prank(airlockOwner);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(
+            poolKey.currency0.balanceOf(airlockOwner), ownerBalance0, "moved ordinary token0 share still paid old owner"
+        );
+        assertEq(
+            poolKey.currency1.balanceOf(airlockOwner), ownerBalance1, "moved ordinary token1 share still paid old owner"
+        );
+
+        uint256 movedBalance0 = poolKey.currency0.balanceOf(movedBeneficiary);
+        uint256 movedBalance1 = poolKey.currency1.balanceOf(movedBeneficiary);
+        vm.prank(movedBeneficiary);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(
+            poolKey.currency0.balanceOf(movedBeneficiary) - movedBalance0,
+            secondCycle.postOwnerFees0 * ownerShares / WAD
+        );
+        assertEq(
+            poolKey.currency1.balanceOf(movedBeneficiary) - movedBalance1,
+            secondCycle.postOwnerFees1 * ownerShares / WAD
+        );
+
+        ownerBalance0 = poolKey.currency0.balanceOf(airlockOwner);
+        ownerBalance1 = poolKey.currency1.balanceOf(airlockOwner);
+        vm.expectEmit(true, true, false, true, address(rehypeDopplerHook));
+        emit AirlockOwnerFeesClaimed(poolId, airlockOwner, uint128(total.ownerFees0), uint128(total.ownerFees1));
+        vm.prank(airlockOwner);
+        (uint128 roleFees0, uint128 roleFees1) = rehypeDopplerHook.claimAirlockOwnerFees(asset);
+        assertEq(roleFees0, total.ownerFees0);
+        assertEq(roleFees1, total.ownerFees1);
+        assertEq(poolKey.currency0.balanceOf(airlockOwner) - ownerBalance0, total.ownerFees0);
+        assertEq(poolKey.currency1.balanceOf(airlockOwner) - ownerBalance1, total.ownerFees1);
+    }
+
+    function test_airlockOwnershipTransfer_RoleClaimFollowsCurrentOwnerWhileOrdinarySharePersists() public {
+        address peerBeneficiary = makeAddr("ownershipPeerBeneficiary");
+        address newAirlockOwner = makeAddr("newAirlockOwner");
+        address movedBeneficiary = makeAddr("formerOwnerMovedBeneficiary");
+        address harvester = makeAddr("ownershipZeroShareHarvester");
+        uint96 formerOwnerShares = 0.25e18;
+        uint24 feeRate = 12_000;
+
+        BeneficiaryData[] memory beneficiaries = new BeneficiaryData[](2);
+        beneficiaries[0] = BeneficiaryData({ beneficiary: peerBeneficiary, shares: uint96(WAD - formerOwnerShares) });
+        beneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: formerOwnerShares });
+        (bool isToken0, address asset) = _createTokenWithConfig(
+            bytes32(uint256(76)),
+            feeRate,
+            _fullBeneficiaryDistribution(),
+            FeeRoutingMode.RouteToBeneficiaryFees,
+            beneficiaries
+        );
+
+        uint256 harvesterBalance0 = poolKey.currency0.balanceOf(harvester);
+        uint256 harvesterBalance1 = poolKey.currency1.balanceOf(harvester);
+        FeeCycle memory beforeTransfer = _executeBeneficiaryFeeCycle(isToken0, asset, feeRate);
+        vm.prank(harvester);
+        rehypeDopplerHook.collectFees(asset);
+
+        vm.prank(airlockOwner);
+        airlock.transferOwnership(newAirlockOwner);
+        assertEq(airlock.owner(), newAirlockOwner);
+        assertEq(
+            rehypeDopplerHook.getShares(poolId, airlockOwner),
+            formerOwnerShares,
+            "ownership transfer changed ordinary beneficiary entitlement"
+        );
+
+        FeeCycle memory afterTransfer = _executeBeneficiaryFeeCycle(isToken0, asset, feeRate);
+        FeeCycle memory total = _sumFeeCycles(beforeTransfer, afterTransfer);
+        vm.prank(harvester);
+        rehypeDopplerHook.collectFees(poolId);
+        assertEq(poolKey.currency0.balanceOf(harvester), harvesterBalance0, "zero-share harvester received token0");
+        assertEq(poolKey.currency1.balanceOf(harvester), harvesterBalance1, "zero-share harvester received token1");
+
+        vm.prank(airlockOwner);
+        vm.expectRevert(SenderNotAirlockOwner.selector);
+        rehypeDopplerHook.claimAirlockOwnerFees(asset);
+
+        uint256 newOwnerBalance0 = poolKey.currency0.balanceOf(newAirlockOwner);
+        uint256 newOwnerBalance1 = poolKey.currency1.balanceOf(newAirlockOwner);
+        vm.expectEmit(true, true, false, true, address(rehypeDopplerHook));
+        emit AirlockOwnerFeesClaimed(poolId, newAirlockOwner, uint128(total.ownerFees0), uint128(total.ownerFees1));
+        vm.prank(newAirlockOwner);
+        (uint128 claimedRoleFees0, uint128 claimedRoleFees1) = rehypeDopplerHook.claimAirlockOwnerFees(asset);
+        assertEq(claimedRoleFees0, total.ownerFees0);
+        assertEq(claimedRoleFees1, total.ownerFees1);
+        assertEq(poolKey.currency0.balanceOf(newAirlockOwner) - newOwnerBalance0, total.ownerFees0);
+        assertEq(poolKey.currency1.balanceOf(newAirlockOwner) - newOwnerBalance1, total.ownerFees1);
+
+        uint256 formerOwnerBalance0 = poolKey.currency0.balanceOf(airlockOwner);
+        uint256 formerOwnerBalance1 = poolKey.currency1.balanceOf(airlockOwner);
+        uint256 expectedOrdinary0 = total.postOwnerFees0 * formerOwnerShares / WAD;
+        uint256 expectedOrdinary1 = total.postOwnerFees1 * formerOwnerShares / WAD;
+        vm.prank(airlockOwner);
+        rehypeDopplerHook.collectFees(asset);
+        assertEq(poolKey.currency0.balanceOf(airlockOwner) - formerOwnerBalance0, expectedOrdinary0);
+        assertEq(poolKey.currency1.balanceOf(airlockOwner) - formerOwnerBalance1, expectedOrdinary1);
+
+        vm.expectEmit(false, false, false, true, address(rehypeDopplerHook));
+        emit UpdateBeneficiary(poolId, airlockOwner, movedBeneficiary);
+        vm.prank(airlockOwner);
+        rehypeDopplerHook.updateBeneficiary(poolId, movedBeneficiary);
+        assertEq(rehypeDopplerHook.getShares(poolId, airlockOwner), 0);
+        assertEq(rehypeDopplerHook.getShares(poolId, movedBeneficiary), formerOwnerShares);
+
+        console.log("ownership gross charged token0", total.grossFees0);
+        console.log("ownership gross charged token1", total.grossFees1);
+        console.log("ownership post-owner beneficiary token0", total.postOwnerFees0);
+        console.log("ownership post-owner beneficiary token1", total.postOwnerFees1);
+        console.log("ownership current owner role claim token0", uint256(claimedRoleFees0));
+        console.log("ownership current owner role claim token1", uint256(claimedRoleFees1));
+        console.log("ownership former owner ordinary claim token0", expectedOrdinary0);
+        console.log("ownership former owner ordinary claim token1", expectedOrdinary1);
+        console.log("ownership zero-share harvester token0", poolKey.currency0.balanceOf(harvester) - harvesterBalance0);
+        console.log("ownership zero-share harvester token1", poolKey.currency1.balanceOf(harvester) - harvesterBalance1);
+    }
+
     function test_hookFees_CustomFeeZero_NoFeesCollected() public {
         bytes32 salt = bytes32(uint256(13));
         (bool isToken0, address asset) = _createTokenWithZeroFee(salt);
@@ -1175,6 +1663,16 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         FeeDistributionInfo memory feeDistribution,
         FeeRoutingMode feeRoutingMode
     ) internal returns (InitData memory) {
+        return _prepareInitData(token, customFee, feeDistribution, feeRoutingMode, new BeneficiaryData[](0));
+    }
+
+    function _prepareInitData(
+        address token,
+        uint24 customFee,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode,
+        BeneficiaryData[] memory feeBeneficiaries
+    ) internal returns (InitData memory) {
         Curve[] memory curves = new Curve[](10);
         int24 tickSpacing = 8;
 
@@ -1209,6 +1707,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 durationSeconds: 0,
                 startingTime: 0,
                 feeRoutingMode: feeRoutingMode,
+                feeBeneficiaries: feeBeneficiaries,
                 feeDistributionInfo: feeDistribution
             })
         );
@@ -1277,6 +1776,85 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         });
     }
 
+    function _grossFeeFromNetOutput(uint256 netOutput, uint24 feeRate) internal pure returns (uint256) {
+        return netOutput * feeRate / (MAX_SWAP_FEE - feeRate);
+    }
+
+    function _executeBeneficiaryFeeCycle(
+        bool isToken0,
+        address asset,
+        uint24 feeRate
+    ) internal returns (FeeCycle memory cycle) {
+        uint256 assetBalanceBefore = TestERC20(asset).balanceOf(address(this));
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: !isToken0,
+                amountSpecified: -1 ether,
+                sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings(false, false),
+            new bytes(0)
+        );
+        uint256 netAssetOutput = TestERC20(asset).balanceOf(address(this)) - assetBalanceBefore;
+
+        uint256 numeraireBalanceBefore = numeraire.balanceOf(address(this));
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: isToken0,
+                amountSpecified: -int256(netAssetOutput / 2),
+                sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings(false, false),
+            new bytes(0)
+        );
+        uint256 netNumeraireOutput = numeraire.balanceOf(address(this)) - numeraireBalanceBefore;
+
+        uint256 grossAssetFees = _grossFeeFromNetOutput(netAssetOutput, feeRate);
+        uint256 grossNumeraireFees = _grossFeeFromNetOutput(netNumeraireOutput, feeRate);
+        cycle.grossFees0 = isToken0 ? grossAssetFees : grossNumeraireFees;
+        cycle.grossFees1 = isToken0 ? grossNumeraireFees : grossAssetFees;
+        cycle.ownerFees0 = cycle.grossFees0 * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
+        cycle.ownerFees1 = cycle.grossFees1 * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
+        cycle.postOwnerFees0 = cycle.grossFees0 - cycle.ownerFees0;
+        cycle.postOwnerFees1 = cycle.grossFees1 - cycle.ownerFees1;
+    }
+
+    function _sumFeeCycles(
+        FeeCycle memory first,
+        FeeCycle memory second
+    ) internal pure returns (FeeCycle memory total) {
+        total.grossFees0 = first.grossFees0 + second.grossFees0;
+        total.grossFees1 = first.grossFees1 + second.grossFees1;
+        total.ownerFees0 = first.ownerFees0 + second.ownerFees0;
+        total.ownerFees1 = first.ownerFees1 + second.ownerFees1;
+        total.postOwnerFees0 = first.postOwnerFees0 + second.postOwnerFees0;
+        total.postOwnerFees1 = first.postOwnerFees1 + second.postOwnerFees1;
+    }
+
+    function _assertHookFeeBuckets(
+        uint256 expectedOwnerFees0,
+        uint256 expectedOwnerFees1,
+        uint256 expectedBeneficiaryFees0,
+        uint256 expectedBeneficiaryFees1
+    ) internal view {
+        (
+            uint128 pendingFees0,
+            uint128 pendingFees1,
+            uint128 beneficiaryFees0,
+            uint128 beneficiaryFees1,
+            uint128 ownerFees0,
+            uint128 ownerFees1,
+        ) = rehypeDopplerHook.getHookFees(poolId);
+        assertEq(pendingFees0, 0, "token0 fees must be fully routed after swap");
+        assertEq(pendingFees1, 0, "token1 fees must be fully routed after swap");
+        assertEq(beneficiaryFees0, expectedBeneficiaryFees0, "unexpected beneficiary token0 fees");
+        assertEq(beneficiaryFees1, expectedBeneficiaryFees1, "unexpected beneficiary token1 fees");
+        assertEq(ownerFees0, expectedOwnerFees0, "unexpected owner-role token0 fees");
+        assertEq(ownerFees1, expectedOwnerFees1, "unexpected owner-role token1 fees");
+    }
+
     function _prepareInitDataWithZeroFee(address token) internal returns (InitData memory) {
         return _prepareInitData(token, uint24(0), _quarterFeeDistribution(), FeeRoutingMode.DirectBuyback);
     }
@@ -1341,6 +1919,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
                 durationSeconds: durationSeconds,
                 startingTime: startingTime,
                 feeRoutingMode: feeRoutingMode,
+                feeBeneficiaries: new BeneficiaryData[](0),
                 feeDistributionInfo: feeDistribution
             })
         );
@@ -1465,13 +2044,36 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         FeeDistributionInfo memory feeDistribution,
         FeeRoutingMode feeRoutingMode
     ) internal returns (bool isToken0, address asset) {
+        return _createTokenWithConfig(salt, customFee, feeDistribution, feeRoutingMode, new BeneficiaryData[](0));
+    }
+
+    function _createTokenWithConfig(
+        bytes32 salt,
+        uint24 customFee,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode,
+        BeneficiaryData[] memory feeBeneficiaries
+    ) internal returns (bool isToken0, address asset) {
+        return _createTokenWithConfig(salt, 0, customFee, feeDistribution, feeRoutingMode, feeBeneficiaries);
+    }
+
+    function _createTokenWithConfig(
+        bytes32 salt,
+        uint24 poolLpFee,
+        uint24 customFee,
+        FeeDistributionInfo memory feeDistribution,
+        FeeRoutingMode feeRoutingMode,
+        BeneficiaryData[] memory feeBeneficiaries
+    ) internal returns (bool isToken0, address asset) {
         string memory name = "Test Token";
         string memory symbol = "TEST";
         uint256 initialSupply = 1e27;
 
         address tokenAddress = predictDopplerERC20V1Address(tokenFactory, salt);
 
-        InitData memory initData = _prepareInitData(tokenAddress, customFee, feeDistribution, feeRoutingMode);
+        InitData memory initData =
+            _prepareInitData(tokenAddress, customFee, feeDistribution, feeRoutingMode, feeBeneficiaries);
+        initData.fee = poolLpFee;
 
         CreateParams memory params = CreateParams({
             initialSupply: initialSupply,
@@ -1501,6 +2103,28 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         deal(address(Currency.unwrap(poolKey.currency0)), address(manager), 1e26);
         deal(address(Currency.unwrap(poolKey.currency1)), address(manager), 1e26);
+    }
+
+    function _assertLpBeneficiariesReceiveNothing() internal {
+        address lpBeneficiary = address(0x07);
+        uint256 lpBeneficiaryBalance0 = poolKey.currency0.balanceOf(lpBeneficiary);
+        uint256 lpBeneficiaryBalance1 = poolKey.currency1.balanceOf(lpBeneficiary);
+
+        vm.prank(lpBeneficiary);
+        (uint128 lpFees0, uint128 lpFees1) = initializer.collectFees(poolId);
+        assertEq(lpFees0, 0, "LP beneficiary currency0 fees must be zero");
+        assertEq(lpFees1, 0, "LP beneficiary currency1 fees must be zero");
+        assertEq(poolKey.currency0.balanceOf(lpBeneficiary), lpBeneficiaryBalance0);
+        assertEq(poolKey.currency1.balanceOf(lpBeneficiary), lpBeneficiaryBalance1);
+
+        uint256 ownerBalance0 = poolKey.currency0.balanceOf(airlockOwner);
+        uint256 ownerBalance1 = poolKey.currency1.balanceOf(airlockOwner);
+        vm.prank(airlockOwner);
+        (lpFees0, lpFees1) = initializer.collectFees(poolId);
+        assertEq(lpFees0, 0, "Airlock owner LP currency0 fees must be zero");
+        assertEq(lpFees1, 0, "Airlock owner LP currency1 fees must be zero");
+        assertEq(poolKey.currency0.balanceOf(airlockOwner), ownerBalance0);
+        assertEq(poolKey.currency1.balanceOf(airlockOwner), ownerBalance1);
     }
 
     function _createTokenWithOrientation(

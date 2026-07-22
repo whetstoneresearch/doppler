@@ -261,6 +261,7 @@ contract RehypeHandler is Test {
                 durationSeconds: 0,
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
+                feeBeneficiaries: new BeneficiaryData[](0),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
                     assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
