@@ -27,9 +27,9 @@ import {
     HookFees,
     InsufficientFeeCurrency,
     MAX_REBALANCE_ITERATIONS,
-    MAX_SWAP_FEE,
     MigratorInitData,
     PoolInfo,
+    SWAP_FEE_DENOMINATOR,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
     SwapSimulation
@@ -739,7 +739,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
             feeBase = uint256(-inputAmount);
         }
 
-        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, MAX_SWAP_FEE);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, getHookFees[poolId].customFee, SWAP_FEE_DENOMINATOR);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {

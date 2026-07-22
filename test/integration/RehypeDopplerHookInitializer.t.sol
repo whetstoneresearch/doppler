@@ -43,7 +43,7 @@ import {
     FeeSchedule,
     InitData as RehypeInitData,
     InsufficientFeeCurrency,
-    MAX_SWAP_FEE,
+    SWAP_FEE_DENOMINATOR,
     SenderNotAirlockOwner
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -715,7 +715,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         feeBeneficiaries[0] = BeneficiaryData({ beneficiary: feeBeneficiary, shares: uint96(0.95e18) });
         feeBeneficiaries[1] = BeneficiaryData({ beneficiary: airlockOwner, shares: uint96(0.05e18) });
 
-        uint24 rehypeFeeRate = 12_000; // 12_000 / MAX_SWAP_FEE = 1.5%
+        uint24 rehypeFeeRate = 12_000; // 12_000 / SWAP_FEE_DENOMINATOR = 1.2%
         (bool isToken0, address asset) = _createTokenWithConfig(
             bytes32(uint256(73)),
             rehypeFeeRate,
@@ -1777,7 +1777,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
     }
 
     function _grossFeeFromNetOutput(uint256 netOutput, uint24 feeRate) internal pure returns (uint256) {
-        return netOutput * feeRate / (MAX_SWAP_FEE - feeRate);
+        return netOutput * feeRate / (SWAP_FEE_DENOMINATOR - feeRate);
     }
 
     function _executeBeneficiaryFeeCycle(

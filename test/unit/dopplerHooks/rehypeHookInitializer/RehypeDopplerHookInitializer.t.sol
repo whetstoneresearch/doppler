@@ -36,7 +36,8 @@ import {
     InvalidFeeRange,
     MAX_SWAP_FEE,
     PoolAlreadyInitialized,
-    PoolInfo
+    PoolInfo,
+    SWAP_FEE_DENOMINATOR
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -1333,7 +1334,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0 });
         int128 amount0 = -int128(uint128(1 ether));
         int128 amount1 = int128(uint128(5 ether));
-        uint256 expectedFeeAmount = 5 ether * 10_000 / MAX_SWAP_FEE;
+        uint256 expectedFeeAmount = 5 ether * 10_000 / SWAP_FEE_DENOMINATOR;
 
         vm.prank(address(initializer));
         (Currency feeCurrency, int128 hookDelta) =
@@ -1384,7 +1385,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: 0.5 ether, sqrtPriceLimitX96: 0 });
         int128 amount0 = -int128(uint128(12 ether / 10));
         int128 amount1 = int128(uint128(0.5 ether));
-        uint256 expectedFeeAmount = (12 ether / 10) * 10_000 / MAX_SWAP_FEE;
+        uint256 expectedFeeAmount = (12 ether / 10) * 10_000 / SWAP_FEE_DENOMINATOR;
 
         vm.prank(address(initializer));
         (Currency feeCurrency, int128 hookDelta) =
@@ -1416,7 +1417,8 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     }
 
     function test_collectSwapFees_GrossOwnerCarveOutAcrossModesDirectionsAndBeneficiaryConfigurations() public {
-        uint256 expectedGross = 2_000_019;
+        uint256 feeBase = 160_001_520;
+        uint256 expectedGross = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
         uint256 expectedOwnerCut = expectedGross * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
         uint256 caseIndex;
 
@@ -1424,7 +1426,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             for (uint256 exactMode; exactMode < 2; ++exactMode) {
                 for (uint256 direction; direction < 2; ++direction) {
                     (uint256 grossFee, uint256 ownerCut) = _assertGrossOwnerCarveOut(
-                        caseIndex++, exactMode == 0, direction == 0, beneficiaryConfiguration == 1, 160_001_520
+                        caseIndex++, exactMode == 0, direction == 0, beneficiaryConfiguration == 1, feeBase
                     );
 
                     assertEq(grossFee, expectedGross, "gross must be calculated from the swap delta");
@@ -1438,7 +1440,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         feeBase = bound(feeBase, 80, 1e30);
 
         (uint256 grossFee, uint256 ownerCut) = _assertGrossOwnerCarveOut(20, true, true, false, feeBase);
-        uint256 expectedGross = feeBase * 10_000 / MAX_SWAP_FEE;
+        uint256 expectedGross = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
         uint256 expectedOwnerCut = expectedGross * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
 
         assertEq(grossFee, expectedGross, "gross must be derived from output delta");
@@ -1446,9 +1448,14 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     }
 
     function test_collectSwapFees_TinyGrossFloorsOwnerCutToZero() public {
-        (uint256 grossFee, uint256 ownerCut) = _assertGrossOwnerCarveOut(21, false, false, true, 1599);
+        uint256 feeBase = 1599;
+        (uint256 grossFee, uint256 ownerCut) = _assertGrossOwnerCarveOut(21, false, false, true, feeBase);
 
-        assertEq(grossFee, 19, "gross fee must floor independently before the owner carve-out");
+        assertEq(
+            grossFee,
+            feeBase * 10_000 / SWAP_FEE_DENOMINATOR,
+            "gross fee must floor independently before the owner carve-out"
+        );
         assertEq(ownerCut, 0, "a sub-twenty-wei gross fee must floor the five-percent owner cut to zero");
     }
 
@@ -1535,7 +1542,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0 });
         int128 amount0 = -int128(uint128(1 ether));
         int128 amount1 = int128(uint128(5 ether));
-        uint256 expectedFeeAmount = 5 ether * 6000 / MAX_SWAP_FEE;
+        uint256 expectedFeeAmount = 5 ether * 6000 / SWAP_FEE_DENOMINATOR;
 
         vm.prank(address(initializer));
         (Currency feeCurrency, int128 hookDelta) =
@@ -1757,7 +1764,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         (Currency feeCurrency, int128 hookDelta) =
             trackingHarness.exposed_collectSwapFees(params, delta, poolKey, poolKey.toId());
 
-        grossFee = feeBase * 10_000 / MAX_SWAP_FEE;
+        grossFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
         ownerCut = grossFee * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
         uint256 routingAmount = grossFee - ownerCut;
         bool feeInCurrency0 = zeroForOne != exactInput;
@@ -1795,7 +1802,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
 
         uint256 feeBase = 160_001_520;
-        uint256 grossFee = feeBase * 10_000 / MAX_SWAP_FEE;
+        uint256 grossFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
         ownerCut = grossFee * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
         uint256 routingAmount = grossFee - ownerCut;
         uint256 recipientBalanceBefore = token1.balanceOf(buybackDst);
@@ -2000,7 +2007,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     }
 
     function _nonzeroLpExpectation(uint256 feeBase) internal pure returns (NonzeroLpAccounting memory expected) {
-        expected.gross = feeBase * 10_000 / MAX_SWAP_FEE;
+        expected.gross = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
         expected.owner = expected.gross * 500 / 10_000;
         expected.postOwner = expected.gross - expected.owner;
 
