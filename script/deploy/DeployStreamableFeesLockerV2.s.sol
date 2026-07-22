@@ -84,6 +84,12 @@ contract DeployStreamableFeesLockerV2ScriptBase is DeployStreamableFeesLockerV2S
     }
 }
 
+contract DeployStreamableFeesLockerV2ScriptRobinhood is DeployStreamableFeesLockerV2Script {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployStreamableFeesLockerV2ScriptBaseSepolia is DeployStreamableFeesLockerV2Script {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

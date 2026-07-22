@@ -91,6 +91,12 @@ contract DeployRehypeDopplerHookMigratorScriptBase is DeployRehypeDopplerHookMig
     }
 }
 
+contract DeployRehypeDopplerHookMigratorScriptRobinhood is DeployRehypeDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployRehypeDopplerHookMigratorScriptBaseSepolia is DeployRehypeDopplerHookMigratorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

@@ -108,6 +108,12 @@ contract DeployUniswapV4InitializerScriptBase is DeployUniswapV4InitializerScrip
     }
 }
 
+contract DeployUniswapV4InitializerScriptRobinhood is DeployUniswapV4InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployUniswapV4InitializerScriptBaseSepolia is DeployUniswapV4InitializerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

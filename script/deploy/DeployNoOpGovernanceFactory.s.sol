@@ -68,6 +68,12 @@ contract DeployNoOpGovernanceFactoryScriptBase is DeployNoOpGovernanceFactoryScr
     }
 }
 
+contract DeployNoOpGovernanceFactoryScriptRobinhood is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployNoOpGovernanceFactoryScriptBaseSepolia is DeployNoOpGovernanceFactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

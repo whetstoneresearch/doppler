@@ -67,6 +67,12 @@ contract DeployDopplerLensQuoterScriptBase is DeployDopplerLensQuoterScript {
     }
 }
 
+contract DeployDopplerLensQuoterScriptRobinhood is DeployDopplerLensQuoterScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerLensQuoterScriptBaseSepolia is DeployDopplerLensQuoterScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

@@ -75,6 +75,12 @@ contract DeployLaunchpadGovernanceFactoryScriptBase is DeployLaunchpadGovernance
     }
 }
 
+contract DeployLaunchpadGovernanceFactoryScriptRobinhood is DeployLaunchpadGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployLaunchpadGovernanceFactoryScriptBaseSepolia is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);

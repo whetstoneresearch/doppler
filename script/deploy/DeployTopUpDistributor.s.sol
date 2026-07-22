@@ -70,6 +70,12 @@ contract DeployTopUpDistributorScriptBase is DeployTopUpDistributorScript {
     }
 }
 
+contract DeployTopUpDistributorScriptRobinhood is DeployTopUpDistributorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployTopUpDistributorScriptBaseSepolia is DeployTopUpDistributorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_SEPOLIA, true);
