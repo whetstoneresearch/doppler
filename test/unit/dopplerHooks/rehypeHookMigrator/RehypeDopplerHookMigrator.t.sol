@@ -13,6 +13,8 @@ import { SenderNotMigrator } from "src/base/BaseDopplerHookMigrator.sol";
 import { RehypeDopplerHookMigrator } from "src/dopplerHooks/RehypeDopplerHookMigrator.sol";
 import { DopplerHookMigrator } from "src/migrators/DopplerHookMigrator.sol";
 import {
+    AIRLOCK_OWNER_FEE_BPS,
+    BPS_DENOMINATOR,
     FeeDistributionInfo,
     FeeDistributionMustAddUpToWAD,
     FeeRoutingMode,
@@ -20,6 +22,7 @@ import {
     InsufficientFeeCurrency,
     MigratorInitData,
     PoolInfo,
+    SWAP_FEE_DENOMINATOR,
     SenderNotAirlockOwner,
     SenderNotAuthorized
 } from "src/types/RehypeTypes.sol";
@@ -27,6 +30,26 @@ import { WAD } from "src/types/Wad.sol";
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
+}
+
+contract MigratorTrackingPoolManager {
+    Currency public lastTakeCurrency;
+    address public lastTakeRecipient;
+    uint256 public lastTakeAmount;
+    uint256 public takeCallCount;
+    uint160 internal constant MOCK_SQRT_PRICE_X96 = uint160(1 << 96);
+
+    function take(Currency currency, address to, uint256 amount) external {
+        lastTakeCurrency = currency;
+        lastTakeRecipient = to;
+        lastTakeAmount = amount;
+        ++takeCallCount;
+        TestERC20(Currency.unwrap(currency)).transfer(to, amount);
+    }
+
+    function extsload(bytes32) external pure returns (bytes32 value) {
+        return bytes32(uint256(MOCK_SQRT_PRICE_X96));
+    }
 }
 
 contract MockAirlockForMigrator {
@@ -761,59 +784,133 @@ contract RehypeDopplerHookMigratorTest is Test {
     }
 
     /* ----------------------------------------------------------------------------- */
-    /*                  onAfterSwap fee accumulation (no PoolManager)                */
+    /*                          onAfterSwap fee accounting                           */
     /* ----------------------------------------------------------------------------- */
 
-    function test_onAfterSwap_AccumulatesFees(PoolKey memory poolKey) public {
-        poolKey.tickSpacing = 60;
+    function test_onAfterSwap_ExactInputChargesConfiguredFeeAndConservesAccounting() public {
+        _assertOnAfterSwapFeeAccounting(true);
+    }
 
-        address asset = Currency.unwrap(poolKey.currency0);
-        address numeraire = Currency.unwrap(poolKey.currency1);
-        address buybackDst = makeAddr("buybackDst");
-        uint24 customFee = 10_000; // 1%
-
-        // All fees go to beneficiary for simple testing
-        bytes memory data = abi.encode(
-            MigratorInitData({
-                numeraire: numeraire,
-                buybackDst: buybackDst,
-                customFee: customFee,
-                feeRoutingMode: FeeRoutingMode.DirectBuyback,
-                feeDistributionInfo: FeeDistributionInfo({
-                    assetFeesToAssetBuybackWad: 0,
-                    assetFeesToNumeraireBuybackWad: 0,
-                    assetFeesToBeneficiaryWad: WAD,
-                    assetFeesToLpWad: 0,
-                    numeraireFeesToAssetBuybackWad: 0,
-                    numeraireFeesToNumeraireBuybackWad: 0,
-                    numeraireFeesToBeneficiaryWad: WAD,
-                    numeraireFeesToLpWad: 0
-                })
-            })
-        );
-
-        vm.prank(address(mockMigrator));
-        rehypeHookMigrator.onInitialization(asset, poolKey, data);
-
-        // Simulate a swap with amountSpecified < 0 (exact input) and zeroForOne = true
-        IPoolManager.SwapParams memory swapParams =
-            IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -1e18, sqrtPriceLimitX96: 0 });
-
-        vm.prank(address(mockMigrator));
-        rehypeHookMigrator.onAfterSwap(
-            address(0x123), poolKey, swapParams, BalanceDeltaLibrary.ZERO_DELTA, new bytes(0)
-        );
-
-        PoolId poolId = poolKey.toId();
-
-        // Verify customFee was stored correctly
-        (,,,,,, uint24 storedFee) = rehypeHookMigrator.getHookFees(poolId);
-        assertEq(storedFee, customFee);
+    function test_onAfterSwap_ExactOutputChargesConfiguredInputFeeAndConservesAccounting() public {
+        _assertOnAfterSwapFeeAccounting(false);
     }
 
     /* ----------------------------------------------------------------------------- */
     /*                              Helpers                                          */
     /* ----------------------------------------------------------------------------- */
+
+    function _assertOnAfterSwapFeeAccounting(bool exactInput) internal {
+        (
+            RehypeDopplerHookMigrator hook,
+            MigratorTrackingPoolManager trackingPoolManager,
+            TestERC20 token0,
+            TestERC20 token1,
+            PoolKey memory poolKey
+        ) = _trackingFeeSetup();
+
+        uint256 feeBase = exactInput ? 5 ether : 12 ether / 10;
+        int128 inputAmount = exactInput ? int128(1 ether) : int128(uint128(feeBase));
+        int128 outputAmount = exactInput ? int128(uint128(feeBase)) : int128(0.5 ether);
+        uint256 expectedFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
+        uint256 expectedOwnerFee = expectedFee * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
+        TestERC20 feeToken = exactInput ? token1 : token0;
+        TestERC20 oppositeToken = exactInput ? token0 : token1;
+
+        vm.prank(address(mockMigrator));
+        (Currency feeCurrency, int128 hookDelta) = hook.onAfterSwap(
+            address(0x1234),
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: true,
+                amountSpecified: exactInput ? -int256(1 ether) : int256(0.5 ether),
+                sqrtPriceLimitX96: 0
+            }),
+            toBalanceDelta(-inputAmount, outputAmount),
+            ""
+        );
+
+        assertEq(Currency.unwrap(feeCurrency), address(feeToken));
+        assertEq(uint256(uint128(hookDelta)), expectedFee);
+        assertEq(trackingPoolManager.takeCallCount(), 1);
+        assertEq(Currency.unwrap(trackingPoolManager.lastTakeCurrency()), address(feeToken));
+        assertEq(trackingPoolManager.lastTakeRecipient(), address(hook));
+        assertEq(trackingPoolManager.lastTakeAmount(), expectedFee);
+        assertEq(feeToken.balanceOf(address(hook)), expectedFee);
+        assertEq(oppositeToken.balanceOf(address(hook)), 0);
+
+        (
+            uint128 fees0,
+            uint128 fees1,
+            uint128 beneficiaryFees0,
+            uint128 beneficiaryFees1,
+            uint128 ownerFees0,
+            uint128 ownerFees1,
+        ) = hook.getHookFees(poolKey.toId());
+        assertEq(fees0, 0);
+        assertEq(fees1, 0);
+        uint256 beneficiaryFee = exactInput ? beneficiaryFees1 : beneficiaryFees0;
+        uint256 ownerFee = exactInput ? ownerFees1 : ownerFees0;
+        assertEq(beneficiaryFee, expectedFee - expectedOwnerFee);
+        assertEq(ownerFee, expectedOwnerFee);
+        assertEq(beneficiaryFee + ownerFee, expectedFee);
+        assertEq(exactInput ? beneficiaryFees0 + ownerFees0 : beneficiaryFees1 + ownerFees1, 0);
+    }
+
+    function _trackingFeeSetup()
+        internal
+        returns (
+            RehypeDopplerHookMigrator hook,
+            MigratorTrackingPoolManager trackingPoolManager,
+            TestERC20 token0,
+            TestERC20 token1,
+            PoolKey memory poolKey
+        )
+    {
+        trackingPoolManager = new MigratorTrackingPoolManager();
+        hook = new RehypeDopplerHookMigrator(
+            DopplerHookMigrator(payable(address(mockMigrator))), IPoolManager(address(trackingPoolManager))
+        );
+        token0 = new TestERC20(type(uint128).max);
+        token1 = new TestERC20(type(uint128).max);
+        poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 0,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+
+        token0.transfer(address(trackingPoolManager), 10 ether);
+        token1.transfer(address(trackingPoolManager), 10 ether);
+
+        vm.prank(address(mockMigrator));
+        hook.onInitialization(
+            address(token0), poolKey, abi.encode(_beneficiaryOnlyMigratorInitData(address(token1), address(0), 10_000))
+        );
+    }
+
+    function _beneficiaryOnlyMigratorInitData(
+        address numeraire,
+        address buybackDst,
+        uint24 customFee
+    ) internal pure returns (MigratorInitData memory) {
+        return MigratorInitData({
+            numeraire: numeraire,
+            buybackDst: buybackDst,
+            customFee: customFee,
+            feeRoutingMode: FeeRoutingMode.DirectBuyback,
+            feeDistributionInfo: FeeDistributionInfo({
+                assetFeesToAssetBuybackWad: 0,
+                assetFeesToNumeraireBuybackWad: 0,
+                assetFeesToBeneficiaryWad: WAD,
+                assetFeesToLpWad: 0,
+                numeraireFeesToAssetBuybackWad: 0,
+                numeraireFeesToNumeraireBuybackWad: 0,
+                numeraireFeesToBeneficiaryWad: WAD,
+                numeraireFeesToLpWad: 0
+            })
+        });
+    }
 
     function _quarterMigratorInitData(
         address numeraire,

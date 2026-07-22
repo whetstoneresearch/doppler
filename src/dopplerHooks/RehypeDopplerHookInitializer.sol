@@ -41,6 +41,7 @@ import {
     MAX_SWAP_FEE,
     PoolAlreadyInitialized,
     PoolInfo,
+    SWAP_FEE_DENOMINATOR,
     SenderNotAirlockOwner,
     SwapSimulation
 } from "src/types/RehypeTypes.sol";
@@ -835,7 +836,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         }
 
         uint24 currentFee = _getCurrentFee(poolId);
-        uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, MAX_SWAP_FEE);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, SWAP_FEE_DENOMINATOR);
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
         if (balanceOfFeeCurrency < feeAmount) {
