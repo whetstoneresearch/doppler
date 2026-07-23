@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import { DeployAirlock } from "script/deploy/DeployAirlock.s.sol";
 import { DeployAirlockMultisigTestnet } from "script/deploy/DeployAirlockMultisigTestnet.s.sol";
-import { DeployBundler } from "script/deploy/DeployBundler.s.sol";
 import { DeployDN404Factory } from "script/deploy/DeployDN404Factory.s.sol";
 import { DeployDopplerERC20V1Factory } from "script/deploy/DeployDopplerERC20V1Factory.s.sol";
 import { DeployDopplerHookInitializer } from "script/deploy/DeployDopplerHookInitializer.s.sol";
@@ -42,8 +41,7 @@ contract DeployDopplerScript is
     DeployUniV2MigratorSplit,
     DeployDopplerHookMigrator,
     DeployRehypeDopplerHookMigrator,
-    DeployDopplerLensQuoter,
-    DeployBundler
+    DeployDopplerLensQuoter
 {
     bool internal isTestnet;
 
@@ -97,7 +95,6 @@ contract DeployDopplerScript is
         _deployRehypeDopplerHookMigrator(context, deployed.dopplerHookMigrator);
 
         _deployDopplerLensQuoter(context);
-        _deployBundler(context, deployed.airlock);
     }
 
     function _setUpChain(uint256 chainId, bool _isTestnet) internal {
