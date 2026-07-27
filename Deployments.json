@@ -167,6 +167,7 @@
     "CloneDERC20VotesV2Factory": "0x16f5acb64f4fa17296e942c51d3395adc318f9e1",
     "DecayMulticurveInitializer": "0xd59ce43e53d69f190e15d9822fb4540dccc91178",
     "DecayMulticurveInitializerHook": "0xbb7784a4d481184283ed89619a3e3ed143e1adc0",
+    "DN404Factory": "0x37a9fa204a4d3a429fded7e3469ab076c854bc9d",
     "DopplerCreateXDeployer": "0x103004e50bed65dfba30dd9c264b6bdf5e529b83",
     "DopplerDeployer": "0xb35469ee64a87afd19b31615094fe3962d73e421",
     "DopplerERC20V1": "0xdb7b520bb5c3a2c5d4871198081911359f93be87",

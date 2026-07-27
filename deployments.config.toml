@@ -134,6 +134,7 @@ uniswap_v4_migrator_split_hook = "0x103aB8804e66bC272840940CBa0ad34729c4e500"
 doppler_erc20_v1_factory = "0x89C261C05B5F9b6BcBA07C199b8DeE7cFaD45292"
 doppler_erc20_v1_implementation = "0xDB7B520bb5C3a2C5d4871198081911359f93be87"
 protocol_deployer = "0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83"
+dn404_factory = "0x37A9Fa204a4d3A429FDED7e3469ab076C854Bc9d"
 
 [130]
 endpoint_url = "${UNICHAIN_MAINNET_RPC_URL}"
