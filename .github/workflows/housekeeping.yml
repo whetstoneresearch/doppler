@@ -57,19 +57,46 @@ jobs:
             exit 1
           fi
 
-          if [[ ! -f docs/snippets/solana-deployments.md ]]; then
-            echo "Expected docs/snippets/solana-deployments.md to exist"
-            exit 1
-          fi
+          for snippet in \
+            docs/snippets/solana-mainnet-deployments.md \
+            docs/snippets/solana-devnet-deployments.md; do
+            if [[ ! -f "$snippet" ]]; then
+              echo "Expected $snippet to exist"
+              exit 1
+            fi
+          done
 
           if [[ ! -d docs/reference ]]; then
             echo "Expected docs/reference directory to exist in docs repo checkout"
             exit 1
           fi
 
-          cp contracts/Deployments.md docs/reference/contract-addresses.md
-          printf '\n' >> docs/reference/contract-addresses.md
-          cat docs/snippets/solana-deployments.md >> docs/reference/contract-addresses.md
+          testnet_heading_count="$(
+            awk '$0 == "## Testnet Deployments" { count++ } END { print count + 0 }' \
+              contracts/Deployments.md
+          )"
+          if [[ "$testnet_heading_count" -ne 1 ]]; then
+            echo "Expected exactly one Testnet Deployments heading, found $testnet_heading_count"
+            exit 1
+          fi
+
+          awk '
+            $0 == "## Testnet Deployments" {
+              while (
+                (getline line < "docs/snippets/solana-mainnet-deployments.md") > 0
+              ) {
+                print line
+              }
+              close("docs/snippets/solana-mainnet-deployments.md")
+              print ""
+            }
+            { print }
+          ' contracts/Deployments.md > docs/reference/contract-addresses.md
+          if [[ -n "$(tail -n 1 docs/reference/contract-addresses.md)" ]]; then
+            printf '\n' >> docs/reference/contract-addresses.md
+          fi
+          cat docs/snippets/solana-devnet-deployments.md \
+            >> docs/reference/contract-addresses.md
 
       - name: Commit and push to the docs repository
         run: |
