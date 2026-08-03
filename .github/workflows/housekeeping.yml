@@ -82,9 +82,7 @@ jobs:
 
           awk '
             $0 == "## Testnet Deployments" {
-              while (
-                (getline line < "docs/snippets/solana-mainnet-deployments.md") > 0
-              ) {
+              while ((getline line < "docs/snippets/solana-mainnet-deployments.md") > 0) {
                 print line
               }
               close("docs/snippets/solana-mainnet-deployments.md")
