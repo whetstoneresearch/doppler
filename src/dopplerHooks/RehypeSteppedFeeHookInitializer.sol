@@ -1,0 +1,923 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.26;
+
+import { Quoter } from "@quoter/Quoter.sol";
+import { ReentrancyGuard } from "@solady/utils/ReentrancyGuard.sol";
+import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
+import { FullMath } from "@v4-core/libraries/FullMath.sol";
+import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
+import { TickMath } from "@v4-core/libraries/TickMath.sol";
+import { BalanceDelta, toBalanceDelta } from "@v4-core/types/BalanceDelta.sol";
+import { Currency, CurrencyLibrary } from "@v4-core/types/Currency.sol";
+import { PoolId } from "@v4-core/types/PoolId.sol";
+import { PoolKey } from "@v4-core/types/PoolKey.sol";
+import { LiquidityAmounts } from "@v4-periphery/libraries/LiquidityAmounts.sol";
+import { BaseDopplerHookInitializer } from "src/base/BaseDopplerHookInitializer.sol";
+import { DopplerHookInitializer } from "src/initializers/DopplerHookInitializer.sol";
+import { MigrationMath } from "src/libraries/MigrationMath.sol";
+import { Position } from "src/types/Position.sol";
+import {
+    AIRLOCK_OWNER_FEE_BPS,
+    AirlockOwnerFeesClaimed,
+    BPS_DENOMINATOR,
+    EPSILON,
+    FeeDistributionInfo,
+    FeeDistributionMustAddUpToWAD,
+    FeeRoutingMode,
+    FeeScheduleSet,
+    FeeTooHigh,
+    FeeUpdated,
+    HookFees,
+    InsufficientFeeCurrency,
+    MAX_REBALANCE_ITERATIONS,
+    MAX_SWAP_FEE,
+    PoolInfo,
+    SenderNotAirlockOwner,
+    SenderNotAuthorized,
+    SwapSimulation
+} from "src/types/RehypeTypes.sol";
+import { WAD } from "src/types/Wad.sol";
+
+/// @notice Thrown when a stepped fee is configured without any segments
+error EmptyFeeSegments();
+
+/// @notice Thrown when a stepped fee segment would increase the fee
+error InvalidFeeSegment(uint256 index, uint24 previousFee, uint24 targetFee);
+
+/// @notice Thrown when block.timestamp cannot fit the schedule's uint32 time model
+error TimestampTooLarge(uint256 timestamp);
+
+/// @notice Thrown when a checkpoint end time would exceed uint32 max
+error FeeScheduleTimeOverflow(uint32 startTime, uint256 durationSeconds);
+
+/**
+ * @notice One input segment of a stepped fee definition
+ * @param targetFee Terminal fee for the segment
+ * @param durationSeconds Segment duration in seconds (0 = immediate cliff)
+ */
+struct FeeSegment {
+    uint24 targetFee;
+    uint32 durationSeconds;
+}
+
+/**
+ * @notice Stored fee checkpoint for the stepped schedule
+ * @param targetFee Fee reached at endTime
+ * @param endTime Absolute timestamp where targetFee is reached
+ */
+struct FeeCheckpoint {
+    uint24 targetFee;
+    uint32 endTime;
+}
+
+/**
+ * @notice Packed runtime state for a stepped fee schedule
+ * @dev `currentFee == endFee` is terminal and skips checkpoint reads on future swaps.
+ * @param startTime Timestamp where the schedule starts
+ * @param nextTime Timestamp of the next fee update (0 when terminal)
+ * @param nextIndex Index of the next checkpoint to consume
+ * @param checkpointCount Number of checkpoints configured for the pool
+ * @param startFee Fee before the first checkpoint
+ * @param currentFee Active fee used for swaps
+ * @param endFee Terminal fee after the final checkpoint
+ */
+struct FeeScheduleState {
+    uint32 startTime;
+    uint32 nextTime;
+    uint32 nextIndex;
+    uint32 checkpointCount;
+    uint24 startFee;
+    uint24 currentFee;
+    uint24 endFee;
+}
+
+/**
+ * @notice Initialization data for a Rehype stepped-fee pool
+ * @param numeraire Address of the numeraire token
+ * @param buybackDst Address receiving direct buybacks and beneficiary fees
+ * @param startFee Fee at schedule start
+ * @param feeSegments Ordered fee schedule segments
+ * @param startingTime Timestamp when the schedule begins
+ * @param feeRoutingMode Routing mode for buyback-designated fees
+ * @param feeDistributionInfo Fee routing matrix percentages for the pool
+ */
+struct SteppedFeeInitData {
+    address numeraire;
+    address buybackDst;
+    uint24 startFee;
+    FeeSegment[] feeSegments;
+    uint32 startingTime;
+    FeeRoutingMode feeRoutingMode;
+    FeeDistributionInfo feeDistributionInfo;
+}
+
+/**
+ * @title Rehype Stepped Fee Hook Initializer
+ * @author Whetstone Research
+ * @custom:security-contact security@whetstone.cc
+ * @notice Rehype Doppler Hook variant with immutable segment-based stepped fees.
+ */
+contract RehypeSteppedFeeHookInitializer is BaseDopplerHookInitializer, ReentrancyGuard {
+    using StateLibrary for IPoolManager;
+    using CurrencyLibrary for Currency;
+
+    /// @notice Address of the Uniswap V4 Pool Manager
+    IPoolManager public immutable poolManager;
+
+    /// @notice Quoter contract for simulating swaps
+    Quoter public immutable quoter;
+
+    /// @notice Position data for each pool
+    mapping(PoolId poolId => Position position) public getPosition;
+
+    /// @notice Fee distribution configuration for each pool
+    mapping(PoolId poolId => FeeDistributionInfo feeDistributionInfo) public getFeeDistributionInfo;
+
+    /// @notice Hook fees tracking for each pool
+    mapping(PoolId poolId => HookFees hookFees) public getHookFees;
+
+    /// @notice Pool info for each pool
+    mapping(PoolId poolId => PoolInfo poolInfo) public getPoolInfo;
+
+    /// @notice Fee routing mode for each pool
+    mapping(PoolId poolId => FeeRoutingMode feeRoutingMode) public getFeeRoutingMode;
+
+    /// @notice Stepped fee schedule state for each pool
+    mapping(PoolId poolId => FeeScheduleState feeSchedule) public getFeeSchedule;
+
+    /// @notice Ordered fee checkpoints for each pool
+    mapping(PoolId poolId => FeeCheckpoint[] feeCheckpoints) public getFeeCheckpoints;
+
+    receive() external payable { }
+
+    /**
+     * @param initializer Address of the DopplerHookInitializer contract
+     * @param poolManager_ Address of the Uniswap V4 Pool Manager
+     */
+    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHookInitializer(initializer) {
+        poolManager = poolManager_;
+        quoter = new Quoter(poolManager_);
+    }
+
+    /// @inheritdoc BaseDopplerHookInitializer
+    function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
+        SteppedFeeInitData memory initData = abi.decode(data, (SteppedFeeInitData));
+
+        PoolId poolId = key.toId();
+
+        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
+
+        _validateFeeDistribution(initData.feeDistributionInfo);
+        getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
+        getFeeRoutingMode[poolId] = initData.feeRoutingMode;
+
+        _storeFeeSchedule(poolId, initData.startingTime, initData.startFee, initData.feeSegments);
+
+        // Initialize position
+        getPosition[poolId] = Position({
+            tickLower: TickMath.minUsableTick(key.tickSpacing),
+            tickUpper: TickMath.maxUsableTick(key.tickSpacing),
+            liquidity: 0,
+            salt: _fullRangeSalt(poolId)
+        });
+    }
+
+    /// @inheritdoc BaseDopplerHookInitializer
+    function _onSwap(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
+        bytes calldata
+    ) internal override returns (Currency, int128) {
+        if (sender == address(this)) {
+            return (Currency.wrap(address(0)), 0);
+        }
+
+        PoolId poolId = key.toId();
+
+        (Currency feeCurrency, int128 hookDelta) = _collectSwapFees(params, delta, key, poolId);
+
+        uint256 balance0 = getHookFees[poolId].fees0;
+        uint256 balance1 = getHookFees[poolId].fees1;
+
+        if (balance0 <= EPSILON && balance1 <= EPSILON) {
+            return (feeCurrency, hookDelta);
+        }
+
+        address asset = getPoolInfo[poolId].asset;
+        address numeraire = getPoolInfo[poolId].numeraire;
+        bool isToken0 = key.currency0 == Currency.wrap(asset);
+        bool isNumeraireToken0 = key.currency0 == Currency.wrap(numeraire);
+
+        FeeDistributionInfo memory feeDistributionInfo = getFeeDistributionInfo[poolId];
+
+        uint256 assetFees = isToken0 ? balance0 : balance1;
+        uint256 numeraireFees = isToken0 ? balance1 : balance0;
+
+        uint256 assetDirectBuybackAmount =
+            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToAssetBuybackWad, WAD);
+        uint256 assetBuybackAmountIn =
+            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToNumeraireBuybackWad, WAD);
+        uint256 assetBeneficiaryAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToBeneficiaryWad, WAD);
+        uint256 assetLpAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToLpWad, WAD);
+
+        uint256 numeraireBuybackAmountIn =
+            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToAssetBuybackWad, WAD);
+        uint256 numeraireDirectBuybackAmount =
+            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToNumeraireBuybackWad, WAD);
+        uint256 numeraireBeneficiaryAmount =
+            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToBeneficiaryWad, WAD);
+        uint256 numeraireLpAmount = FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToLpWad, WAD);
+
+        uint256 lpAmount0 = isToken0 ? assetLpAmount : numeraireLpAmount;
+        uint256 lpAmount1 = isToken0 ? numeraireLpAmount : assetLpAmount;
+
+        balance0 = isToken0
+            ? assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn
+            : numeraireBeneficiaryAmount + numeraireLpAmount + numeraireBuybackAmountIn;
+        balance1 = isToken0
+            ? numeraireBeneficiaryAmount + numeraireLpAmount + numeraireBuybackAmountIn
+            : assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn;
+
+        address recipient = getPoolInfo[poolId].buybackDst;
+        bool routeToBeneficiaryFees = getFeeRoutingMode[poolId] == FeeRoutingMode.RouteToBeneficiaryFees;
+
+        if (assetDirectBuybackAmount > 0) {
+            if (routeToBeneficiaryFees) {
+                if (isToken0) {
+                    balance0 += assetDirectBuybackAmount;
+                } else {
+                    balance1 += assetDirectBuybackAmount;
+                }
+            } else {
+                isToken0
+                    ? key.currency0.transfer(recipient, assetDirectBuybackAmount)
+                    : key.currency1.transfer(recipient, assetDirectBuybackAmount);
+            }
+        }
+
+        if (numeraireDirectBuybackAmount > 0) {
+            if (routeToBeneficiaryFees) {
+                if (isNumeraireToken0) {
+                    balance0 += numeraireDirectBuybackAmount;
+                } else {
+                    balance1 += numeraireDirectBuybackAmount;
+                }
+            } else {
+                isNumeraireToken0
+                    ? key.currency0.transfer(recipient, numeraireDirectBuybackAmount)
+                    : key.currency1.transfer(recipient, numeraireDirectBuybackAmount);
+            }
+        }
+
+        if (assetBuybackAmountIn > 0) {
+            Currency outputCurrency = isNumeraireToken0 ? key.currency0 : key.currency1;
+            SwapSimulation memory sim =
+                _simulateSwap(key, isToken0, assetBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1);
+            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
+            if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
+                (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
+                    _executeSwap(key, isToken0, assetBuybackAmountIn);
+                if (routeToBeneficiaryFees) {
+                    if (isNumeraireToken0) {
+                        balance0 += assetBuybackAmountOut;
+                    } else {
+                        balance1 += assetBuybackAmountOut;
+                    }
+                } else {
+                    isNumeraireToken0
+                        ? key.currency0.transfer(recipient, assetBuybackAmountOut)
+                        : key.currency1.transfer(recipient, assetBuybackAmountOut);
+                }
+                balance0 = isToken0 ? balance0 - assetBuybackAmountInUsed : balance0;
+                balance1 = isToken0 ? balance1 : balance1 - assetBuybackAmountInUsed;
+            }
+        }
+
+        if (numeraireBuybackAmountIn > 0) {
+            Currency outputCurrency = isToken0 ? key.currency0 : key.currency1;
+            SwapSimulation memory sim = _simulateSwap(
+                key, !isToken0, numeraireBuybackAmountIn, !isToken0 ? balance0 : 0, !isToken0 ? 0 : balance1
+            );
+            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
+            if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
+                (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
+                    _executeSwap(key, !isToken0, numeraireBuybackAmountIn);
+                if (routeToBeneficiaryFees) {
+                    if (isToken0) {
+                        balance0 += numeraireBuybackAmountOutResult;
+                    } else {
+                        balance1 += numeraireBuybackAmountOutResult;
+                    }
+                } else {
+                    isToken0
+                        ? key.currency0.transfer(recipient, numeraireBuybackAmountOutResult)
+                        : key.currency1.transfer(recipient, numeraireBuybackAmountOutResult);
+                }
+                // numeraireBuybackAmountInUsed is always paid in numeraire:
+                // - when isToken0=true, numeraire is currency1
+                // - when isToken0=false, numeraire is currency0
+                balance0 = isToken0 ? balance0 : balance0 - numeraireBuybackAmountInUsed;
+                balance1 = isToken0 ? balance1 - numeraireBuybackAmountInUsed : balance1;
+            }
+        }
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+
+        Position storage position = getPosition[poolId];
+        (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut,) =
+            _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
+        if (shouldSwap && swapAmountIn > 0) {
+            Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+            if (outputCurrency.balanceOf(address(poolManager)) > swapAmountOut) {
+                uint160 postSwapSqrtPrice;
+                (postSwapSqrtPrice, swapAmountOut, swapAmountIn) = _executeSwap(key, zeroForOne, swapAmountIn);
+                lpAmount0 = zeroForOne ? lpAmount0 - swapAmountIn : lpAmount0 + swapAmountOut;
+                lpAmount1 = zeroForOne ? lpAmount1 + swapAmountOut : lpAmount1 - swapAmountIn;
+                BalanceDelta liquidityDelta =
+                    _addFullRangeLiquidity(key, position, lpAmount0, lpAmount1, postSwapSqrtPrice);
+                balance0 = uint256(
+                    int256(zeroForOne ? balance0 - swapAmountIn : balance0 + swapAmountOut) + liquidityDelta.amount0()
+                );
+                balance1 = uint256(
+                    int256(zeroForOne ? balance1 + swapAmountOut : balance1 - swapAmountIn) + liquidityDelta.amount1()
+                );
+            }
+        }
+
+        getHookFees[poolId].beneficiaryFees0 += uint128(balance0);
+        getHookFees[poolId].beneficiaryFees1 += uint128(balance1);
+
+        getHookFees[poolId].fees0 = 0;
+        getHookFees[poolId].fees1 = 0;
+
+        return (feeCurrency, hookDelta);
+    }
+
+    /**
+     * @dev Calculates the optimal swap to rebalance fees for LP reinvestment
+     * @param key Uniswap V4 pool key
+     * @param lpAmount0 Available amount in currency0
+     * @param lpAmount1 Available amount in currency1
+     * @param sqrtPriceX96 Current square root price of the pool
+     * @return shouldSwap Whether a swap should be executed
+     * @return zeroForOne Direction of the swap
+     * @return amountIn Amount to swap in
+     * @return amountOut Amount to receive from the swap
+     * @return newSqrtPriceX96 New square root price after the swap
+     */
+    function _rebalanceFees(
+        PoolKey memory key,
+        uint256 lpAmount0,
+        uint256 lpAmount1,
+        uint160 sqrtPriceX96
+    )
+        internal
+        view
+        returns (bool shouldSwap, bool zeroForOne, uint256 amountIn, uint256 amountOut, uint160 newSqrtPriceX96)
+    {
+        (uint256 excess0, uint256 excess1) = _calculateExcess(lpAmount0, lpAmount1, sqrtPriceX96);
+
+        if (excess0 <= EPSILON && excess1 <= EPSILON) {
+            return (false, false, 0, 0, sqrtPriceX96);
+        }
+
+        zeroForOne = excess0 >= excess1;
+        uint256 high = zeroForOne ? excess0 : excess1;
+        uint256 low;
+        SwapSimulation memory best;
+
+        for (uint256 i; i < MAX_REBALANCE_ITERATIONS && high > 0; ++i) {
+            uint256 guess = (low + high) / 2;
+            if (guess == 0) guess = 1;
+
+            SwapSimulation memory sim = _simulateSwap(key, zeroForOne, guess, lpAmount0, lpAmount1);
+            if (!sim.success) {
+                if (high == 1) {
+                    break;
+                }
+                high = guess > 0 ? guess - 1 : 0;
+                continue;
+            }
+
+            if (!best.success || _score(sim.excess0, sim.excess1) < _score(best.excess0, best.excess1)) {
+                best = sim;
+            }
+
+            if (sim.excess0 <= EPSILON && sim.excess1 <= EPSILON) {
+                return (true, zeroForOne, sim.amountIn, sim.amountOut, sim.sqrtPriceX96);
+            }
+
+            if (zeroForOne) {
+                if (sim.excess1 > EPSILON) {
+                    if (guess <= 1) break;
+                    high = guess - 1;
+                } else {
+                    if (low == guess) {
+                        if (high <= guess + 1) break;
+                    } else {
+                        low = guess;
+                    }
+                }
+            } else {
+                if (sim.excess0 > EPSILON) {
+                    if (guess <= 1) break;
+                    high = guess - 1;
+                } else {
+                    if (low == guess) {
+                        if (high <= guess + 1) break;
+                    } else {
+                        low = guess;
+                    }
+                }
+            }
+        }
+
+        if (best.success) {
+            return (true, zeroForOne, best.amountIn, best.amountOut, best.sqrtPriceX96);
+        }
+
+        return (false, zeroForOne, 0, 0, sqrtPriceX96);
+    }
+
+    /**
+     * @dev Executes a swap on the pool
+     * @param key Uniswap V4 pool key
+     * @param zeroForOne Direction of the swap
+     * @param amountIn Amount to swap in
+     * @return sqrtPriceX96 New square root price after the swap
+     * @return uintOut Amount received from the swap
+     * @return uintIn Amount swapped in
+     */
+    function _executeSwap(
+        PoolKey memory key,
+        bool zeroForOne,
+        uint256 amountIn
+    ) internal returns (uint160 sqrtPriceX96, uint256 uintOut, uint256 uintIn) {
+        if (amountIn == 0) {
+            (uint160 currentSqrtPrice,,,) = poolManager.getSlot0(key.toId());
+            return (currentSqrtPrice, 0, 0);
+        }
+
+        BalanceDelta swapDelta = poolManager.swap(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(amountIn),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            new bytes(0)
+        );
+
+        _settleDelta(key, swapDelta);
+        _collectDelta(key, swapDelta);
+
+        uintIn = zeroForOne ? _abs(swapDelta.amount0()) : _abs(swapDelta.amount1());
+        uintOut = zeroForOne ? _abs(swapDelta.amount1()) : _abs(swapDelta.amount0());
+
+        (sqrtPriceX96,,,) = poolManager.getSlot0(key.toId());
+        return (sqrtPriceX96, uintOut, uintIn);
+    }
+
+    /**
+     * @dev Adds full range liquidity to the pool
+     * @param key Uniswap V4 pool key
+     * @param position Position data
+     * @param amount0 Amount of currency0 to add
+     * @param amount1 Amount of currency1 to add
+     * @param sqrtPriceX96 Current square root price of the pool
+     * @return callerDelta The balance delta (negative = paid, positive = received fees)
+     */
+    function _addFullRangeLiquidity(
+        PoolKey memory key,
+        Position storage position,
+        uint256 amount0,
+        uint256 amount1,
+        uint160 sqrtPriceX96
+    ) internal returns (BalanceDelta callerDelta) {
+        uint128 liquidityDelta;
+
+        if (amount0 >= 1 && amount1 >= 1) {
+            liquidityDelta = LiquidityAmounts.getLiquidityForAmounts(
+                sqrtPriceX96,
+                TickMath.getSqrtPriceAtTick(position.tickLower),
+                TickMath.getSqrtPriceAtTick(position.tickUpper),
+                amount0 - 1,
+                amount1 - 1
+            );
+        }
+
+        if (liquidityDelta == 0) {
+            return toBalanceDelta(0, 0);
+        }
+
+        (callerDelta,) = poolManager.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: position.tickLower,
+                tickUpper: position.tickUpper,
+                liquidityDelta: int256(uint256(liquidityDelta)),
+                salt: position.salt
+            }),
+            new bytes(0)
+        );
+
+        _settleDelta(key, callerDelta);
+        _collectDelta(key, callerDelta);
+
+        position.liquidity += liquidityDelta;
+    }
+
+    /**
+     * @dev Settles a BalanceDelta by paying the required amounts to the pool manager
+     * @param key Uniswap V4 pool key
+     * @param delta BalanceDelta to settle
+     */
+    function _settleDelta(PoolKey memory key, BalanceDelta delta) internal {
+        if (delta.amount0() < 0) _pay(key.currency0, uint256(uint128(-delta.amount0())));
+        if (delta.amount1() < 0) _pay(key.currency1, uint256(uint128(-delta.amount1())));
+    }
+
+    /**
+     * @dev Collects amounts from the pool manager based on a BalanceDelta
+     * @param key Uniswap V4 pool key
+     * @param delta BalanceDelta to collect
+     */
+    function _collectDelta(PoolKey memory key, BalanceDelta delta) internal {
+        if (delta.amount0() > 0) {
+            poolManager.take(key.currency0, address(this), uint128(delta.amount0()));
+        }
+        if (delta.amount1() > 0) {
+            poolManager.take(key.currency1, address(this), uint128(delta.amount1()));
+        }
+    }
+
+    /**
+     * @dev Pays the specified amount of currency to the pool manager
+     * @param currency Currency to pay
+     * @param amount Amount to pay
+     */
+    function _pay(Currency currency, uint256 amount) internal {
+        if (amount == 0) return;
+        poolManager.sync(currency);
+        if (currency.isAddressZero()) {
+            poolManager.settle{ value: amount }();
+        } else {
+            currency.transfer(address(poolManager), amount);
+            poolManager.settle();
+        }
+    }
+
+    /**
+     * @dev Simulates a swap on the pool
+     * @param key Uniswap V4 pool key
+     * @param zeroForOne Direction of the swap
+     * @param guess Amount to swap in
+     * @param fees0 Available fees in currency0
+     * @param fees1 Available fees in currency1
+     * @return simulation Result of the swap simulation
+     */
+    function _simulateSwap(
+        PoolKey memory key,
+        bool zeroForOne,
+        uint256 guess,
+        uint256 fees0,
+        uint256 fees1
+    ) internal view returns (SwapSimulation memory simulation) {
+        if (guess == 0) return simulation;
+        if (zeroForOne && guess > fees0) return simulation;
+        if (!zeroForOne && guess > fees1) return simulation;
+
+        try quoter.quoteSingle(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(guess),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            })
+        ) returns (
+            int256 amount0, int256 amount1, uint160 sqrtPriceAfterX96, uint32
+        ) {
+            if (zeroForOne) {
+                if (amount0 >= 0 || amount1 <= 0) return simulation;
+                uint256 amountIn = uint256(-amount0);
+                if (amountIn > fees0) return simulation;
+                uint256 amountOut = uint256(amount1);
+                simulation.success = true;
+                simulation.amountIn = amountIn;
+                simulation.amountOut = amountOut;
+                simulation.fees0 = fees0 - amountIn;
+                simulation.fees1 = fees1 + amountOut;
+            } else {
+                if (amount1 >= 0 || amount0 <= 0) return simulation;
+                uint256 amountIn = uint256(-amount1);
+                if (amountIn > fees1) return simulation;
+                uint256 amountOut = uint256(amount0);
+                simulation.success = true;
+                simulation.amountIn = amountIn;
+                simulation.amountOut = amountOut;
+                simulation.fees0 = fees0 + amountOut;
+                simulation.fees1 = fees1 - amountIn;
+            }
+
+            simulation.sqrtPriceX96 = sqrtPriceAfterX96;
+            (simulation.excess0, simulation.excess1) =
+                _calculateExcess(simulation.fees0, simulation.fees1, sqrtPriceAfterX96);
+        } catch {
+            return simulation;
+        }
+    }
+
+    /**
+     * @dev Calculates excess amounts for LP reinvestment
+     * @param fees0 Available fees in currency0
+     * @param fees1 Available fees in currency1
+     * @param sqrtPriceX96 Current square root price of the pool
+     * @return excess0 Excess amount in currency0
+     * @return excess1 Excess amount in currency1
+     */
+    function _calculateExcess(
+        uint256 fees0,
+        uint256 fees1,
+        uint160 sqrtPriceX96
+    ) internal pure returns (uint256 excess0, uint256 excess1) {
+        (uint256 depositAmount0, uint256 depositAmount1) =
+            MigrationMath.computeDepositAmounts(fees0, fees1, sqrtPriceX96);
+
+        if (depositAmount0 > fees0) {
+            excess0 = 0;
+            excess1 = fees1 > depositAmount1 ? fees1 - depositAmount1 : 0;
+        } else {
+            excess0 = fees0 > depositAmount0 ? fees0 - depositAmount0 : 0;
+            excess1 = 0;
+        }
+    }
+
+    /**
+     * @dev Generates a salt for a full range liquidity position
+     * @param poolId Uniswap V4 poolId
+     * @return salt Generated salt
+     */
+    function _fullRangeSalt(PoolId poolId) internal view returns (bytes32) {
+        return keccak256(abi.encodePacked(address(this), PoolId.unwrap(poolId)));
+    }
+
+    /**
+     * @dev Determines the greater of two amounts
+     * @param excess0 First amount
+     * @param excess1 Second amount
+     * @return Greater amount
+     */
+    function _score(uint256 excess0, uint256 excess1) internal pure returns (uint256) {
+        return excess0 > excess1 ? excess0 : excess1;
+    }
+
+    /**
+     * @dev Returns the absolute value of an amount
+     * @param value Amount to convert
+     * @return Absolute value
+     */
+    function _abs(int256 value) internal pure returns (uint256) {
+        return value < 0 ? uint256(-value) : uint256(value);
+    }
+
+    /**
+     * @notice Collects accumulated beneficiary fees for a pool and transfers them to the associated beneficiary
+     * @param asset Asset to collect fees from
+     * @return fees Collected fees as a BalanceDelta
+     */
+    function collectFees(address asset) external nonReentrant returns (BalanceDelta fees) {
+        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        PoolId poolId = poolKey.toId();
+        HookFees memory hookFees = getHookFees[poolId];
+        address beneficiary = getPoolInfo[poolId].buybackDst;
+
+        fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
+
+        getHookFees[poolId].beneficiaryFees0 = 0;
+        getHookFees[poolId].beneficiaryFees1 = 0;
+
+        if (hookFees.beneficiaryFees0 > 0) {
+            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
+        }
+        if (hookFees.beneficiaryFees1 > 0) {
+            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
+        }
+
+        return fees;
+    }
+
+    /**
+     * @notice Claims accumulated airlock owner fees for a pool
+     * @param asset Asset address to identify the pool
+     * @return fees0 Amount of currency0 claimed
+     * @return fees1 Amount of currency1 claimed
+     */
+    function claimAirlockOwnerFees(address asset) external nonReentrant returns (uint128 fees0, uint128 fees1) {
+        address airlockOwner = DopplerHookInitializer(payable(INITIALIZER)).airlock().owner();
+        require(msg.sender == airlockOwner, SenderNotAirlockOwner());
+
+        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        PoolId poolId = poolKey.toId();
+
+        fees0 = getHookFees[poolId].airlockOwnerFees0;
+        fees1 = getHookFees[poolId].airlockOwnerFees1;
+        getHookFees[poolId].airlockOwnerFees0 = 0;
+        getHookFees[poolId].airlockOwnerFees1 = 0;
+
+        if (fees0 > 0) {
+            poolKey.currency0.transfer(msg.sender, fees0);
+        }
+        if (fees1 > 0) {
+            poolKey.currency1.transfer(msg.sender, fees1);
+        }
+
+        emit AirlockOwnerFeesClaimed(poolId, msg.sender, fees0, fees1);
+    }
+
+    function _validateFeeDistribution(FeeDistributionInfo memory feeDistributionInfo) internal pure {
+        uint256 assetFeeTotal = feeDistributionInfo.assetFeesToAssetBuybackWad
+            + feeDistributionInfo.assetFeesToNumeraireBuybackWad + feeDistributionInfo.assetFeesToBeneficiaryWad
+            + feeDistributionInfo.assetFeesToLpWad;
+
+        uint256 numeraireFeeTotal = feeDistributionInfo.numeraireFeesToAssetBuybackWad
+            + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad + feeDistributionInfo.numeraireFeesToBeneficiaryWad
+            + feeDistributionInfo.numeraireFeesToLpWad;
+
+        require(assetFeeTotal == WAD && numeraireFeeTotal == WAD, FeeDistributionMustAddUpToWAD());
+    }
+
+    /**
+     * @dev Validates duration-based input segments and stores them as absolute-time checkpoints.
+     *      Runtime fee changes are stepped: each checkpoint keeps the previous fee active until
+     *      `endTime`, then switches to `targetFee`.
+     */
+    function _storeFeeSchedule(
+        PoolId poolId,
+        uint32 startingTime,
+        uint24 startFee,
+        FeeSegment[] memory feeSegments
+    ) internal {
+        require(startFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(startFee));
+        require(feeSegments.length > 0, EmptyFeeSegments());
+
+        uint256 currentTime = block.timestamp;
+        require(currentTime <= type(uint32).max, TimestampTooLarge(currentTime));
+        uint32 currentTime32 = uint32(currentTime);
+        uint32 normalizedStart = (startingTime == 0 || startingTime <= currentTime32) ? currentTime32 : startingTime;
+
+        uint24 priorFee = startFee;
+        uint256 totalDurationSeconds;
+        FeeCheckpoint[] storage checkpoints = getFeeCheckpoints[poolId];
+        uint32 checkpointCount = uint32(feeSegments.length);
+
+        for (uint256 i; i < feeSegments.length; ++i) {
+            FeeSegment memory segment = feeSegments[i];
+            require(segment.targetFee <= uint24(MAX_SWAP_FEE), FeeTooHigh(segment.targetFee));
+            require(segment.targetFee <= priorFee, InvalidFeeSegment(i, priorFee, segment.targetFee));
+
+            totalDurationSeconds += segment.durationSeconds;
+            require(
+                normalizedStart + totalDurationSeconds <= type(uint32).max,
+                FeeScheduleTimeOverflow(normalizedStart, totalDurationSeconds)
+            );
+            uint32 endTime = uint32(normalizedStart + totalDurationSeconds);
+
+            checkpoints.push(FeeCheckpoint({ targetFee: segment.targetFee, endTime: endTime }));
+
+            priorFee = segment.targetFee;
+        }
+
+        getFeeSchedule[poolId] = FeeScheduleState({
+            startTime: normalizedStart,
+            nextTime: startFee == priorFee ? 0 : checkpoints[0].endTime,
+            nextIndex: 0,
+            checkpointCount: checkpointCount,
+            startFee: startFee,
+            currentFee: startFee,
+            endFee: priorFee
+        });
+
+        emit FeeScheduleSet(poolId, normalizedStart, startFee, priorFee, uint32(totalDurationSeconds));
+    }
+
+    /**
+     * @dev Applies all checkpoints whose update time has passed.
+     *      The schedule is stepped, so there is no interpolation: the active fee stays flat until
+     *      the next checkpoint time, then jumps to that checkpoint's target.
+     */
+    function _advanceFeeSchedule(
+        FeeScheduleState memory schedule,
+        FeeCheckpoint[] storage checkpoints,
+        uint256 currentTime
+    ) internal view returns (FeeScheduleState memory updatedSchedule) {
+        updatedSchedule = schedule;
+
+        while (updatedSchedule.nextTime != 0 && currentTime >= updatedSchedule.nextTime) {
+            FeeCheckpoint memory checkpoint = checkpoints[updatedSchedule.nextIndex];
+            updatedSchedule.currentFee = checkpoint.targetFee;
+            ++updatedSchedule.nextIndex;
+
+            updatedSchedule.nextTime = updatedSchedule.nextIndex == updatedSchedule.checkpointCount
+                ? 0
+                : checkpoints[updatedSchedule.nextIndex].endTime;
+        }
+    }
+
+    /**
+     * @dev Returns the current fee for a pool, applying any due stepped updates.
+     *      Common path is one packed schedule read. Checkpoint storage is read only when the next
+     *      update time has passed, and terminal schedules keep `nextTime == 0`.
+     * @param poolId Uniswap V4 poolId
+     * @return currentFee The current fee rate
+     */
+    function _getCurrentFee(PoolId poolId) internal returns (uint24 currentFee) {
+        FeeScheduleState memory schedule = getFeeSchedule[poolId];
+        uint256 currentTime = block.timestamp;
+
+        // Before schedule start
+        if (currentTime < schedule.startTime) {
+            return schedule.startFee;
+        }
+
+        // No pending update, or already terminal.
+        if (schedule.nextTime == 0 || currentTime < schedule.nextTime) {
+            return schedule.currentFee;
+        }
+
+        uint24 previousFee = schedule.currentFee;
+        FeeScheduleState memory updatedSchedule = _advanceFeeSchedule(schedule, getFeeCheckpoints[poolId], currentTime);
+        currentFee = updatedSchedule.currentFee;
+
+        getFeeSchedule[poolId] = updatedSchedule;
+
+        if (currentFee < previousFee) {
+            emit FeeUpdated(poolId, currentFee);
+        }
+
+        return currentFee;
+    }
+
+    /**
+     * @dev Collects swap fees from a swap and updates hook fee tracking
+     * @param params Parameters of the swap
+     * @param delta BalanceDelta of the swap
+     * @param key Uniswap V4 pool key
+     * @param poolId Uniswap V4 poolId (to save gas)
+     * @return feeCurrency Currency in which the fee was collected (always the unspecified token)
+     * @return feeDelta Amount of fee collected in feeCurrency
+     */
+    function _collectSwapFees(
+        IPoolManager.SwapParams memory params,
+        BalanceDelta delta,
+        PoolKey memory key,
+        PoolId poolId
+    ) internal returns (Currency feeCurrency, int128 feeDelta) {
+        int256 outputAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
+
+        if (outputAmount <= 0) {
+            return (feeCurrency, feeDelta);
+        }
+
+        bool exactInput = params.amountSpecified < 0;
+
+        // Fee is always taken from the unspecified token:
+        feeCurrency = params.zeroForOne == exactInput ? key.currency1 : key.currency0;
+
+        // Compute fee based on the feeCurrency amount
+        uint256 feeBase;
+        if (exactInput) {
+            // For exact input, fee is of output
+            feeBase = uint256(outputAmount);
+        } else {
+            // For exact output, fee is of input
+            int256 inputAmount = params.zeroForOne ? delta.amount0() : delta.amount1();
+            feeBase = uint256(-inputAmount);
+        }
+
+        uint24 currentFee = _getCurrentFee(poolId);
+        uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, MAX_SWAP_FEE);
+        uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
+
+        if (balanceOfFeeCurrency < feeAmount) {
+            revert InsufficientFeeCurrency();
+        }
+
+        poolManager.take(feeCurrency, address(this), feeAmount);
+
+        // Calculate airlock owner fee (5% of total fee)
+        uint256 airlockOwnerFee = FullMath.mulDiv(feeAmount, AIRLOCK_OWNER_FEE_BPS, BPS_DENOMINATOR);
+        uint256 remainingFee = feeAmount - airlockOwnerFee;
+
+        if (feeCurrency == key.currency0) {
+            getHookFees[poolId].airlockOwnerFees0 += uint128(airlockOwnerFee);
+            getHookFees[poolId].fees0 += uint128(remainingFee);
+        } else {
+            getHookFees[poolId].airlockOwnerFees1 += uint128(airlockOwnerFee);
+            getHookFees[poolId].fees1 += uint128(remainingFee);
+        }
+
+        return (feeCurrency, int128(uint128(feeAmount)));
+    }
+}
