@@ -37,7 +37,8 @@ import {
     MAX_SWAP_FEE,
     PoolAlreadyInitialized,
     PoolInfo,
-    SWAP_FEE_DENOMINATOR
+    SWAP_FEE_DENOMINATOR,
+    SenderNotAuthorized
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
@@ -608,6 +609,87 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         vm.prank(address(initializer));
         vm.expectRevert();
         dopplerHook.onInitialization(asset, poolKey, data);
+    }
+
+    /* ----------------------------------------------------------------------------- */
+    /*                            setFeeDistribution()                               */
+    /* ----------------------------------------------------------------------------- */
+
+    function test_setFeeDistribution_UpdatesDistributionWithConfiguredFeeBeneficiaries(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        poolKey.hooks = IHooks(address(dopplerHook));
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
+        InitData memory initData = _beneficiaryOnlyInitData(numeraire, buybackDst, 12_000, 12_000, 0, 0);
+        initData.feeRoutingMode = FeeRoutingMode.RouteToBeneficiaryFees;
+        initData.feeBeneficiaries = _feeBeneficiaries(address(initializer), uint96(0.05e18));
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(initData));
+
+        PoolId poolId = poolKey.toId();
+        vm.prank(buybackDst);
+        dopplerHook.setFeeDistribution(poolId, 0.1e18, 0.2e18, 0.3e18, 0.4e18, 0.4e18, 0.3e18, 0.2e18, 0.1e18);
+
+        (
+            uint256 assetToAssetBuyback,
+            uint256 assetToNumeraireBuyback,
+            uint256 assetToBeneficiary,
+            uint256 assetToLp,
+            uint256 numeraireToAssetBuyback,
+            uint256 numeraireToNumeraireBuyback,
+            uint256 numeraireToBeneficiary,
+            uint256 numeraireToLp
+        ) = dopplerHook.getFeeDistributionInfo(poolId);
+
+        assertEq(assetToAssetBuyback, 0.1e18);
+        assertEq(assetToNumeraireBuyback, 0.2e18);
+        assertEq(assetToBeneficiary, 0.3e18);
+        assertEq(assetToLp, 0.4e18);
+        assertEq(numeraireToAssetBuyback, 0.4e18);
+        assertEq(numeraireToNumeraireBuyback, 0.3e18);
+        assertEq(numeraireToBeneficiary, 0.2e18);
+        assertEq(numeraireToLp, 0.1e18);
+    }
+
+    function test_setFeeDistribution_RevertsWhenFeeBeneficiaryIsNotBuybackDst(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+        poolKey.hooks = IHooks(address(dopplerHook));
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
+        InitData memory initData = _beneficiaryOnlyInitData(numeraire, buybackDst, 12_000, 12_000, 0, 0);
+        initData.feeRoutingMode = FeeRoutingMode.RouteToBeneficiaryFees;
+        initData.feeBeneficiaries = _feeBeneficiaries(address(initializer), uint96(0.05e18));
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(initData));
+
+        vm.prank(address(1));
+        vm.expectRevert(SenderNotAuthorized.selector);
+        dopplerHook.setFeeDistribution(
+            poolKey.toId(), 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18, 0.25e18
+        );
+    }
+
+    function test_setFeeDistribution_RevertsWhenDistributionDoesNotAddToWAD(PoolKey memory poolKey) public {
+        poolKey.tickSpacing = 60;
+
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
+        address buybackDst = makeAddr("buybackDst");
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(
+            asset, poolKey, abi.encode(_quarterInitData(numeraire, buybackDst, 3000, FeeRoutingMode.DirectBuyback))
+        );
+
+        vm.prank(buybackDst);
+        vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
+        dopplerHook.setFeeDistribution(poolKey.toId(), 0.5e18, 0.5e18, 0.5e18, 0, 0.25e18, 0.25e18, 0.25e18, 0.25e18);
     }
 
     /* ---------------------------------------------------------------------- */

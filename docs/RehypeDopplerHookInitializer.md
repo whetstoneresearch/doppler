@@ -106,6 +106,12 @@ When `feeBeneficiaries` is empty, Rehype's `beneficiaryFees` are ultimately clai
 
 Rehype fee beneficiaries are separate from the locked pool LP beneficiary shares managed by `DopplerHookInitializer`. A zero LP fee therefore produces no claimable LP fees even when the Rehype hook is charging and distributing its own fee.
 
+## Updating Fee Distribution
+
+The stored `buybackDst` can call `setFeeDistribution(poolId, ...)` to replace all eight weights in the pool's fee distribution matrix. The caller must exactly match `getPoolInfo(poolId).buybackDst`, and both the asset-fee row and the numeraire-fee row must each sum to `WAD`.
+
+This authority applies whether `feeBeneficiaries` is empty or configured. With configured beneficiaries, `buybackDst` controls the routing matrix but does not receive beneficiary fees unless it is also included as a beneficiary. Updating the matrix does not change `feeRoutingMode`, the fee schedule, or beneficiary shares.
+
 ## LP Reinvestment
 
 The LP-designated portions of collected fees are not simply parked. The hook:

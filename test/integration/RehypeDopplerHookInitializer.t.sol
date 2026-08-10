@@ -424,6 +424,43 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
         }
     }
 
+    function test_setFeeDistribution_UpdatedDistributionControlsSubsequentSwap() public {
+        bytes32 salt = bytes32(uint256(74));
+        (bool isToken0, address asset) =
+            _createTokenWithConfig(salt, uint24(3000), _fullBeneficiaryDistribution(), FeeRoutingMode.DirectBuyback);
+
+        vm.prank(buybackDst);
+        rehypeDopplerHook.setFeeDistribution(poolId, 0, WAD, 0, 0, 0, WAD, 0, 0);
+
+        IPoolManager.SwapParams memory buyAssetParams = IPoolManager.SwapParams({
+            zeroForOne: !isToken0,
+            amountSpecified: 1 ether,
+            sqrtPriceLimitX96: !isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        });
+        BalanceDelta buyDelta =
+            swapRouter.swap(poolKey, buyAssetParams, PoolSwapTest.TestSettings(false, false), new bytes(0));
+
+        uint256 assetBought = isToken0 ? uint256(uint128(buyDelta.amount0())) : uint256(uint128(buyDelta.amount1()));
+        uint256 buybackNumeraireBefore = Currency.wrap(address(numeraire)).balanceOf(buybackDst);
+
+        swapRouter.swap(
+            poolKey,
+            IPoolManager.SwapParams({
+                zeroForOne: isToken0,
+                amountSpecified: -int256(assetBought / 2),
+                sqrtPriceLimitX96: isToken0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings(false, false),
+            new bytes(0)
+        );
+
+        assertGt(
+            Currency.wrap(address(numeraire)).balanceOf(buybackDst),
+            buybackNumeraireBefore,
+            "Updated distribution should forward subsequent numeraire fees"
+        );
+    }
+
     function test_swap_NumeraireFeeWithFullNumeraireBuyback_RoutesToBeneficiaryFeesWhenConfigured() public {
         bytes32 salt = bytes32(uint256(71));
         (bool isToken0, address asset) = _createTokenWithConfig(
