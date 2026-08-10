@@ -421,7 +421,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
             return toBalanceDelta(0, 0);
         }
 
-        (callerDelta,) = poolManager.modifyLiquidity(
+        try poolManager.modifyLiquidity(
             key,
             IPoolManager.ModifyLiquidityParams({
                 tickLower: position.tickLower,
@@ -430,7 +430,11 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
                 salt: position.salt
             }),
             new bytes(0)
-        );
+        ) returns (BalanceDelta delta, BalanceDelta) {
+            callerDelta = delta;
+        } catch {
+            return toBalanceDelta(0, 0);
+        }
 
         _settleDelta(key, callerDelta);
         _collectDelta(key, callerDelta);
