@@ -3,8 +3,15 @@
 This directory contains contracts, scripts, tests, and docs that are kept for
 historical reference only. Do not use these modules for new integrations.
 
-Historical deployment logs remain in `Deployments.md`, `Deployments.json` and
-`deployments/` because they are address records, not active module guidance.
+Deployment records removed from the active canonical files are collected in
+`Deployments.md`, `Deployments.json`, and `deployments.config.toml` for quick
+reference. Complete pre-cleanup snapshots are preserved in
+`deployments/Deployments.bak.md`, `deployments/Deployments.bak.json`, and
+`deployments/deployments.config.bak.toml`; per-chain histories remain in
+`deployments/`, and Foundry logs removed from the active tree remain in
+`broadcast/`. Logs still present in the active `broadcast/` tree are not
+duplicated here. None of these files are inputs to the active deployment
+history generator.
 
 ## Legacy Documentation
 

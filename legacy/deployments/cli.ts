@@ -7,59 +7,7 @@ type ChainDetails = {
   isTestnet: boolean;
 }
 
-const supportedChainIds: Record<number, true> = {
-  1: true,
-  143: true,
-  4663: true,
-  8453: true,
-  84532: true,
-};
-
-const supportedContractNames: Record<string, true> = {
-  Airlock: true,
-  AirlockMultisigTestnet: true,
-  Bundler: true,
-  DN404Factory: true,
-  DopplerCreateXDeployer: true,
-  DopplerDeployer: true,
-  DopplerERC20V1: true,
-  DopplerERC20V1Factory: true,
-  DopplerHookInitializer: true,
-  DopplerHookMigrator: true,
-  DopplerLensQuoter: true,
-  GovernanceFactory: true,
-  LaunchpadGovernanceFactory: true,
-  LockableUniswapV3Initializer: true,
-  NoOpGovernanceFactory: true,
-  NoOpMigrator: true,
-  Quoter: true,
-  RehypeDopplerHookInitializer: true,
-  RehypeDopplerHookMigrator: true,
-  StreamableFeesLockerV2: true,
-  SwapRestrictorDopplerHook: true,
-  TimelockFactory: true,
-  TopUpDistributor: true,
-  UniswapV2Locker: true,
-  UniswapV2MigratorSplit: true,
-  UniswapV4Initializer: true,
-};
-
-const chains: { [chainId: string]: ChainDetails } = {
-  1: {
-    name: 'Ethereum Mainnet',
-    explorerUrl: 'https://etherscan.io',
-    isTestnet: false,
-  },
-  143: {
-    name: 'Monad Mainnet',
-    explorerUrl: 'https://monadscan.com',
-    isTestnet: false,
-  },
-  4663: {
-    name: 'Robinhood Mainnet',
-    explorerUrl: 'https://robinhoodchain.blockscout.com',
-    isTestnet: false,
-  },
+const chains: { [chainId: number]: ChainDetails } = {
   8453: {
     name: 'Base',
     explorerUrl: 'https://basescan.org',
@@ -70,18 +18,88 @@ const chains: { [chainId: string]: ChainDetails } = {
     explorerUrl: 'https://sepolia.basescan.org',
     isTestnet: true,
   },
+  130: {
+    name: 'Unichain',
+    explorerUrl: 'https://uniscan.xyz',
+    isTestnet: false,
+  },
+  1301: {
+    name: 'Unichain Sepolia',
+    explorerUrl: 'https://sepolia.uniscan.xyz',
+    isTestnet: true,
+  },
+  57073: {
+    name: 'Ink',
+    explorerUrl: 'https://explorer.inkonchain.com',
+    isTestnet: false,
+  },
+  763373: {
+    name: 'Ink Sepolia',
+    explorerUrl: 'https://explorer-sepolia.inkonchain.com',
+    isTestnet: true,
+  },
+  480: {
+    name: 'World Chain',
+    explorerUrl: 'https://worldscan.org',
+    isTestnet: false,
+  },
+  4801: {
+    name: 'World Chain Sepolia',
+    explorerUrl: 'https://worldchain-sepolia.explorer.alchemy.com',
+    isTestnet: true,
+  },
+  10143: {
+    name: 'Monad Testnet',
+    explorerUrl: 'https://testnet.monadscan.com',
+    isTestnet: true,
+  },
+  421614: {
+    name: 'Arbitrum Sepolia',
+    explorerUrl: 'https://sepolia.arbiscan.io',
+    isTestnet: true,
+  },
+  143: {
+    name: 'Monad Mainnet',
+    explorerUrl: 'https://monadscan.com',
+    isTestnet: false,
+  },
+  4326: {
+    name: 'MegaETH Mainnet',
+    explorerUrl: 'https://megaeth.blockscout.com',
+    isTestnet: false,
+  },
+  6343: {
+    name: 'MegaETH Testnet',
+    explorerUrl: 'https://megaeth-testnet-v2.blockscout.com',
+    isTestnet: true,
+  },
+  1: {
+    name: 'Ethereum Mainnet',
+    explorerUrl: 'https://etherscan.io',
+    isTestnet: false,
+  },
+  11155111: {
+    name: 'Sepolia',
+    explorerUrl: 'https://sepolia.etherscan.io',
+    isTestnet: true,
+  },
+  4663: {
+    name: 'Robinhood Mainnet',
+    explorerUrl: 'https://robinhoodchain.blockscout.com',
+    isTestnet: false,
+  }
 };
 
 type Transaction = {
   hash: null | `0x${string}`;
-  contractName?: null | string;
+  contractName: null | string;
   transactionType: 'CREATE' | 'CREATE2' | 'CALL';
   contractAddress: `0x${string}`;
   function?: null | string;
   arguments: string[];
   additionalContracts: {
     transactionType: 'CREATE' | 'CREATE2';
-    contractName?: null | string;
+    contractName: null | string;
     address: `0x${string}`;
   }[];
 }
@@ -211,36 +229,14 @@ function getLatestDeployments(deployments: Deployment[]): Deployment[] {
   return Object.values(latestDeployments);
 }
 
-function isNonEmptyContractName(contractName: null | string | undefined): contractName is string {
-  return typeof contractName === 'string' && contractName.length > 0;
-}
-
 function addDeployment(
   deployments: { [chainId: string]: Deployment[] },
   chainId: number | string,
   deployment: Deployment,
 ): void {
   const normalizedChainId = String(chainId);
-  const numericChainId = Number(normalizedChainId);
 
-  if (!Number.isSafeInteger(numericChainId)
-    || numericChainId <= 0
-    || normalizedChainId !== String(numericChainId)
-  ) {
-    throw new Error(`Invalid chain ID "${normalizedChainId}"`);
-  }
-
-  if (typeof deployment.contractName !== 'string' || deployment.contractName.length === 0) {
-    throw new Error(`Invalid contract name for deployment on chain ID ${normalizedChainId}`);
-  }
-
-  if (supportedChainIds[numericChainId] !== true
-    || supportedContractNames[deployment.contractName] !== true
-  ) {
-    return;
-  }
-
-  if (chains[numericChainId] === undefined) {
+  if (chains[Number(normalizedChainId)] === undefined) {
     throw new Error(`Missing chain metadata for chain ID ${normalizedChainId}`);
   }
 
@@ -295,42 +291,40 @@ async function generateHistoryLogs(): Promise<void> {
     const raw = Bun.file(filePath);
     const broadcast: Broadcast = await raw.json();
 
-    for (const transaction of broadcast.transactions) {
-      const transactionContractName = transaction.contractName;
-      const transactionHash = transaction.hash;
-
-      if ((transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
-        && transactionHash !== null
-        && isNonEmptyContractName(transactionContractName)
-      ) {
-        addDeployment(deployments, broadcast.chain, {
-          contractName: transactionContractName,
-          contractAddress: transaction.contractAddress,
-          hash: transactionHash,
-          arguments: transaction.arguments,
-          commit: broadcast.commit,
-          timestamp: broadcast.timestamp,
-          source: 'broadcast',
-        });
-      }
+    if (broadcast.chain === 31337) {
+      continue;
     }
+
+    const transactions = broadcast.transactions
+      .filter((transaction) => (transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
+        && transaction.hash !== null && transaction.contractName !== null && transaction.contractName !== 'AirlockMultisig')
+      .map(transaction => ({
+        contractName: transaction.contractName,
+        contractAddress: transaction.contractAddress,
+        hash: transaction.hash,
+        arguments: transaction.arguments,
+        commit: broadcast.commit,
+        timestamp: broadcast.timestamp,
+        source: 'broadcast' as const,
+      }));
+
+    transactions.forEach((transaction) => {
+      addDeployment(deployments, broadcast.chain, transaction);
+    });
 
     // Also process additionalContracts from individual chain broadcasts
     for (const transaction of broadcast.transactions) {
-      const transactionHash = transaction.hash;
-
       if (transaction.additionalContracts) {
         for (const additional of transaction.additionalContracts) {
-          const additionalContractName = additional.contractName;
-
           if ((additional.transactionType === 'CREATE' || additional.transactionType === 'CREATE2')
-            && isNonEmptyContractName(additionalContractName)
-            && transactionHash !== null
+            && additional.contractName !== null
+            && additional.contractName !== 'AirlockMultisig'
+            && transaction.hash !== null
           ) {
             addDeployment(deployments, broadcast.chain, {
-              contractName: additionalContractName,
+              contractName: additional.contractName,
               contractAddress: additional.address,
-              hash: transactionHash,
+              hash: transaction.hash,
               arguments: [],
               commit: broadcast.commit,
               timestamp: broadcast.timestamp,
@@ -365,27 +359,26 @@ async function generateHistoryLogs(): Promise<void> {
     } = await raw.json();
 
     for (const broadcast of multi.deployments) {
+      if (broadcast.chain === 31337 || broadcast.chain === undefined) {
+        continue;
+      }
+
       // Check if this broadcast has any contracts deployed via additionalContracts
       const hasAdditionalContracts = broadcast.transactions.some(tx =>
         tx.additionalContracts.some(ac =>
-          (ac.transactionType === 'CREATE' || ac.transactionType === 'CREATE2')
-          && isNonEmptyContractName(ac.contractName)
+          (ac.transactionType === 'CREATE' || ac.transactionType === 'CREATE2') && ac.contractName !== null
         )
       );
 
       for (const transaction of broadcast.transactions) {
-        const transactionContractName = transaction.contractName;
-        const transactionHash = transaction.hash;
-
         if ((
           transaction.transactionType === 'CREATE' || transaction.transactionType === 'CREATE2')
-          && transactionHash !== null
-          && isNonEmptyContractName(transactionContractName)
+          && transaction.hash !== null && transaction.contractName !== null
         ) {
           addDeployment(deployments, broadcast.chain, {
-            contractName: transactionContractName,
+            contractName: transaction.contractName,
             contractAddress: transaction.contractAddress,
-            hash: transactionHash,
+            hash: transaction.hash,
             arguments: transaction.arguments,
             commit: broadcast.commit,
             timestamp: broadcast.timestamp,
@@ -395,16 +388,13 @@ async function generateHistoryLogs(): Promise<void> {
 
         // A bit tricky but we also need to check if contracts were deployed as additional contracts
         for (const additional of transaction.additionalContracts) {
-          const additionalContractName = additional.contractName;
-
           if ((additional.transactionType === 'CREATE' || additional.transactionType === 'CREATE2')
-            && isNonEmptyContractName(additionalContractName)
-            && transactionHash !== null
+            && additional.contractName !== null && transaction.hash !== null
           ) {
             addDeployment(deployments, broadcast.chain, {
-              contractName: additionalContractName,
+              contractName: additional.contractName,
               contractAddress: additional.address,
-              hash: transactionHash,
+              hash: transaction.hash,
               arguments: [],
               commit: broadcast.commit,
               timestamp: broadcast.timestamp,
@@ -420,7 +410,7 @@ async function generateHistoryLogs(): Promise<void> {
           && transaction.transactionType === 'CALL'
           && transaction.function === 'set(string,address)'
           && transaction.arguments?.length === 2
-          && transactionHash !== null
+          && transaction.hash !== null
         ) {
           const [contractName, deployedAddress] = transaction.arguments;
           // Convert snake_case config name to PascalCase contract name (e.g., "airlock" -> "Airlock")
@@ -429,7 +419,7 @@ async function generateHistoryLogs(): Promise<void> {
           addDeployment(deployments, broadcast.chain, {
             contractName: formattedName,
             contractAddress: deployedAddress as `0x${string}`,
-            hash: transactionHash,
+            hash: transaction.hash,
             arguments: [],
             commit: broadcast.commit,
             timestamp: broadcast.timestamp,
@@ -464,8 +454,11 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
 
+    // Filter out any deployments with null/undefined contractName
+    deployments[chainId] = deployments[chainId].filter(d => d.contractName);
+
     let content = `# Deployments on ${chains[chainId].name} (${chainId})\n`;
-    let timestamps: { [key: string]: Deployment[] } = {};
+    let timestamps: { [key: number]: Deployment[] } = {};
 
     deployments[chainId].forEach((d) => {
       const normalizedTimestamp = normalizeTimestamp(d.timestamp);
@@ -496,7 +489,11 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
 
-    const latestDeployments = sortDeploymentsByContractName(getLatestDeployments(deployments[chainId]));
+    // Filter out any deployments with null/undefined contractName
+    deployments[chainId] = deployments[chainId].filter(d => d.contractName);
+    let latestDeployments = getLatestDeployments(deployments[chainId]);
+    latestDeployments = sortDeploymentsByContractName(latestDeployments);
+    latestDeployments = latestDeployments.filter(d => d.contractName !== 'AirlockMultisig');
     mainnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     mainnetDeployments += generateTable(latestDeployments, chainId);
     mainnetLabels.push(chains[chainId].name);
@@ -510,6 +507,8 @@ async function generateHistoryLogs(): Promise<void> {
       continue;
     }
 
+    // Filter out any deployments with null/undefined contractName
+    deployments[chainId] = deployments[chainId].filter(d => d.contractName);
     const latestDeployments = sortDeploymentsByContractName(getLatestDeployments(deployments[chainId]));
     testnetDeployments += `### ${chains[chainId].name} (${chainId})\n`;
     testnetDeployments += generateTable(latestDeployments, chainId);
