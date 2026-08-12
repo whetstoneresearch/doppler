@@ -1,6 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+deployment_config="deployments.config.toml"
+deployment_config_staged=0
+
+while IFS= read -r staged_file; do
+  if [ "$staged_file" = "$deployment_config" ]; then
+    deployment_config_staged=1
+    break
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ "$deployment_config_staged" -eq 1 ]; then
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "Deployment config hook: bun is not installed or not on PATH." >&2
+    exit 1
+  fi
+
+  deployment_config_had_unstaged_changes=0
+  if ! git diff --quiet -- "$deployment_config"; then
+    deployment_config_had_unstaged_changes=1
+  fi
+
+  deployment_config_before="$(git hash-object "$deployment_config")"
+  bun run ./scripts/sort-deployments-config.ts "$deployment_config"
+  deployment_config_after="$(git hash-object "$deployment_config")"
+
+  if [ "$deployment_config_before" != "$deployment_config_after" ]; then
+    if [ "$deployment_config_had_unstaged_changes" -eq 1 ]; then
+      cat >&2 <<'MSG'
+Deployment config hook: deployments.config.toml was sorted, but it also has unstaged changes.
+Review and stage the sorted file before committing again.
+
+MSG
+      exit 1
+    fi
+
+    git add "$deployment_config"
+    cat >&2 <<'MSG'
+Deployment config hook: deployments.config.toml was sorted and staged for this commit.
+
+MSG
+  fi
+fi
+
 if [ "${SKIP_GAS_BENCHMARK_HOOK:-}" = "1" ]; then
   exit 0
 fi

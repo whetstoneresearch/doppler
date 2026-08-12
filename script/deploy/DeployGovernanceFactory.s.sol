@@ -23,8 +23,9 @@ abstract contract DeployGovernanceFactory is DeployBase {
             context, bytes32(0), address(0), type(GovernanceFactory).name, GOVERNANCE_FACTORY_VERSION, initCode
         );
 
-        _verifyGovernanceFactoryDeployment(governanceFactory, airlock);
+        address timelockFactory = _verifyGovernanceFactoryDeployment(governanceFactory, airlock);
         _setConfigAddress(context, "governance_factory", governanceFactory);
+        _setConfigAddress(context, "timelock_factory", timelockFactory);
 
         if (alreadyDeployed) {
             console.log("GovernanceFactory already deployed to:", governanceFactory);
@@ -33,10 +34,14 @@ abstract contract DeployGovernanceFactory is DeployBase {
         }
     }
 
-    function _verifyGovernanceFactoryDeployment(address addr, address airlock) internal view {
+    function _verifyGovernanceFactoryDeployment(
+        address addr,
+        address airlock
+    ) internal view returns (address timelockFactory) {
         GovernanceFactory factory = GovernanceFactory(addr);
         require(address(factory.airlock()) == airlock, "GovernanceFactory airlock mismatch");
-        require(address(factory.timelockFactory()) != address(0), "GovernanceFactory timelock factory missing");
+        timelockFactory = address(factory.timelockFactory());
+        require(timelockFactory != address(0), "GovernanceFactory timelock factory missing");
     }
 }
 
