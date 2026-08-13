@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { console } from "forge-std/console.sol";
 import { DeployBase } from "script/DeployBase.s.sol";
 import { ChainIds } from "script/utils/ChainIds.sol";
+import { Bundler } from "src/Bundler.sol";
 import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHookInitializer.sol";
 
 abstract contract DeployRehypeDopplerHookInitializer is DeployBase {
@@ -12,16 +13,21 @@ abstract contract DeployRehypeDopplerHookInitializer is DeployBase {
         returns (address rehypeDopplerHookInitializer)
     {
         address dopplerHookInitializer = context.config.get(context.chainId, "doppler_hook_initializer").toAddress();
-        return _deployRehypeDopplerHookInitializer(context, dopplerHookInitializer);
+        address bundler = context.config.get(context.chainId, "bundler").toAddress();
+        bytes32 bundlerSalt = context.protocolDeployer.generateSalt(type(Bundler).name, BUNDLER_VERSION);
+        address expectedBundler = _computeProtocolCreate3Address(context.protocolDeployer, bundlerSalt);
+        if (bundler != expectedBundler) revert InvalidContract(expectedBundler, bundler);
+        return _deployRehypeDopplerHookInitializer(context, dopplerHookInitializer, bundler);
     }
 
     function _deployRehypeDopplerHookInitializer(
         DeployContext memory context,
-        address dopplerHookInitializer
+        address dopplerHookInitializer,
+        address bundler
     ) internal returns (address rehypeDopplerHookInitializer) {
         address poolManager = context.config.get(context.chainId, "uniswap_v4_pool_manager").toAddress();
         bytes memory initCode = abi.encodePacked(
-            type(RehypeDopplerHookInitializer).creationCode, abi.encode(dopplerHookInitializer, poolManager)
+            type(RehypeDopplerHookInitializer).creationCode, abi.encode(dopplerHookInitializer, poolManager, bundler)
         );
 
         bool alreadyDeployed;
@@ -35,7 +41,7 @@ abstract contract DeployRehypeDopplerHookInitializer is DeployBase {
         );
 
         address quoter = _verifyRehypeDopplerHookInitializerDeployment(
-            rehypeDopplerHookInitializer, dopplerHookInitializer, poolManager
+            rehypeDopplerHookInitializer, dopplerHookInitializer, poolManager, bundler
         );
         _setConfigAddress(context, "rehype_doppler_hook_initializer", rehypeDopplerHookInitializer);
         _setConfigAddress(context, "quoter", quoter);
@@ -51,11 +57,13 @@ abstract contract DeployRehypeDopplerHookInitializer is DeployBase {
     function _verifyRehypeDopplerHookInitializerDeployment(
         address addr,
         address dopplerHookInitializer,
-        address poolManager
+        address poolManager,
+        address bundler
     ) internal view returns (address quoter) {
         RehypeDopplerHookInitializer hook = RehypeDopplerHookInitializer(payable(addr));
         require(hook.INITIALIZER() == dopplerHookInitializer, "RehypeDopplerHookInitializer initializer mismatch");
         require(address(hook.poolManager()) == poolManager, "RehypeDopplerHookInitializer pool manager mismatch");
+        require(hook.bundler() == bundler, "RehypeDopplerHookInitializer bundler mismatch");
 
         quoter = address(hook.quoter());
         require(quoter != address(0) && quoter.code.length != 0, "RehypeDopplerHookInitializer quoter missing");

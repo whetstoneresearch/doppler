@@ -13,18 +13,15 @@ abstract contract DeployBundler is DeployBase {
     }
 
     function _deployBundler(DeployContext memory context, address airlock) internal returns (address bundler) {
-        address quoterV2 = context.config.get(context.chainId, "quoter_v2").toAddress();
-        address quoterV4 = context.config.get(context.chainId, "quoter_v4").toAddress();
-        address router = context.config.get(context.chainId, "universal_router").toAddress();
-        bytes memory initCode =
-            abi.encodePacked(type(Bundler).creationCode, abi.encode(airlock, router, quoterV2, quoterV4));
+        address poolManager = context.config.get(context.chainId, "uniswap_v4_pool_manager").toAddress();
+        bytes memory initCode = abi.encodePacked(type(Bundler).creationCode, abi.encode(airlock, poolManager));
 
         bool alreadyDeployed;
         (bundler, alreadyDeployed) = _deployOrUseExistingVersionedCreate3(
             context, bytes32(0), address(0), type(Bundler).name, BUNDLER_VERSION, initCode
         );
 
-        _verifyBundlerDeployment(bundler, airlock, router, quoterV2, quoterV4);
+        _verifyBundlerDeployment(bundler, airlock, poolManager);
         _setConfigAddress(context, "bundler", bundler);
 
         if (alreadyDeployed) {
@@ -34,18 +31,10 @@ abstract contract DeployBundler is DeployBase {
         }
     }
 
-    function _verifyBundlerDeployment(
-        address addr,
-        address airlock,
-        address router,
-        address quoterV2,
-        address quoterV4
-    ) internal view {
+    function _verifyBundlerDeployment(address addr, address airlock, address poolManager) internal view {
         Bundler bundler = Bundler(addr);
         require(address(bundler.airlock()) == airlock, "Bundler airlock mismatch");
-        require(address(bundler.router()) == router, "Bundler router mismatch");
-        require(address(bundler.quoter()) == quoterV2, "Bundler quoter mismatch");
-        require(address(bundler.v4Quoter()) == quoterV4, "Bundler v4 quoter mismatch");
+        require(address(bundler.poolManager()) == poolManager, "Bundler pool manager mismatch");
     }
 }
 

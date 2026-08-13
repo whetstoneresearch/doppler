@@ -161,7 +161,7 @@ contract RehypeDopplerHookIntegrationTest is Deployers {
 
         deployCodeTo("DopplerHookInitializer", abi.encode(address(airlock), address(manager)), address(initializer));
 
-        rehypeDopplerHook = new RehypeDopplerHookInitializer(address(initializer), manager);
+        rehypeDopplerHook = new RehypeDopplerHookInitializer(address(initializer), manager, address(0));
         vm.label(address(rehypeDopplerHook), "RehypeDopplerHookInitializer");
         feeBypassAttemptRouter = new FeeBypassAttemptRouter(manager);
         vm.label(address(feeBypassAttemptRouter), "FeeBypassAttemptRouter");

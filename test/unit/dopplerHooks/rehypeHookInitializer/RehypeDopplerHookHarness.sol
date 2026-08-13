@@ -16,7 +16,7 @@ contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
     constructor(
         address initializer,
         IPoolManager poolManager_
-    ) RehypeDopplerHookInitializer(initializer, poolManager_) { }
+    ) RehypeDopplerHookInitializer(initializer, poolManager_, address(0)) { }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // EXPOSED PURE FUNCTIONS (Direct access - no quoter needed)

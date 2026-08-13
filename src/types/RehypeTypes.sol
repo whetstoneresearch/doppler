@@ -60,6 +60,9 @@ uint256 constant AIRLOCK_OWNER_FEE_BPS = 500;
 /// @dev Basis points denominator
 uint256 constant BPS_DENOMINATOR = 10_000;
 
+/// @dev Storage slot for temporary dev buy fee exemption flag
+bytes32 constant DEV_BUY_EXEMPTION_SLOT = keccak256("doppler.rehype.devBuyExemption");
+
 /// @notice Thrown when a fee exceeds the maximum swap fee
 error FeeTooHigh(uint24 fee);
 

@@ -21,6 +21,7 @@ import {
     AIRLOCK_OWNER_FEE_BPS,
     AirlockOwnerFeesClaimed,
     BPS_DENOMINATOR,
+    DEV_BUY_EXEMPTION_SLOT,
     EPSILON,
     FeeBeneficiariesNotConfigured,
     FeeBeneficiariesNotSupportedInDirectBuyback,
@@ -64,6 +65,9 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
     /// @notice Quoter contract for simulating swaps
     Quoter public immutable quoter;
 
+    /// @notice Bundler authorized to consume the one-swap dev buy exemption.
+    address public immutable bundler;
+
     /// @notice Position data for each pool
     mapping(PoolId poolId => Position position) public getPosition;
 
@@ -87,10 +91,16 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
     /**
      * @param initializer Address of the DopplerHookInitializer contract
      * @param poolManager_ Address of the Uniswap V4 Pool Manager
+     * @param bundler_ Address of the authorized dev buy Bundler
      */
-    constructor(address initializer, IPoolManager poolManager_) BaseDopplerHookInitializer(initializer) {
+    constructor(
+        address initializer,
+        IPoolManager poolManager_,
+        address bundler_
+    ) BaseDopplerHookInitializer(initializer) {
         poolManager = poolManager_;
         quoter = new Quoter(poolManager_);
+        bundler = bundler_;
     }
 
     /// @inheritdoc BaseDopplerHookInitializer
@@ -102,6 +112,12 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         // We prevent reinitializing rehype hook due to beneficiaries not being enumerable, and thus clearable.
         // Naive reinitialization would lead to overallocation of beneficiary fees and overlapping claims.
         require(getPoolInfo[poolId].asset == address(0), PoolAlreadyInitialized());
+
+        // If _onInitialization is called by create (and not on hook reinitialization), open a temporary dev buy
+        // non-protocol fee exemption for one swap only.
+        if (_isAirlockCreate(asset)) {
+            _setDevBuyExemption(poolId);
+        }
 
         getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
 
@@ -164,7 +180,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
 
         PoolId poolId = key.toId();
 
-        (Currency feeCurrency, int128 hookDelta) = _collectSwapFees(params, delta, key, poolId);
+        (Currency feeCurrency, int128 hookDelta) = _collectSwapFees(sender, params, delta, key, poolId);
 
         uint256 balance0 = getHookFees[poolId].fees0;
         uint256 balance1 = getHookFees[poolId].fees1;
@@ -847,6 +863,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
 
     /**
      * @dev Collects swap fees from a swap and updates hook fee tracking
+     * @param sender Address that called PoolManager.swap
      * @param params Parameters of the swap
      * @param delta BalanceDelta of the swap
      * @param key Uniswap V4 pool key
@@ -855,6 +872,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
      * @return feeDelta Amount of fee collected in feeCurrency
      */
     function _collectSwapFees(
+        address sender,
         IPoolManager.SwapParams memory params,
         BalanceDelta delta,
         PoolKey memory key,
@@ -882,19 +900,27 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             feeBase = uint256(-inputAmount);
         }
 
+        // If a swap is occurring within the same call frame as create, then one swap is exempted from
+        // non-protocol fees. Only our Bundler is allowed to trigger this exemption.
+        bool devBuyExempt = _checkDevBuyExemption(poolId, sender);
+        if (devBuyExempt) {
+            _clearDevBuyExemption(poolId);
+        }
+
         uint24 currentFee = _getCurrentFee(poolId);
         uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, SWAP_FEE_DENOMINATOR);
+
+        // Calculate airlock owner fee (5% of total fee), and whether the remaining fees will be assessed.
+        uint256 airlockOwnerFee = FullMath.mulDiv(feeAmount, AIRLOCK_OWNER_FEE_BPS, BPS_DENOMINATOR);
+        uint256 remainingFee = devBuyExempt ? 0 : feeAmount - airlockOwnerFee;
+        uint256 collectedFee = devBuyExempt ? airlockOwnerFee : feeAmount;
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
-        if (balanceOfFeeCurrency < feeAmount) {
+        if (balanceOfFeeCurrency < collectedFee) {
             revert InsufficientFeeCurrency();
         }
 
-        poolManager.take(feeCurrency, address(this), feeAmount);
-
-        // Calculate airlock owner fee (5% of total fee)
-        uint256 airlockOwnerFee = FullMath.mulDiv(feeAmount, AIRLOCK_OWNER_FEE_BPS, BPS_DENOMINATOR);
-        uint256 remainingFee = feeAmount - airlockOwnerFee;
+        poolManager.take(feeCurrency, address(this), collectedFee);
 
         if (feeCurrency == key.currency0) {
             getHookFees[poolId].airlockOwnerFees0 += uint128(airlockOwnerFee);
@@ -904,6 +930,61 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             getHookFees[poolId].fees1 += uint128(remainingFee);
         }
 
-        return (feeCurrency, int128(uint128(feeAmount)));
+        return (feeCurrency, int128(uint128(collectedFee)));
     }
+
+    /// @dev Checks if the call is from Airlock.create, which is possible by checking if the poolInitializer
+    ///      has been set yet. It is only configured once the initial call into the pool initializer is complete.
+    function _isAirlockCreate(address asset) internal view returns (bool) {
+        IAirlock airlock = IAirlock(address(DopplerHookInitializer(payable(INITIALIZER)).airlock()));
+        (,,,, address poolInitializer,,,,,) = airlock.getAssetData(asset);
+        return poolInitializer == address(0);
+    }
+
+    function _setDevBuyExemption(PoolId poolId) internal {
+        bytes32 slot = _devBuyExemptionSlot(poolId);
+        assembly ("memory-safe") {
+            tstore(slot, 1)
+        }
+    }
+
+    function _clearDevBuyExemption(PoolId poolId) internal {
+        bytes32 slot = _devBuyExemptionSlot(poolId);
+        assembly ("memory-safe") {
+            tstore(slot, 0)
+        }
+    }
+
+    /// @dev Checks if the sender is our Bundler, and checks transient storage to confirm if this swap is
+    ///      occurring within the Airlock.create call frame.
+    function _checkDevBuyExemption(PoolId poolId, address sender) internal view returns (bool exempt) {
+        if (sender != bundler) return false;
+
+        bytes32 slot = _devBuyExemptionSlot(poolId);
+        assembly ("memory-safe") {
+            exempt := tload(slot)
+        }
+    }
+
+    function _devBuyExemptionSlot(PoolId poolId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(DEV_BUY_EXEMPTION_SLOT, PoolId.unwrap(poolId)));
+    }
+}
+
+interface IAirlock {
+    function getAssetData(address asset)
+        external
+        view
+        returns (
+            address numeraire,
+            address timelock,
+            address governance,
+            address liquidityMigrator,
+            address poolInitializer,
+            address pool,
+            address migrationPool,
+            uint256 numTokensToSell,
+            uint256 totalSupply,
+            address integrator
+        );
 }

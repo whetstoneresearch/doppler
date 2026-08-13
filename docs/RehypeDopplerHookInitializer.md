@@ -2,7 +2,7 @@
 
 ## Overview
 
-This page documents the initializer-side `RehypeDopplerHook` contract, which is the Doppler Hook designed to be attached to pools created by [`DopplerHookInitializer`](./DopplerHookInitializer.md).
+This page documents the initializer-side `RehypeDopplerHookInitializer` contract, which is the Doppler Hook designed to be attached to pools created by [`DopplerHookInitializer`](./DopplerHookInitializer.md). Its authorized [`Bundler`](./Bundler.md) can atomically create a pool and execute its first asset purchase with a one-swap fee exemption.
 
 `RehypeDopplerHook` implements two pieces of hook logic:
 
@@ -23,6 +23,7 @@ At a high level, `RehypeDopplerHook` adds a post-swap fee layer on top of a Dopp
 - reserve 5% of each gross hook fee for the current Airlock owner
 - split collected fees across buybacks, beneficiary accounting, and LP reinvestment
 - optionally split Rehype beneficiary fees among multiple pull-based recipients
+- exempt the Bundler's atomic first buy from non-owner Rehype fees
 
 Important: this fee schedule controls the Rehype hook fee collected in `onSwap`. It does not update the Uniswap v4 LP fee for the pool.
 
@@ -74,7 +75,7 @@ This makes the fee schedule lazy: it is evaluated when swaps happen, not by a ba
 
 All fee logic runs in `onSwap`.
 
-For each external swap:
+For each ordinary external swap:
 
 1. The hook ignores internal self-swaps so it does not charge itself during its own rebalance or buyback operations.
 2. It computes the current Rehype fee from the schedule.
@@ -83,6 +84,14 @@ For each external swap:
 5. It returns the same positive `hookDelta` back to `DopplerHookInitializer`, which makes the swap accounting reflect the fee and settles the external hook's delta.
 6. It reserves `floor(grossFee * 500 / 10_000)` in the separate Airlock owner bucket, regardless of whether `feeBeneficiaries` is empty.
 7. It accumulates exactly `grossFee - ownerCut` into the per-pool balances used by normal routing.
+
+### Atomic Dev Buy
+
+`RehypeDopplerHookInitializer` stores an immutable authorized `bundler`. When `onInitialization` runs inside `Airlock.create`, the hook opens a transient, pool-specific exemption. The exemption can be consumed only by one swap whose PoolManager sender is that Bundler, and it expires at the end of the transaction.
+
+For the exempt swap, the hook still computes the normal gross Rehype fee and reserves the usual 5% Airlock-owner cut. It collects and returns only that owner cut as the hook delta; the remaining non-owner Rehype fee is zero, so the dev buy does not add ordinary routing, beneficiary, buyback, or LP-reinvestment fees. Any later swap uses the ordinary fee path above.
+
+The exemption is available only during the atomic create-and-buy flow. Direct creators and ordinary swap routers cannot consume it. A reverted create or buy rolls back both pool creation and transient exemption state.
 
 If both accumulated fee balances are still below `EPSILON`, the hook stops there and waits for more fees to build up.
 
@@ -157,5 +166,6 @@ The main per-pool views are:
 - `getPoolKey(poolId)`
 - `getShares(poolId, beneficiary)`
 - `getCumulatedFees0/1(poolId)`
+- `bundler`
 
 Together they describe the configured fee schedule, the routing mode, the current fee balances, and the reinvested LP position state.

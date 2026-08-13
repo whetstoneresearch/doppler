@@ -15,10 +15,11 @@ abstract contract DeployBase is Script, Config, Versions {
     string internal constant IS_TESTNET_KEY = "is_testnet";
     string internal constant PROTOCOL_DEPLOYER_KEY = "protocol_deployer";
 
+    error InvalidContract(address expected, address actual);
     error Create2AddressMismatch(bytes32 salt, address expected, address computed);
     error Create3AddressMismatch(bytes32 salt, address expected, address computed);
-    error InvalidCreateXGuardedSalt(bytes32 salt);
     error BroadcastSenderMismatch(address expected, address actual);
+    error InvalidCreateXGuardedSalt(bytes32 salt);
 
     struct DeployContext {
         uint256 chainId;

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { DeployAirlock } from "script/deploy/DeployAirlock.s.sol";
 import { DeployAirlockMultisigTestnet } from "script/deploy/DeployAirlockMultisigTestnet.s.sol";
+import { DeployBundler } from "script/deploy/DeployBundler.s.sol";
 import { DeployDN404Factory } from "script/deploy/DeployDN404Factory.s.sol";
 import { DeployDopplerERC20V1Factory } from "script/deploy/DeployDopplerERC20V1Factory.s.sol";
 import { DeployDopplerHookInitializer } from "script/deploy/DeployDopplerHookInitializer.s.sol";
@@ -25,6 +26,7 @@ import { ChainIds } from "script/utils/ChainIds.sol";
 contract DeployDopplerScript is
     DeployAirlock,
     DeployAirlockMultisigTestnet,
+    DeployBundler,
     DeployTopUpDistributor,
     DeployStreamableFeesLockerV2,
     DeployDopplerERC20V1Factory,
@@ -48,6 +50,7 @@ contract DeployDopplerScript is
     struct DeployedAddresses {
         address airlockMultisig;
         address airlock;
+        address bundler;
         address topUpDistributor;
         address streamableFeesLockerV2;
         address dopplerHookInitializer;
@@ -83,8 +86,9 @@ contract DeployDopplerScript is
         _deployLockableUniswapV3Initializer(context, deployed.airlock);
         _deployUniswapV4Initializer(context, deployed.airlock);
         deployed.dopplerHookInitializer = _deployDopplerHookInitializer(context, deployed.airlock);
+        deployed.bundler = _deployBundler(context, deployed.airlock);
 
-        _deployRehypeDopplerHookInitializer(context, deployed.dopplerHookInitializer);
+        _deployRehypeDopplerHookInitializer(context, deployed.dopplerHookInitializer, deployed.bundler);
         _deploySwapRestrictorDopplerHook(context, deployed.dopplerHookInitializer);
 
         _deployNoOpMigrator(context, deployed.airlock);
