@@ -64,15 +64,21 @@ contract DeployNoOpMigratorScriptMonad is DeployNoOpMigratorScript {
     }
 }
 
+contract DeployNoOpMigratorScriptRobinhood is DeployNoOpMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployNoOpMigratorScriptBase is DeployNoOpMigratorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployNoOpMigratorScriptRobinhood is DeployNoOpMigratorScript {
+contract DeployNoOpMigratorScriptArbitrum is DeployNoOpMigratorScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

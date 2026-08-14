@@ -69,15 +69,21 @@ contract DeployLaunchpadGovernanceFactoryScriptMonad is DeployLaunchpadGovernanc
     }
 }
 
+contract DeployLaunchpadGovernanceFactoryScriptRobinhood is DeployLaunchpadGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployLaunchpadGovernanceFactoryScriptBase is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployLaunchpadGovernanceFactoryScriptRobinhood is DeployLaunchpadGovernanceFactoryScript {
+contract DeployLaunchpadGovernanceFactoryScriptArbitrum is DeployLaunchpadGovernanceFactoryScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

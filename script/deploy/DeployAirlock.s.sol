@@ -73,15 +73,21 @@ contract DeployAirlockScriptMonad is DeployAirlockScript {
     }
 }
 
+contract DeployAirlockScriptRobinhood is DeployAirlockScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployAirlockScriptBase is DeployAirlockScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployAirlockScriptRobinhood is DeployAirlockScript {
+contract DeployAirlockScriptArbitrum is DeployAirlockScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

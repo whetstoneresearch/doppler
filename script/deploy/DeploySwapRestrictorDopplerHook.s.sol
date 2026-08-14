@@ -74,15 +74,21 @@ contract DeploySwapRestrictorDopplerHookScriptMonad is DeploySwapRestrictorDoppl
     }
 }
 
+contract DeploySwapRestrictorDopplerHookScriptRobinhood is DeploySwapRestrictorDopplerHookScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeploySwapRestrictorDopplerHookScriptBase is DeploySwapRestrictorDopplerHookScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeploySwapRestrictorDopplerHookScriptRobinhood is DeploySwapRestrictorDopplerHookScript {
+contract DeploySwapRestrictorDopplerHookScriptArbitrum is DeploySwapRestrictorDopplerHookScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

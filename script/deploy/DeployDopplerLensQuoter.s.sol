@@ -61,15 +61,21 @@ contract DeployDopplerLensQuoterScriptMonad is DeployDopplerLensQuoterScript {
     }
 }
 
+contract DeployDopplerLensQuoterScriptRobinhood is DeployDopplerLensQuoterScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerLensQuoterScriptBase is DeployDopplerLensQuoterScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployDopplerLensQuoterScriptRobinhood is DeployDopplerLensQuoterScript {
+contract DeployDopplerLensQuoterScriptArbitrum is DeployDopplerLensQuoterScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

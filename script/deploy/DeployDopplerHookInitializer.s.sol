@@ -118,15 +118,21 @@ contract DeployDopplerHookInitializerScriptMonad is DeployDopplerHookInitializer
     }
 }
 
+contract DeployDopplerHookInitializerScriptRobinhood is DeployDopplerHookInitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerHookInitializerScriptBase is DeployDopplerHookInitializerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployDopplerHookInitializerScriptRobinhood is DeployDopplerHookInitializerScript {
+contract DeployDopplerHookInitializerScriptArbitrum is DeployDopplerHookInitializerScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

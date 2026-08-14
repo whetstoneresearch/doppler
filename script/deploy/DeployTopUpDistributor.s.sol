@@ -64,15 +64,21 @@ contract DeployTopUpDistributorScriptMonad is DeployTopUpDistributorScript {
     }
 }
 
+contract DeployTopUpDistributorScriptRobinhood is DeployTopUpDistributorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployTopUpDistributorScriptBase is DeployTopUpDistributorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployTopUpDistributorScriptRobinhood is DeployTopUpDistributorScript {
+contract DeployTopUpDistributorScriptArbitrum is DeployTopUpDistributorScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

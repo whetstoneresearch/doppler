@@ -80,15 +80,21 @@ contract DeployLockableUniswapV3InitializerScriptMonad is DeployLockableUniswapV
     }
 }
 
+contract DeployLockableUniswapV3InitializerScriptRobinhood is DeployLockableUniswapV3InitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployLockableUniswapV3InitializerScriptBase is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployLockableUniswapV3InitializerScriptRobinhood is DeployLockableUniswapV3InitializerScript {
+contract DeployLockableUniswapV3InitializerScriptArbitrum is DeployLockableUniswapV3InitializerScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 
