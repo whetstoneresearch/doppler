@@ -73,6 +73,7 @@ Pools created through `DopplerHookInitializer` without Rehype still support the 
 
 A zero `vestingDuration` disables Bundler vesting and sends `amountOut` directly to `recipient`. Otherwise:
 
+- `vestingDuration` must be at least one day
 - `cliffDuration` must not exceed `vestingDuration`
 - Bundler holds exactly `amountOut`
 - vesting begins at the successful bundle timestamp

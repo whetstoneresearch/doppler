@@ -48,7 +48,7 @@ error ExactInputAmountZero();
 /// @notice Thrown when a vesting position already exists for an asset.
 error VestingAlreadyExists(address asset);
 
-/// @notice Thrown when the cliff exceeds the vesting duration.
+/// @notice Thrown when an enabled vesting duration is below one day or its cliff exceeds its duration.
 error InvalidVestingSchedule();
 
 /// @notice Thrown when the pool does not consume the requested exact input amount.
@@ -73,6 +73,9 @@ event VestingCreated(
 
 /// @notice Emitted when vested assets are claimed for their recipient.
 event VestingReleased(address indexed asset, address indexed recipient, uint128 amount);
+
+/// @dev Minimum duration for an enabled vesting position.
+uint64 constant MIN_VESTING_DURATION = 1 days;
 
 /**
  * @title Doppler Bundler
@@ -194,7 +197,12 @@ contract Bundler is IUnlockCallback {
             revert ExactInputAmountZero();
         }
         if (recipient == address(0)) revert InvalidRecipient();
-        if (vestingData.cliffDuration > vestingData.vestingDuration) revert InvalidVestingSchedule();
+        if (
+            (vestingData.vestingDuration != 0 && vestingData.vestingDuration < MIN_VESTING_DURATION)
+                || vestingData.cliffDuration > vestingData.vestingDuration
+        ) {
+            revert InvalidVestingSchedule();
+        }
 
         bool nativeNumeraire = createData.numeraire == address(0);
         if (nativeNumeraire ? msg.value != exactAmountIn : msg.value != 0) revert InvalidNativeValue();
@@ -252,7 +260,15 @@ contract Bundler is IUnlockCallback {
      * @return amount Amount currently claimable by the position's recipient.
      */
     function claimable(address asset) public view returns (uint256 amount) {
-        Vesting memory vesting = vestingOf[asset];
+        return _claimable(vestingOf[asset]);
+    }
+
+    /**
+     * @notice Returns the amount currently claimable from a vesting position.
+     * @param vesting Vesting position to calculate the claimable amount for.
+     * @return amount Amount currently claimable by the position's recipient.
+     */
+    function _claimable(Vesting memory vesting) internal view returns (uint256 amount) {
         uint256 totalAmount = vesting.totalAmount;
         if (totalAmount == 0) return 0;
 
@@ -279,10 +295,10 @@ contract Bundler is IUnlockCallback {
         if (vesting.totalAmount == 0) revert NoClaimableAmount();
         if (!vesting.permissionlessClaim && msg.sender != vesting.recipient) revert SenderNotRecipient();
 
-        amount = claimable(asset);
+        amount = _claimable(vesting);
         if (amount == 0) revert NoClaimableAmount();
 
-        vestingOf[asset].claimedAmount += uint128(amount);
+        vestingOf[asset].claimedAmount = vesting.claimedAmount + uint128(amount);
         SafeTransferLib.safeTransfer(asset, vesting.recipient, amount);
         emit VestingReleased(asset, vesting.recipient, uint128(amount));
     }

@@ -223,12 +223,12 @@ contract BundlerVestingIntegrationTest is Deployers {
         assertEq(TestERC20(vestedAsset).balanceOf(recipient), vestedAmountOut);
     }
 
-    function test_claim_OneSecondVestingWithNoCliff() public {
-        this.bundleERC20(bytes32(uint256(5)), true, 1, 0);
+    function test_claim_OneDayMinimumVestingWithNoCliff() public {
+        this.bundleERC20(bytes32(uint256(5)), true, 1 days, 0);
         (,, uint64 start,,,,) = bundler.vestingOf(vestedAsset);
 
         assertEq(bundler.claimable(vestedAsset), 0);
-        vm.warp(uint256(start) + 1);
+        vm.warp(uint256(start) + 1 days);
         assertEq(bundler.claimable(vestedAsset), vestedAmountOut);
 
         vm.prank(attacker);
@@ -251,11 +251,18 @@ contract BundlerVestingIntegrationTest is Deployers {
         _assertOwnerOnlyDevBuyFee(poolKey.toId(), poolKey, amountOut);
     }
 
+    function test_bundle_RevertsWhenVestingDurationIsBelowOneDay() public {
+        CreateParams memory params = this.createParams(address(erc20Numeraire), bytes32(uint256(7)));
+
+        vm.expectRevert(InvalidVestingSchedule.selector);
+        bundler.bundle(params, _vestingParams(true, 1 days - 1, 0), DEV_BUY_AMOUNT, recipient);
+    }
+
     function test_bundle_RevertsWhenCliffExceedsVestingDuration() public {
         CreateParams memory params = this.createParams(address(erc20Numeraire), bytes32(uint256(7)));
 
         vm.expectRevert(InvalidVestingSchedule.selector);
-        bundler.bundle(params, _vestingParams(true, 1, 2), DEV_BUY_AMOUNT, recipient);
+        bundler.bundle(params, _vestingParams(true, 1 days, 1 days + 1), DEV_BUY_AMOUNT, recipient);
     }
 
     function test_bundle_RevertsWhenZeroDurationHasNonzeroCliff() public {
