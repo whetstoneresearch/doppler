@@ -10,9 +10,8 @@ on:
       - synchronize
 
 env:
-  FOUNDRY_PROFILE: ci
   ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
-  BASE_SEPOLIA_RPC_URL: https://sepolia.base.org
+  BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org' }}
   UNICHAIN_SEPOLIA_RPC_URL: ${{ secrets.UNICHAIN_SEPOLIA_RPC_URL }}
   UNICHAIN_MAINNET_RPC_URL: ${{ secrets.UNICHAIN_MAINNET_RPC_URL }}
 
@@ -50,6 +49,27 @@ jobs:
         run: forge build ./script --via-ir
         id: build-script
 
-      - name: Run Forge tests
-        run: forge test -vvv --via-ir --match-contract "DN404FactoryTest|DopplerDN404Test|BaseSepoliaDN404ForkTest"
-        id: test
+      - name: Run core protocol tests
+        run: >-
+          forge test -vvv --via-ir
+          --match-contract
+          "^(AirlockTest|DopplerCreateXDeployerTest|DopplerERC20V1FactoryTest|DopplerERC20V1Test|DopplerERC20V1MaxBalanceIntegrationTest|DN404FactoryTest|DopplerDN404Test|TopUpDistributorTest|TopUpDistributorInvariantTest|ProceedsSplitterTest|StreamableFeesLockerV2Test)$"
+        id: test-core
+
+      - name: Run primary initializer and launch tests
+        run: >-
+          forge test -vvv --via-ir
+          --match-contract
+          "^(BaseDopplerHookTest|MiniV4ManagerTest|DopplerHookMulticurveInitializerTest|DopplerHookInitializerTest|LockableUniswapV3InitializerTest|UniswapV4InitializerTest|BundlerIntegrationTest|BundlerVestingIntegrationTest|BundlerUnsupportedInitializersIntegrationTest|SwapRestrictorDopplerHookTest|DopplerLensTest)$"
+        id: test-launch
+
+      - name: Run Rehype and migrator tests
+        run: >-
+          forge test -vvv --via-ir
+          --match-contract
+          "^(BeneficiaryDataTest|FeesManagerTest|FeesManagerInvariants|CalculateExcessTest|RebalanceFeesTest|RehypeDopplerHookInitializerTest|RehypeDopplerHookIntegrationTest|RehyperInvariantTests|CalculateExcessMigratorTest|RebalanceFeesMigratorTest|RehypeDopplerHookMigratorTest|RehypeDopplerHookMigratorIntegrationTest|RehypeMigratorInvariantTests|DopplerHookMigratorTest|DopplerHookMigratorIntegrationTest)$"
+        id: test-rehype
+
+      - name: Run Base Sepolia production-path fork test
+        run: forge test -vvv --via-ir --match-contract "^BaseSepoliaDN404ForkTest$"
+        id: test-base-sepolia

@@ -72,7 +72,7 @@ contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
     constructor(
         address _initializer,
         IPoolManager _poolManager
-    ) RehypeDopplerHookInitializer(_initializer, _poolManager) { }
+    ) RehypeDopplerHookInitializer(_initializer, _poolManager, address(0)) { }
 
     function exposed_getCurrentFee(PoolId poolId) external returns (uint24) {
         return _getCurrentFee(poolId);
@@ -88,7 +88,7 @@ contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
         PoolKey memory key,
         PoolId poolId
     ) external returns (Currency feeCurrency, int128 feeDelta) {
-        return _collectSwapFees(params, delta, key, poolId);
+        return _collectSwapFees(address(0), params, delta, key, poolId);
     }
 
     function exposed_setBeneficiaryFees(PoolId poolId, uint128 fees0, uint128 fees1) external {
@@ -108,6 +108,18 @@ contract RealLpHookCaller is IUnlockCallback {
     function bindHook(RehypeDopplerHookInitializer hook_) external {
         require(address(hook) == address(0));
         hook = hook_;
+    }
+
+    function airlock() external view returns (address) {
+        return address(this);
+    }
+
+    function getAssetData(address)
+        external
+        pure
+        returns (address, address, address, address, address, address, address, uint256, uint256, address)
+    {
+        return (address(0), address(0), address(0), address(0), address(1), address(0), address(0), 0, 0, address(0));
     }
 
     function initialize(address asset, PoolKey memory key, bytes memory data) external {
@@ -143,6 +155,14 @@ contract MockAirlock {
 
     constructor(address _owner) {
         owner = _owner;
+    }
+
+    function getAssetData(address)
+        external
+        pure
+        returns (address, address, address, address, address, address, address, uint256, uint256, address)
+    {
+        return (address(0), address(0), address(0), address(0), address(1), address(0), address(0), 0, 0, address(0));
     }
 }
 
@@ -230,12 +250,13 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     function setUp() public {
         poolManager = IPoolManager(address(new MockPoolManager()));
         initializer = new MockInitializer();
-        dopplerHook = new RehypeDopplerHookInitializer(address(initializer), poolManager);
+        dopplerHook = new RehypeDopplerHookInitializer(address(initializer), poolManager, address(0));
         harness = new RehypeDopplerHookHarness(address(initializer), poolManager);
         trackingPoolManager = new TrackingPoolManager();
         trackingHarness = new RehypeDopplerHookHarness(address(initializer), IPoolManager(address(trackingPoolManager)));
         mockInitializer = new MockInitializer();
-        dopplerHookWithMockInitializer = new RehypeDopplerHookInitializer(address(mockInitializer), poolManager);
+        dopplerHookWithMockInitializer =
+            new RehypeDopplerHookInitializer(address(mockInitializer), poolManager, address(0));
         token0 = new TestERC20(type(uint128).max);
         token1 = new TestERC20(type(uint128).max);
         token0.mint(address(trackingPoolManager), type(uint128).max);

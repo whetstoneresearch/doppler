@@ -55,7 +55,7 @@ contract RehyperInvariantTests is Deployers {
                     ) ^ (0x4444 << 144)
                 ))
         );
-        rehypeHook = new RehypeDopplerHookInitializer(address(dopplerHookInitializer), manager);
+        rehypeHook = new RehypeDopplerHookInitializer(address(dopplerHookInitializer), manager, address(0));
         quoter = new V4Quoter(manager);
         handler = new RehypeHandler(manager, swapRouter, dopplerHookInitializer, rehypeHook, quoter);
 
@@ -202,6 +202,14 @@ contract RehypeHandler is Test {
         for (uint256 i; i < 2; i++) {
             availableNumeraires.push(address(new TestERC20(0)));
         }
+    }
+
+    function getAssetData(address)
+        external
+        pure
+        returns (address, address, address, address, address, address, address, uint256, uint256, address)
+    {
+        return (address(0), address(0), address(0), address(0), address(1), address(0), address(0), 0, 0, address(0));
     }
 
     /* ------------------------------------------------------------------------------ */

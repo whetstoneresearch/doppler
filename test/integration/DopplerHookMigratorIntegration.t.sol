@@ -83,7 +83,7 @@ contract DopplerHookMigratorIntegrationTest is Deployers {
             migratorHookAddress
         );
 
-        rehypeHook = new RehypeDopplerHookInitializer(address(migrator), manager);
+        rehypeHook = new RehypeDopplerHookInitializer(address(migrator), manager, address(0));
         rehypeHookMigrator = new RehypeDopplerHookMigrator(migrator, manager);
         swapRestrictorHook = new SwapRestrictorDopplerHook(address(migrator));
 
