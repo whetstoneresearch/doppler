@@ -6,7 +6,7 @@ icon: pen-field
 
 Here are the networks that Doppler is officially deployed to:
 
-- Mainnets: Ethereum Mainnet, Monad Mainnet, Robinhood Mainnet, Base
+- Mainnets: Ethereum Mainnet, Monad Mainnet, Robinhood Mainnet, Base, Arbitrum One
 - Testnets: Base Sepolia
 
 {% hint style="danger" %}
@@ -118,6 +118,10 @@ If there are contracts not reflected here but claiming to be instances of Dopple
 | UniswapV2Locker | [0x0673...e495](https://basescan.org/address/0x06731e30df4b0209ed19c39ba8ed253e17b0e495) | [0x05dc...7209](https://basescan.org/tx/0x05dc33d6047800ef0d103fb39cfe0cb92ab92621cbb33ffdc006ab1e49b17209) | [63dc78fe](https://github.com/whetstoneresearch/doppler/commit/63dc78fe) | 
 | UniswapV2MigratorSplit | [0xd7ab...12d3](https://basescan.org/address/0xd7aba5f1d80a330a6fe9e96f7ba122710e0912d3) | [0x05dc...7209](https://basescan.org/tx/0x05dc33d6047800ef0d103fb39cfe0cb92ab92621cbb33ffdc006ab1e49b17209) | [63dc78fe](https://github.com/whetstoneresearch/doppler/commit/63dc78fe) | 
 | UniswapV4Initializer | [0x53b4...e8ad](https://basescan.org/address/0x53b4c21a6cb61d64f636abbfa6e8e90e6558e8ad) | [0x2c65...213d](https://basescan.org/tx/0x2c65e338366c8eedf942438b8183389527b0ef368aac782e5fb30f941b44213d) | [d223428](https://github.com/whetstoneresearch/doppler/commit/d223428) | 
+### Arbitrum One (42161)
+| Contract | Address | Transaction | Commit |
+|---|---|---|---|
+| DopplerCreateXDeployer | [0x1030...9b83](https://arbiscan.io/address/0x103004e50bed65dfba30dd9c264b6bdf5e529b83) | [0x3cd3...4ef2](https://arbiscan.io/tx/0x3cd33b3df9036733fd32eb60182cd9afd8adcddcb581fb6ea097d632fff34ef2) | [d7e35957](https://github.com/whetstoneresearch/doppler/commit/d7e35957) | 
 
 ## Testnet Deployments
 ### Base Sepolia (84532)

@@ -85,15 +85,21 @@ contract DeployRehypeDopplerHookMigratorScriptMonad is DeployRehypeDopplerHookMi
     }
 }
 
+contract DeployRehypeDopplerHookMigratorScriptRobinhood is DeployRehypeDopplerHookMigratorScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployRehypeDopplerHookMigratorScriptBase is DeployRehypeDopplerHookMigratorScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployRehypeDopplerHookMigratorScriptRobinhood is DeployRehypeDopplerHookMigratorScript {
+contract DeployRehypeDopplerHookMigratorScriptArbitrum is DeployRehypeDopplerHookMigratorScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

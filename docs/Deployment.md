@@ -21,12 +21,14 @@ simulation, debugging, and emergency manual execution.
 
 #### Current Wrappers
 
-| Chain        | Chain ID | Protocol script                  | CreateX deployer script                         | Testnet |
-| ------------ | -------: | -------------------------------- | ----------------------------------------------- | ------- |
-| Ethereum     |      `1` | `DeployDopplerScriptEthereum`    | Create a wrapper before deploying               | `false` |
-| Monad        |    `143` | `DeployDopplerScriptMonad`       | Create a wrapper before deploying               | `false` |
-| Base         |   `8453` | `DeployDopplerScriptBase`        | Create a wrapper before deploying               | `false` |
-| Base Sepolia |  `84532` | `DeployDopplerScriptBaseSepolia` | `DeployDopplerCreateXDeployerScriptBaseSepolia` | `true`  |
+| Chain           | Chain ID | Protocol script                     | CreateX deployer script                                | Testnet |
+| --------------- | -------: | ----------------------------------- | ------------------------------------------------------ | ------- |
+| Ethereum        |      `1` | `DeployDopplerScriptEthereum`       | `DeployDopplerCreateXDeployerScriptEthereum`           | `false` |
+| Monad           |    `143` | `DeployDopplerScriptMonad`          | `DeployDopplerCreateXDeployerScriptMonad`               | `false` |
+| Robinhood Chain |   `4663` | `DeployDopplerScriptRobinhood`      | `DeployDopplerCreateXDeployerScriptRobinhood`           | `false` |
+| Base            |   `8453` | `DeployDopplerScriptBase`           | `DeployDopplerCreateXDeployerScriptBase`                | `false` |
+| Arbitrum One    |  `42161` | `DeployDopplerScriptArbitrum`       | `DeployDopplerCreateXDeployerScriptArbitrum`            | `false` |
+| Base Sepolia    |  `84532` | `DeployDopplerScriptBaseSepolia`    | `DeployDopplerCreateXDeployerScriptBaseSepolia`         | `true`  |
 
 Chain-specific wrappers are recommended for both the CreateX deployer script and the protocol deployment script.
 They keep the target chain, testnet flag, salts, and expected addresses explicit, and they work cleanly from both
@@ -61,10 +63,10 @@ Each chain section in `deployments.config.toml` needs:
 
 Keep the RPC references aligned:
 
-- Local `.env`: `BASE_SEPOLIA_RPC_URL=...`
-- `foundry.toml`: `base_sepolia = "${BASE_SEPOLIA_RPC_URL}"`
-- `deployments.config.toml`: `[84532] endpoint_url = "${BASE_SEPOLIA_RPC_URL}"`
-- GitHub repository secret: `BASE_SEPOLIA_RPC_URL`
+- Local `.env`: `ARBITRUM_MAINNET_RPC_URL=...`
+- `foundry.toml`: `arbitrum = "${ARBITRUM_MAINNET_RPC_URL}"`
+- `deployments.config.toml`: `[42161] endpoint_url = "${ARBITRUM_MAINNET_RPC_URL}"`
+- GitHub repository secret: `ARBITRUM_MAINNET_RPC_URL`
 
 #### Deploy DopplerCreateXDeployer
 
@@ -222,5 +224,6 @@ time. Use them only after `protocol_deployer` is configured and the broadcasting
 `DopplerCreateXDeployer`.
 
 Standalone deploy scripts expose chain-specific wrappers named like `<DeployScriptName>Ethereum`,
-`<DeployScriptName>Monad`, `<DeployScriptName>Base`, and `<DeployScriptName>BaseSepolia` when supported. Scripts that
-call `_loadConfigForCurrentChain()` instead of selecting a fork internally should be run with a target `--rpc-url`.
+`<DeployScriptName>Monad`, `<DeployScriptName>Robinhood`, `<DeployScriptName>Base`,
+`<DeployScriptName>Arbitrum`, and `<DeployScriptName>BaseSepolia` when supported. Scripts that call
+`_loadConfigForCurrentChain()` instead of selecting a fork internally should be run with a target `--rpc-url`.

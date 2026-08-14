@@ -88,15 +88,21 @@ contract DeployRehypeDopplerHookInitializerScriptMonad is DeployRehypeDopplerHoo
     }
 }
 
+contract DeployRehypeDopplerHookInitializerScriptRobinhood is DeployRehypeDopplerHookInitializerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployRehypeDopplerHookInitializerScriptBase is DeployRehypeDopplerHookInitializerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployRehypeDopplerHookInitializerScriptRobinhood is DeployRehypeDopplerHookInitializerScript {
+contract DeployRehypeDopplerHookInitializerScriptArbitrum is DeployRehypeDopplerHookInitializerScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

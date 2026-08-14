@@ -170,6 +170,27 @@ uniswap_v4_state_view = "0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71"
 universal_router = "0x6fF5693b99212Da76ad316178A184AB56D299b43"
 weth = "0x4200000000000000000000000000000000000006"
 
+[42161]
+endpoint_url = "${ARBITRUM_MAINNET_RPC_URL}"
+
+[42161.bool]
+is_testnet = false
+
+[42161.address]
+airlock_multisig = "0xEDeAa06E2eB42A5c19ce27c6cfFb36fd4fE1eDa8"
+create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+create_x = "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+deployer_owner = "0xEDeAa06E2eB42A5c19ce27c6cfFb36fd4fE1eDa8"
+protocol_deployer = "0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83"
+quoter_v2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+quoter_v4 = "0x3972C00f7ed4885e145823eb7C655375d275A1C5"
+uniswap_v2_factory = "0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9"
+uniswap_v3_factory = "0x1F98431c8aD98523631AE4a59f267346ea31F984"
+uniswap_v4_pool_manager = "0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32"
+uniswap_v4_state_view = "0x76Fd297e2D437cd7f76d50F01AfE6160f86e9990"
+universal_router = "0xA51afAFe0263b40EdaEf0Df8781eA9aa03E381a3"
+weth = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+
 [84532]
 endpoint_url = "${BASE_SEPOLIA_RPC_URL}"
 

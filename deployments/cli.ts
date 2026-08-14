@@ -12,6 +12,7 @@ const supportedChainIds: Record<number, true> = {
   143: true,
   4663: true,
   8453: true,
+  42161: true,
   84532: true,
 };
 
@@ -63,6 +64,11 @@ const chains: { [chainId: string]: ChainDetails } = {
   8453: {
     name: 'Base',
     explorerUrl: 'https://basescan.org',
+    isTestnet: false,
+  },
+  42161: {
+    name: 'Arbitrum One',
+    explorerUrl: 'https://arbiscan.io',
     isTestnet: false,
   },
   84532: {

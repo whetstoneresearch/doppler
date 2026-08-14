@@ -62,15 +62,21 @@ contract DeployNoOpGovernanceFactoryScriptMonad is DeployNoOpGovernanceFactorySc
     }
 }
 
+contract DeployNoOpGovernanceFactoryScriptRobinhood is DeployNoOpGovernanceFactoryScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployNoOpGovernanceFactoryScriptBase is DeployNoOpGovernanceFactoryScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployNoOpGovernanceFactoryScriptRobinhood is DeployNoOpGovernanceFactoryScript {
+contract DeployNoOpGovernanceFactoryScriptArbitrum is DeployNoOpGovernanceFactoryScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

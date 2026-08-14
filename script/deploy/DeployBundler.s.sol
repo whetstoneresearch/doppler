@@ -75,15 +75,21 @@ contract DeployBundlerScriptMonad is DeployBundlerScript {
     }
 }
 
+contract DeployBundlerScriptRobinhood is DeployBundlerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployBundlerScriptBase is DeployBundlerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployBundlerScriptRobinhood is DeployBundlerScript {
+contract DeployBundlerScriptArbitrum is DeployBundlerScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

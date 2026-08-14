@@ -115,15 +115,21 @@ contract DeployDopplerScriptMonad is DeployDopplerScript {
     }
 }
 
+contract DeployDopplerScriptRobinhood is DeployDopplerScript {
+    function setUp() public override {
+        _setUpChain(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployDopplerScriptBase is DeployDopplerScript {
     function setUp() public override {
         _setUpChain(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployDopplerScriptRobinhood is DeployDopplerScript {
+contract DeployDopplerScriptArbitrum is DeployDopplerScript {
     function setUp() public override {
-        _setUpChain(ChainIds.ROBINHOOD_MAINNET, false);
+        _setUpChain(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

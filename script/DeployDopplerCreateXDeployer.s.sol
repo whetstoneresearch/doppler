@@ -79,6 +79,14 @@ contract DeployDopplerCreateXDeployerScriptMonad is DeployDopplerCreateXDeployer
     }
 }
 
+contract DeployDopplerCreateXDeployerScriptRobinhood is DeployDopplerCreateXDeployerScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
+        expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
+    }
+}
+
 contract DeployDopplerCreateXDeployerScriptBase is DeployDopplerCreateXDeployerScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
@@ -87,9 +95,9 @@ contract DeployDopplerCreateXDeployerScriptBase is DeployDopplerCreateXDeployerS
     }
 }
 
-contract DeployDopplerCreateXDeployerScriptRobinhood is DeployDopplerCreateXDeployerScript {
+contract DeployDopplerCreateXDeployerScriptArbitrum is DeployDopplerCreateXDeployerScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
         salt = hex"b3a2b7b26a65dd0292755b000000000000000000000000000000000000000000";
         expectedAddress = 0x103004E50Bed65DFBa30dD9c264B6BdF5e529B83;
     }

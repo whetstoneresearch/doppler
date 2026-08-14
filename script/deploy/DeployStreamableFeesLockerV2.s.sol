@@ -78,15 +78,21 @@ contract DeployStreamableFeesLockerV2ScriptMonad is DeployStreamableFeesLockerV2
     }
 }
 
+contract DeployStreamableFeesLockerV2ScriptRobinhood is DeployStreamableFeesLockerV2Script {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployStreamableFeesLockerV2ScriptBase is DeployStreamableFeesLockerV2Script {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployStreamableFeesLockerV2ScriptRobinhood is DeployStreamableFeesLockerV2Script {
+contract DeployStreamableFeesLockerV2ScriptArbitrum is DeployStreamableFeesLockerV2Script {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 

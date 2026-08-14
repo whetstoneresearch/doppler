@@ -99,6 +99,9 @@
     "UniswapV2MigratorSplit": "0xd7aba5f1d80a330a6fe9e96f7ba122710e0912d3",
     "UniswapV4Initializer": "0x53b4c21a6cb61d64f636abbfa6e8e90e6558e8ad"
   },
+  "42161": {
+    "DopplerCreateXDeployer": "0x103004e50bed65dfba30dd9c264b6bdf5e529b83"
+  },
   "84532": {
     "Airlock": "0x3411306ce66c9469bff1535ba955503c4bde1c6e",
     "AirlockMultisigTestnet": "0x0abcf819fd57c9f0141628410ffc273405e44426",

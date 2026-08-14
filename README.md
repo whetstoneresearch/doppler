@@ -61,3 +61,5 @@ FEE=30
 ### Deploying
 
 See the deployment documentation in [docs/Deployment.md](/docs/Deployment.md). Configure the required environment variables in `.env` or GitHub, and then run the relevant deployment script directly with `forge script`.
+
+Deployment tooling supports Ethereum, Monad, Robinhood Chain, Base, Arbitrum One, and Base Sepolia. Chain-specific wrappers and required RPC environment variables are listed in the deployment documentation.

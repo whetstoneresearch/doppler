@@ -91,15 +91,21 @@ contract DeployUniV2MigratorSplitScriptMonad is DeployUniV2MigratorSplitScript {
     }
 }
 
+contract DeployUniV2MigratorSplitScriptRobinhood is DeployUniV2MigratorSplitScript {
+    function setUp() public override {
+        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+    }
+}
+
 contract DeployUniV2MigratorSplitScriptBase is DeployUniV2MigratorSplitScript {
     function setUp() public override {
         _loadConfigAndSelectFork(ChainIds.BASE_MAINNET, false);
     }
 }
 
-contract DeployUniV2MigratorSplitScriptRobinhood is DeployUniV2MigratorSplitScript {
+contract DeployUniV2MigratorSplitScriptArbitrum is DeployUniV2MigratorSplitScript {
     function setUp() public override {
-        _loadConfigAndSelectFork(ChainIds.ROBINHOOD_MAINNET, false);
+        _loadConfigAndSelectFork(ChainIds.ARBITRUM_MAINNET, false);
     }
 }
 
