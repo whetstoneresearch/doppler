@@ -100,7 +100,31 @@
     "UniswapV4Initializer": "0x53b4c21a6cb61d64f636abbfa6e8e90e6558e8ad"
   },
   "42161": {
-    "DopplerCreateXDeployer": "0x103004e50bed65dfba30dd9c264b6bdf5e529b83"
+    "Airlock": "0xeb7c034704ef8dcd2d32324c1545f62fb4ad0862",
+    "Bundler": "0xf45588e8e0b1df9db9ae7e20ece5726ae931357c",
+    "DN404Factory": "0x37a9fa204a4d3a429fded7e3469ab076c854bc9d",
+    "DopplerCreateXDeployer": "0x103004e50bed65dfba30dd9c264b6bdf5e529b83",
+    "DopplerDeployer": "0x4389ad34938b14f25cff7ed983c53f5a42a2573f",
+    "DopplerERC20V1": "0x3be8b97fd0e713b5abe0649fa830223b6b4bc599",
+    "DopplerERC20V1Factory": "0x1b37d3a72082029c44b35b604ea473617580b69a",
+    "DopplerHookInitializer": "0xaa7f809bb3752f715fa2e418230667c382a56544",
+    "DopplerHookMigrator": "0x7bf319d8e969f7596b1bc171da9ce322f67ae0c4",
+    "DopplerLensQuoter": "0xf4c22465532f64777ffcd7770831aeca38f35c04",
+    "GovernanceFactory": "0xdeb0447dae3eb177c4dba8bbccca25c8f273b7ef",
+    "LaunchpadGovernanceFactory": "0xdb036746d65dd52126b1915f1adf555e6c5237cf",
+    "LockableUniswapV3Initializer": "0xde8886a0019ea060b8378ee37b8a23b8117f29a3",
+    "NoOpGovernanceFactory": "0x85f37f74ef2478a770318bc810177a9835911ad7",
+    "NoOpMigrator": "0xba2f330edb16cd8056f5988d8ce19bbc63475a0e",
+    "Quoter": "0xc9be59b344ec66547a4c697aa374e959d59b0567",
+    "RehypeDopplerHookInitializer": "0x5f9eb5f6726fe88d5e39867967f5b833d2fa3215",
+    "RehypeDopplerHookMigrator": "0x660740d7d6fb2c8998fa3fff459cceb9ac12c84b",
+    "StreamableFeesLockerV2": "0xed822828b6109d16a9d362b8146a35789e0064f5",
+    "SwapRestrictorDopplerHook": "0xc16c826f75338a5ea626f94f8992191b4ce5aba2",
+    "TimelockFactory": "0x6076fddfcac0dd980e0350dff5239fec3f86c578",
+    "TopUpDistributor": "0x46adee7595d48b1ec53090e9bc78e1e69fa0ef06",
+    "UniswapV2Locker": "0x63f6efe03f25a8c6650b38d05c5a454051d642a5",
+    "UniswapV2MigratorSplit": "0xb05046cea797c993fb5b583098b1c4682e9da333",
+    "UniswapV4Initializer": "0x6cce158b6d1747617fc218592b4d60b239b957ea"
   },
   "84532": {
     "Airlock": "0x3411306ce66c9469bff1535ba955503c4bde1c6e",

@@ -99,14 +99,125 @@ jobs:
           echo "Resolved $SCRIPT_NAME to ${matches[0]}"
 
       - name: Build scripts
-        run: forge build ./script --via-ir
+        run: forge build ./script --via-ir --build-info
 
       - name: Run deployment script
+        id: deployment
         shell: bash
         env:
           BROADCAST: ${{ inputs.broadcast }}
           DEPLOYER_ADDRESS: ${{ steps.deployer.outputs.address }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
+          ETH_SEPOLIA_RPC_URL: ${{ secrets.ETH_SEPOLIA_RPC_URL }}
+          MONAD_MAINNET_RPC_URL: ${{ secrets.MONAD_MAINNET_RPC_URL }}
+          MONAD_TESTNET_RPC_URL: ${{ secrets.MONAD_TESTNET_RPC_URL }}
+          BASE_MAINNET_RPC_URL: ${{ secrets.BASE_MAINNET_RPC_URL }}
+          ARBITRUM_MAINNET_RPC_URL: ${{ secrets.ARBITRUM_MAINNET_RPC_URL }}
+          BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+          UNICHAIN_MAINNET_RPC_URL: ${{ secrets.UNICHAIN_MAINNET_RPC_URL }}
+          UNICHAIN_SEPOLIA_RPC_URL: ${{ secrets.UNICHAIN_SEPOLIA_RPC_URL }}
+          MEGAETH_MAINNET_RPC_URL: ${{ secrets.MEGAETH_MAINNET_RPC_URL }}
+          MEGAETH_TESTNET_RPC_URL: ${{ secrets.MEGAETH_TESTNET_RPC_URL }}
+          RPC_URL: ${{ inputs.rpc_url }}
+          SCRIPT_NAME: ${{ inputs.script_name }}
+          SCRIPT_FILE: ${{ steps.script.outputs.file }}
+        run: |
+          set -euo pipefail
+          broadcast_marker=""
+          if [[ "$BROADCAST" == "true" ]]; then
+            broadcast_marker="$(mktemp)"
+          fi
+
+          forge_args=(
+            --target-contract "$SCRIPT_NAME"
+            --private-key "$DEPLOYER_PRIVATE_KEY"
+            --sender "$DEPLOYER_ADDRESS"
+            --non-interactive
+            --build-info
+            -vvv
+          )
+
+          if [[ -n "$RPC_URL" ]]; then
+            forge_args+=(--rpc-url "$RPC_URL")
+          fi
+
+          if [[ "$BROADCAST" == "true" ]]; then
+            forge_args+=(--broadcast --slow)
+          fi
+
+          forge script "${forge_args[@]}" "$SCRIPT_FILE"
+
+          hook_build_id="$(jq -r '
+            .files["src/initializers/DopplerHookInitializer.sol"].artifacts.DopplerHookInitializer
+            | [.. | objects | .build_id? // empty]
+            | unique
+            | if length == 1 then .[0] else empty end
+          ' cache/solidity-files-cache.json)"
+          if [[ -z "$hook_build_id" ]]; then
+            echo "::error::Could not identify the DopplerHookInitializer compiler build."
+            exit 1
+          fi
+          echo "doppler_hook_build_id=$hook_build_id" >> "$GITHUB_OUTPUT"
+
+          if [[ "$BROADCAST" == "true" ]]; then
+            script_file_name="${SCRIPT_FILE##*/}"
+            run_files=()
+            shopt -s nullglob
+            for run_file in "broadcast/$script_file_name"/*/run-latest.json; do
+              if [[ "$run_file" -nt "$broadcast_marker" ]]; then
+                run_files+=("$run_file")
+              fi
+            done
+            rm -f "$broadcast_marker"
+
+            if [[ "${#run_files[@]}" -ne 1 ]]; then
+              echo "::error::Expected one updated broadcast artifact for $script_file_name, found ${#run_files[@]}."
+              exit 1
+            fi
+
+            chain_id="$(jq -r '.chain // empty' "${run_files[0]}")"
+            if [[ ! "$chain_id" =~ ^[0-9]+$ ]]; then
+              echo "::error::Could not infer a numeric chain ID from ${run_files[0]}."
+              exit 1
+            fi
+            echo "chain_id=$chain_id" >> "$GITHUB_OUTPUT"
+
+            if jq -e 'any(.transactions[]?; .contractName == "DopplerHookInitializer" or any(.additionalContracts[]?; .contractName == "DopplerHookInitializer"))' "${run_files[0]}" > /dev/null; then
+              echo "doppler_hook_initializer_deployed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "doppler_hook_initializer_deployed=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Install Bun dependencies
+        if: ${{ inputs.broadcast && steps.deployment.outputs.doppler_hook_initializer_deployed == 'true' }}
+        run: bun install --frozen-lockfile
+
+      - name: Verify DopplerHookInitializer
+        if: ${{ inputs.broadcast && steps.deployment.outputs.doppler_hook_initializer_deployed == 'true' }}
+        shell: bash
+        env:
+          CHAIN_ID: ${{ steps.deployment.outputs.chain_id }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          DOPPLER_HOOK_BUILD_ID: ${{ steps.deployment.outputs.doppler_hook_build_id }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$CHAIN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::chain_id must be a numeric chain ID."
+            exit 1
+          fi
+
+          bun scripts/VerifyDopplerHookInitializer.ts "$CHAIN_ID"
+
+      - name: Verify deployment contracts
+        if: ${{ inputs.broadcast }}
+        shell: bash
+        env:
+          DEPLOYER_ADDRESS: ${{ steps.deployer.outputs.address }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
           ETH_MAINNET_RPC_URL: ${{ secrets.ETH_MAINNET_RPC_URL }}
           ETH_SEPOLIA_RPC_URL: ${{ secrets.ETH_SEPOLIA_RPC_URL }}
           MONAD_MAINNET_RPC_URL: ${{ secrets.MONAD_MAINNET_RPC_URL }}
@@ -129,15 +240,20 @@ jobs:
             --private-key "$DEPLOYER_PRIVATE_KEY"
             --sender "$DEPLOYER_ADDRESS"
             --non-interactive
+            --resume
+            --build-info
+            --verify
             -vvv
           )
 
+          if [[ -z "${ETHERSCAN_API_KEY:-}" ]]; then
+            echo "::error::ETHERSCAN_API_KEY secret is required for broadcast verification."
+            exit 1
+          fi
+          forge_args+=(--verifier etherscan --etherscan-api-key "$ETHERSCAN_API_KEY")
+
           if [[ -n "$RPC_URL" ]]; then
             forge_args+=(--rpc-url "$RPC_URL")
-          fi
-
-          if [[ "$BROADCAST" == "true" ]]; then
-            forge_args+=(--broadcast --slow)
           fi
 
           forge script "${forge_args[@]}" "$SCRIPT_FILE"

@@ -14,10 +14,7 @@ simulation, debugging, and emergency manual execution.
 > any deployment scripts. This will help ensure installed dependencies are consistent, and aid in contract verification.
 
 > [!IMPORTANT]
-> TODO: contract verification is not wired into the deployment workflow yet. Before mainnet deployments, add
-> `ETHERSCAN_API_KEY` or the chain-specific verifier secret to the `doppler` repository secrets, pass the relevant
-> `--verify` flags to `forge script`, and update the workflow so the Etherscan or verifier endpoint for the target
-> chain can be selected. Do not treat a deployment as complete until verification is added or performed manually.
+> Broadcast runs require the `ETHERSCAN_API_KEY` repository secret. The workflow verifies `DopplerHookInitializer` with its dedicated Bun script, then uses Foundry to verify every contract recorded in the broadcast receipts.
 
 #### Current Wrappers
 
@@ -145,12 +142,10 @@ The GitHub Action is the primary process for protocol deployments.
 
 Required `doppler` repository or environment secrets:
 
-- `DEPLOYER_PRIVATE_KEY`: private key for the workflow deployer. The current expected deployer address is
-  `0xcCe8c8461F91dCD4c1f99520b685648DF3462D4C`, and it must be authorized as a Deployer on
-  `DopplerCreateXDeployer` before the protocol deployment runs.
+- `DEPLOYER_PRIVATE_KEY`: private key for the workflow deployer. The current expected deployer address is `0xcCe8c8461F91dCD4c1f99520b685648DF3462D4C`, and it must be authorized as a Deployer on `DopplerCreateXDeployer` before the protocol deployment runs.
 - Target chain RPC secret, for example `BASE_SEPOLIA_RPC_URL`.
-- Any other RPC secrets referenced by `deployments.config.toml` should also exist in the repository environment so
-  config loading is consistent across chains.
+- Any other RPC secrets referenced by `deployments.config.toml` should also exist in the repository environment so config loading is consistent across chains.
+- `ETHERSCAN_API_KEY`: Etherscan V2 API key used for contract verification.
 
 Run a simulation first:
 
@@ -171,12 +166,13 @@ rpc_url: leave blank for chain-specific wrappers
 During workflow execution:
 
 1. The workflow derives the sender from `DEPLOYER_PRIVATE_KEY`.
-2. It builds all scripts with `forge build ./script --via-ir`.
+2. It builds all scripts with `forge build ./script --via-ir --build-info` and records the initializer's compiler build ID for exact-bytecode verification.
 3. It runs `forge script` with `--target-contract`, `--private-key`, `--sender`, `--non-interactive`, and `-vvv`.
 4. For broadcasts, it also adds `--broadcast --slow`.
-5. After a successful broadcast, it runs `make generate-history`.
-6. It uploads deployment artifacts and opens a pull request containing broadcast logs, `deployments.config.toml`,
-   `Deployments.md`, `Deployments.json`, and per-chain deployment docs.
+5. Deployments containing `DopplerHookInitializer` infer the chain ID from the updated broadcast artifact and run `scripts/VerifyDopplerHookInitializer.ts`.
+6. It resumes the broadcast with `--verify --verifier etherscan` to verify every contract found in the receipts.
+7. After successful verification, it runs `make generate-history`.
+8. It uploads deployment artifacts and opens a pull request containing broadcast logs, `deployments.config.toml`, `Deployments.md`, `Deployments.json`, and per-chain deployment docs.
 
 Review the generated deployment-record PR, confirm the addresses and transaction hashes, then merge it.
 
