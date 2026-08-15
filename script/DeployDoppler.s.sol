@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import { TestDeployment } from "script/TestDeployment.s.sol";
 import { DeployAirlock } from "script/deploy/DeployAirlock.s.sol";
 import { DeployAirlockMultisigTestnet } from "script/deploy/DeployAirlockMultisigTestnet.s.sol";
 import { DeployBundler } from "script/deploy/DeployBundler.s.sol";
@@ -43,7 +44,8 @@ contract DeployDopplerScript is
     DeployUniV2MigratorSplit,
     DeployDopplerHookMigrator,
     DeployRehypeDopplerHookMigrator,
-    DeployDopplerLensQuoter
+    DeployDopplerLensQuoter,
+    TestDeployment
 {
     bool internal isTestnet;
 
@@ -51,10 +53,14 @@ contract DeployDopplerScript is
         address airlockMultisig;
         address airlock;
         address bundler;
+        address dopplerERC20V1Factory;
+        address noOpGovernanceFactory;
         address topUpDistributor;
         address streamableFeesLockerV2;
         address dopplerHookInitializer;
+        address rehypeDopplerHookInitializer;
         address dopplerHookMigrator;
+        address noOpMigrator;
     }
 
     function setUp() public virtual {
@@ -76,10 +82,10 @@ contract DeployDopplerScript is
         deployed.topUpDistributor = _deployTopUpDistributor(context, deployed.airlock);
         deployed.streamableFeesLockerV2 = _deployStreamableFeesLockerV2(context, deployed.airlockMultisig);
 
-        _deployDopplerERC20V1Factory(context, deployed.airlock);
+        deployed.dopplerERC20V1Factory = _deployDopplerERC20V1Factory(context, deployed.airlock);
         _deployDN404Factory(context, deployed.airlock);
 
-        _deployNoOpGovernanceFactory(context);
+        deployed.noOpGovernanceFactory = _deployNoOpGovernanceFactory(context);
         _deployGovernanceFactory(context, deployed.airlock);
         _deployLaunchpadGovernanceFactory(context);
 
@@ -88,10 +94,11 @@ contract DeployDopplerScript is
         deployed.dopplerHookInitializer = _deployDopplerHookInitializer(context, deployed.airlock);
         deployed.bundler = _deployBundler(context, deployed.airlock);
 
-        _deployRehypeDopplerHookInitializer(context, deployed.dopplerHookInitializer, deployed.bundler);
+        deployed.rehypeDopplerHookInitializer =
+            _deployRehypeDopplerHookInitializer(context, deployed.dopplerHookInitializer, deployed.bundler);
         _deploySwapRestrictorDopplerHook(context, deployed.dopplerHookInitializer);
 
-        _deployNoOpMigrator(context, deployed.airlock);
+        deployed.noOpMigrator = _deployNoOpMigrator(context, deployed.airlock);
         _deployUniV2MigratorSplit(context, deployed.airlock, deployed.topUpDistributor);
         deployed.dopplerHookMigrator = _deployDopplerHookMigrator(
             context, deployed.airlock, deployed.topUpDistributor, deployed.streamableFeesLockerV2
@@ -99,6 +106,16 @@ contract DeployDopplerScript is
         _deployRehypeDopplerHookMigrator(context, deployed.dopplerHookMigrator);
 
         _deployDopplerLensQuoter(context);
+
+        _testDeployment(
+            deployed.airlock,
+            deployed.bundler,
+            deployed.dopplerERC20V1Factory,
+            deployed.noOpGovernanceFactory,
+            deployed.dopplerHookInitializer,
+            deployed.rehypeDopplerHookInitializer,
+            deployed.noOpMigrator
+        );
     }
 
     function _setUpChain(uint256 chainId, bool _isTestnet) internal {
