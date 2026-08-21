@@ -26,8 +26,8 @@ contract Versions {
     uint8 public constant UNISWAP_V2_MIGRATOR_SPLIT_VERSION = 0;
     uint8 public constant NO_OP_MIGRATOR_VERSION = 0;
     // --- Doppler Hooks ---
-    uint8 public constant REHYPE_DOPPLER_HOOK_INITIALIZER_VERSION = 4;
-    uint8 public constant REHYPE_DOPPLER_HOOK_MIGRATOR_VERSION = 2;
+    uint8 public constant REHYPE_DOPPLER_HOOK_INITIALIZER_VERSION = 5;
+    uint8 public constant REHYPE_DOPPLER_HOOK_MIGRATOR_VERSION = 3;
     uint8 public constant SWAP_RESTRICTOR_DOPPLER_HOOK_VERSION = 0;
     // --- Other ---
     uint8 public constant DOPPLER_LENS_QUOTER_VERSION = 0;

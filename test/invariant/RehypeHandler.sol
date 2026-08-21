@@ -25,7 +25,15 @@ import { DopplerHookInitializer, InitData } from "src/initializers/DopplerHookIn
 import { Curve } from "src/libraries/Multicurve.sol";
 import { alignTick } from "src/libraries/TickLibrary.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { EPSILON, FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
+import {
+    EPSILON,
+    FeeDistributionInfo,
+    FeeRoutingMode,
+    INTEGRATOR_CONVERSION_RATIO_DENOMINATOR,
+    InitData as RehypeInitData,
+    IntegratorInitConfig,
+    MAX_INTEGRATOR_FEE_SHARE
+} from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 import { AddressSet, LibAddressSet } from "test/invariant/AddressSet.sol";
 import { CustomRevertDecoder } from "test/utils/CustomRevertDecoder.sol";
@@ -34,6 +42,9 @@ uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
 uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 
 address constant AIRLOCK_OWNER = 0xf00000000000000000000000000000000000B055;
+address constant INTEGRATOR_A = 0xF00000000000000000000000000000000000a001;
+address constant INTEGRATOR_B = 0xf00000000000000000000000000000000000a002;
+address constant INTEGRATOR_TREASURY = 0xf00000000000000000000000000000000000a003;
 
 contract RehyperInvariantTests is Deployers {
     Airlock public airlock;
@@ -64,7 +75,7 @@ contract RehyperInvariantTests is Deployers {
             "DopplerHookInitializer", abi.encode(address(handler), address(manager)), address(dopplerHookInitializer)
         );
 
-        bytes4[] memory selectors = new bytes4[](7);
+        bytes4[] memory selectors = new bytes4[](11);
         selectors[0] = handler.initialize.selector;
         selectors[1] = handler.buyExactIn.selector;
         selectors[2] = handler.buyExactOut.selector;
@@ -72,6 +83,10 @@ contract RehyperInvariantTests is Deployers {
         selectors[4] = handler.sellExactOut.selector;
         selectors[5] = handler.collectFees.selector;
         selectors[6] = handler.claimAirlockOwnerFees.selector;
+        selectors[7] = handler.setIntegratorConversionRatios.selector;
+        selectors[8] = handler.setIntegratorAutomaticPayout.selector;
+        selectors[9] = handler.setIntegrator.selector;
+        selectors[10] = handler.claimIntegratorFees.selector;
 
         targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
         targetContract(address(handler));
@@ -91,9 +106,21 @@ contract RehyperInvariantTests is Deployers {
             PoolKey memory poolKey = handler.getPoolKey(i);
             PoolId poolId = poolKey.toId();
 
-            (,, uint128 beneficiaryFees0, uint128 beneficiaryFees1,,,) = rehypeHook.getHookFees(poolId);
-            assertGe(poolKey.currency0.balanceOf(address(rehypeHook)), beneficiaryFees0, "Insolvent for currency0");
-            assertGe(poolKey.currency1.balanceOf(address(rehypeHook)), beneficiaryFees1, "Insolvent for currency1");
+            (
+                uint128 fees0,
+                uint128 fees1,
+                uint128 beneficiaryFees0,
+                uint128 beneficiaryFees1,
+                uint128 airlockOwnerFees0,
+                uint128 airlockOwnerFees1,
+            ) = rehypeHook.getHookFees(poolId);
+            (uint128 pending0, uint128 pending1) = rehypeHook.getPendingIntegratorFees(poolId);
+            (uint128 claimable0, uint128 claimable1) = rehypeHook.getClaimableIntegratorFees(poolId);
+
+            uint256 liabilities0 = uint256(fees0) + beneficiaryFees0 + airlockOwnerFees0 + pending0 + claimable0;
+            uint256 liabilities1 = uint256(fees1) + beneficiaryFees1 + airlockOwnerFees1 + pending1 + claimable1;
+            assertGe(poolKey.currency0.balanceOf(address(rehypeHook)), liabilities0, "Insolvent for currency0");
+            assertGe(poolKey.currency1.balanceOf(address(rehypeHook)), liabilities1, "Insolvent for currency1");
         }
     }
 
@@ -105,8 +132,9 @@ contract RehyperInvariantTests is Deployers {
             PoolId poolId = poolKey.toId();
 
             (uint128 fees0, uint128 fees1,,,,,) = rehypeHook.getHookFees(poolId);
-            assertGe(EPSILON, fees0, "Excessive fees0 accumulated");
-            assertGe(EPSILON, fees1, "Excessive fees1 accumulated");
+            (uint128 pending0, uint128 pending1) = rehypeHook.getPendingIntegratorFees(poolId);
+            assertLe(uint256(fees0) + pending0, EPSILON, "Excessive pending currency0 fees");
+            assertLe(uint256(fees1) + pending1, EPSILON, "Excessive pending currency1 fees");
         }
     }
 
@@ -260,6 +288,14 @@ contract RehypeHandler is Test {
             isToken0: Currency.unwrap(poolKey.currency0) == asset
         });
 
+        uint256 integratorSeed = uint256(keccak256(abi.encode(seed, "integrator")));
+        address integrator = integratorSeed & 1 == 0 ? address(this) : INTEGRATOR_A;
+        uint24 integratorFeeShare = uint24(integratorSeed % MAX_INTEGRATOR_FEE_SHARE) + 1;
+        uint32 assetFeesToNumeraireRatio =
+            uint32((integratorSeed >> 32) % (INTEGRATOR_CONVERSION_RATIO_DENOMINATOR + 1));
+        uint32 numeraireFeesToAssetRatio =
+            uint32((integratorSeed >> 64) % (INTEGRATOR_CONVERSION_RATIO_DENOMINATOR + 1));
+
         data.onInitializationDopplerHookCalldata = abi.encode(
             RehypeInitData({
                 numeraire: numeraire,
@@ -270,15 +306,22 @@ contract RehypeHandler is Test {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: IntegratorInitConfig({
+                    integrator: integrator,
+                    feeShare: integratorFeeShare,
+                    assetFeesToNumeraireRatio: assetFeesToNumeraireRatio,
+                    numeraireFeesToAssetRatio: numeraireFeesToAssetRatio,
+                    automaticPayout: integratorSeed >> 96 & 1 == 1
+                }),
                 feeDistributionInfo: FeeDistributionInfo({
-                    assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
-                    assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
-                    assetFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
-                    assetFeesToLpWad: settings.lpPercentWad,
-                    numeraireFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
-                    numeraireFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
-                    numeraireFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
-                    numeraireFeesToLpWad: settings.lpPercentWad
+                    assetFeesToAssetBuybackWad: uint64(settings.assetBuybackPercentWad),
+                    assetFeesToNumeraireBuybackWad: uint64(settings.numeraireBuybackPercentWad),
+                    assetFeesToBeneficiaryWad: uint64(settings.beneficiaryPercentWad),
+                    assetFeesToLpWad: uint64(settings.lpPercentWad),
+                    numeraireFeesToAssetBuybackWad: uint64(settings.assetBuybackPercentWad),
+                    numeraireFeesToNumeraireBuybackWad: uint64(settings.numeraireBuybackPercentWad),
+                    numeraireFeesToBeneficiaryWad: uint64(settings.beneficiaryPercentWad),
+                    numeraireFeesToLpWad: uint64(settings.lpPercentWad)
                 })
             })
         );
@@ -527,8 +570,6 @@ contract RehypeHandler is Test {
 
     function collectFees(uint256 seed) public {
         if (poolKeys.length == 0) return;
-        // Only 2% chance to collect fees
-        vm.assume(seed % 100 > 2);
 
         PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
         PoolId poolId = poolKey.toId();
@@ -538,8 +579,6 @@ contract RehypeHandler is Test {
 
     function claimAirlockOwnerFees(uint256 seed) public {
         if (poolKeys.length == 0) return;
-        // Only 2% chance to collect fees
-        vm.assume(seed % 100 > 2);
 
         PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
         PoolId poolId = poolKey.toId();
@@ -547,6 +586,54 @@ contract RehypeHandler is Test {
 
         vm.prank(AIRLOCK_OWNER);
         (uint128 fees0, uint128 fees1) = hook.claimAirlockOwnerFees(asset);
+    }
+
+    function setIntegratorConversionRatios(uint256 seed) public {
+        if (poolKeys.length == 0) return;
+
+        PoolId poolId = poolKeys[seed % poolKeys.length].toId();
+        (address integrator,,,) = hook.getIntegratorRoutingConfig(poolId);
+        uint32 assetFeesToNumeraireRatio = uint32((seed >> 32) % (INTEGRATOR_CONVERSION_RATIO_DENOMINATOR + 1));
+        uint32 numeraireFeesToAssetRatio = uint32((seed >> 64) % (INTEGRATOR_CONVERSION_RATIO_DENOMINATOR + 1));
+
+        vm.prank(integrator);
+        hook.setIntegratorConversionRatios(poolId, assetFeesToNumeraireRatio, numeraireFeesToAssetRatio);
+    }
+
+    function setIntegratorAutomaticPayout(uint256 seed) public {
+        if (poolKeys.length == 0) return;
+
+        PoolId poolId = poolKeys[seed % poolKeys.length].toId();
+        (address integrator,,,) = hook.getIntegratorRoutingConfig(poolId);
+
+        vm.prank(integrator);
+        hook.setIntegratorAutomaticPayout(poolId, seed >> 32 & 1 == 1);
+    }
+
+    function setIntegrator(uint256 seed) public {
+        if (poolKeys.length == 0) return;
+
+        PoolId poolId = poolKeys[seed % poolKeys.length].toId();
+        (address integrator,,,) = hook.getIntegratorRoutingConfig(poolId);
+        address newIntegrator;
+        uint256 integratorChoice = seed >> 32;
+        if (integratorChoice % 3 == 0) newIntegrator = address(this);
+        else if (integratorChoice % 3 == 1) newIntegrator = INTEGRATOR_A;
+        else newIntegrator = INTEGRATOR_B;
+
+        vm.prank(integrator);
+        hook.setIntegrator(poolId, newIntegrator);
+    }
+
+    function claimIntegratorFees(uint256 seed) public {
+        if (poolKeys.length == 0) return;
+
+        PoolKey memory poolKey = poolKeys[seed % poolKeys.length];
+        PoolId poolId = poolKey.toId();
+        (address integrator,,,) = hook.getIntegratorRoutingConfig(poolId);
+
+        vm.prank(integrator);
+        hook.claimIntegratorFees(settingsOf[poolId].asset, INTEGRATOR_TREASURY);
     }
 
     /* --------------------------------------------------------------------------------------- */

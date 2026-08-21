@@ -55,8 +55,8 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
     /// @notice Position data for each pool
     mapping(PoolId poolId => Position position) public getPosition;
 
-    /// @notice Fee distribution configuration for each pool
-    mapping(PoolId poolId => FeeDistributionInfo feeDistributionInfo) public getFeeDistributionInfo;
+    /// @dev Packed fee distribution configuration for each pool
+    mapping(PoolId poolId => FeeDistributionInfo feeDistributionInfo) private _feeDistributionInfo;
 
     /// @notice Hook fees tracking for each pool
     mapping(PoolId poolId => HookFees hookFees) public getHookFees;
@@ -79,6 +79,36 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         quoter = new Quoter(poolManager_);
     }
 
+    /**
+     * @notice Returns fee distribution weights using the original uint256 ABI.
+     */
+    function getFeeDistributionInfo(PoolId poolId)
+        external
+        view
+        returns (
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        )
+    {
+        FeeDistributionInfo memory distribution = _feeDistributionInfo[poolId];
+        return (
+            distribution.assetFeesToAssetBuybackWad,
+            distribution.assetFeesToNumeraireBuybackWad,
+            distribution.assetFeesToBeneficiaryWad,
+            distribution.assetFeesToLpWad,
+            distribution.numeraireFeesToAssetBuybackWad,
+            distribution.numeraireFeesToNumeraireBuybackWad,
+            distribution.numeraireFeesToBeneficiaryWad,
+            distribution.numeraireFeesToLpWad
+        );
+    }
+
     /// @inheritdoc BaseDopplerHookMigrator
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
         MigratorInitData memory initData = abi.decode(data, (MigratorInitData));
@@ -88,7 +118,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
 
         _validateFeeDistribution(initData.feeDistributionInfo);
-        getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
+        _feeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
         getHookFees[poolId].customFee = initData.customFee;
 
@@ -130,7 +160,7 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         bool isNumeraireToken0 = key.currency0 == Currency.wrap(numeraire);
         bool routeToBeneficiaryFees = getFeeRoutingMode[poolId] == FeeRoutingMode.RouteToBeneficiaryFees;
 
-        FeeDistributionInfo memory feeDistributionInfo = getFeeDistributionInfo[poolId];
+        FeeDistributionInfo memory feeDistributionInfo = _feeDistributionInfo[poolId];
 
         uint256 assetFees = isToken0 ? balance0 : balance1;
         uint256 numeraireFees = isToken0 ? balance1 : balance0;
@@ -680,28 +710,59 @@ contract RehypeDopplerHookMigrator is BaseDopplerHookMigrator, ReentrancyGuard {
         address buybackDst = getPoolInfo[poolId].buybackDst;
         require(msg.sender == buybackDst, SenderNotAuthorized());
 
-        FeeDistributionInfo memory feeDistributionInfo = FeeDistributionInfo({
-            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
-            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
-            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
-            assetFeesToLpWad: assetFeesToLpWad,
-            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
-            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
-            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
-            numeraireFeesToLpWad: numeraireFeesToLpWad
+        _validateFeeDistribution(
+            assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad,
+            assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad
+        );
+        _feeDistributionInfo[poolId] = FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: uint64(assetFeesToAssetBuybackWad),
+            assetFeesToNumeraireBuybackWad: uint64(assetFeesToNumeraireBuybackWad),
+            assetFeesToBeneficiaryWad: uint64(assetFeesToBeneficiaryWad),
+            assetFeesToLpWad: uint64(assetFeesToLpWad),
+            numeraireFeesToAssetBuybackWad: uint64(numeraireFeesToAssetBuybackWad),
+            numeraireFeesToNumeraireBuybackWad: uint64(numeraireFeesToNumeraireBuybackWad),
+            numeraireFeesToBeneficiaryWad: uint64(numeraireFeesToBeneficiaryWad),
+            numeraireFeesToLpWad: uint64(numeraireFeesToLpWad)
         });
-        _validateFeeDistribution(feeDistributionInfo);
-        getFeeDistributionInfo[poolId] = feeDistributionInfo;
+    }
+
+    function _validateFeeDistribution(
+        uint256 assetFeesToAssetBuybackWad,
+        uint256 assetFeesToNumeraireBuybackWad,
+        uint256 assetFeesToBeneficiaryWad,
+        uint256 assetFeesToLpWad,
+        uint256 numeraireFeesToAssetBuybackWad,
+        uint256 numeraireFeesToNumeraireBuybackWad,
+        uint256 numeraireFeesToBeneficiaryWad,
+        uint256 numeraireFeesToLpWad
+    ) internal pure {
+        require(
+            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad + assetFeesToLpWad
+                == WAD,
+            FeeDistributionMustAddUpToWAD()
+        );
+        require(
+            numeraireFeesToAssetBuybackWad + numeraireFeesToNumeraireBuybackWad + numeraireFeesToBeneficiaryWad
+                    + numeraireFeesToLpWad == WAD,
+            FeeDistributionMustAddUpToWAD()
+        );
     }
 
     function _validateFeeDistribution(FeeDistributionInfo memory feeDistributionInfo) internal pure {
         require(
-            feeDistributionInfo.assetFeesToAssetBuybackWad + feeDistributionInfo.assetFeesToNumeraireBuybackWad
+            uint256(feeDistributionInfo.assetFeesToAssetBuybackWad) + feeDistributionInfo.assetFeesToNumeraireBuybackWad
                     + feeDistributionInfo.assetFeesToBeneficiaryWad + feeDistributionInfo.assetFeesToLpWad == WAD,
             FeeDistributionMustAddUpToWAD()
         );
         require(
-            feeDistributionInfo.numeraireFeesToAssetBuybackWad + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
+            uint256(feeDistributionInfo.numeraireFeesToAssetBuybackWad)
+                    + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
                     + feeDistributionInfo.numeraireFeesToBeneficiaryWad + feeDistributionInfo.numeraireFeesToLpWad
                 == WAD,
             FeeDistributionMustAddUpToWAD()

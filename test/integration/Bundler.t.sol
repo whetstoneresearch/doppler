@@ -42,6 +42,7 @@ import {
     FeeDistributionInfo,
     FeeRoutingMode,
     InitData as RehypeInitData,
+    IntegratorInitConfig,
     SWAP_FEE_DENOMINATOR
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -163,6 +164,14 @@ contract BundlerIntegrationTest is Deployers {
     function test_bundle_NativeNumeraire_SpendsAllValueAndPaysOnlyOwnerFee() public {
         bytes32 salt = bytes32(uint256(2000));
         (CreateParams memory params, address predictedAsset) = _createParams(address(0), salt, START_FEE);
+        InitData memory initializerData = abi.decode(params.poolInitializerData, (InitData));
+        RehypeInitData memory rehypeData =
+            abi.decode(initializerData.onInitializationDopplerHookCalldata, (RehypeInitData));
+        rehypeData.integratorConfig.integrator = makeAddr("integrator");
+        rehypeData.integratorConfig.feeShare = 200_000;
+        rehypeData.integratorConfig.assetFeesToNumeraireRatio = 1_000_000_000;
+        initializerData.onInitializationDopplerHookCalldata = abi.encode(rehypeData);
+        params.poolInitializerData = abi.encode(initializerData);
 
         vm.deal(payer, DEV_BUY_AMOUNT);
         vm.prank(payer);
@@ -183,6 +192,11 @@ contract BundlerIntegrationTest is Deployers {
         assertEq(Currency.unwrap(key.currency1), asset);
         assertEq(PoolId.unwrap(poolKey.toId()), PoolId.unwrap(key.toId()));
         _assertOwnerOnlyDevBuyFee(key.toId(), key, amountOut);
+        (uint128 pending0, uint128 pending1) = rehype.getPendingIntegratorFees(key.toId());
+        (uint128 claimable0, uint128 claimable1) = rehype.getClaimableIntegratorFees(key.toId());
+        assertEq(
+            uint256(pending0) + pending1 + claimable0 + claimable1, 0, "dev buy must exempt configured integrator fees"
+        );
     }
 
     function test_simulateBundle_ERC20Numeraire_ReturnsExactBundleResultAndRevertsState() public {
@@ -684,11 +698,11 @@ contract BundlerIntegrationTest is Deployers {
         FeeDistributionInfo memory distribution = FeeDistributionInfo({
             assetFeesToAssetBuybackWad: 0,
             assetFeesToNumeraireBuybackWad: 0,
-            assetFeesToBeneficiaryWad: WAD,
+            assetFeesToBeneficiaryWad: uint64(WAD),
             assetFeesToLpWad: 0,
             numeraireFeesToAssetBuybackWad: 0,
             numeraireFeesToNumeraireBuybackWad: 0,
-            numeraireFeesToBeneficiaryWad: WAD,
+            numeraireFeesToBeneficiaryWad: uint64(WAD),
             numeraireFeesToLpWad: 0
         });
 
@@ -701,7 +715,14 @@ contract BundlerIntegrationTest is Deployers {
             startingTime: 0,
             feeRoutingMode: FeeRoutingMode.DirectBuyback,
             feeDistributionInfo: distribution,
-            feeBeneficiaries: new BeneficiaryData[](0)
+            feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: IntegratorInitConfig({
+                integrator: address(0),
+                feeShare: 0,
+                assetFeesToNumeraireRatio: 0,
+                numeraireFeesToAssetRatio: 0,
+                automaticPayout: false
+            })
         });
 
         InitData memory initData = InitData({

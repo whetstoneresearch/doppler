@@ -138,10 +138,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         uint24 customFee = 3000; // 0.3%
 
         // Fee distribution that adds up to WAD
-        uint256 assetBuybackPercentWad = 0.25e18;
-        uint256 numeraireBuybackPercentWad = 0.25e18;
-        uint256 beneficiaryPercentWad = 0.25e18;
-        uint256 lpPercentWad = 0.25e18;
+        uint64 assetBuybackPercentWad = uint64(0.25e18);
+        uint64 numeraireBuybackPercentWad = uint64(0.25e18);
+        uint64 beneficiaryPercentWad = uint64(0.25e18);
+        uint64 lpPercentWad = uint64(0.25e18);
 
         bytes memory data = abi.encode(
             MigratorInitData({
@@ -190,6 +190,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(storedNumeraireBuyback, numeraireBuybackPercentWad);
         assertEq(storedBeneficiary, beneficiaryPercentWad);
         assertEq(storedLp, lpPercentWad);
+        assertEq(storedNumeraireRowAssetBuyback, assetBuybackPercentWad);
+        assertEq(storedNumeraireRowNumeraireBuyback, numeraireBuybackPercentWad);
+        assertEq(storedNumeraireRowBeneficiary, beneficiaryPercentWad);
+        assertEq(storedNumeraireRowLp, lpPercentWad);
 
         // Check hook fees
         (
@@ -274,30 +278,23 @@ contract RehypeDopplerHookMigratorTest is Test {
     function test_onInitialization_RevertsWhenFeeDistributionExceedsWAD(PoolKey memory poolKey) public {
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
+        MigratorInitData memory initData =
+            _quarterMigratorInitData(numeraire, address(0), 0, FeeRoutingMode.DirectBuyback);
 
-        // Fee distribution that exceeds WAD
-        bytes memory data = abi.encode(
-            MigratorInitData({
-                numeraire: numeraire,
-                buybackDst: address(0),
-                customFee: 0,
-                feeRoutingMode: FeeRoutingMode.DirectBuyback,
-                feeDistributionInfo: FeeDistributionInfo({
-                    assetFeesToAssetBuybackWad: 0.5e18,
-                    assetFeesToNumeraireBuybackWad: 0.5e18,
-                    assetFeesToBeneficiaryWad: 0.5e18,
-                    assetFeesToLpWad: 0.5e18,
-                    numeraireFeesToAssetBuybackWad: 0.5e18,
-                    numeraireFeesToNumeraireBuybackWad: 0.5e18,
-                    numeraireFeesToBeneficiaryWad: 0.5e18,
-                    numeraireFeesToLpWad: 0.5e18
-                })
-            })
-        );
+        initData.feeDistributionInfo.assetFeesToAssetBuybackWad = type(uint64).max;
+        initData.feeDistributionInfo.assetFeesToNumeraireBuybackWad = type(uint64).max;
 
         vm.prank(address(mockMigrator));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        rehypeHookMigrator.onInitialization(asset, poolKey, data);
+        rehypeHookMigrator.onInitialization(asset, poolKey, abi.encode(initData));
+
+        initData = _quarterMigratorInitData(numeraire, address(0), 0, FeeRoutingMode.DirectBuyback);
+        initData.feeDistributionInfo.numeraireFeesToAssetBuybackWad = type(uint64).max;
+        initData.feeDistributionInfo.numeraireFeesToNumeraireBuybackWad = type(uint64).max;
+
+        vm.prank(address(mockMigrator));
+        vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
+        rehypeHookMigrator.onInitialization(asset, poolKey, abi.encode(initData));
     }
 
     function test_onInitialization_SetsFeeRoutingModeFromCalldata(PoolKey memory poolKey) public {
@@ -394,11 +391,11 @@ contract RehypeDopplerHookMigratorTest is Test {
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
                     assetFeesToNumeraireBuybackWad: 0,
-                    assetFeesToBeneficiaryWad: WAD,
+                    assetFeesToBeneficiaryWad: uint64(WAD),
                     assetFeesToLpWad: 0,
                     numeraireFeesToAssetBuybackWad: 0,
                     numeraireFeesToNumeraireBuybackWad: 0,
-                    numeraireFeesToBeneficiaryWad: WAD,
+                    numeraireFeesToBeneficiaryWad: uint64(WAD),
                     numeraireFeesToLpWad: 0
                 })
             })
@@ -455,7 +452,7 @@ contract RehypeDopplerHookMigratorTest is Test {
 
         // Update fee distribution
         vm.prank(buybackDst);
-        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0, 0.5e18, 0);
+        rehypeHookMigrator.setFeeDistribution(poolId, 0.5e18, 0, 0.5e18, 0, 0.1e18, 0.2e18, 0.3e18, 0.4e18);
 
         (
             uint256 storedAssetBuyback,
@@ -472,6 +469,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(storedNumeraireBuyback, 0);
         assertEq(storedBeneficiary, 0.5e18);
         assertEq(storedLp, 0);
+        assertEq(storedNumeraireRowAssetBuyback, 0.1e18);
+        assertEq(storedNumeraireRowNumeraireBuyback, 0.2e18);
+        assertEq(storedNumeraireRowBeneficiary, 0.3e18);
+        assertEq(storedNumeraireRowLp, 0.4e18);
     }
 
     function test_setFeeDistribution_RevertsWhenSenderNotAuthorized(PoolKey memory poolKey) public {
@@ -523,6 +524,11 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(b, 0);
         assertEq(l, 0);
         assertEq(a + n + b + l, WAD);
+        assertEq(a2, 0.5e18);
+        assertEq(n2, 0.5e18);
+        assertEq(b2, 0);
+        assertEq(l2, 0);
+        assertEq(a2 + n2 + b2 + l2, WAD);
     }
 
     function test_setFeeDistribution_CanBeCalledMultipleTimes(PoolKey memory poolKey) public {
@@ -554,6 +560,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(n, 0);
         assertEq(b, 0);
         assertEq(l, WAD);
+        assertEq(a2, 0);
+        assertEq(n2, 0);
+        assertEq(b2, 0);
+        assertEq(l2, WAD);
     }
 
     /* ----------------------------------------------------------------------------- */
@@ -656,11 +666,11 @@ contract RehypeDopplerHookMigratorTest is Test {
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
                     assetFeesToNumeraireBuybackWad: 0,
-                    assetFeesToBeneficiaryWad: WAD,
+                    assetFeesToBeneficiaryWad: uint64(WAD),
                     assetFeesToLpWad: 0,
                     numeraireFeesToAssetBuybackWad: 0,
                     numeraireFeesToNumeraireBuybackWad: 0,
-                    numeraireFeesToBeneficiaryWad: WAD,
+                    numeraireFeesToBeneficiaryWad: uint64(WAD),
                     numeraireFeesToLpWad: 0
                 })
             })
@@ -685,6 +695,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(storedNumeraireBuyback, 0);
         assertEq(storedBeneficiary, WAD);
         assertEq(storedLp, 0);
+        assertEq(storedNumeraireRowAssetBuyback, 0);
+        assertEq(storedNumeraireRowNumeraireBuyback, 0);
+        assertEq(storedNumeraireRowBeneficiary, WAD);
+        assertEq(storedNumeraireRowLp, 0);
     }
 
     function test_onInitialization_AllFeesLP(PoolKey memory poolKey) public {
@@ -704,11 +718,11 @@ contract RehypeDopplerHookMigratorTest is Test {
                     assetFeesToAssetBuybackWad: 0,
                     assetFeesToNumeraireBuybackWad: 0,
                     assetFeesToBeneficiaryWad: 0,
-                    assetFeesToLpWad: WAD,
+                    assetFeesToLpWad: uint64(WAD),
                     numeraireFeesToAssetBuybackWad: 0,
                     numeraireFeesToNumeraireBuybackWad: 0,
                     numeraireFeesToBeneficiaryWad: 0,
-                    numeraireFeesToLpWad: WAD
+                    numeraireFeesToLpWad: uint64(WAD)
                 })
             })
         );
@@ -732,6 +746,10 @@ contract RehypeDopplerHookMigratorTest is Test {
         assertEq(storedNumeraireBuyback, 0);
         assertEq(storedBeneficiary, 0);
         assertEq(storedLp, WAD);
+        assertEq(storedNumeraireRowAssetBuyback, 0);
+        assertEq(storedNumeraireRowNumeraireBuyback, 0);
+        assertEq(storedNumeraireRowBeneficiary, 0);
+        assertEq(storedNumeraireRowLp, WAD);
     }
 
     function test_onInitialization_ZeroCustomFee(PoolKey memory poolKey) public {
@@ -902,11 +920,11 @@ contract RehypeDopplerHookMigratorTest is Test {
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0,
                 assetFeesToNumeraireBuybackWad: 0,
-                assetFeesToBeneficiaryWad: WAD,
+                assetFeesToBeneficiaryWad: uint64(WAD),
                 assetFeesToLpWad: 0,
                 numeraireFeesToAssetBuybackWad: 0,
                 numeraireFeesToNumeraireBuybackWad: 0,
-                numeraireFeesToBeneficiaryWad: WAD,
+                numeraireFeesToBeneficiaryWad: uint64(WAD),
                 numeraireFeesToLpWad: 0
             })
         });

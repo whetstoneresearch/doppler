@@ -34,7 +34,7 @@ On `onInitialization`, the hook decodes `RehypeTypes.MigratorInitData` and store
 | `buybackDst` | Recipient for direct buybacks and claimed beneficiary fees |
 | `customFee` | Static hook fee, in millionths |
 | `feeRoutingMode` | Whether buyback-designated fees are transferred immediately or routed into beneficiary accounting |
-| `feeDistributionInfo` | Fee split matrix for asset-side and numeraire-side fees |
+| `feeDistributionInfo` | Eight `uint64` WAD weights forming the asset-side and numeraire-side fee split config |
 
 The hook validates that each row of `feeDistributionInfo` sums to `WAD`, stores the static fee in `getHookFees(poolId).customFee`, and initializes a full-range LP position record for later reinvestment.
 
@@ -85,7 +85,7 @@ The hook exposes three public management paths:
 
 - `collectFees(asset)`: transfers accumulated `beneficiaryFees0/1` to `buybackDst`
 - `claimAirlockOwnerFees(asset)`: transfers accumulated `airlockOwnerFees0/1` to the current Airlock owner
-- `setFeeDistribution(poolId, ...)`: lets `buybackDst` update the fee split matrix for that pool
+- `setFeeDistribution(poolId, ...)`: lets `buybackDst` update the eight WAD weights through the original `uint256` ABI while storing them as packed `uint64` values
 
 `customFee` itself is fixed at initialization time and is not updated by this contract.
 
