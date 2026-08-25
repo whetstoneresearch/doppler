@@ -36,7 +36,7 @@ On `onInitialization`, the hook decodes `RehypeTypes.InitData` and stores:
 
 | Field | Meaning |
 | --- | --- |
-| `numeraire` | Quote token used by the pool |
+| `numeraire` | Quote token; must equal the `PoolKey` currency paired with `asset` |
 | `buybackDst` | Recipient for direct buybacks and legacy empty-array beneficiary claims |
 | `startFee` | Hook fee at schedule start, in millionths |
 | `endFee` | Terminal hook fee after decay completes, in millionths |
@@ -49,6 +49,7 @@ On `onInitialization`, the hook decodes `RehypeTypes.InitData` and stores:
 
 The hook validates the configuration as follows:
 
+- `asset` must be one of the immutable initializer-supplied `PoolKey` currencies, and `numeraire` must equal the other currency; the hook stores that derived currency rather than trusting `initData`
 - both `startFee` and `endFee` must be `<= MAX_SWAP_FEE`
 - `startFee` must be `>= endFee`
 - if `startFee > endFee`, `durationSeconds` must be non-zero

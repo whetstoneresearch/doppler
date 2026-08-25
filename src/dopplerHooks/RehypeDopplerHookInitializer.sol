@@ -50,11 +50,13 @@ import {
     IntegratorRoutingConfig,
     IntegratorSet,
     IntegratorSettlement,
+    InvalidAsset,
     InvalidDurationSeconds,
     InvalidFeeRange,
     InvalidIntegrator,
     InvalidIntegratorClaimDestination,
     InvalidIntegratorConversionRatio,
+    InvalidNumeraire,
     MAX_INTEGRATOR_FEE_SHARE,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
@@ -189,13 +191,26 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         // Naive reinitialization would lead to overallocation of beneficiary fees and overlapping claims.
         require(getPoolInfo[poolId].asset == address(0), PoolAlreadyInitialized());
 
+        Currency assetCurrency = Currency.wrap(asset);
+        Currency numeraireCurrency;
+        if (key.currency0 == assetCurrency) {
+            numeraireCurrency = key.currency1;
+        } else if (key.currency1 == assetCurrency) {
+            numeraireCurrency = key.currency0;
+        } else {
+            revert InvalidAsset(asset);
+        }
+
+        address numeraire = Currency.unwrap(numeraireCurrency);
+        require(initData.numeraire == numeraire, InvalidNumeraire(numeraire, initData.numeraire));
+
         // If _onInitialization is called by create (and not on hook reinitialization), open a temporary dev buy
         // non-protocol fee exemption for one swap only.
         if (_isAirlockCreate(asset)) {
             _setDevBuyExemption(poolId);
         }
 
-        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
+        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: numeraire, buybackDst: initData.buybackDst });
 
         _validateFeeDistribution(initData.feeDistributionInfo);
         _feeDistributionInfo[poolId] = initData.feeDistributionInfo;
@@ -286,7 +301,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             return (feeCurrency, hookDelta);
         }
 
-        PoolInfo memory poolInfo = getPoolInfo[poolId];
+        PoolInfo storage poolInfo = getPoolInfo[poolId];
         bool isToken0 = key.currency0 == Currency.wrap(poolInfo.asset);
         bool isNumeraireToken0 = key.currency0 == Currency.wrap(poolInfo.numeraire);
         FeeDistributionInfo memory distribution = _feeDistributionInfo[poolId];
@@ -884,19 +899,21 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             return _collectAndReleaseRehypeFees(poolId);
         }
 
-        HookFees memory hookFees = getHookFees[poolId];
+        HookFees storage hookFees = getHookFees[poolId];
+        uint128 beneficiaryFees0 = hookFees.beneficiaryFees0;
+        uint128 beneficiaryFees1 = hookFees.beneficiaryFees1;
         address beneficiary = getPoolInfo[poolId].buybackDst;
 
-        fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
+        fees = toBalanceDelta(int128(beneficiaryFees0), int128(beneficiaryFees1));
 
-        getHookFees[poolId].beneficiaryFees0 = 0;
-        getHookFees[poolId].beneficiaryFees1 = 0;
+        hookFees.beneficiaryFees0 = 0;
+        hookFees.beneficiaryFees1 = 0;
 
-        if (hookFees.beneficiaryFees0 > 0) {
-            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
+        if (beneficiaryFees0 > 0) {
+            poolKey.currency0.transfer(beneficiary, beneficiaryFees0);
         }
-        if (hookFees.beneficiaryFees1 > 0) {
-            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
+        if (beneficiaryFees1 > 0) {
+            poolKey.currency1.transfer(beneficiary, beneficiaryFees1);
         }
 
         return fees;

@@ -47,11 +47,13 @@ import {
     IntegratorRoutingConfig,
     IntegratorSet,
     IntegratorSettlement,
+    InvalidAsset,
     InvalidDurationSeconds,
     InvalidFeeRange,
     InvalidIntegrator,
     InvalidIntegratorClaimDestination,
     InvalidIntegratorConversionRatio,
+    InvalidNumeraire,
     MAX_INTEGRATOR_FEE_SHARE,
     MAX_SWAP_FEE,
     MILLIONTHS_DENOMINATOR,
@@ -526,6 +528,32 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         assertEq(airlockOwnerFees1, 0);
     }
 
+    function test_onInitialization_RevertsWhenNumeraireDoesNotMatchPoolKey() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        address invalidNumeraire = makeAddr("unrelatedNumeraire");
+        InitData memory initData =
+            _quarterInitData(invalidNumeraire, makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(InvalidNumeraire.selector, address(token1), invalidNumeraire));
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        (address storedAsset, address storedNumeraire,) = dopplerHook.getPoolInfo(poolKey.toId());
+        assertEq(storedAsset, address(0));
+        assertEq(storedNumeraire, address(0));
+    }
+
+    function test_onInitialization_RevertsWhenAssetIsNotInPoolKey() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        address invalidAsset = makeAddr("unrelatedAsset");
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(InvalidAsset.selector, invalidAsset));
+        dopplerHook.onInitialization(invalidAsset, poolKey, abi.encode(initData));
+    }
+
     function test_integrator_InitializationStoresConfiguration() public {
         PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
         address integrator = makeAddr("integrator");
@@ -813,8 +841,8 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     function test_onInitialization_RevertsWhenPoolAlreadyInitialized(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
         poolKey.hooks = IHooks(address(dopplerHook));
-        address asset = makeAddr("asset");
-        address numeraire = makeAddr("numeraire");
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
         uint96 initialOwnerShares = uint96(0.05e18);
         InitData memory initialData = _beneficiaryOnlyInitData(numeraire, buybackDst, 3000, 3000, 0, 0);
@@ -2581,7 +2609,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         address integrator = makeAddr("integrator");
         RevertingNativeReceiver receiver = new RevertingNativeReceiver();
         InitData memory initData =
-            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+            _quarterInitData(address(0), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
         initData.integratorConfig.integrator = integrator;
         initData.integratorConfig.feeShare = 200_000;
 

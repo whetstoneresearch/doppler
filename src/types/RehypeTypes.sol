@@ -43,6 +43,12 @@ error InvalidIntegratorClaimDestination();
 /// @notice Thrown when the pool is already initialized
 error PoolAlreadyInitialized();
 
+/// @notice Thrown when the asset is not one of the PoolKey currencies
+error InvalidAsset(address asset);
+
+/// @notice Thrown when the configured numeraire does not match the PoolKey currency paired with the asset
+error InvalidNumeraire(address expected, address actual);
+
 /**
  * @notice Emitted when Airlock owner claims fees
  * @param poolId Pool from which fees were claimed
