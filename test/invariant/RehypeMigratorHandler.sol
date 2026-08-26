@@ -227,14 +227,14 @@ contract RehypeMigratorHandler is Test {
                 customFee: settings.customFee,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeDistributionInfo: FeeDistributionInfo({
-                    assetFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
-                    assetFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
-                    assetFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
-                    assetFeesToLpWad: settings.lpPercentWad,
-                    numeraireFeesToAssetBuybackWad: settings.assetBuybackPercentWad,
-                    numeraireFeesToNumeraireBuybackWad: settings.numeraireBuybackPercentWad,
-                    numeraireFeesToBeneficiaryWad: settings.beneficiaryPercentWad,
-                    numeraireFeesToLpWad: settings.lpPercentWad
+                    assetFeesToAssetBuybackWad: uint64(settings.assetBuybackPercentWad),
+                    assetFeesToNumeraireBuybackWad: uint64(settings.numeraireBuybackPercentWad),
+                    assetFeesToBeneficiaryWad: uint64(settings.beneficiaryPercentWad),
+                    assetFeesToLpWad: uint64(settings.lpPercentWad),
+                    numeraireFeesToAssetBuybackWad: uint64(settings.assetBuybackPercentWad),
+                    numeraireFeesToNumeraireBuybackWad: uint64(settings.numeraireBuybackPercentWad),
+                    numeraireFeesToBeneficiaryWad: uint64(settings.beneficiaryPercentWad),
+                    numeraireFeesToLpWad: uint64(settings.lpPercentWad)
                 })
             })
         );
@@ -454,14 +454,14 @@ contract RehypeMigratorHandler is Test {
         vm.prank(settingsOf[poolId].buybackDst);
         rehypeHook.setFeeDistribution(
             poolId,
-            assetBuybackPercentWad,
-            numeraireBuybackPercentWad,
-            beneficiaryPercentWad,
-            lpPercentWad,
-            assetBuybackPercentWad,
-            numeraireBuybackPercentWad,
-            beneficiaryPercentWad,
-            lpPercentWad
+            uint64(assetBuybackPercentWad),
+            uint64(numeraireBuybackPercentWad),
+            uint64(beneficiaryPercentWad),
+            uint64(lpPercentWad),
+            uint64(assetBuybackPercentWad),
+            uint64(numeraireBuybackPercentWad),
+            uint64(beneficiaryPercentWad),
+            uint64(lpPercentWad)
         );
     }
 

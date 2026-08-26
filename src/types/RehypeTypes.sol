@@ -22,8 +22,32 @@ error FeeBeneficiariesNotSupportedInDirectBuyback();
 /// @notice Thrown when fee collection by PoolId is attempted for a pool without configured fee beneficiaries
 error FeeBeneficiariesNotConfigured();
 
+/// @notice Thrown when integrator fee accounting exceeds uint128
+error IntegratorFeeOverflow();
+
+/// @notice Thrown when the integrator fee share exceeds its maximum
+error IntegratorFeeShareTooHigh();
+
+/// @notice Thrown when an integrator conversion ratio exceeds its denominator or is nonzero for a zero fee share
+error InvalidIntegratorConversionRatio();
+
+/// @notice Thrown when an integrator address is required or invalid
+error InvalidIntegrator();
+
+/// @notice Thrown when the sender is not the configured integrator
+error SenderNotIntegrator();
+
+/// @notice Thrown when an integrator fee claim destination is the zero address
+error InvalidIntegratorClaimDestination();
+
 /// @notice Thrown when the pool is already initialized
 error PoolAlreadyInitialized();
+
+/// @notice Thrown when the asset is not one of the PoolKey currencies
+error InvalidAsset(address asset);
+
+/// @notice Thrown when the configured numeraire does not match the PoolKey currency paired with the asset
+error InvalidNumeraire(address expected, address actual);
 
 /**
  * @notice Emitted when Airlock owner claims fees
@@ -41,12 +65,65 @@ event AirlockOwnerFeesClaimed(PoolId indexed poolId, address indexed airlockOwne
  */
 event FeeBeneficiariesSet(PoolId indexed poolId, BeneficiaryData[] beneficiaries);
 
+/**
+ * @notice Emitted when a pool's immutable integrator fee share is configured
+ * @param poolId Pool whose integrator fee share is configured
+ * @param feeShare Integrator share of gross Rehype fees
+ */
+event IntegratorFeeShareSet(PoolId indexed poolId, uint24 feeShare);
+
+/**
+ * @notice Emitted when integrator conversion ratios are updated
+ * @param poolId Pool whose integrator routing is configured
+ * @param assetFeesToNumeraireRatio Ratio of asset fees converted to numeraire
+ * @param numeraireFeesToAssetRatio Ratio of numeraire fees converted to asset
+ */
+event IntegratorConversionRatiosSet(
+    PoolId indexed poolId, uint32 assetFeesToNumeraireRatio, uint32 numeraireFeesToAssetRatio
+);
+
+/**
+ * @notice Emitted when automatic integrator payout is enabled or disabled
+ * @param poolId Pool whose integrator routing is configured
+ * @param automaticPayout Whether future processed fees are paid automatically instead of accrued
+ */
+event IntegratorAutomaticPayoutSet(PoolId indexed poolId, bool automaticPayout);
+
+/**
+ * @notice Emitted when the integrator role is rotated
+ * @param poolId Pool whose integrator changed
+ * @param oldIntegrator Previous integrator
+ * @param newIntegrator New integrator
+ */
+event IntegratorSet(PoolId indexed poolId, address indexed oldIntegrator, address indexed newIntegrator);
+
+/**
+ * @notice Emitted when integrator fees are claimed
+ * @param poolId Pool whose integrator fees were claimed
+ * @param integrator Integrator that authorized the claim
+ * @param to Address that received the claim
+ * @param fees0 Amount of currency0 claimed
+ * @param fees1 Amount of currency1 claimed
+ */
+event IntegratorFeesClaimed(
+    PoolId indexed poolId, address indexed integrator, address indexed to, uint128 fees0, uint128 fees1
+);
+
 // Constants
 /// @dev Maximum swap fee (1e6 = 100%)
 uint256 constant MAX_SWAP_FEE = 0.8e6;
 
+/// @dev Maximum integrator share of gross Rehype fees (75%)
+uint24 constant MAX_INTEGRATOR_FEE_SHARE = 750_000;
+
 /// @dev Swap fee denominator (1e6 = 100%)
 uint256 constant SWAP_FEE_DENOMINATOR = 1e6;
+
+/// @dev Denominator for values expressed in millionths (1e6 = 100%)
+uint256 constant MILLIONTHS_DENOMINATOR = 1_000_000;
+
+/// @dev Denominator for integrator conversion ratios (1e9 = 100%)
+uint256 constant INTEGRATOR_CONVERSION_RATIO_DENOMINATOR = 1_000_000_000;
 
 /// @dev Epsilon trigger for rebalancing swaps
 uint128 constant EPSILON = 1e6;
@@ -92,13 +169,14 @@ event FeeScheduleSet(
 event FeeUpdated(PoolId indexed poolId, uint24 fee);
 
 /**
- * @notice Packed fee schedule for a pool.
+ * @notice Packed fee schedule and immutable integrator fee share for a pool.
  * @dev Fits in a single storage slot to minimize read/write cost.
  * @param startingTime Timestamp where schedule starts
  * @param startFee Fee at schedule start
  * @param endFee Fee at schedule end
  * @param lastFee Last applied fee
  * @param durationSeconds Schedule duration in seconds
+ * @param integratorFeeShare Immutable integrator share of gross Rehype fees
  */
 struct FeeSchedule {
     uint32 startingTime;
@@ -106,6 +184,7 @@ struct FeeSchedule {
     uint24 endFee;
     uint24 lastFee;
     uint32 durationSeconds;
+    uint24 integratorFeeShare;
 }
 
 /**
@@ -119,9 +198,40 @@ enum FeeRoutingMode {
 }
 
 /**
+ * @notice Integrator configuration supplied when initializing a pool
+ * @dev A zero feeShare requires a zero integrator and zero conversion ratios.
+ * @param integrator Address controlling routing configuration and claims and receiving automatic payouts
+ * @param feeShare Immutable integrator share of gross Rehype fees
+ * @param assetFeesToNumeraireRatio Ratio of asset-denominated integrator fees converted to numeraire
+ * @param numeraireFeesToAssetRatio Ratio of numeraire-denominated integrator fees converted to asset
+ * @param automaticPayout Whether processed integrator fees are paid automatically
+ */
+struct IntegratorInitConfig {
+    address integrator;
+    uint24 feeShare;
+    uint32 assetFeesToNumeraireRatio;
+    uint32 numeraireFeesToAssetRatio;
+    bool automaticPayout;
+}
+
+/**
+ * @notice Mutable integrator routing configuration for a pool
+ * @param integrator Address controlling routing configuration and claims and receiving automatic payouts
+ * @param assetFeesToNumeraireRatio Ratio of asset-denominated integrator fees converted to numeraire
+ * @param numeraireFeesToAssetRatio Ratio of numeraire-denominated integrator fees converted to asset
+ * @param automaticPayout Whether processed fees are paid automatically instead of accrued for claim
+ */
+struct IntegratorRoutingConfig {
+    address integrator;
+    uint32 assetFeesToNumeraireRatio;
+    uint32 numeraireFeesToAssetRatio;
+    bool automaticPayout;
+}
+
+/**
  * @notice Initialization data for a Rehype-managed pool
- * @dev Every gross Rehype fee first reserves 5% for the current Airlock owner's separate claim path. Beneficiary
- * shares apply only to post-owner amounts that ultimately reach beneficiary fee accounting.
+ * @dev Every gross Rehype fee first reserves parallel shares for the current Airlock owner and configured integrator.
+ * Only the exact residual enters the fee-distribution config.
  * @param numeraire Address of the numeraire token
  * @param buybackDst Address receiving direct buyback proceeds and legacy empty-array beneficiary claims
  * @param startFee Fee at schedule start (in millionths, e.g. 5000 = 0.5%)
@@ -132,6 +242,7 @@ enum FeeRoutingMode {
  * @param feeDistributionInfo Fee routing matrix percentages for the pool
  * @param feeBeneficiaries Optional ordinary Rehype fee beneficiaries. Requires RouteToBeneficiaryFees and positive
  * shares totaling WAD. The Airlock owner does not need to appear, but if included, it has an ordinary share.
+ * @param integratorConfig Integrator fee share and routing configuration
  */
 struct InitData {
     address numeraire;
@@ -143,6 +254,7 @@ struct InitData {
     FeeRoutingMode feeRoutingMode;
     FeeDistributionInfo feeDistributionInfo;
     BeneficiaryData[] feeBeneficiaries;
+    IntegratorInitConfig integratorConfig;
 }
 
 /**
@@ -187,14 +299,14 @@ struct PoolInfo {
  * @param numeraireFeesToLpWad Percentage of numeraire-denominated fees allocated to LP reinvestment
  */
 struct FeeDistributionInfo {
-    uint256 assetFeesToAssetBuybackWad;
-    uint256 assetFeesToNumeraireBuybackWad;
-    uint256 assetFeesToBeneficiaryWad;
-    uint256 assetFeesToLpWad;
-    uint256 numeraireFeesToAssetBuybackWad;
-    uint256 numeraireFeesToNumeraireBuybackWad;
-    uint256 numeraireFeesToBeneficiaryWad;
-    uint256 numeraireFeesToLpWad;
+    uint64 assetFeesToAssetBuybackWad;
+    uint64 assetFeesToNumeraireBuybackWad;
+    uint64 assetFeesToBeneficiaryWad;
+    uint64 assetFeesToLpWad;
+    uint64 numeraireFeesToAssetBuybackWad;
+    uint64 numeraireFeesToNumeraireBuybackWad;
+    uint64 numeraireFeesToBeneficiaryWad;
+    uint64 numeraireFeesToLpWad;
 }
 
 /**
@@ -215,6 +327,45 @@ struct HookFees {
     uint128 airlockOwnerFees0;
     uint128 airlockOwnerFees1;
     uint24 customFee;
+}
+
+/**
+ * @notice Integrator fee balances for a pool
+ * @dev The containing mapping defines whether balances are pending processing or claimable.
+ * @param fees0 Currency0 fees in the balance class
+ * @param fees1 Currency1 fees in the balance class
+ */
+struct IntegratorFees {
+    uint128 fees0;
+    uint128 fees1;
+}
+
+/**
+ * @notice Result of a directional swap shared by residual fee-distribution and integrator routing
+ * @param residualInputUsed Consumed input attributed to the residual fee-distribution amount
+ * @param residualOutput Output attributed to the residual fee-distribution amount
+ * @param integratorOutput Output attributed to consumed integrator input
+ * @param integratorUnconverted Requested integrator input not consumed and retained in its source currency
+ */
+struct AggregatedSwapResult {
+    uint256 residualInputUsed;
+    uint256 residualOutput;
+    uint256 integratorOutput;
+    uint256 integratorUnconverted;
+}
+
+/**
+ * @notice Integrator amounts produced by one routing cycle
+ * @param settlement0 Currency0 ready for automatic payout or claimable accrual
+ * @param settlement1 Currency1 ready for automatic payout or claimable accrual
+ * @param unconverted0 Currency0 requested for conversion but retained because it was not consumed
+ * @param unconverted1 Currency1 requested for conversion but retained because it was not consumed
+ */
+struct IntegratorSettlement {
+    uint256 settlement0;
+    uint256 settlement1;
+    uint256 unconverted0;
+    uint256 unconverted1;
 }
 
 /**

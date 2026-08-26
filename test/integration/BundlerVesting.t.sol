@@ -33,6 +33,7 @@ import {
     FeeDistributionInfo,
     FeeRoutingMode,
     InitData as RehypeInitData,
+    IntegratorInitConfig,
     SWAP_FEE_DENOMINATOR
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -398,11 +399,11 @@ contract BundlerVestingIntegrationTest is Deployers {
         FeeDistributionInfo memory distribution = FeeDistributionInfo({
             assetFeesToAssetBuybackWad: 0,
             assetFeesToNumeraireBuybackWad: 0,
-            assetFeesToBeneficiaryWad: WAD,
+            assetFeesToBeneficiaryWad: uint64(WAD),
             assetFeesToLpWad: 0,
             numeraireFeesToAssetBuybackWad: 0,
             numeraireFeesToNumeraireBuybackWad: 0,
-            numeraireFeesToBeneficiaryWad: WAD,
+            numeraireFeesToBeneficiaryWad: uint64(WAD),
             numeraireFeesToLpWad: 0
         });
 
@@ -415,7 +416,14 @@ contract BundlerVestingIntegrationTest is Deployers {
             startingTime: 0,
             feeRoutingMode: FeeRoutingMode.DirectBuyback,
             feeDistributionInfo: distribution,
-            feeBeneficiaries: new BeneficiaryData[](0)
+            feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: IntegratorInitConfig({
+                integrator: address(0),
+                feeShare: 0,
+                assetFeesToNumeraireRatio: 0,
+                numeraireFeesToAssetRatio: 0,
+                automaticPayout: false
+            })
         });
 
         InitData memory initData = InitData({

@@ -25,7 +25,12 @@ import { NoOpMigrator } from "src/migrators/NoOpMigrator.sol";
 import { DopplerERC20V1, VestingSchedule } from "src/tokens/DopplerERC20V1.sol";
 import { DopplerERC20V1Factory } from "src/tokens/DopplerERC20V1Factory.sol";
 import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
-import { FeeDistributionInfo, FeeRoutingMode, InitData as RehypeInitData } from "src/types/RehypeTypes.sol";
+import {
+    FeeDistributionInfo,
+    FeeRoutingMode,
+    InitData as RehypeInitData,
+    IntegratorInitConfig
+} from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
 
 /// @notice Thrown when this simulation-only script is invoked in a broadcast context.
@@ -281,7 +286,14 @@ abstract contract TestDeployment is DeployBase {
             startingTime: 0,
             feeRoutingMode: FeeRoutingMode.RouteToBeneficiaryFees,
             feeDistributionInfo: distribution,
-            feeBeneficiaries: _feeBeneficiaries(deployments.deployer, deployments.treasury)
+            feeBeneficiaries: _feeBeneficiaries(deployments.deployer, deployments.treasury),
+            integratorConfig: IntegratorInitConfig({
+                integrator: address(0),
+                feeShare: 0,
+                assetFeesToNumeraireRatio: 0,
+                numeraireFeesToAssetRatio: 0,
+                automaticPayout: false
+            })
         });
 
         InitData memory initData = InitData({

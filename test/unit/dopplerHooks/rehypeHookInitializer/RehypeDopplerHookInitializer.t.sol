@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import { Quoter } from "@quoter/Quoter.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { Deployers } from "@uniswap/v4-core/test/utils/Deployers.sol";
 import { IHooks } from "@v4-core/interfaces/IHooks.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
@@ -17,6 +19,7 @@ import { RehypeDopplerHookInitializer } from "src/dopplerHooks/RehypeDopplerHook
 import { BeneficiaryData, UnorderedBeneficiaries } from "src/types/BeneficiaryData.sol";
 import {
     AIRLOCK_OWNER_FEE_BPS,
+    AggregatedSwapResult,
     BPS_DENOMINATOR,
     EPSILON,
     FeeBeneficiariesNotConfigured,
@@ -30,17 +33,88 @@ import {
     FeeTooHigh,
     FeeUpdated,
     HookFees,
+    INTEGRATOR_CONVERSION_RATIO_DENOMINATOR,
     InitData,
     InsufficientFeeCurrency,
+    IntegratorAutomaticPayoutSet,
+    IntegratorConversionRatiosSet,
+    IntegratorFeeOverflow,
+    IntegratorFeeShareSet,
+    IntegratorFeeShareTooHigh,
+    IntegratorFees,
+    IntegratorFeesClaimed,
+    IntegratorInitConfig,
+    IntegratorRoutingConfig,
+    IntegratorSet,
+    IntegratorSettlement,
+    InvalidAsset,
     InvalidDurationSeconds,
     InvalidFeeRange,
+    InvalidIntegrator,
+    InvalidIntegratorClaimDestination,
+    InvalidIntegratorConversionRatio,
+    InvalidNumeraire,
+    MAX_INTEGRATOR_FEE_SHARE,
     MAX_SWAP_FEE,
+    MILLIONTHS_DENOMINATOR,
     PoolAlreadyInitialized,
     PoolInfo,
     SWAP_FEE_DENOMINATOR,
-    SenderNotAuthorized
+    SenderNotAuthorized,
+    SenderNotIntegrator
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
+
+contract RevertingNativeReceiver {
+    receive() external payable {
+        revert();
+    }
+}
+
+enum TransferBehavior {
+    ReturnTrue,
+    Revert,
+    NoReturn,
+    ShortReturn,
+    ReturnFalse,
+    ReturnNonOne
+}
+
+contract MockERC20Transfer {
+    TransferBehavior internal immutable behavior;
+    address public lastRecipient;
+    uint256 public lastAmount;
+
+    constructor(TransferBehavior behavior_) {
+        behavior = behavior_;
+    }
+
+    function transfer(address recipient, uint256 amount) external returns (bool) {
+        lastRecipient = recipient;
+        lastAmount = amount;
+
+        if (behavior == TransferBehavior.Revert) revert();
+        if (behavior == TransferBehavior.NoReturn) {
+            assembly ("memory-safe") {
+                return(0, 0)
+            }
+        }
+        if (behavior == TransferBehavior.ShortReturn) {
+            assembly ("memory-safe") {
+                mstore(0, 1)
+                return(31, 1)
+            }
+        }
+        if (behavior == TransferBehavior.ReturnFalse) return false;
+        if (behavior == TransferBehavior.ReturnNonOne) {
+            assembly ("memory-safe") {
+                mstore(0, 2)
+                return(0, 32)
+            }
+        }
+        return true;
+    }
+}
 
 contract MockPoolManager {
     // Minimal mock - just needs to exist for the quoter constructor
@@ -51,7 +125,11 @@ contract TrackingPoolManager {
     address public lastTakeRecipient;
     uint256 public lastTakeAmount;
     uint256 public takeCallCount;
-    uint160 internal constant MOCK_SQRT_PRICE_X96 = uint160(1 << 96);
+    uint160 internal mockSqrtPriceX96 = uint160(1 << 96);
+    bytes32 internal mockPoolStateSlot;
+    uint128 internal partialSwapAmountIn;
+    uint128 internal partialSwapAmountOut;
+    bool internal partialSwapZeroForOne;
 
     function take(Currency currency, address to, uint256 amount) external {
         lastTakeCurrency = currency;
@@ -61,9 +139,41 @@ contract TrackingPoolManager {
         TestERC20(Currency.unwrap(currency)).transfer(to, amount);
     }
 
-    function extsload(bytes32) external pure returns (bytes32 value) {
-        // StateLibrary.getSlot0 reads the pool's packed slot0 word via extsload.
-        return bytes32(uint256(MOCK_SQRT_PRICE_X96));
+    function setMockSqrtPriceX96(uint160 sqrtPriceX96) external {
+        mockSqrtPriceX96 = sqrtPriceX96;
+    }
+
+    function setMockPoolStateSlot(bytes32 stateSlot) external {
+        mockPoolStateSlot = stateSlot;
+    }
+
+    function setPartialSwap(bool zeroForOne, uint128 amountIn, uint128 amountOut) external {
+        partialSwapZeroForOne = zeroForOne;
+        partialSwapAmountIn = amountIn;
+        partialSwapAmountOut = amountOut;
+    }
+
+    function swap(
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata
+    ) external view returns (BalanceDelta) {
+        require(params.zeroForOne == partialSwapZeroForOne, "unexpected swap direction");
+        return partialSwapZeroForOne
+            ? toBalanceDelta(-int128(partialSwapAmountIn), int128(partialSwapAmountOut))
+            : toBalanceDelta(int128(partialSwapAmountOut), -int128(partialSwapAmountIn));
+    }
+
+    function sync(Currency) external { }
+
+    function settle() external payable returns (uint256) {
+        return partialSwapAmountIn;
+    }
+
+    function extsload(bytes32 slot) external view returns (bytes32 value) {
+        // When a pool slot is selected, report a valid price but no liquidity or tick state.
+        if (mockPoolStateSlot != bytes32(0) && slot != mockPoolStateSlot) return bytes32(0);
+        return bytes32(uint256(mockSqrtPriceX96));
     }
 }
 
@@ -74,8 +184,8 @@ contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
         IPoolManager _poolManager
     ) RehypeDopplerHookInitializer(_initializer, _poolManager, address(0)) { }
 
-    function exposed_getCurrentFee(PoolId poolId) external returns (uint24) {
-        return _getCurrentFee(poolId);
+    function exposed_getCurrentFee(PoolId poolId) external returns (uint24 currentFee) {
+        (currentFee,) = _getCurrentFee(poolId);
     }
 
     function exposed_computeCurrentFee(FeeSchedule memory schedule, uint256 elapsed) external pure returns (uint24) {
@@ -88,12 +198,65 @@ contract RehypeDopplerHookHarness is RehypeDopplerHookInitializer {
         PoolKey memory key,
         PoolId poolId
     ) external returns (Currency feeCurrency, int128 feeDelta) {
-        return _collectSwapFees(address(0), params, delta, key, poolId);
+        (feeCurrency, feeDelta,) = _collectSwapFees(address(0), params, delta, key, poolId);
     }
 
     function exposed_setBeneficiaryFees(PoolId poolId, uint128 fees0, uint128 fees1) external {
         getHookFees[poolId].beneficiaryFees0 = fees0;
         getHookFees[poolId].beneficiaryFees1 = fees1;
+    }
+
+    function exposed_setClaimableIntegratorFees(PoolId poolId, uint128 fees0, uint128 fees1) external {
+        getClaimableIntegratorFees[poolId] = IntegratorFees({ fees0: fees0, fees1: fees1 });
+    }
+
+    function exposed_accrueIntegratorFees(PoolId poolId, uint256 fees0, uint256 fees1) external {
+        _accrueIntegratorFees(poolId, fees0, fees1);
+    }
+
+    function exposed_setResidualAndPendingIntegratorFees(
+        PoolId poolId,
+        uint128 residualFees0,
+        uint128 residualFees1,
+        uint128 pendingFees0,
+        uint128 pendingFees1
+    ) external {
+        getHookFees[poolId].fees0 = residualFees0;
+        getHookFees[poolId].fees1 = residualFees1;
+        getPendingIntegratorFees[poolId] = IntegratorFees({ fees0: pendingFees0, fees1: pendingFees1 });
+    }
+
+    /// @dev Exposes automatic payout settlement for native-transfer fallback coverage.
+    function exposed_applyIntegratorSettlement(
+        PoolId poolId,
+        PoolKey memory poolKey,
+        address integrator,
+        uint256 settlement0,
+        uint256 settlement1
+    ) external {
+        _applyIntegratorSettlement(
+            poolId,
+            poolKey,
+            IntegratorRoutingConfig({
+                integrator: integrator,
+                assetFeesToNumeraireRatio: 0,
+                numeraireFeesToAssetRatio: 0,
+                automaticPayout: true
+            }),
+            IntegratorSettlement({
+                settlement0: settlement0, settlement1: settlement1, unconverted0: 0, unconverted1: 0
+            })
+        );
+    }
+
+    function exposed_executeAggregatedSwap(
+        PoolKey memory poolKey,
+        bool zeroForOne,
+        uint256 residualInput,
+        uint256 integratorInput,
+        uint256 availableInput
+    ) external returns (AggregatedSwapResult memory) {
+        return _executeAggregatedSwap(poolKey, zeroForOne, residualInput, integratorInput, availableInput);
     }
 }
 
@@ -285,10 +448,10 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         uint24 customFee = 3000; // 0.3%
 
         // Fee distribution that adds up to WAD
-        uint256 assetBuybackPercentWad = 0.25e18;
-        uint256 numeraireBuybackPercentWad = 0.25e18;
-        uint256 beneficiaryPercentWad = 0.25e18;
-        uint256 lpPercentWad = 0.25e18;
+        uint64 assetBuybackPercentWad = uint64(0.25e18);
+        uint64 numeraireBuybackPercentWad = uint64(0.25e18);
+        uint64 beneficiaryPercentWad = uint64(0.25e18);
+        uint64 lpPercentWad = uint64(0.25e18);
 
         bytes memory data = abi.encode(
             InitData({
@@ -300,6 +463,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: assetBuybackPercentWad,
                     assetFeesToNumeraireBuybackWad: numeraireBuybackPercentWad,
@@ -364,6 +528,293 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         assertEq(airlockOwnerFees1, 0);
     }
 
+    function test_onInitialization_RevertsWhenNumeraireDoesNotMatchPoolKey() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        address invalidNumeraire = makeAddr("unrelatedNumeraire");
+        InitData memory initData =
+            _quarterInitData(invalidNumeraire, makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(InvalidNumeraire.selector, address(token1), invalidNumeraire));
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        (address storedAsset, address storedNumeraire,) = dopplerHook.getPoolInfo(poolKey.toId());
+        assertEq(storedAsset, address(0));
+        assertEq(storedNumeraire, address(0));
+    }
+
+    function test_onInitialization_RevertsWhenAssetIsNotInPoolKey() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        address invalidAsset = makeAddr("unrelatedAsset");
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+
+        vm.prank(address(initializer));
+        vm.expectRevert(abi.encodeWithSelector(InvalidAsset.selector, invalidAsset));
+        dopplerHook.onInitialization(invalidAsset, poolKey, abi.encode(initData));
+    }
+
+    function test_integrator_InitializationStoresConfiguration() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        address integrator = makeAddr("integrator");
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = MAX_INTEGRATOR_FEE_SHARE;
+        initData.integratorConfig.assetFeesToNumeraireRatio = 800_000_000;
+        initData.integratorConfig.numeraireFeesToAssetRatio = 300_000_000;
+        initData.integratorConfig.automaticPayout = true;
+
+        vm.expectEmit(true, false, false, true);
+        emit IntegratorFeeShareSet(poolKey.toId(), MAX_INTEGRATOR_FEE_SHARE);
+        vm.expectEmit(true, true, true, true);
+        emit IntegratorSet(poolKey.toId(), address(0), integrator);
+        vm.expectEmit(true, false, false, true);
+        emit IntegratorConversionRatiosSet(poolKey.toId(), 800_000_000, 300_000_000);
+        vm.expectEmit(true, false, false, true);
+        emit IntegratorAutomaticPayoutSet(poolKey.toId(), true);
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        (
+            address storedIntegrator,
+            uint32 storedAssetToNumeraire,
+            uint32 storedNumeraireToAsset,
+            bool storedDirectPayout
+        ) = dopplerHook.getIntegratorRoutingConfig(poolKey.toId());
+        uint24 storedIntegratorFeeShare = dopplerHook.getIntegratorFeeShare(poolKey.toId());
+        assertEq(storedIntegrator, integrator);
+        assertEq(storedIntegratorFeeShare, MAX_INTEGRATOR_FEE_SHARE);
+        assertEq(storedAssetToNumeraire, 800_000_000);
+        assertEq(storedNumeraireToAsset, 300_000_000);
+        assertTrue(storedDirectPayout);
+    }
+
+    function test_integrator_DecayingFeeUpdatePreservesPackedFeeShareAndSchedule() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(trackingHarness));
+        PoolId poolId = poolKey.toId();
+        uint24 integratorFeeShare = 333_333;
+        InitData memory initData = _decayInitData(address(token1), makeAddr("buybackDst"), 10_000, 2000, 1000, 0);
+        initData.integratorConfig.integrator = makeAddr("integrator");
+        initData.integratorConfig.feeShare = integratorFeeShare;
+
+        uint32 startingTime = uint32(block.timestamp);
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        vm.warp(uint256(startingTime) + 500);
+        assertEq(trackingHarness.exposed_getCurrentFee(poolId), 6000);
+
+        (uint32 storedStart, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 duration) =
+            trackingHarness.getFeeSchedule(poolId);
+        assertEq(storedStart, startingTime);
+        assertEq(startFee, 10_000);
+        assertEq(endFee, 2000);
+        assertEq(lastFee, 6000);
+        assertEq(duration, 1000);
+        assertEq(trackingHarness.getIntegratorFeeShare(poolId), integratorFeeShare);
+
+        uint256 feeBase = 160_000_000;
+        trackingHarness.exposed_collectSwapFees(
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1, sqrtPriceLimitX96: 0 }),
+            toBalanceDelta(int128(uint128(feeBase)), -int128(uint128(feeBase))),
+            poolKey,
+            poolId
+        );
+
+        uint256 grossFee = feeBase * 6000 / SWAP_FEE_DENOMINATOR;
+        (uint128 pending0, uint128 pending1) = trackingHarness.getPendingIntegratorFees(poolId);
+        assertEq(pending0, grossFee * integratorFeeShare / MILLIONTHS_DENOMINATOR);
+        assertEq(pending1, 0);
+        assertEq(trackingHarness.getIntegratorFeeShare(poolId), integratorFeeShare);
+    }
+
+    function test_integrator_DisabledConfigurationEmitsOnlyZeroFeeShare() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        PoolId poolId = poolKey.toId();
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+
+        vm.recordLogs();
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 feeShareEvent = keccak256("IntegratorFeeShareSet(bytes32,uint24)");
+        bytes32 integratorEvent = keccak256("IntegratorSet(bytes32,address,address)");
+        bytes32 ratiosEvent = keccak256("IntegratorConversionRatiosSet(bytes32,uint32,uint32)");
+        bytes32 automaticPayoutEvent = keccak256("IntegratorAutomaticPayoutSet(bytes32,bool)");
+        uint256 feeShareEventCount;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].topics[0] == feeShareEvent) {
+                ++feeShareEventCount;
+                assertEq(logs[i].topics[1], PoolId.unwrap(poolId));
+                assertEq(abi.decode(logs[i].data, (uint24)), 0);
+            }
+            assertNotEq(logs[i].topics[0], integratorEvent);
+            assertNotEq(logs[i].topics[0], ratiosEvent);
+            assertNotEq(logs[i].topics[0], automaticPayoutEvent);
+        }
+        assertEq(feeShareEventCount, 1);
+
+        (address integrator, uint32 assetRatio, uint32 numeraireRatio, bool automaticPayout) =
+            dopplerHook.getIntegratorRoutingConfig(poolId);
+        assertEq(integrator, address(0));
+        assertEq(assetRatio, 0);
+        assertEq(numeraireRatio, 0);
+        assertFalse(automaticPayout);
+    }
+
+    function test_integrator_InitializationRevertsWhenFeeShareExceedsMaximum() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = makeAddr("integrator");
+        initData.integratorConfig.feeShare = MAX_INTEGRATOR_FEE_SHARE + 1;
+
+        vm.prank(address(initializer));
+        vm.expectRevert(IntegratorFeeShareTooHigh.selector);
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+    }
+
+    function test_integrator_InitializationRevertsWhenIntegratorIsZero() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.feeShare = 100_000;
+
+        vm.prank(address(initializer));
+        vm.expectRevert(InvalidIntegrator.selector);
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+    }
+
+    function testFuzz_integrator_InitializationRevertsWhenZeroFeeShareHasNonzeroIntegrator(address integrator) public {
+        vm.assume(integrator != address(0));
+
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+
+        vm.prank(address(initializer));
+        vm.expectRevert(InvalidIntegrator.selector);
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+    }
+
+    function test_integrator_InitializationRevertsWhenConversionRatioExceedsDenominator() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.assetFeesToNumeraireRatio = 1_000_000_001;
+
+        vm.prank(address(initializer));
+        vm.expectRevert(InvalidIntegratorConversionRatio.selector);
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+    }
+
+    function testFuzz_integrator_InitializationRevertsWhenZeroFeeShareHasNonzeroConversionRatio(
+        uint32 assetFeesToNumeraireRatio,
+        uint32 numeraireFeesToAssetRatio
+    ) public {
+        assetFeesToNumeraireRatio = uint32(bound(assetFeesToNumeraireRatio, 0, INTEGRATOR_CONVERSION_RATIO_DENOMINATOR));
+        numeraireFeesToAssetRatio = uint32(bound(numeraireFeesToAssetRatio, 0, INTEGRATOR_CONVERSION_RATIO_DENOMINATOR));
+        vm.assume(assetFeesToNumeraireRatio != 0 || numeraireFeesToAssetRatio != 0);
+
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.assetFeesToNumeraireRatio = assetFeesToNumeraireRatio;
+        initData.integratorConfig.numeraireFeesToAssetRatio = numeraireFeesToAssetRatio;
+
+        vm.prank(address(initializer));
+        vm.expectRevert(InvalidIntegratorConversionRatio.selector);
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+    }
+
+    function test_integrator_ControlsConfigurationAndRotation() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        PoolId poolId = poolKey.toId();
+        address integrator = makeAddr("integrator");
+        address replacementIntegrator = makeAddr("replacementIntegrator");
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        vm.expectRevert(SenderNotIntegrator.selector);
+        dopplerHook.setIntegratorConversionRatios(poolId, 400_000_000, 600_000_000);
+
+        vm.expectEmit(true, false, false, true);
+        emit IntegratorConversionRatiosSet(poolId, 400_000_000, 600_000_000);
+        vm.prank(integrator);
+        dopplerHook.setIntegratorConversionRatios(poolId, 400_000_000, 600_000_000);
+        vm.expectEmit(true, false, false, true);
+        emit IntegratorAutomaticPayoutSet(poolId, true);
+        vm.prank(integrator);
+        dopplerHook.setIntegratorAutomaticPayout(poolId, true);
+        vm.expectEmit(true, true, true, true);
+        emit IntegratorSet(poolId, integrator, replacementIntegrator);
+        vm.prank(integrator);
+        dopplerHook.setIntegrator(poolId, replacementIntegrator);
+
+        (address storedIntegrator, uint32 assetRatio, uint32 numeraireRatio, bool automaticPayout) =
+            dopplerHook.getIntegratorRoutingConfig(poolId);
+        assertEq(storedIntegrator, replacementIntegrator);
+        assertEq(assetRatio, 400_000_000);
+        assertEq(numeraireRatio, 600_000_000);
+        assertTrue(automaticPayout);
+
+        vm.prank(integrator);
+        vm.expectRevert(SenderNotIntegrator.selector);
+        dopplerHook.setIntegratorAutomaticPayout(poolId, false);
+        vm.prank(replacementIntegrator);
+        dopplerHook.setIntegratorAutomaticPayout(poolId, false);
+    }
+
+    function test_integrator_AdminFunctionsRejectUnauthorizedAndInvalidUpdates() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(dopplerHook));
+        PoolId poolId = poolKey.toId();
+        address integrator = makeAddr("integrator");
+        address attacker = makeAddr("attacker");
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        vm.prank(address(initializer));
+        dopplerHook.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        vm.prank(attacker);
+        vm.expectRevert(SenderNotIntegrator.selector);
+        dopplerHook.setIntegratorConversionRatios(poolId, 1, 1);
+        vm.prank(attacker);
+        vm.expectRevert(SenderNotIntegrator.selector);
+        dopplerHook.setIntegratorAutomaticPayout(poolId, true);
+        vm.prank(attacker);
+        vm.expectRevert(SenderNotIntegrator.selector);
+        dopplerHook.setIntegrator(poolId, attacker);
+
+        vm.prank(integrator);
+        vm.expectRevert(InvalidIntegratorConversionRatio.selector);
+        dopplerHook.setIntegratorConversionRatios(poolId, uint32(INTEGRATOR_CONVERSION_RATIO_DENOMINATOR + 1), 0);
+        vm.prank(integrator);
+        vm.expectRevert(InvalidIntegratorConversionRatio.selector);
+        dopplerHook.setIntegratorConversionRatios(poolId, 0, uint32(INTEGRATOR_CONVERSION_RATIO_DENOMINATOR + 1));
+        vm.prank(integrator);
+        vm.expectRevert(InvalidIntegrator.selector);
+        dopplerHook.setIntegrator(poolId, address(0));
+
+        (address storedIntegrator, uint32 assetRatio, uint32 numeraireRatio, bool automaticPayout) =
+            dopplerHook.getIntegratorRoutingConfig(poolId);
+        assertEq(storedIntegrator, integrator);
+        assertEq(assetRatio, 0);
+        assertEq(numeraireRatio, 0);
+        assertFalse(automaticPayout);
+    }
+
     function test_onInitialization_InitializesPosition(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60; // Common tick spacing
 
@@ -390,8 +841,8 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     function test_onInitialization_RevertsWhenPoolAlreadyInitialized(PoolKey memory poolKey) public {
         poolKey.tickSpacing = 60;
         poolKey.hooks = IHooks(address(dopplerHook));
-        address asset = makeAddr("asset");
-        address numeraire = makeAddr("numeraire");
+        address asset = Currency.unwrap(poolKey.currency0);
+        address numeraire = Currency.unwrap(poolKey.currency1);
         address buybackDst = makeAddr("buybackDst");
         uint96 initialOwnerShares = uint96(0.05e18);
         InitData memory initialData = _beneficiaryOnlyInitData(numeraire, buybackDst, 3000, 3000, 0, 0);
@@ -447,6 +898,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -468,34 +920,22 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     function test_onInitialization_RevertsWhenFeeDistributionExceedsWAD(PoolKey memory poolKey) public {
         address asset = Currency.unwrap(poolKey.currency0);
         address numeraire = Currency.unwrap(poolKey.currency1);
+        InitData memory initData = _quarterInitData(numeraire, address(0), 0, FeeRoutingMode.DirectBuyback);
 
-        // Fee distribution that exceeds WAD
-        bytes memory data = abi.encode(
-            InitData({
-                numeraire: numeraire,
-                buybackDst: address(0),
-                startFee: 0,
-                endFee: 0,
-                durationSeconds: 0,
-                startingTime: 0,
-                feeRoutingMode: FeeRoutingMode.DirectBuyback,
-                feeBeneficiaries: new BeneficiaryData[](0),
-                feeDistributionInfo: FeeDistributionInfo({
-                    assetFeesToAssetBuybackWad: 0.5e18,
-                    assetFeesToNumeraireBuybackWad: 0.5e18,
-                    assetFeesToBeneficiaryWad: 0.5e18,
-                    assetFeesToLpWad: 0.5e18,
-                    numeraireFeesToAssetBuybackWad: 0.5e18,
-                    numeraireFeesToNumeraireBuybackWad: 0.5e18,
-                    numeraireFeesToBeneficiaryWad: 0.5e18,
-                    numeraireFeesToLpWad: 0.5e18
-                })
-            })
-        );
+        initData.feeDistributionInfo.assetFeesToAssetBuybackWad = type(uint64).max;
+        initData.feeDistributionInfo.assetFeesToNumeraireBuybackWad = type(uint64).max;
 
         vm.prank(address(initializer));
         vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
-        dopplerHook.onInitialization(asset, poolKey, data);
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(initData));
+
+        initData = _quarterInitData(numeraire, address(0), 0, FeeRoutingMode.DirectBuyback);
+        initData.feeDistributionInfo.numeraireFeesToAssetBuybackWad = type(uint64).max;
+        initData.feeDistributionInfo.numeraireFeesToNumeraireBuybackWad = type(uint64).max;
+
+        vm.prank(address(initializer));
+        vm.expectRevert(FeeDistributionMustAddUpToWAD.selector);
+        dopplerHook.onInitialization(asset, poolKey, abi.encode(initData));
     }
 
     function test_onInitialization_SetsFeeRoutingModeFromCalldata(PoolKey memory poolKey) public {
@@ -744,14 +1184,15 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0,
                     assetFeesToNumeraireBuybackWad: 0,
-                    assetFeesToBeneficiaryWad: WAD,
+                    assetFeesToBeneficiaryWad: uint64(WAD),
                     assetFeesToLpWad: 0,
                     numeraireFeesToAssetBuybackWad: 0,
                     numeraireFeesToNumeraireBuybackWad: 0,
-                    numeraireFeesToBeneficiaryWad: WAD,
+                    numeraireFeesToBeneficiaryWad: uint64(WAD),
                     numeraireFeesToLpWad: 0
                 })
             })
@@ -803,6 +1244,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.5e18,
                     assetFeesToNumeraireBuybackWad: 0,
@@ -862,6 +1304,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -905,6 +1348,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -943,6 +1387,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -977,6 +1422,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -1011,6 +1457,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -1045,6 +1492,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: 0,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -1083,6 +1531,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: futureTime,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -1123,6 +1572,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 startingTime: pastTime,
                 feeRoutingMode: FeeRoutingMode.DirectBuyback,
                 feeBeneficiaries: new BeneficiaryData[](0),
+                integratorConfig: _disabledIntegratorConfig(),
                 feeDistributionInfo: FeeDistributionInfo({
                     assetFeesToAssetBuybackWad: 0.25e18,
                     assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -1361,8 +1811,14 @@ contract RehypeDopplerHookInitializerTest is Deployers {
     }
 
     function test_computeCurrentFee_LinearInterpolation() public view {
-        FeeSchedule memory schedule =
-            FeeSchedule({ startingTime: 0, startFee: 10_000, endFee: 2000, lastFee: 10_000, durationSeconds: 4000 });
+        FeeSchedule memory schedule = FeeSchedule({
+            startingTime: 0,
+            startFee: 10_000,
+            endFee: 2000,
+            lastFee: 10_000,
+            durationSeconds: 4000,
+            integratorFeeShare: 0
+        });
 
         assertEq(harness.exposed_computeCurrentFee(schedule, 0), 10_000, "0% elapsed");
         assertEq(harness.exposed_computeCurrentFee(schedule, 1000), 8000, "25% elapsed");
@@ -1383,7 +1839,12 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         elapsed = bound(elapsed, 0, uint256(durationSeconds) - 1);
 
         FeeSchedule memory schedule = FeeSchedule({
-            startingTime: 0, startFee: startFee, endFee: endFee, lastFee: startFee, durationSeconds: durationSeconds
+            startingTime: 0,
+            startFee: startFee,
+            endFee: endFee,
+            lastFee: startFee,
+            durationSeconds: durationSeconds,
+            integratorFeeShare: 0
         });
 
         uint24 fee = harness.exposed_computeCurrentFee(schedule, elapsed);
@@ -1550,6 +2011,183 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         assertEq(ownerCut, expectedOwnerCut, "owner cut must floor at the basis-point boundary");
     }
 
+    function test_integrator_CollectionReservesOwnerIntegratorAndResidualShares() public {
+        PoolKey memory poolKey = _grossAccountingPoolKey(99);
+        PoolId poolId = poolKey.toId();
+        InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
+        initData.integratorConfig.integrator = makeAddr("integrator");
+        initData.integratorConfig.feeShare = MAX_INTEGRATOR_FEE_SHARE;
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        uint256 feeBase = 160_000_000;
+        IPoolManager.SwapParams memory params =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1, sqrtPriceLimitX96: 0 });
+        trackingHarness.exposed_collectSwapFees(
+            params, toBalanceDelta(int128(uint128(feeBase)), -int128(uint128(feeBase))), poolKey, poolId
+        );
+
+        uint256 grossFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
+        uint256 ownerFee = grossFee * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
+        uint256 integratorFee = grossFee * MAX_INTEGRATOR_FEE_SHARE / MILLIONTHS_DENOMINATOR;
+        uint256 matrixFee = grossFee - ownerFee - integratorFee;
+        (uint128 matrixFees0,,,, uint128 ownerFees0,,) = trackingHarness.getHookFees(poolId);
+        (uint128 pendingFees0,) = trackingHarness.getPendingIntegratorFees(poolId);
+
+        assertEq(ownerFees0, ownerFee);
+        assertEq(pendingFees0, integratorFee);
+        assertEq(matrixFees0, matrixFee);
+        assertEq(uint256(ownerFees0) + pendingFees0 + matrixFees0, grossFee);
+    }
+
+    /// forge-config: default.fuzz.runs = 256
+    function testFuzz_integrator_FeeCollectionConservesGrossAcrossModesDirectionsAndRounding(
+        uint128 feeBaseSeed,
+        uint24 feeShareSeed,
+        bool exactInput,
+        bool zeroForOne
+    ) public {
+        uint256 feeBase = bound(feeBaseSeed, 1, uint128(type(int128).max));
+        uint24 feeShare = uint24(bound(feeShareSeed, 0, MAX_INTEGRATOR_FEE_SHARE));
+        PoolKey memory poolKey = _grossAccountingPoolKey(23);
+        PoolId poolId = poolKey.toId();
+        InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
+        if (feeShare != 0) {
+            initData.integratorConfig.integrator = makeAddr("fuzz integrator");
+            initData.integratorConfig.feeShare = feeShare;
+        }
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        int128 signedFeeBase = int128(uint128(feeBase));
+        BalanceDelta delta =
+            zeroForOne ? toBalanceDelta(-signedFeeBase, signedFeeBase) : toBalanceDelta(signedFeeBase, -signedFeeBase);
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+            zeroForOne: zeroForOne, amountSpecified: exactInput ? -int256(1) : int256(1), sqrtPriceLimitX96: 0
+        });
+        (Currency feeCurrency, int128 hookDelta) =
+            trackingHarness.exposed_collectSwapFees(params, delta, poolKey, poolId);
+
+        uint256 grossFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
+        uint256 ownerFee = grossFee * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
+        uint256 integratorFee = grossFee * feeShare / MILLIONTHS_DENOMINATOR;
+        uint256 matrixFee = grossFee - ownerFee - integratorFee;
+        bool feeInCurrency0 = zeroForOne != exactInput;
+        (uint128 fees0, uint128 fees1,,, uint128 ownerFees0, uint128 ownerFees1,) = trackingHarness.getHookFees(poolId);
+        (uint128 pending0, uint128 pending1) = trackingHarness.getPendingIntegratorFees(poolId);
+
+        assertEq(uint256(uint128(hookDelta)), grossFee);
+        assertEq(Currency.unwrap(feeCurrency), Currency.unwrap(feeInCurrency0 ? poolKey.currency0 : poolKey.currency1));
+        assertEq(feeInCurrency0 ? ownerFees0 : ownerFees1, ownerFee);
+        assertEq(feeInCurrency0 ? pending0 : pending1, integratorFee);
+        assertEq(feeInCurrency0 ? fees0 : fees1, matrixFee);
+        assertEq(
+            uint256(feeInCurrency0 ? ownerFees0 : ownerFees1) + uint256(feeInCurrency0 ? pending0 : pending1)
+                + uint256(feeInCurrency0 ? fees0 : fees1),
+            grossFee
+        );
+        assertEq(feeInCurrency0 ? fees1 + ownerFees1 + pending1 : fees0 + ownerFees0 + pending0, 0);
+    }
+
+    function test_integrator_ZeroFeeShareRoutesOnlyOwnerAndResidualFees() public {
+        PoolKey memory poolKey = _grossAccountingPoolKey(22);
+        PoolId poolId = poolKey.toId();
+        InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        uint256 feeBase = 160_000_000;
+        IPoolManager.SwapParams memory params =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1, sqrtPriceLimitX96: 0 });
+        vm.prank(address(initializer));
+        trackingHarness.onSwap(
+            address(0x1234), poolKey, params, toBalanceDelta(int128(uint128(feeBase)), -int128(uint128(feeBase))), ""
+        );
+
+        uint256 grossFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
+        uint256 ownerFee = grossFee * AIRLOCK_OWNER_FEE_BPS / BPS_DENOMINATOR;
+        uint256 matrixFee = grossFee - ownerFee;
+        (uint128 fees0,, uint128 beneficiaryFees0,, uint128 ownerFees0,,) = trackingHarness.getHookFees(poolId);
+        (uint128 pending0, uint128 pending1) = trackingHarness.getPendingIntegratorFees(poolId);
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+
+        assertEq(fees0, 0);
+        assertEq(beneficiaryFees0, matrixFee);
+        assertEq(ownerFees0, ownerFee);
+        assertEq(uint256(pending0) + pending1 + claimable0 + claimable1, 0);
+    }
+
+    function test_integrator_CombinedResidualAndPendingBalancesTriggerProcessing() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(trackingHarness));
+        PoolId poolId = poolKey.toId();
+        address integrator = makeAddr("integrator");
+        InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        uint128 amount = uint128(EPSILON * 3 / 4);
+        trackingHarness.exposed_setResidualAndPendingIntegratorFees(poolId, amount, 0, amount, 0);
+
+        IPoolManager.SwapParams memory params =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1, sqrtPriceLimitX96: 0 });
+        vm.prank(address(initializer));
+        trackingHarness.onSwap(address(0x1234), poolKey, params, toBalanceDelta(0, 0), "");
+
+        (uint128 residual0,,,,,,) = trackingHarness.getHookFees(poolId);
+        (uint128 pending0,) = trackingHarness.getPendingIntegratorFees(poolId);
+        (,, uint128 beneficiaryFees0,,,,) = trackingHarness.getHookFees(poolId);
+        (uint128 claimable0,) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(residual0, 0);
+        assertEq(pending0, 0);
+        assertEq(beneficiaryFees0, amount);
+        assertEq(claimable0, amount);
+    }
+
+    function test_integrator_LatestPayoutConfigAppliesToAlreadyPendingFees() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(trackingHarness));
+        PoolId poolId = poolKey.toId();
+        address integrator = makeAddr("integrator");
+        address replacementIntegrator = makeAddr("replacementIntegrator");
+        InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        uint128 pendingAmount = uint128(EPSILON + 1);
+        trackingHarness.exposed_setResidualAndPendingIntegratorFees(poolId, 0, 0, pendingAmount, 0);
+        token0.transfer(address(trackingHarness), pendingAmount);
+
+        vm.prank(integrator);
+        trackingHarness.setIntegratorAutomaticPayout(poolId, true);
+        vm.prank(integrator);
+        trackingHarness.setIntegrator(poolId, replacementIntegrator);
+        uint256 oldIntegratorBalanceBefore = token0.balanceOf(integrator);
+        uint256 replacementBalanceBefore = token0.balanceOf(replacementIntegrator);
+
+        vm.prank(address(initializer));
+        trackingHarness.onSwap(
+            address(0x1234),
+            poolKey,
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1, sqrtPriceLimitX96: 0 }),
+            toBalanceDelta(0, 0),
+            ""
+        );
+
+        assertEq(token0.balanceOf(integrator), oldIntegratorBalanceBefore);
+        assertEq(token0.balanceOf(replacementIntegrator) - replacementBalanceBefore, pendingAmount);
+        (uint128 pending0, uint128 pending1) = trackingHarness.getPendingIntegratorFees(poolId);
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(uint256(pending0) + pending1 + claimable0 + claimable1, 0);
+    }
+
     function test_collectSwapFees_TinyGrossFloorsOwnerCutToZero() public {
         uint256 feeBase = 1599;
         (uint256 grossFee, uint256 ownerCut) = _assertGrossOwnerCarveOut(21, false, false, true, feeBase);
@@ -1560,6 +2198,71 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             "gross fee must floor independently before the owner carve-out"
         );
         assertEq(ownerCut, 0, "a sub-twenty-wei gross fee must floor the five-percent owner cut to zero");
+    }
+
+    function test_integrator_FailedConversionBecomesClaimableInSourceCurrency() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(trackingHarness));
+        PoolId poolId = poolKey.toId();
+        address integrator = makeAddr("integrator");
+        InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+        initData.integratorConfig.assetFeesToNumeraireRatio = uint32(INTEGRATOR_CONVERSION_RATIO_DENOMINATOR);
+        initData.integratorConfig.automaticPayout = true;
+        bytes32 poolStateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(uint256(6))));
+        trackingPoolManager.setMockPoolStateSlot(poolStateSlot);
+
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(address(token0), poolKey, abi.encode(initData));
+
+        uint256 feeBase = 160_000_000;
+        IPoolManager.SwapParams memory params =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1, sqrtPriceLimitX96: 0 });
+        vm.prank(address(initializer));
+        trackingHarness.onSwap(
+            address(0x1234), poolKey, params, toBalanceDelta(int128(uint128(feeBase)), -int128(uint128(feeBase))), ""
+        );
+
+        uint256 grossFee = feeBase * 10_000 / SWAP_FEE_DENOMINATOR;
+        uint256 expectedIntegratorFee = grossFee * 200_000 / MILLIONTHS_DENOMINATOR;
+        (uint128 pending0, uint128 pending1) = trackingHarness.getPendingIntegratorFees(poolId);
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(pending0, 0);
+        assertEq(pending1, 0);
+        assertEq(claimable0, expectedIntegratorFee);
+        assertEq(claimable1, 0);
+        assertEq(token0.balanceOf(integrator), 0, "failed conversion must not attempt the direct payout");
+    }
+
+    function test_integrator_PartialFillPreservesProportionalOwnershipAndUnconvertedInput() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(trackingHarness));
+        uint256 residualInput = 600;
+        uint256 integratorInput = 400;
+        uint128 amountInUsed = 250;
+        uint128 amountOut = 500;
+        trackingPoolManager.setPartialSwap(true, amountInUsed, amountOut);
+        token0.transfer(address(trackingHarness), residualInput + integratorInput);
+        uint256 inputBalanceBefore = token0.balanceOf(address(trackingHarness));
+        uint256 outputBalanceBefore = token1.balanceOf(address(trackingHarness));
+
+        vm.mockCall(
+            address(trackingHarness.quoter()),
+            abi.encodeWithSelector(Quoter.quoteSingle.selector),
+            abi.encode(-int256(uint256(amountInUsed)), int256(uint256(amountOut)), uint160(1 << 96), uint32(0))
+        );
+
+        AggregatedSwapResult memory result = trackingHarness.exposed_executeAggregatedSwap(
+            poolKey, true, residualInput, integratorInput, residualInput + integratorInput
+        );
+
+        assertEq(result.residualInputUsed, 150);
+        assertEq(result.integratorUnconverted, 300);
+        assertEq(result.integratorOutput, 200);
+        assertEq(result.residualOutput, 300);
+        assertEq(result.residualInputUsed + (integratorInput - result.integratorUnconverted), amountInUsed);
+        assertEq(result.residualOutput + result.integratorOutput, amountOut);
+        assertEq(inputBalanceBefore - token0.balanceOf(address(trackingHarness)), amountInUsed);
+        assertEq(token1.balanceOf(address(trackingHarness)) - outputBalanceBefore, amountOut);
     }
 
     function test_collectSwapFees_NonPositiveOutputDoesNotAccrueOrTake() public {
@@ -1814,6 +2517,242 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         assertEq(fees1, 88);
     }
 
+    function test_integrator_ClaimSendsAllFeesAfterRotation() public {
+        PoolKey memory poolKey = _integratorPoolKey(address(trackingHarness));
+        PoolId poolId = poolKey.toId();
+        address asset = address(token0);
+        address integrator = makeAddr("integrator");
+        address replacementIntegrator = makeAddr("replacementIntegrator");
+        address integratorTreasury = makeAddr("integratorTreasury");
+        InitData memory initData =
+            _quarterInitData(address(token1), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        initializer.setPoolKey(asset, poolKey);
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(asset, poolKey, abi.encode(initData));
+        trackingHarness.exposed_setClaimableIntegratorFees(poolId, 100, 200);
+        token0.transfer(address(trackingHarness), 100);
+        token1.transfer(address(trackingHarness), 200);
+
+        vm.prank(integrator);
+        vm.expectRevert(InvalidIntegratorClaimDestination.selector);
+        trackingHarness.claimIntegratorFees(asset, address(0));
+
+        vm.prank(integrator);
+        trackingHarness.setIntegrator(poolId, replacementIntegrator);
+        vm.prank(integrator);
+        vm.expectRevert(SenderNotIntegrator.selector);
+        trackingHarness.claimIntegratorFees(asset, integratorTreasury);
+
+        vm.expectEmit(true, true, true, true);
+        emit IntegratorFeesClaimed(poolId, replacementIntegrator, integratorTreasury, 100, 200);
+        vm.prank(replacementIntegrator);
+        (uint128 claimed0, uint128 claimed1) = trackingHarness.claimIntegratorFees(asset, integratorTreasury);
+        assertEq(claimed0, 100);
+        assertEq(claimed1, 200);
+        assertEq(token0.balanceOf(integratorTreasury), 100);
+        assertEq(token1.balanceOf(integratorTreasury), 200);
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+    }
+
+    function test_integrator_ManualClaimSecondTokenFailureRevertsAllTransfersAndRestoresAccounting() public {
+        MockERC20Transfer failingToken = new MockERC20Transfer(TransferBehavior.ReturnFalse);
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(failingToken)),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(trackingHarness))
+        });
+        PoolId poolId = poolKey.toId();
+        address asset = address(token0);
+        address integrator = makeAddr("integrator");
+        address treasury = makeAddr("treasury");
+        InitData memory initData =
+            _quarterInitData(address(failingToken), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        initializer.setPoolKey(asset, poolKey);
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(asset, poolKey, abi.encode(initData));
+        trackingHarness.exposed_setClaimableIntegratorFees(poolId, 100, 200);
+        token0.transfer(address(trackingHarness), 100);
+
+        uint256 hookBalanceBefore = token0.balanceOf(address(trackingHarness));
+        uint256 treasuryBalanceBefore = token0.balanceOf(treasury);
+        vm.prank(integrator);
+        vm.expectRevert(SafeTransferLib.TransferFailed.selector);
+        trackingHarness.claimIntegratorFees(asset, treasury);
+
+        assertEq(token0.balanceOf(address(trackingHarness)), hookBalanceBefore);
+        assertEq(token0.balanceOf(treasury), treasuryBalanceBefore);
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(claimable0, 100);
+        assertEq(claimable1, 200);
+    }
+
+    function test_integrator_ManualNativeClaimFailureRestoresAccounting() public {
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(trackingHarness))
+        });
+        PoolId poolId = poolKey.toId();
+        address asset = address(token1);
+        address integrator = makeAddr("integrator");
+        RevertingNativeReceiver receiver = new RevertingNativeReceiver();
+        InitData memory initData =
+            _quarterInitData(address(0), makeAddr("buybackDst"), 3000, FeeRoutingMode.DirectBuyback);
+        initData.integratorConfig.integrator = integrator;
+        initData.integratorConfig.feeShare = 200_000;
+
+        initializer.setPoolKey(asset, poolKey);
+        vm.prank(address(initializer));
+        trackingHarness.onInitialization(asset, poolKey, abi.encode(initData));
+        trackingHarness.exposed_setClaimableIntegratorFees(poolId, 1 ether, 0);
+        vm.deal(address(trackingHarness), 1 ether);
+
+        vm.prank(integrator);
+        vm.expectRevert(SafeTransferLib.ETHTransferFailed.selector);
+        trackingHarness.claimIntegratorFees(asset, address(receiver));
+
+        assertEq(address(trackingHarness).balance, 1 ether);
+        assertEq(address(receiver).balance, 0);
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(claimable0, 1 ether);
+        assertEq(claimable1, 0);
+    }
+
+    function test_integrator_FailedNativeAutomaticPayoutBecomesClaimable() public {
+        PoolKey memory poolKey = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(trackingHarness))
+        });
+        PoolId poolId = poolKey.toId();
+        RevertingNativeReceiver receiver = new RevertingNativeReceiver();
+        uint256 payout = 1 ether;
+        vm.deal(address(trackingHarness), payout);
+
+        trackingHarness.exposed_applyIntegratorSettlement(poolId, poolKey, address(receiver), payout, 0);
+
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(claimable0, payout);
+        assertEq(claimable1, 0);
+        assertEq(address(receiver).balance, 0);
+        assertEq(address(trackingHarness).balance, payout);
+    }
+
+    function test_integrator_Erc20AutomaticPayoutAcceptsTrueAndNoReturnTokens() public {
+        TransferBehavior[2] memory behaviors = [TransferBehavior.ReturnTrue, TransferBehavior.NoReturn];
+        address integrator = makeAddr("integrator");
+        uint256 payout = 123;
+
+        for (uint256 i; i < behaviors.length; ++i) {
+            MockERC20Transfer token = new MockERC20Transfer(behaviors[i]);
+            PoolKey memory poolKey = _automaticPayoutPoolKey(address(token));
+            PoolId poolId = poolKey.toId();
+
+            trackingHarness.exposed_applyIntegratorSettlement(poolId, poolKey, integrator, payout, 0);
+
+            assertEq(token.lastRecipient(), integrator);
+            assertEq(token.lastAmount(), payout);
+            (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+            assertEq(claimable0, 0);
+            assertEq(claimable1, 0);
+        }
+    }
+
+    function test_integrator_Erc20AutomaticPayoutFailuresBecomeClaimable() public {
+        TransferBehavior[4] memory behaviors = [
+            TransferBehavior.Revert,
+            TransferBehavior.ShortReturn,
+            TransferBehavior.ReturnFalse,
+            TransferBehavior.ReturnNonOne
+        ];
+        address integrator = makeAddr("integrator");
+        uint256 payout = 123;
+
+        for (uint256 i; i < behaviors.length; ++i) {
+            MockERC20Transfer token = new MockERC20Transfer(behaviors[i]);
+            PoolKey memory poolKey = _automaticPayoutPoolKey(address(token));
+            PoolId poolId = poolKey.toId();
+
+            trackingHarness.exposed_applyIntegratorSettlement(poolId, poolKey, integrator, payout, 0);
+
+            (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+            assertEq(claimable0, payout);
+            assertEq(claimable1, 0);
+        }
+    }
+
+    function test_integrator_MixedAutomaticPayoutOutcomesAccrueOnlyFailedCurrency() public {
+        address integrator = makeAddr("integrator");
+        uint256 payout0 = 111;
+        uint256 payout1 = 222;
+
+        for (uint256 failingCurrency; failingCurrency < 2; ++failingCurrency) {
+            MockERC20Transfer token0_ = new MockERC20Transfer(
+                failingCurrency == 0 ? TransferBehavior.ReturnFalse : TransferBehavior.ReturnTrue
+            );
+            MockERC20Transfer token1_ = new MockERC20Transfer(
+                failingCurrency == 1 ? TransferBehavior.ReturnFalse : TransferBehavior.ReturnTrue
+            );
+            PoolKey memory poolKey = PoolKey({
+                currency0: Currency.wrap(address(token0_)),
+                currency1: Currency.wrap(address(token1_)),
+                fee: 3000,
+                tickSpacing: int24(60 + int256(failingCurrency)),
+                hooks: IHooks(address(trackingHarness))
+            });
+            PoolId poolId = poolKey.toId();
+
+            trackingHarness.exposed_applyIntegratorSettlement(poolId, poolKey, integrator, payout0, payout1);
+
+            (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+            assertEq(claimable0, failingCurrency == 0 ? payout0 : 0);
+            assertEq(claimable1, failingCurrency == 1 ? payout1 : 0);
+            assertEq(token0_.lastRecipient(), integrator);
+            assertEq(token0_.lastAmount(), payout0);
+            assertEq(token1_.lastRecipient(), integrator);
+            assertEq(token1_.lastAmount(), payout1);
+        }
+    }
+
+    function test_integrator_Erc20AutomaticPayoutRejectsAddressWithoutCode() public {
+        address token = makeAddr("tokenWithoutCode");
+        PoolKey memory poolKey = _automaticPayoutPoolKey(token);
+        PoolId poolId = poolKey.toId();
+        uint256 payout = 123;
+
+        trackingHarness.exposed_applyIntegratorSettlement(poolId, poolKey, makeAddr("integrator"), payout, 0);
+
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(claimable0, payout);
+        assertEq(claimable1, 0);
+    }
+
+    function test_integrator_ClaimableAccountingRevertsInsteadOfOverflowingUint128() public {
+        PoolId poolId = PoolId.wrap(keccak256("integrator overflow"));
+        trackingHarness.exposed_setClaimableIntegratorFees(poolId, type(uint128).max, 0);
+
+        vm.expectRevert(IntegratorFeeOverflow.selector);
+        trackingHarness.exposed_accrueIntegratorFees(poolId, 1, 0);
+
+        (uint128 claimable0, uint128 claimable1) = trackingHarness.getClaimableIntegratorFees(poolId);
+        assertEq(claimable0, type(uint128).max);
+        assertEq(claimable1, 0);
+    }
+
     /* ----------------------------------------------------------------------------- */
     /*                              Helpers                                          */
     /* ----------------------------------------------------------------------------- */
@@ -1833,6 +2772,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             startingTime: 0,
             feeRoutingMode: feeRoutingMode,
             feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: _disabledIntegratorConfig(),
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0.25e18,
                 assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -2165,6 +3105,36 @@ contract RehypeDopplerHookInitializerTest is Deployers {
         });
     }
 
+    function _integratorPoolKey(address hook) internal view returns (PoolKey memory) {
+        return PoolKey({
+            currency0: Currency.wrap(address(token0)),
+            currency1: Currency.wrap(address(token1)),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(hook)
+        });
+    }
+
+    function _automaticPayoutPoolKey(address token) internal view returns (PoolKey memory) {
+        return PoolKey({
+            currency0: Currency.wrap(token),
+            currency1: Currency.wrap(address(token1)),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(trackingHarness))
+        });
+    }
+
+    function _disabledIntegratorConfig() internal pure returns (IntegratorInitConfig memory) {
+        return IntegratorInitConfig({
+            integrator: address(0),
+            feeShare: 0,
+            assetFeesToNumeraireRatio: 0,
+            numeraireFeesToAssetRatio: 0,
+            automaticPayout: false
+        });
+    }
+
     function _initializeGrossAccountingPool(PoolKey memory poolKey, bool configureBeneficiaries) internal {
         InitData memory initData = _beneficiaryOnlyInitData(address(token1), address(0), 10_000, 10_000, 0, 0);
         if (configureBeneficiaries) {
@@ -2194,13 +3164,14 @@ contract RehypeDopplerHookInitializerTest is Deployers {
                 ? FeeRoutingMode.RouteToBeneficiaryFees
                 : FeeRoutingMode.DirectBuyback,
             feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: _disabledIntegratorConfig(),
             feeDistributionInfo: FeeDistributionInfo({
-                assetFeesToAssetBuybackWad: WAD,
+                assetFeesToAssetBuybackWad: uint64(WAD),
                 assetFeesToNumeraireBuybackWad: 0,
                 assetFeesToBeneficiaryWad: 0,
                 assetFeesToLpWad: 0,
                 numeraireFeesToAssetBuybackWad: 0,
-                numeraireFeesToNumeraireBuybackWad: WAD,
+                numeraireFeesToNumeraireBuybackWad: uint64(WAD),
                 numeraireFeesToBeneficiaryWad: 0,
                 numeraireFeesToLpWad: 0
             })
@@ -2226,6 +3197,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             startingTime: 0,
             feeRoutingMode: FeeRoutingMode.DirectBuyback,
             feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: _disabledIntegratorConfig(),
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0.31e18,
                 assetFeesToNumeraireBuybackWad: 0,
@@ -2256,6 +3228,7 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             startingTime: startingTime,
             feeRoutingMode: FeeRoutingMode.DirectBuyback,
             feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: _disabledIntegratorConfig(),
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0.25e18,
                 assetFeesToNumeraireBuybackWad: 0.25e18,
@@ -2286,14 +3259,15 @@ contract RehypeDopplerHookInitializerTest is Deployers {
             startingTime: startingTime,
             feeRoutingMode: FeeRoutingMode.DirectBuyback,
             feeBeneficiaries: new BeneficiaryData[](0),
+            integratorConfig: _disabledIntegratorConfig(),
             feeDistributionInfo: FeeDistributionInfo({
                 assetFeesToAssetBuybackWad: 0,
                 assetFeesToNumeraireBuybackWad: 0,
-                assetFeesToBeneficiaryWad: WAD,
+                assetFeesToBeneficiaryWad: uint64(WAD),
                 assetFeesToLpWad: 0,
                 numeraireFeesToAssetBuybackWad: 0,
                 numeraireFeesToNumeraireBuybackWad: 0,
-                numeraireFeesToBeneficiaryWad: WAD,
+                numeraireFeesToBeneficiaryWad: uint64(WAD),
                 numeraireFeesToLpWad: 0
             })
         });

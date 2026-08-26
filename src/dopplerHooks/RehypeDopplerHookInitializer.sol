@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { Quoter } from "@quoter/Quoter.sol";
+import { SafeTransferLib } from "@solady/utils/SafeTransferLib.sol";
 import { IPoolManager } from "@v4-core/interfaces/IPoolManager.sol";
 import { FullMath } from "@v4-core/libraries/FullMath.sol";
 import { StateLibrary } from "@v4-core/libraries/StateLibrary.sol";
@@ -19,6 +20,7 @@ import { BeneficiaryData } from "src/types/BeneficiaryData.sol";
 import { Position } from "src/types/Position.sol";
 import {
     AIRLOCK_OWNER_FEE_BPS,
+    AggregatedSwapResult,
     AirlockOwnerFeesClaimed,
     BPS_DENOMINATOR,
     DEV_BUY_EXEMPTION_SLOT,
@@ -34,17 +36,37 @@ import {
     FeeTooHigh,
     FeeUpdated,
     HookFees,
+    INTEGRATOR_CONVERSION_RATIO_DENOMINATOR,
     InitData,
     InsufficientFeeCurrency,
+    IntegratorAutomaticPayoutSet,
+    IntegratorConversionRatiosSet,
+    IntegratorFeeOverflow,
+    IntegratorFeeShareSet,
+    IntegratorFeeShareTooHigh,
+    IntegratorFees,
+    IntegratorFeesClaimed,
+    IntegratorInitConfig,
+    IntegratorRoutingConfig,
+    IntegratorSet,
+    IntegratorSettlement,
+    InvalidAsset,
     InvalidDurationSeconds,
     InvalidFeeRange,
+    InvalidIntegrator,
+    InvalidIntegratorClaimDestination,
+    InvalidIntegratorConversionRatio,
+    InvalidNumeraire,
+    MAX_INTEGRATOR_FEE_SHARE,
     MAX_REBALANCE_ITERATIONS,
     MAX_SWAP_FEE,
+    MILLIONTHS_DENOMINATOR,
     PoolAlreadyInitialized,
     PoolInfo,
     SWAP_FEE_DENOMINATOR,
     SenderNotAirlockOwner,
     SenderNotAuthorized,
+    SenderNotIntegrator,
     SwapSimulation
 } from "src/types/RehypeTypes.sol";
 import { WAD } from "src/types/Wad.sol";
@@ -71,8 +93,8 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
     /// @notice Position data for each pool
     mapping(PoolId poolId => Position position) public getPosition;
 
-    /// @notice Fee distribution configuration for each pool
-    mapping(PoolId poolId => FeeDistributionInfo feeDistributionInfo) public getFeeDistributionInfo;
+    /// @dev Packed fee distribution configuration for each pool
+    mapping(PoolId poolId => FeeDistributionInfo feeDistributionInfo) private _feeDistributionInfo;
 
     /// @notice Hook fees tracking for each pool
     mapping(PoolId poolId => HookFees hookFees) public getHookFees;
@@ -83,8 +105,17 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
     /// @notice Fee routing mode for each pool
     mapping(PoolId poolId => FeeRoutingMode feeRoutingMode) public getFeeRoutingMode;
 
-    /// @notice Fee schedule for each pool (decaying fee)
-    mapping(PoolId poolId => FeeSchedule feeSchedule) public getFeeSchedule;
+    /// @notice Mutable integrator routing configuration for each pool
+    mapping(PoolId poolId => IntegratorRoutingConfig config) public getIntegratorRoutingConfig;
+
+    /// @notice Integrator fees collected but not yet processed by a routing cycle
+    mapping(PoolId poolId => IntegratorFees fees) public getPendingIntegratorFees;
+
+    /// @notice Processed integrator fees retained for manual claim
+    mapping(PoolId poolId => IntegratorFees fees) public getClaimableIntegratorFees;
+
+    /// @dev Packed fee schedule and immutable integrator fee share for each pool
+    mapping(PoolId poolId => FeeSchedule feeSchedule) private _feeSchedule;
 
     receive() external payable { }
 
@@ -103,6 +134,53 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         bundler = bundler_;
     }
 
+    /**
+     * @notice Returns the original fee schedule ABI while packed storage also contains the integrator fee share.
+     */
+    function getFeeSchedule(PoolId poolId)
+        external
+        view
+        returns (uint32 startingTime, uint24 startFee, uint24 endFee, uint24 lastFee, uint32 durationSeconds)
+    {
+        FeeSchedule memory schedule = _feeSchedule[poolId];
+        return (schedule.startingTime, schedule.startFee, schedule.endFee, schedule.lastFee, schedule.durationSeconds);
+    }
+
+    /// @notice Returns the immutable integrator share of gross Rehype fees for a pool.
+    function getIntegratorFeeShare(PoolId poolId) external view returns (uint24) {
+        return _feeSchedule[poolId].integratorFeeShare;
+    }
+
+    /**
+     * @notice Returns fee distribution weights using the original uint256 ABI.
+     */
+    function getFeeDistributionInfo(PoolId poolId)
+        external
+        view
+        returns (
+            uint256 assetFeesToAssetBuybackWad,
+            uint256 assetFeesToNumeraireBuybackWad,
+            uint256 assetFeesToBeneficiaryWad,
+            uint256 assetFeesToLpWad,
+            uint256 numeraireFeesToAssetBuybackWad,
+            uint256 numeraireFeesToNumeraireBuybackWad,
+            uint256 numeraireFeesToBeneficiaryWad,
+            uint256 numeraireFeesToLpWad
+        )
+    {
+        FeeDistributionInfo memory distribution = _feeDistributionInfo[poolId];
+        return (
+            distribution.assetFeesToAssetBuybackWad,
+            distribution.assetFeesToNumeraireBuybackWad,
+            distribution.assetFeesToBeneficiaryWad,
+            distribution.assetFeesToLpWad,
+            distribution.numeraireFeesToAssetBuybackWad,
+            distribution.numeraireFeesToNumeraireBuybackWad,
+            distribution.numeraireFeesToBeneficiaryWad,
+            distribution.numeraireFeesToLpWad
+        );
+    }
+
     /// @inheritdoc BaseDopplerHookInitializer
     function _onInitialization(address asset, PoolKey calldata key, bytes calldata data) internal override {
         InitData memory initData = abi.decode(data, (InitData));
@@ -113,17 +191,47 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         // Naive reinitialization would lead to overallocation of beneficiary fees and overlapping claims.
         require(getPoolInfo[poolId].asset == address(0), PoolAlreadyInitialized());
 
+        Currency assetCurrency = Currency.wrap(asset);
+        Currency numeraireCurrency;
+        if (key.currency0 == assetCurrency) {
+            numeraireCurrency = key.currency1;
+        } else if (key.currency1 == assetCurrency) {
+            numeraireCurrency = key.currency0;
+        } else {
+            revert InvalidAsset(asset);
+        }
+
+        address numeraire = Currency.unwrap(numeraireCurrency);
+        require(initData.numeraire == numeraire, InvalidNumeraire(numeraire, initData.numeraire));
+
         // If _onInitialization is called by create (and not on hook reinitialization), open a temporary dev buy
         // non-protocol fee exemption for one swap only.
         if (_isAirlockCreate(asset)) {
             _setDevBuyExemption(poolId);
         }
 
-        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: initData.numeraire, buybackDst: initData.buybackDst });
+        getPoolInfo[poolId] = PoolInfo({ asset: asset, numeraire: numeraire, buybackDst: initData.buybackDst });
 
         _validateFeeDistribution(initData.feeDistributionInfo);
-        getFeeDistributionInfo[poolId] = initData.feeDistributionInfo;
+        _feeDistributionInfo[poolId] = initData.feeDistributionInfo;
         getFeeRoutingMode[poolId] = initData.feeRoutingMode;
+
+        IntegratorInitConfig memory integratorConfig = initData.integratorConfig;
+        _validateIntegratorInitConfig(integratorConfig);
+        emit IntegratorFeeShareSet(poolId, integratorConfig.feeShare);
+        if (integratorConfig.feeShare > 0) {
+            getIntegratorRoutingConfig[poolId] = IntegratorRoutingConfig({
+                integrator: integratorConfig.integrator,
+                assetFeesToNumeraireRatio: integratorConfig.assetFeesToNumeraireRatio,
+                numeraireFeesToAssetRatio: integratorConfig.numeraireFeesToAssetRatio,
+                automaticPayout: integratorConfig.automaticPayout
+            });
+            emit IntegratorSet(poolId, address(0), integratorConfig.integrator);
+            emit IntegratorConversionRatiosSet(
+                poolId, integratorConfig.assetFeesToNumeraireRatio, integratorConfig.numeraireFeesToAssetRatio
+            );
+            emit IntegratorAutomaticPayoutSet(poolId, integratorConfig.automaticPayout);
+        }
 
         if (initData.feeBeneficiaries.length > 0) {
             require(
@@ -147,12 +255,13 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             ? uint32(block.timestamp)
             : initData.startingTime;
 
-        getFeeSchedule[poolId] = FeeSchedule({
+        _feeSchedule[poolId] = FeeSchedule({
             startingTime: normalizedStart,
             startFee: initData.startFee,
             endFee: initData.endFee,
             lastFee: initData.startFee,
-            durationSeconds: initData.durationSeconds
+            durationSeconds: initData.durationSeconds,
+            integratorFeeShare: integratorConfig.feeShare
         });
 
         emit FeeScheduleSet(poolId, normalizedStart, initData.startFee, initData.endFee, initData.durationSeconds);
@@ -179,44 +288,64 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         }
 
         PoolId poolId = key.toId();
-
-        (Currency feeCurrency, int128 hookDelta) = _collectSwapFees(sender, params, delta, key, poolId);
+        (Currency feeCurrency, int128 hookDelta, uint24 integratorFeeShare) =
+            _collectSwapFees(sender, params, delta, key, poolId);
 
         uint256 balance0 = getHookFees[poolId].fees0;
         uint256 balance1 = getHookFees[poolId].fees1;
-
-        if (balance0 <= EPSILON && balance1 <= EPSILON) {
+        IntegratorFees memory integratorFees;
+        if (integratorFeeShare != 0) {
+            integratorFees = getPendingIntegratorFees[poolId];
+        }
+        if (balance0 + integratorFees.fees0 <= EPSILON && balance1 + integratorFees.fees1 <= EPSILON) {
             return (feeCurrency, hookDelta);
         }
 
-        address asset = getPoolInfo[poolId].asset;
-        address numeraire = getPoolInfo[poolId].numeraire;
-        bool isToken0 = key.currency0 == Currency.wrap(asset);
-        bool isNumeraireToken0 = key.currency0 == Currency.wrap(numeraire);
-
-        FeeDistributionInfo memory feeDistributionInfo = getFeeDistributionInfo[poolId];
+        PoolInfo storage poolInfo = getPoolInfo[poolId];
+        bool isToken0 = key.currency0 == Currency.wrap(poolInfo.asset);
+        bool isNumeraireToken0 = key.currency0 == Currency.wrap(poolInfo.numeraire);
+        FeeDistributionInfo memory distribution = _feeDistributionInfo[poolId];
+        IntegratorRoutingConfig memory integratorConfig;
+        if (integratorFeeShare != 0) {
+            integratorConfig = getIntegratorRoutingConfig[poolId];
+        }
 
         uint256 assetFees = isToken0 ? balance0 : balance1;
         uint256 numeraireFees = isToken0 ? balance1 : balance0;
+        uint256 integratorAssetFees = isToken0 ? integratorFees.fees0 : integratorFees.fees1;
+        uint256 integratorNumeraireFees = isToken0 ? integratorFees.fees1 : integratorFees.fees0;
 
-        uint256 assetDirectBuybackAmount =
-            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToAssetBuybackWad, WAD);
-        uint256 assetBuybackAmountIn =
-            FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToNumeraireBuybackWad, WAD);
-        uint256 assetBeneficiaryAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToBeneficiaryWad, WAD);
-        uint256 assetLpAmount = FullMath.mulDiv(assetFees, feeDistributionInfo.assetFeesToLpWad, WAD);
+        uint256 assetDirectBuybackAmount = FullMath.mulDiv(assetFees, distribution.assetFeesToAssetBuybackWad, WAD);
+        uint256 assetBuybackAmountIn = FullMath.mulDiv(assetFees, distribution.assetFeesToNumeraireBuybackWad, WAD);
+        uint256 assetBeneficiaryAmount = FullMath.mulDiv(assetFees, distribution.assetFeesToBeneficiaryWad, WAD);
+        uint256 assetLpAmount = FullMath.mulDiv(assetFees, distribution.assetFeesToLpWad, WAD);
 
         uint256 numeraireBuybackAmountIn =
-            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToAssetBuybackWad, WAD);
+            FullMath.mulDiv(numeraireFees, distribution.numeraireFeesToAssetBuybackWad, WAD);
         uint256 numeraireDirectBuybackAmount =
-            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToNumeraireBuybackWad, WAD);
+            FullMath.mulDiv(numeraireFees, distribution.numeraireFeesToNumeraireBuybackWad, WAD);
         uint256 numeraireBeneficiaryAmount =
-            FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToBeneficiaryWad, WAD);
-        uint256 numeraireLpAmount = FullMath.mulDiv(numeraireFees, feeDistributionInfo.numeraireFeesToLpWad, WAD);
+            FullMath.mulDiv(numeraireFees, distribution.numeraireFeesToBeneficiaryWad, WAD);
+        uint256 numeraireLpAmount = FullMath.mulDiv(numeraireFees, distribution.numeraireFeesToLpWad, WAD);
+
+        uint256 integratorAssetSwapAmount = FullMath.mulDiv(
+            integratorAssetFees, integratorConfig.assetFeesToNumeraireRatio, INTEGRATOR_CONVERSION_RATIO_DENOMINATOR
+        );
+        uint256 integratorNumeraireSwapAmount = FullMath.mulDiv(
+            integratorNumeraireFees, integratorConfig.numeraireFeesToAssetRatio, INTEGRATOR_CONVERSION_RATIO_DENOMINATOR
+        );
+
+        IntegratorSettlement memory integratorSettlement;
+        if (isToken0) {
+            integratorSettlement.settlement0 = integratorAssetFees - integratorAssetSwapAmount;
+            integratorSettlement.settlement1 = integratorNumeraireFees - integratorNumeraireSwapAmount;
+        } else {
+            integratorSettlement.settlement0 = integratorNumeraireFees - integratorNumeraireSwapAmount;
+            integratorSettlement.settlement1 = integratorAssetFees - integratorAssetSwapAmount;
+        }
 
         uint256 lpAmount0 = isToken0 ? assetLpAmount : numeraireLpAmount;
         uint256 lpAmount1 = isToken0 ? numeraireLpAmount : assetLpAmount;
-
         balance0 = isToken0
             ? assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn
             : numeraireBeneficiaryAmount + numeraireLpAmount + numeraireBuybackAmountIn;
@@ -224,91 +353,69 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             ? numeraireBeneficiaryAmount + numeraireLpAmount + numeraireBuybackAmountIn
             : assetBeneficiaryAmount + assetLpAmount + assetBuybackAmountIn;
 
-        address recipient = getPoolInfo[poolId].buybackDst;
         bool routeToBeneficiaryFees = getFeeRoutingMode[poolId] == FeeRoutingMode.RouteToBeneficiaryFees;
-
         if (assetDirectBuybackAmount > 0) {
             if (routeToBeneficiaryFees) {
-                if (isToken0) {
-                    balance0 += assetDirectBuybackAmount;
-                } else {
-                    balance1 += assetDirectBuybackAmount;
-                }
+                if (isToken0) balance0 += assetDirectBuybackAmount;
+                else balance1 += assetDirectBuybackAmount;
             } else {
-                isToken0
-                    ? key.currency0.transfer(recipient, assetDirectBuybackAmount)
-                    : key.currency1.transfer(recipient, assetDirectBuybackAmount);
+                Currency.wrap(poolInfo.asset).transfer(poolInfo.buybackDst, assetDirectBuybackAmount);
             }
         }
-
         if (numeraireDirectBuybackAmount > 0) {
             if (routeToBeneficiaryFees) {
-                if (isNumeraireToken0) {
-                    balance0 += numeraireDirectBuybackAmount;
-                } else {
-                    balance1 += numeraireDirectBuybackAmount;
-                }
+                if (isNumeraireToken0) balance0 += numeraireDirectBuybackAmount;
+                else balance1 += numeraireDirectBuybackAmount;
             } else {
-                isNumeraireToken0
-                    ? key.currency0.transfer(recipient, numeraireDirectBuybackAmount)
-                    : key.currency1.transfer(recipient, numeraireDirectBuybackAmount);
+                Currency.wrap(poolInfo.numeraire).transfer(poolInfo.buybackDst, numeraireDirectBuybackAmount);
             }
         }
 
-        if (assetBuybackAmountIn > 0) {
-            Currency outputCurrency = isNumeraireToken0 ? key.currency0 : key.currency1;
-            SwapSimulation memory sim =
-                _simulateSwap(key, isToken0, assetBuybackAmountIn, isToken0 ? balance0 : 0, isToken0 ? 0 : balance1);
-            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
-            if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
-                (, uint256 assetBuybackAmountOut, uint256 assetBuybackAmountInUsed) =
-                    _executeSwap(key, isToken0, assetBuybackAmountIn);
-                if (routeToBeneficiaryFees) {
-                    if (isNumeraireToken0) {
-                        balance0 += assetBuybackAmountOut;
-                    } else {
-                        balance1 += assetBuybackAmountOut;
-                    }
-                } else {
-                    isNumeraireToken0
-                        ? key.currency0.transfer(recipient, assetBuybackAmountOut)
-                        : key.currency1.transfer(recipient, assetBuybackAmountOut);
-                }
-                balance0 = isToken0 ? balance0 - assetBuybackAmountInUsed : balance0;
-                balance1 = isToken0 ? balance1 : balance1 - assetBuybackAmountInUsed;
+        AggregatedSwapResult memory assetSwap = _executeAggregatedSwap(
+            key,
+            isToken0,
+            assetBuybackAmountIn,
+            integratorAssetSwapAmount,
+            (isToken0 ? balance0 : balance1) + integratorAssetSwapAmount
+        );
+        if (assetSwap.residualOutput > 0) {
+            if (routeToBeneficiaryFees) {
+                if (isNumeraireToken0) balance0 += assetSwap.residualOutput;
+                else balance1 += assetSwap.residualOutput;
+            } else {
+                Currency.wrap(poolInfo.numeraire).transfer(poolInfo.buybackDst, assetSwap.residualOutput);
             }
         }
+        if (isToken0) balance0 -= assetSwap.residualInputUsed;
+        else balance1 -= assetSwap.residualInputUsed;
+        if (isNumeraireToken0) integratorSettlement.settlement0 += assetSwap.integratorOutput;
+        else integratorSettlement.settlement1 += assetSwap.integratorOutput;
+        if (isToken0) integratorSettlement.unconverted0 += assetSwap.integratorUnconverted;
+        else integratorSettlement.unconverted1 += assetSwap.integratorUnconverted;
 
-        if (numeraireBuybackAmountIn > 0) {
-            Currency outputCurrency = isToken0 ? key.currency0 : key.currency1;
-            SwapSimulation memory sim = _simulateSwap(
-                key, !isToken0, numeraireBuybackAmountIn, !isToken0 ? balance0 : 0, !isToken0 ? 0 : balance1
-            );
-            uint256 poolManagerOutputBalance = outputCurrency.balanceOf(address(poolManager));
-            if (sim.success && sim.amountOut > 0 && poolManagerOutputBalance >= sim.amountOut) {
-                (, uint256 numeraireBuybackAmountOutResult, uint256 numeraireBuybackAmountInUsed) =
-                    _executeSwap(key, !isToken0, numeraireBuybackAmountIn);
-                if (routeToBeneficiaryFees) {
-                    if (isToken0) {
-                        balance0 += numeraireBuybackAmountOutResult;
-                    } else {
-                        balance1 += numeraireBuybackAmountOutResult;
-                    }
-                } else {
-                    isToken0
-                        ? key.currency0.transfer(recipient, numeraireBuybackAmountOutResult)
-                        : key.currency1.transfer(recipient, numeraireBuybackAmountOutResult);
-                }
-                // numeraireBuybackAmountInUsed is always paid in numeraire:
-                // - when isToken0=true, numeraire is currency1
-                // - when isToken0=false, numeraire is currency0
-                balance0 = isToken0 ? balance0 : balance0 - numeraireBuybackAmountInUsed;
-                balance1 = isToken0 ? balance1 - numeraireBuybackAmountInUsed : balance1;
+        AggregatedSwapResult memory numeraireSwap = _executeAggregatedSwap(
+            key,
+            !isToken0,
+            numeraireBuybackAmountIn,
+            integratorNumeraireSwapAmount,
+            (isToken0 ? balance1 : balance0) + integratorNumeraireSwapAmount
+        );
+        if (numeraireSwap.residualOutput > 0) {
+            if (routeToBeneficiaryFees) {
+                if (isToken0) balance0 += numeraireSwap.residualOutput;
+                else balance1 += numeraireSwap.residualOutput;
+            } else {
+                Currency.wrap(poolInfo.asset).transfer(poolInfo.buybackDst, numeraireSwap.residualOutput);
             }
         }
+        if (isToken0) balance1 -= numeraireSwap.residualInputUsed;
+        else balance0 -= numeraireSwap.residualInputUsed;
+        if (isToken0) integratorSettlement.settlement0 += numeraireSwap.integratorOutput;
+        else integratorSettlement.settlement1 += numeraireSwap.integratorOutput;
+        if (isNumeraireToken0) integratorSettlement.unconverted0 += numeraireSwap.integratorUnconverted;
+        else integratorSettlement.unconverted1 += numeraireSwap.integratorUnconverted;
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
-
         Position storage position = getPosition[poolId];
         (bool shouldSwap, bool zeroForOne, uint256 swapAmountIn, uint256 swapAmountOut,) =
             _rebalanceFees(key, lpAmount0, lpAmount1, sqrtPriceX96);
@@ -332,11 +439,116 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
 
         getHookFees[poolId].beneficiaryFees0 += uint128(balance0);
         getHookFees[poolId].beneficiaryFees1 += uint128(balance1);
-
         getHookFees[poolId].fees0 = 0;
         getHookFees[poolId].fees1 = 0;
+        if (integratorFeeShare != 0) {
+            delete getPendingIntegratorFees[poolId];
+            _applyIntegratorSettlement(poolId, key, integratorConfig, integratorSettlement);
+        }
 
         return (feeCurrency, hookDelta);
+    }
+
+    /**
+     * @dev Executes one directional swap for residual fee-distribution and integrator inputs together.
+     * @param key Pool receiving the internal swap
+     * @param zeroForOne Swap direction
+     * @param residualInput Residual fee-distribution input assigned to this direction
+     * @param integratorInput Integrator input assigned to this direction
+     * @param availableInput Total contract accounting available in the input currency
+     * @return result Proportional ownership of consumed input and produced output
+     */
+    function _executeAggregatedSwap(
+        PoolKey memory key,
+        bool zeroForOne,
+        uint256 residualInput,
+        uint256 integratorInput,
+        uint256 availableInput
+    ) internal returns (AggregatedSwapResult memory result) {
+        uint256 totalInput = residualInput + integratorInput;
+        if (totalInput == 0) return result;
+
+        SwapSimulation memory simulation = _simulateSwap(
+            key, zeroForOne, totalInput, zeroForOne ? availableInput : 0, zeroForOne ? 0 : availableInput
+        );
+        Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+        if (
+            !simulation.success || simulation.amountOut == 0
+                || outputCurrency.balanceOf(address(poolManager)) < simulation.amountOut
+        ) {
+            result.integratorUnconverted = integratorInput;
+            return result;
+        }
+
+        (, uint256 amountOut, uint256 amountInUsed) = _executeSwap(key, zeroForOne, totalInput);
+        uint256 integratorInputUsed =
+            integratorInput == 0 ? 0 : FullMath.mulDiv(amountInUsed, integratorInput, totalInput);
+        result.residualInputUsed = amountInUsed - integratorInputUsed;
+        result.integratorUnconverted = integratorInput - integratorInputUsed;
+
+        if (integratorInputUsed > 0) {
+            result.integratorOutput = FullMath.mulDiv(amountOut, integratorInputUsed, amountInUsed);
+        }
+        result.residualOutput = amountOut - result.integratorOutput;
+    }
+
+    /**
+     * @dev Applies all integrator amounts produced by one routing cycle.
+     * Unconverted amounts are always accrued. When automatic payout is enabled, transfer failures are also accrued
+     * instead of reverting the outer user swap.
+     */
+    function _applyIntegratorSettlement(
+        PoolId poolId,
+        PoolKey memory key,
+        IntegratorRoutingConfig memory config,
+        IntegratorSettlement memory settlement
+    ) internal {
+        if (!config.automaticPayout) {
+            _accrueIntegratorFees(
+                poolId,
+                settlement.unconverted0 + settlement.settlement0,
+                settlement.unconverted1 + settlement.settlement1
+            );
+            return;
+        }
+
+        uint256 failed0 = _tryAutomaticIntegratorPayout(key.currency0, config.integrator, settlement.settlement0);
+        uint256 failed1 = _tryAutomaticIntegratorPayout(key.currency1, config.integrator, settlement.settlement1);
+        _accrueIntegratorFees(poolId, settlement.unconverted0 + failed0, settlement.unconverted1 + failed1);
+    }
+
+    /**
+     * @dev Attempts one automatic integrator payout and returns its amount when the transfer fails.
+     */
+    function _tryAutomaticIntegratorPayout(
+        Currency currency,
+        address integrator,
+        uint256 amount
+    ) internal returns (uint256 failedAmount) {
+        if (amount == 0) return 0;
+        if (_tryAutomaticTransfer(currency, integrator, amount)) return 0;
+        return amount;
+    }
+
+    /**
+     * @dev Adds integrator balances to claimable accounting with checked narrowing.
+     */
+    function _accrueIntegratorFees(PoolId poolId, uint256 amount0, uint256 amount1) internal {
+        if (amount0 == 0 && amount1 == 0) return;
+
+        IntegratorFees memory fees = getClaimableIntegratorFees[poolId];
+        fees = IntegratorFees({
+            fees0: _toUint128(uint256(fees.fees0) + amount0), fees1: _toUint128(uint256(fees.fees1) + amount1)
+        });
+        getClaimableIntegratorFees[poolId] = fees;
+    }
+
+    /**
+     * @dev Narrows integrator accounting amounts without truncation.
+     */
+    function _toUint128(uint256 amount) internal pure returns (uint128 narrowed) {
+        require(amount <= type(uint128).max, IntegratorFeeOverflow());
+        narrowed = uint128(amount);
     }
 
     /**
@@ -687,19 +899,21 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             return _collectAndReleaseRehypeFees(poolId);
         }
 
-        HookFees memory hookFees = getHookFees[poolId];
+        HookFees storage hookFees = getHookFees[poolId];
+        uint128 beneficiaryFees0 = hookFees.beneficiaryFees0;
+        uint128 beneficiaryFees1 = hookFees.beneficiaryFees1;
         address beneficiary = getPoolInfo[poolId].buybackDst;
 
-        fees = toBalanceDelta(int128(uint128(hookFees.beneficiaryFees0)), int128(uint128(hookFees.beneficiaryFees1)));
+        fees = toBalanceDelta(int128(beneficiaryFees0), int128(beneficiaryFees1));
 
-        getHookFees[poolId].beneficiaryFees0 = 0;
-        getHookFees[poolId].beneficiaryFees1 = 0;
+        hookFees.beneficiaryFees0 = 0;
+        hookFees.beneficiaryFees1 = 0;
 
-        if (hookFees.beneficiaryFees0 > 0) {
-            poolKey.currency0.transfer(beneficiary, hookFees.beneficiaryFees0);
+        if (beneficiaryFees0 > 0) {
+            poolKey.currency0.transfer(beneficiary, beneficiaryFees0);
         }
-        if (hookFees.beneficiaryFees1 > 0) {
-            poolKey.currency1.transfer(beneficiary, hookFees.beneficiaryFees1);
+        if (beneficiaryFees1 > 0) {
+            poolKey.currency1.transfer(beneficiary, beneficiaryFees1);
         }
 
         return fees;
@@ -756,6 +970,86 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
     }
 
     /**
+     * @notice Claims all accrued integrator fees to a chosen destination
+     * @param asset Asset address identifying the pool
+     * @param to Address receiving both pool currencies
+     * @return fees0 Amount of currency0 claimed
+     * @return fees1 Amount of currency1 claimed
+     */
+    function claimIntegratorFees(
+        address asset,
+        address to
+    ) external nonReentrant returns (uint128 fees0, uint128 fees1) {
+        require(to != address(0), InvalidIntegratorClaimDestination());
+
+        (,,,,, PoolKey memory poolKey,) = DopplerHookInitializer(payable(INITIALIZER)).getState(asset);
+        PoolId poolId = poolKey.toId();
+        IntegratorRoutingConfig memory config = getIntegratorRoutingConfig[poolId];
+        require(msg.sender == config.integrator, SenderNotIntegrator());
+
+        IntegratorFees memory fees = getClaimableIntegratorFees[poolId];
+        fees0 = fees.fees0;
+        fees1 = fees.fees1;
+        delete getClaimableIntegratorFees[poolId];
+
+        if (fees0 > 0) _safeTransfer(poolKey.currency0, to, fees0);
+        if (fees1 > 0) _safeTransfer(poolKey.currency1, to, fees1);
+
+        emit IntegratorFeesClaimed(poolId, msg.sender, to, fees0, fees1);
+    }
+
+    /**
+     * @notice Atomically updates both integrator fee conversion ratios
+     * @dev The current integrator controls the ratios. The update applies to all unprocessed and future fees.
+     * @param poolId Pool whose conversion ratios are updated
+     * @param assetFeesToNumeraireRatio Ratio of asset fees converted to numeraire
+     * @param numeraireFeesToAssetRatio Ratio of numeraire fees converted to asset
+     */
+    function setIntegratorConversionRatios(
+        PoolId poolId,
+        uint32 assetFeesToNumeraireRatio,
+        uint32 numeraireFeesToAssetRatio
+    ) external {
+        IntegratorRoutingConfig storage config = getIntegratorRoutingConfig[poolId];
+        require(msg.sender == config.integrator, SenderNotIntegrator());
+        _validateIntegratorConversionRatios(assetFeesToNumeraireRatio, numeraireFeesToAssetRatio);
+
+        config.assetFeesToNumeraireRatio = assetFeesToNumeraireRatio;
+        config.numeraireFeesToAssetRatio = numeraireFeesToAssetRatio;
+        emit IntegratorConversionRatiosSet(poolId, assetFeesToNumeraireRatio, numeraireFeesToAssetRatio);
+    }
+
+    /**
+     * @notice Updates whether processed integrator fees are paid automatically
+     * @dev The current integrator controls this setting. Existing claimable fees remain claimable.
+     * @param poolId Pool whose automatic payout setting is updated
+     * @param automaticPayout Whether future processed fees are paid automatically
+     */
+    function setIntegratorAutomaticPayout(PoolId poolId, bool automaticPayout) external {
+        IntegratorRoutingConfig storage config = getIntegratorRoutingConfig[poolId];
+        require(msg.sender == config.integrator, SenderNotIntegrator());
+
+        config.automaticPayout = automaticPayout;
+        emit IntegratorAutomaticPayoutSet(poolId, automaticPayout);
+    }
+
+    /**
+     * @notice Rotates integrator control, automatic payout, and claim rights to a new address
+     * @param poolId Pool whose integrator is updated
+     * @param newIntegrator Address receiving control and outstanding claim rights
+     */
+    function setIntegrator(PoolId poolId, address newIntegrator) external {
+        require(newIntegrator != address(0), InvalidIntegrator());
+
+        IntegratorRoutingConfig storage config = getIntegratorRoutingConfig[poolId];
+        address oldIntegrator = config.integrator;
+        require(msg.sender == oldIntegrator, SenderNotIntegrator());
+
+        config.integrator = newIntegrator;
+        emit IntegratorSet(poolId, oldIntegrator, newIntegrator);
+    }
+
+    /**
      * @notice Updates the fee distribution for a pool
      * @param poolId Uniswap V4 poolId
      * @param assetFeesToAssetBuybackWad Percentage of asset fees to asset buyback
@@ -781,31 +1075,93 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         address buybackDst = getPoolInfo[poolId].buybackDst;
         require(msg.sender == buybackDst, SenderNotAuthorized());
 
-        FeeDistributionInfo memory feeDistributionInfo = FeeDistributionInfo({
-            assetFeesToAssetBuybackWad: assetFeesToAssetBuybackWad,
-            assetFeesToNumeraireBuybackWad: assetFeesToNumeraireBuybackWad,
-            assetFeesToBeneficiaryWad: assetFeesToBeneficiaryWad,
-            assetFeesToLpWad: assetFeesToLpWad,
-            numeraireFeesToAssetBuybackWad: numeraireFeesToAssetBuybackWad,
-            numeraireFeesToNumeraireBuybackWad: numeraireFeesToNumeraireBuybackWad,
-            numeraireFeesToBeneficiaryWad: numeraireFeesToBeneficiaryWad,
-            numeraireFeesToLpWad: numeraireFeesToLpWad
+        _validateFeeDistribution(
+            assetFeesToAssetBuybackWad,
+            assetFeesToNumeraireBuybackWad,
+            assetFeesToBeneficiaryWad,
+            assetFeesToLpWad,
+            numeraireFeesToAssetBuybackWad,
+            numeraireFeesToNumeraireBuybackWad,
+            numeraireFeesToBeneficiaryWad,
+            numeraireFeesToLpWad
+        );
+        _feeDistributionInfo[poolId] = FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: uint64(assetFeesToAssetBuybackWad),
+            assetFeesToNumeraireBuybackWad: uint64(assetFeesToNumeraireBuybackWad),
+            assetFeesToBeneficiaryWad: uint64(assetFeesToBeneficiaryWad),
+            assetFeesToLpWad: uint64(assetFeesToLpWad),
+            numeraireFeesToAssetBuybackWad: uint64(numeraireFeesToAssetBuybackWad),
+            numeraireFeesToNumeraireBuybackWad: uint64(numeraireFeesToNumeraireBuybackWad),
+            numeraireFeesToBeneficiaryWad: uint64(numeraireFeesToBeneficiaryWad),
+            numeraireFeesToLpWad: uint64(numeraireFeesToLpWad)
         });
-        _validateFeeDistribution(feeDistributionInfo);
-        getFeeDistributionInfo[poolId] = feeDistributionInfo;
+    }
+
+    function _validateFeeDistribution(
+        uint256 assetFeesToAssetBuybackWad,
+        uint256 assetFeesToNumeraireBuybackWad,
+        uint256 assetFeesToBeneficiaryWad,
+        uint256 assetFeesToLpWad,
+        uint256 numeraireFeesToAssetBuybackWad,
+        uint256 numeraireFeesToNumeraireBuybackWad,
+        uint256 numeraireFeesToBeneficiaryWad,
+        uint256 numeraireFeesToLpWad
+    ) internal pure {
+        require(
+            assetFeesToAssetBuybackWad + assetFeesToNumeraireBuybackWad + assetFeesToBeneficiaryWad + assetFeesToLpWad
+                == WAD,
+            FeeDistributionMustAddUpToWAD()
+        );
+        require(
+            numeraireFeesToAssetBuybackWad + numeraireFeesToNumeraireBuybackWad + numeraireFeesToBeneficiaryWad
+                    + numeraireFeesToLpWad == WAD,
+            FeeDistributionMustAddUpToWAD()
+        );
     }
 
     function _validateFeeDistribution(FeeDistributionInfo memory feeDistributionInfo) internal pure {
         require(
-            feeDistributionInfo.assetFeesToAssetBuybackWad + feeDistributionInfo.assetFeesToNumeraireBuybackWad
+            uint256(feeDistributionInfo.assetFeesToAssetBuybackWad) + feeDistributionInfo.assetFeesToNumeraireBuybackWad
                     + feeDistributionInfo.assetFeesToBeneficiaryWad + feeDistributionInfo.assetFeesToLpWad == WAD,
             FeeDistributionMustAddUpToWAD()
         );
         require(
-            feeDistributionInfo.numeraireFeesToAssetBuybackWad + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
+            uint256(feeDistributionInfo.numeraireFeesToAssetBuybackWad)
+                    + feeDistributionInfo.numeraireFeesToNumeraireBuybackWad
                     + feeDistributionInfo.numeraireFeesToBeneficiaryWad + feeDistributionInfo.numeraireFeesToLpWad
                 == WAD,
             FeeDistributionMustAddUpToWAD()
+        );
+    }
+
+    /**
+     * @dev Validates the immutable integrator fee share and initial mutable routing configuration.
+     */
+    function _validateIntegratorInitConfig(IntegratorInitConfig memory config) internal pure {
+        require(config.feeShare <= MAX_INTEGRATOR_FEE_SHARE, IntegratorFeeShareTooHigh());
+        _validateIntegratorConversionRatios(config.assetFeesToNumeraireRatio, config.numeraireFeesToAssetRatio);
+        if (config.feeShare == 0) {
+            require(config.integrator == address(0), InvalidIntegrator());
+            require(
+                config.assetFeesToNumeraireRatio == 0 && config.numeraireFeesToAssetRatio == 0,
+                InvalidIntegratorConversionRatio()
+            );
+        } else {
+            require(config.integrator != address(0), InvalidIntegrator());
+        }
+    }
+
+    /**
+     * @dev Validates both independent per-source conversion ratios.
+     */
+    function _validateIntegratorConversionRatios(
+        uint32 assetFeesToNumeraireRatio,
+        uint32 numeraireFeesToAssetRatio
+    ) internal pure {
+        require(
+            assetFeesToNumeraireRatio <= INTEGRATOR_CONVERSION_RATIO_DENOMINATOR
+                && numeraireFeesToAssetRatio <= INTEGRATOR_CONVERSION_RATIO_DENOMINATOR,
+            InvalidIntegratorConversionRatio()
         );
     }
 
@@ -822,26 +1178,28 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
     }
 
     /**
-     * @dev Returns the current fee for a pool, applying the decaying fee schedule
+     * @dev Returns the current Rehype fee and immutable integrator fee share from their shared storage slot.
      * @param poolId Uniswap V4 poolId
-     * @return currentFee The current fee rate
+     * @return currentFee The current Rehype fee rate
+     * @return integratorFeeShare The immutable integrator share of gross Rehype fees
      */
-    function _getCurrentFee(PoolId poolId) internal returns (uint24 currentFee) {
-        FeeSchedule memory schedule = getFeeSchedule[poolId];
+    function _getCurrentFee(PoolId poolId) internal returns (uint24 currentFee, uint24 integratorFeeShare) {
+        FeeSchedule memory schedule = _feeSchedule[poolId];
+        integratorFeeShare = schedule.integratorFeeShare;
 
         // No decay: startFee == endFee or durationSeconds == 0
         if (schedule.startFee == schedule.endFee || schedule.durationSeconds == 0) {
-            return schedule.startFee;
+            return (schedule.startFee, integratorFeeShare);
         }
 
         // Already fully decayed
         if (schedule.lastFee == schedule.endFee) {
-            return schedule.endFee;
+            return (schedule.endFee, integratorFeeShare);
         }
 
         // Before schedule start
         if (block.timestamp <= schedule.startingTime) {
-            return schedule.startFee;
+            return (schedule.startFee, integratorFeeShare);
         }
 
         uint256 elapsed = block.timestamp - schedule.startingTime;
@@ -854,11 +1212,11 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
 
         // Only write to storage if the fee has changed (optimization to avoid redundant writes)
         if (currentFee < schedule.lastFee) {
-            getFeeSchedule[poolId].lastFee = currentFee;
+            _feeSchedule[poolId].lastFee = currentFee;
             emit FeeUpdated(poolId, currentFee);
         }
 
-        return currentFee;
+        return (currentFee, integratorFeeShare);
     }
 
     /**
@@ -870,6 +1228,7 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
      * @param poolId Uniswap V4 poolId (to save gas)
      * @return feeCurrency Currency in which the fee was collected (always the unspecified token)
      * @return feeDelta Amount of fee collected in feeCurrency
+     * @return integratorFeeShare Immutable integrator share of gross Rehype fees
      */
     function _collectSwapFees(
         address sender,
@@ -877,11 +1236,12 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
         BalanceDelta delta,
         PoolKey memory key,
         PoolId poolId
-    ) internal returns (Currency feeCurrency, int128 feeDelta) {
+    ) internal returns (Currency feeCurrency, int128 feeDelta, uint24 integratorFeeShare) {
         int256 outputAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
 
         if (outputAmount <= 0) {
-            return (feeCurrency, feeDelta);
+            integratorFeeShare = _feeSchedule[poolId].integratorFeeShare;
+            return (feeCurrency, feeDelta, integratorFeeShare);
         }
 
         bool exactInput = params.amountSpecified < 0;
@@ -907,12 +1267,16 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             _clearDevBuyExemption(poolId);
         }
 
-        uint24 currentFee = _getCurrentFee(poolId);
+        uint24 currentFee;
+        (currentFee, integratorFeeShare) = _getCurrentFee(poolId);
         uint256 feeAmount = FullMath.mulDiv(feeBase, currentFee, SWAP_FEE_DENOMINATOR);
 
-        // Calculate airlock owner fee (5% of total fee), and whether the remaining fees will be assessed.
+        // Reserve owner and integrator shares from gross fees. The fee-distribution matrix receives the exact residual.
         uint256 airlockOwnerFee = FullMath.mulDiv(feeAmount, AIRLOCK_OWNER_FEE_BPS, BPS_DENOMINATOR);
-        uint256 remainingFee = devBuyExempt ? 0 : feeAmount - airlockOwnerFee;
+        uint256 integratorFeeAmount = devBuyExempt || integratorFeeShare == 0
+            ? 0
+            : FullMath.mulDiv(feeAmount, integratorFeeShare, MILLIONTHS_DENOMINATOR);
+        uint256 remainingFee = devBuyExempt ? 0 : feeAmount - airlockOwnerFee - integratorFeeAmount;
         uint256 collectedFee = devBuyExempt ? airlockOwnerFee : feeAmount;
         uint256 balanceOfFeeCurrency = feeCurrency.balanceOf(address(poolManager));
 
@@ -930,7 +1294,53 @@ contract RehypeDopplerHookInitializer is BaseDopplerHookInitializer, FeesManager
             getHookFees[poolId].fees1 += uint128(remainingFee);
         }
 
-        return (feeCurrency, int128(uint128(collectedFee)));
+        if (integratorFeeAmount != 0) {
+            IntegratorFees memory pendingFees = getPendingIntegratorFees[poolId];
+            if (feeCurrency == key.currency0) {
+                pendingFees.fees0 = _toUint128(uint256(pendingFees.fees0) + integratorFeeAmount);
+            } else {
+                pendingFees.fees1 = _toUint128(uint256(pendingFees.fees1) + integratorFeeAmount);
+            }
+            getPendingIntegratorFees[poolId] = pendingFees;
+        }
+
+        return (feeCurrency, int128(uint128(collectedFee)), integratorFeeShare);
+    }
+
+    /**
+     * @dev Transfers a claimed currency and reverts on failure.
+     */
+    function _safeTransfer(Currency currency, address to, uint256 amount) internal {
+        address token = Currency.unwrap(currency);
+        if (token == address(0)) {
+            SafeTransferLib.safeTransferETH(to, amount);
+        } else {
+            SafeTransferLib.safeTransfer(token, to, amount);
+        }
+    }
+
+    /**
+     * @dev Attempts an automatic payout without allowing its recipient to halt pool swaps.
+     * Native transfers use a bounded gas stipend. ERC-20 return data is checked without ABI decoding so malformed
+     * token responses become payout failures rather than reverting the outer swap.
+     */
+    function _tryAutomaticTransfer(Currency currency, address to, uint256 amount) internal returns (bool success) {
+        address token = Currency.unwrap(currency);
+        if (token == address(0)) {
+            return SafeTransferLib.trySafeTransferETH(to, amount, SafeTransferLib.GAS_STIPEND_NO_GRIEF);
+        }
+
+        bytes memory result;
+        (success, result) = token.call(abi.encodeWithSelector(0xa9059cbb, to, amount));
+        if (!success) return false;
+        if (result.length == 0) return token.code.length != 0;
+        if (result.length < 32) return false;
+
+        uint256 returned;
+        assembly ("memory-safe") {
+            returned := mload(add(result, 0x20))
+        }
+        return returned == 1;
     }
 
     /// @dev Checks if the call is from Airlock.create, which is possible by checking if the poolInitializer
